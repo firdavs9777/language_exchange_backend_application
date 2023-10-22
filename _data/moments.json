@@ -1,0 +1,31 @@
+[
+	{
+	
+		"title": "Seccc Post",
+		"description": "I wanna share my daily English learning phrases",
+		"location":"Seoul",
+		"image":"random/image.jpg",
+		"user": "5d7a514b5d2c12c7449be045"
+	},
+	{
+		"title": "Coding Experiencess",
+		"description": "I wanna share my daily coding exercise with you guys",
+		"location":"Seoul",
+		"image":"random/image.jpg",
+		"user": "5d7a514b5d2c12c7449be046"
+	},
+	{
+	    "title": "French Learning",
+		"description": "I wanna share my daily french learning phrases",
+		"location":"Italy",
+		"image":"random/image.jpg",
+		"user": "5d7a514b5d2c12c7449be046"
+	},
+	{
+	    "title": "First Post",
+		"description": "I wanna share my daily English learning phrases",
+		"location":"Seoul",
+		"image":"random/image.jpg",
+		"user": "5c8a1d5b0190b214360dc031"
+	}
+]
