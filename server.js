@@ -33,7 +33,8 @@ const messages = require('./routes/messages');
 const users = require('./routes/users');
 // Language List 
 const languages = require('./routes/languages');
-
+// Comments List 
+const comments = require('./routes/comment');
 const app = express();
 // Cookie
 app.use(cookieParser());
@@ -80,7 +81,7 @@ app.use('/api/v1/auth', auth);
 app.use('/api/v1/messages', messages);
 app.use('/api/v1/auth/users', users);
 app.use('/api/v1/languages', languages)
-// app.use('/api/v1/reviews', reviews);
+app.use('/api/v1/comments', comments);
 app.use(errorHandler);
 io.on('connection', () => {
   console.log('a user is connected');

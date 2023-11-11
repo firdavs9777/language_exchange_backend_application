@@ -10,6 +10,7 @@ dotenv.config({ path: './config/config.env' });
 const Moment = require('./models/Moment');
 const User = require('./models/User');
 const Languages = require('./models/Language');
+const Comments = require('./models/Comment');
 // Connect to database
 mongoose.connect(process.env.MONGO_URI, {
   useUnifiedTopology: true
@@ -28,7 +29,9 @@ const languages = JSON.parse(
 );
 
 // Read JSON Files 
-
+const comments = JSON.parse(
+  fs.readFileSync(`${__dirname}/_data/comments.json`, 'utf-8')
+);
 
 // importData into DB
 const importData = async () => {
@@ -36,6 +39,7 @@ const importData = async () => {
     await Moment.create(moments);
     await User.create(users);
     await Languages.create(languages);
+    await Comments.create(comments);
     console.log('Data Imported...'.green.inverse);
     process.exit();
   } catch (err) {
@@ -49,6 +53,7 @@ const deleteData = async () => {
     await Moment.deleteMany();
     await User.deleteMany();
     await Languages.deleteMany();
+    await Comments.deleteMany();
     console.log('Data Destroyed...'.red.inverse);
     process.exit();
   } catch (err) {
