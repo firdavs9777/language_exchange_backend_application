@@ -1,6 +1,6 @@
 {
-  "name": "devcamper_api",
-  "version": "1.0.0",
+  "name": "bananatalk_api",
+  "version": "1.0.1",
   "description": "backend api",
   "main": "server.js",
   "scripts": {

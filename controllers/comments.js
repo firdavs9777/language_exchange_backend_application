@@ -50,7 +50,6 @@ exports.getComment = asyncHandler(async (req, res, next) => {
 //@access Private
 
 exports.createComment = asyncHandler(async (req, res, next) => {
-
     req.body.moment = req.params.momentId;
     req.body.user = req.user.id;
     console.log('Show user id', req.user.id)

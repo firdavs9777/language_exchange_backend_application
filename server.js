@@ -47,7 +47,7 @@ if (process.env.NODE_ENV === 'development') {
 app.use(
   fileUpload({
     limits: {
-      fileSize: 10240, // Around 10MB
+      fileSize: 100240, // Around 10MB
     },
     abortOnLimit: true,
     createParentPath: true
