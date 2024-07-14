@@ -8,9 +8,11 @@ const crypto = require('crypto');
 //@route Post /api/v1/auth/register
 //@access Public
 exports.register = asyncHandler(async (req, res, next) => {
-  const { name, email, password, birth_year, birth_month, birth_day, image, native_language, language_to_learn,bio } =
-    req.body;
-  const user = await User.create({
+  // const file = req.file;
+  const { name, email, password, bio, birth_year, birth_month, birth_day, image, native_language, language_to_learn } = req.body;
+  req.body;
+    // const imageBase64 = fs.readFileSync(file.path, 'base64');
+    const user = await User.create({
     name,
     email,
     bio,
@@ -22,6 +24,7 @@ exports.register = asyncHandler(async (req, res, next) => {
     native_language,
     language_to_learn
   });
+
   sendTokenResponse(user, 200, res);
 });
 
@@ -30,7 +33,7 @@ exports.register = asyncHandler(async (req, res, next) => {
 //@access Public
 exports.login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
-
+  console.log(req.body);
   // Validate email and password
   if (!email || !password) {
     return next(

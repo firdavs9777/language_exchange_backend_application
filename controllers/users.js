@@ -10,7 +10,8 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
   const users = await User.find();
   res.status(200).json({
     success: true,
-    data: users
+    count: users.length,
+    data: users,
   });
 });
 //@desc Get single user
