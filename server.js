@@ -35,6 +35,8 @@ const users = require('./routes/users');
 const languages = require('./routes/languages');
 // Comments List 
 const comments = require('./routes/comment');
+const Message = require('./models/Message');
+
 const app = express();
 // Cookie
 app.use(cookieParser());
@@ -47,12 +49,15 @@ if (process.env.NODE_ENV === 'development') {
 app.use(
   fileUpload({
     limits: {
-      fileSize: 100240, // Around 10MB
+      fileSize:  10 * 1024 * 1024, // Around 10MB
     },
     abortOnLimit: true,
     createParentPath: true
   })
 );
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // Sanitize Data
 app.use(mongoSanitize());
@@ -65,7 +70,7 @@ app.use(xss());
 // Rate Limiting
 const limiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 mins
-  max: 1000
+  max: 10000
 });
 app.use(limiter);
 // Prevent http param pollution
@@ -83,9 +88,22 @@ app.use('/api/v1/auth/users', users);
 app.use('/api/v1/languages', languages)
 app.use('/api/v1/comments', comments);
 app.use(errorHandler);
-io.on('connection', () => {
-  console.log('a user is connected');
+
+// Socket.io connection
+io.on('connection', (socket) => {
+  console.log('New client connected');
+
+  socket.on('sendMessage', async ({ sender, receiver, message }) => {
+    const newMessage = await Message.create({ sender, receiver, message });
+    io.emit('message', newMessage); // Emit to all clients or filter based on user
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected');
+  });
 });
+
+
 // ENV PORT name loaded
 const PORT = process.env.PORT || 5000;
 const server = app.listen(

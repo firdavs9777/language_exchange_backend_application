@@ -9,13 +9,14 @@ const crypto = require('crypto');
 //@access Public
 exports.register = asyncHandler(async (req, res, next) => {
   // const file = req.file;
-  const { name, email, password, bio, birth_year, birth_month, birth_day, image, native_language, language_to_learn } = req.body;
+  const { name, email,gender, password, bio, birth_year, birth_month, birth_day, image, native_language, language_to_learn } = req.body;
   req.body;
     // const imageBase64 = fs.readFileSync(file.path, 'base64');
     const user = await User.create({
     name,
     email,
     bio,
+    gender,
     password,
     birth_year,
     birth_month,
@@ -73,11 +74,26 @@ exports.logout = asyncHandler(async (req, res, next) => {
 //@route Post /api/v1/auth/me
 //@access Private
 exports.getMe = asyncHandler(async (req, res, next) => {
-  const user = await User.findById(req.user.id);
-  res.status(200).json({
-    success: true,
-    data: user
-  });
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    const userWithImageUrls = {
+      ...user._doc,
+      imageUrls: user.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+    };
+
+    res.status(200).json({
+      success: true,
+      data: userWithImageUrls
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 //@desc  Forgot Password
@@ -192,6 +208,7 @@ const sendTokenResponse = (user, statusCode, res) => {
   res.status(statusCode).cookie('token', token, options).json({
     success: true,
     token: token,
-    option: options
+    option: options,
+    user:user
   });
 };

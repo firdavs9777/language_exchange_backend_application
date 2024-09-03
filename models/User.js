@@ -7,6 +7,10 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add a name']
   },
+  gender: {
+    type: String,
+    required: [true, 'Please add your gender'],
+  },
   email: {
     type: String,
     required: [true, 'Please add an email'],
@@ -41,10 +45,13 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add birth day']
   },
-  image: {
-    type: String,
+  images: {
+    type: [String],
     required: [true, 'Please add your image']
   },
+  // images: {
+  //   type: [String]
+  // },
   native_language:{
        type: String,
        required: [true, 'Please add your native language']

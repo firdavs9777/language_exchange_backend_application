@@ -10,7 +10,7 @@ const ErrorResponse = require('../utils/errorResponse');
 
 exports.getComments = asyncHandler(async (req, res, next) => {
     if (req.params.momentId) {
-        const comments = await Comment.find({ moment: req.params.momentId });
+        const comments = await Comment.find({ moment: req.params.momentId }).populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
        
         return res.status(200).json({
             success: true,
@@ -34,15 +34,16 @@ exports.getComments = asyncHandler(async (req, res, next) => {
 //@access Public
 
 exports.getComment = asyncHandler(async (req, res, next) => {
-    const comment = await Comment.findById(req.params.id).populate({
-        path: 'moment',
-        select: 'title description location'
-    });
+   console.log(req,res,next);
+    const comment = await Comment.findById(req.params.id)
+      .populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+  
     if (!comment) {
         return next(
             new ErrorResponse(`Comment not found with id of ${req.params.id}`, 404)
         );
     }
+    console.log(req,res);
     res.status(200).json({ success: true, data: comment });
 });
 //@desc POST Add comment

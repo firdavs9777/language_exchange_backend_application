@@ -5,7 +5,8 @@
 		"description": "I wanna share my daily English learning phrases",
 		"location":"Seoul",
 		"image":"random/image.jpg",
-		"user": "5d7a514b5d2c12c7449be045"
+		"user": "5d7a514b5d2c12c7449be045",
+		"likeCount": 1
 	},
 	{
 		"_id": "5d7a514b5d2c12c7449be021",
@@ -13,7 +14,8 @@
 		"description": "I wanna share my daily coding exercise with you guys",
 		"location":"Seoul",
 		"image":"random/image.jpg",
-		"user": "5d7a514b5d2c12c7449be046"
+		"user": "5d7a514b5d2c12c7449be046",
+		"likeCount": 2
 	},
 	{
 		"_id": "5d7a514b5d2c12c7449be022",
@@ -21,7 +23,8 @@
 		"description": "I wanna share my daily french learning phrases",
 		"location":"Italy",
 		"image":"random/image.jpg",
-		"user": "5d7a514b5d2c12c7449be046"
+		"user": "5d7a514b5d2c12c7449be046",
+		"likeCount": 3
 	},
 	{
 		"_id": "5d7a514b5d2c12c7449be023",
@@ -29,6 +32,7 @@
 		"description": "I wanna share my daily English learning phrases",
 		"location":"Seoul",
 		"image":"random/image.jpg",
-		"user": "5c8a1d5b0190b214360dc031"
+		"user": "5c8a1d5b0190b214360dc031",
+		"likeCount": 1
 	}
 ]
