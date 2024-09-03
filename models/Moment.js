@@ -14,10 +14,15 @@ const MomentSchema = new mongoose.Schema({
     ref: 'User',
     required: [true,'Author is required for the schema']
   },
+  comments: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Comment',
+  },
   likeCount: {
     type: Number,
     default: 0 
   },
+  likedUsers: [mongoose.Schema.Types.ObjectId],
   slug: String,
   description: {
     type: String,

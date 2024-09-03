@@ -9,10 +9,10 @@ const crypto = require('crypto');
 //@access Public
 exports.register = asyncHandler(async (req, res, next) => {
   // const file = req.file;
-  const { name, email,gender, password, bio, birth_year, birth_month, birth_day, image, native_language, language_to_learn } = req.body;
+  const { name, email, gender, password, bio, birth_year, birth_month, birth_day, image, native_language, language_to_learn } = req.body;
   req.body;
-    // const imageBase64 = fs.readFileSync(file.path, 'base64');
-    const user = await User.create({
+  // const imageBase64 = fs.readFileSync(file.path, 'base64');
+  const user = await User.create({
     name,
     email,
     bio,
@@ -25,23 +25,19 @@ exports.register = asyncHandler(async (req, res, next) => {
     native_language,
     language_to_learn
   });
-
   sendTokenResponse(user, 200, res);
 });
-
 //@desc  User Login
 //@route Post /api/v1/auth/login
 //@access Public
 exports.login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
-  console.log(req.body);
   // Validate email and password
   if (!email || !password) {
     return next(
       new ErrorResponse('Please provide and email and password', 400)
     );
   }
-
   // Check for user
   const user = await User.findOne({ email }).select('+password');
   if (!user) {
@@ -49,7 +45,6 @@ exports.login = asyncHandler(async (req, res, next) => {
   }
   // check if password matches
   const isMatch = await user.matchPassword(password);
-
   if (!isMatch) {
     return next(new ErrorResponse('Invalid credentials', 401));
   }
@@ -76,16 +71,13 @@ exports.logout = asyncHandler(async (req, res, next) => {
 exports.getMe = asyncHandler(async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
-
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
-
     const userWithImageUrls = {
       ...user._doc,
       imageUrls: user.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
     };
-
     res.status(200).json({
       success: true,
       data: userWithImageUrls
@@ -106,7 +98,6 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   }
   // Get reset token
   const resetToken = user.getResetPasswordToken();
-  console.log(resetToken);
   await user.save({ validateBeforeSave: false });
 
   // Create rest url
@@ -122,7 +113,6 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
     });
     res.status(200).json({ success: true, data: 'Email sent' });
   } catch (err) {
-    console.log(err.name);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpire = undefined;
     await user.save({ validateBeforeSave: false });
@@ -140,7 +130,6 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
     .createHash('sha256')
     .update(req.params.resettoken)
     .digest('hex');
-
   const user = await User.findOne({
     resetPasswordToken,
     resetPasswordExpire: { $gt: Date.now() }
@@ -155,24 +144,56 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
   sendTokenResponse(user, 200, res);
 });
 
-// @desc  Update User Info
-//@route Put /api/v1/auth/updatedetails
-//@access Private
+// @desc Update User Info
+// @route Put /api/v1/auth/updatedetails
+// @access Private
 exports.updateDetails = asyncHandler(async (req, res, next) => {
+  // Extract the fields to update from the request body
+  const {
+    name,
+    email,
+    gender,
+    bio,
+    birth_year,
+    birth_month,
+    birth_day,
+    images,
+    native_language,
+    language_to_learn
+  } = req.body;
+
+  // Construct the fieldsToUpdate object with all the fields
   const fieldsToUpdate = {
-    name: req.body.name,
-    email: req.body.email
+    name,
+    email,
+    gender,
+    bio,
+    birth_year,
+    birth_month,
+    birth_day,
+    images,
+    native_language,
+    language_to_learn
   };
-  console.log(fieldsToUpdate);
+
+  // Find and update the user
   const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
     new: true,
     runValidators: true
   });
+
+  // If user is not found
+  if (!user) {
+    return next(new ErrorResponse(`No user found with id of ${req.user.id}`, 404));
+  }
+
+  // Send response
   res.status(200).json({
     success: true,
     data: user
   });
 });
+
 
 //@desc  Update Password
 //@route PUT /api/v1/auth/updatepassword
@@ -209,6 +230,6 @@ const sendTokenResponse = (user, statusCode, res) => {
     success: true,
     token: token,
     option: options,
-    user:user
+    user: user
   });
 };
