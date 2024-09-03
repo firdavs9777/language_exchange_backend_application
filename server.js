@@ -79,6 +79,9 @@ app.use(hpp());
 app.use(cors());
 app.use(express.static(path.join(__dirname, 'public')));
 // Mount routers
+app.get('/test', (req, res) => {
+  res.send('Test route is working!');
+});
 app.use('/api/v1/moments', moments);
 // app.use('/api/v1/courses', courses);
 app.use('/api/v1/auth', auth);
