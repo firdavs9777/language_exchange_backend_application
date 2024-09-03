@@ -9,43 +9,74 @@ const ErrorResponse = require('../utils/errorResponse');
 //@access Public
 
 exports.getComments = asyncHandler(async (req, res, next) => {
+    let comments;
     if (req.params.momentId) {
-        const comments = await Comment.find({ moment: req.params.momentId }).populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
-       
-        return res.status(200).json({
-            success: true,
-            count: comments.length,
-            data: comments
-        });
+        comments = await Comment.find({ moment: req.params.momentId })
+            .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+    } else {
+        comments = await Comment.find()
+            .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
     }
-    else {
-        const comments = await Comment.find()
-        console.log(comments)
-        res.status(200).json({
-            success: true,
-            data: comments,
-            count: comments.length
-        });
-    }
+
+    // Extract user images and map them to URLs
+    comments = comments.map(comment => {
+        const userImages = comment.user.images || [];
+        const imageUrls = userImages.map(image =>
+            `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        );
+
+        return {
+            ...comment._doc,
+            user: {
+                ...comment.user._doc,
+                imageUrls
+            }
+        };
+    });
+
+    res.status(200).json({
+        success: true,
+        count: comments.length,
+        data: comments
+    });
 });
 
+
 //@desc Get single comment
-//@route Get /api/v1/:momentId/comments
+//@route Get /api/v1/:momentId/comments/:id
 //@access Public
 
 exports.getComment = asyncHandler(async (req, res, next) => {
-   console.log(req,res,next);
     const comment = await Comment.findById(req.params.id)
-      .populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
-  
+        .populate('user', 'name email images bio birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+
     if (!comment) {
         return next(
             new ErrorResponse(`Comment not found with id of ${req.params.id}`, 404)
         );
     }
-    console.log(req,res);
-    res.status(200).json({ success: true, data: comment });
+
+    // Extract user images and map them to URLs
+    const userImages = comment.user.images || [];
+    const imageUrls = userImages.map(image =>
+        `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+    );
+
+    // Construct the response object
+    const commentWithImages = {
+        ...comment._doc,
+        user: {
+            ...comment.user._doc,
+            imageUrls
+        }
+    };
+
+    res.status(200).json({
+        success: true,
+        data: commentWithImages
+    });
 });
+
 //@desc POST Add comment
 //@route POST /api/v1/moments/:momentId/comments
 //@access Private

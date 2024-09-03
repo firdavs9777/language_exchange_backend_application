@@ -7,20 +7,27 @@ const {
   updateMoment,
   deleteMoment,
   momentPhotoUpload,
-  getUserMoments
+  getUserMoments,
+  likeMoment,
+  dislikeMoment
 } = require('../controllers/moments');
 const advancedResults = require('../middleware/advancedResults');
 const commentRouter = require('./comment')
 const router = express.Router();
-// const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 
 router.use('/:momentId/comments',commentRouter)
 router
   .route('/')
   .get(advancedResults(Moment, ''), getMoments)
-  .post(createMoment);
+  .post(protect,createMoment);
 router.route('/:id').get(getMoment).put(updateMoment).delete(deleteMoment);
 router.route('/:id/photo').put(momentPhotoUpload);
 router.route('/user/:userId').get(advancedResults(Moment, ''), getUserMoments)
-
+router
+  .route('/:id/like')
+  .post(likeMoment);
+  router
+  .route('/:id/dislike')
+  .post(dislikeMoment);
 module.exports = router;

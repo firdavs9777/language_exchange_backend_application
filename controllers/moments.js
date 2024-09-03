@@ -2,7 +2,6 @@ const path = require('path');
 const asyncHandler = require('../middleware/async');
 const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
-const uploadFile = require('../middleware/upload');
 
 //@desc Get all moments
 //@route Get /api/v1/moments
@@ -34,21 +33,42 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
   }
 });
 
-//@desc Get single moments
-//@route Get /api/v1/moments/:id
-//@access Public
-
+// @desc Get single moment
+// @route Get /api/v1/moments/:id
+// @access Public
 exports.getMoment = asyncHandler(async (req, res, next) => {
+  // Find the moment by ID and populate user details
   const moment = await Moment.findById(req.params.id)
-    .populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+    .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
+    .populate('comments', 'text user moment');
 
+  // Check if moment exists
   if (!moment) {
     return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
   }
+  if(moment.likeCount < 0)
+  {
+        moment.likeCount = 0
+  }
+  // Construct image URLs
+  const imageUrls = (moment.images || []).map(image => 
+    `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+  );
+  const userImages = (moment.user.images || []).map(image => 
+    `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+  );
+
+  // Create response object with image URLs
   const momentsWithImages = {
     ...moment._doc,
-    imageUrls: moment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
-  }  
+    imageUrls, 
+    user: {
+      ...moment.user._doc,
+      imageUrls: userImages
+    }
+  };
+
+  // Send response
   res.status(200).json({
     success: true,
     data: momentsWithImages
@@ -120,7 +140,7 @@ exports.deleteMoment = asyncHandler(async (req, res, next) => {
 //@access Private
 
 exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
-  console.log(req,res);
+
   const moment = await Moment.findById(req.params.id);
   if (!moment) {
     return next(
@@ -156,8 +176,10 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
   moment.images = moment.images.concat(imageFiles);
 
   // Save the updated moment
+  console.log('Request',req);
+  console.log('Response',res)
   await moment.save();
-  console.log(res);
+
 
   res.status(200).json({
     success: true,
@@ -179,6 +201,85 @@ exports.getUserMoments = asyncHandler(async (req, res, next) => {
       count:moments.length,
       data: moments,
    
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+
+//@desc Like a moment
+//@route POST /api/v1/moments/:id/like
+//@access Private
+exports.likeMoment = asyncHandler(async (req, res, next) => {
+  try {
+    const moment = await Moment.findById(req.params.id);
+
+    if (!moment) {
+      return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+    }
+
+    const userId = req.body.userId; // Ensure this user ID is obtained from request body or session
+
+    // Check if the user has already liked this moment
+    if (moment.likedUsers.includes(userId)) {
+      return res.status(400).json({ message: 'You have already liked this moment' });
+    }
+
+    // Add user to likedUsers and increment likeCount
+    moment.likedUsers.push(userId);
+    if(moment.likeCount < 0)
+    {
+        moment.likeCount = 0
+    }
+    moment.likeCount += 1;
+
+    await moment.save();
+
+    res.status(200).json({
+      success: true,
+      data: moment
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+//@desc Like a moment
+//@route POST /api/v1/moments/:id/dislike
+//@access Private
+exports.dislikeMoment = asyncHandler(async (req, res, next) => {
+  try {
+    const moment = await Moment.findById(req.params.id);
+    console.log(res.message)
+
+    if (!moment) {
+      return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+    }
+
+    const userId = req.body.userId; // Ensure this user ID is obtained from request body or session
+
+    // Check if the user has already liked this moment
+    // if (moment.likedUsers.includes(userId)) {
+    //   return res.status(400).json({ message: 'You have already disliked' });
+    // }
+
+    // remove the user from the list of array
+    moment.likedUsers = moment.likedUsers.filter(user => user.toString() !== userId);
+    if(moment.likeCount < 0)
+    {
+      moment.likeCount = 0
+    }
+    moment.likeCount -= 1;
+
+    await moment.save();
+
+    res.status(200).json({
+      success: true,
+      data: moment
     });
   } catch (err) {
     console.error(err);
