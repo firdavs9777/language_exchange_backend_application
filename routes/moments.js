@@ -5,7 +5,9 @@ const {
   getMoment,
   createMoment,
   updateMoment,
-  deleteMoment
+  deleteMoment,
+  momentPhotoUpload,
+  getUserMoments
 } = require('../controllers/moments');
 const advancedResults = require('../middleware/advancedResults');
 const commentRouter = require('./comment')
@@ -18,4 +20,7 @@ router
   .get(advancedResults(Moment, ''), getMoments)
   .post(createMoment);
 router.route('/:id').get(getMoment).put(updateMoment).delete(deleteMoment);
+router.route('/:id/photo').put(momentPhotoUpload);
+router.route('/user/:userId').get(advancedResults(Moment, ''), getUserMoments)
+
 module.exports = router;

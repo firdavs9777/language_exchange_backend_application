@@ -4,15 +4,25 @@ const slugify = require('slugify');
 const MomentSchema = new mongoose.Schema({
   title: {
     type: String,
+    unique: false,
     required: [true, ' Please add a title'],
     trim: true,
     maxlength: [50, 'Title can not be more than 50 characters']
+  },
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true,'Author is required for the schema']
+  },
+  likeCount: {
+    type: Number,
+    default: 0 
   },
   slug: String,
   description: {
     type: String,
     required: [true, 'Please add a description'],
-    maxlength: [500, 'Name can not be more than 50 characters']
+    maxlength: [1000, 'Description can not be more than 500 characters']
   },
   location: {
     location: {
@@ -33,9 +43,8 @@ const MomentSchema = new mongoose.Schema({
       country: String
     }
   },
-  image: {
-    type: String,
-    default: 'no-photo.jpg'
+  images: {
+    type: [String]
   },
   createdAt: {
     type: Date,

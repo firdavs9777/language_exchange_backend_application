@@ -3,7 +3,8 @@ const {
   getUser,
   createUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  userPhotoUpload
 } = require('../controllers/users');
 const express = require('express');
 const User = require('../models/User');
@@ -13,6 +14,7 @@ const router = express.Router({ mergeParams: true });
 // router.use(protect);
 // router.use(authorize('admin'));
 router.route('/').get(getUsers).post(createUser);
+router.route('/:id/photo').put(userPhotoUpload);
 router.route('/:id').get(getUser).put(updateUser).delete(deleteUser);
 
 module.exports = router;

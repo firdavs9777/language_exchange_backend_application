@@ -5,9 +5,11 @@
 		"email": "admin@gmail.com",
 		"password": "123456",
 		"birth_year": "1997",
+		"gender":"female",
 		"birth_month": "January",
 		"birth_day": "02",
-		"image":"random.png",
+		"images":
+		["image_picker_28545023-907A-4334-B159-B2A041720E53-24463-000000FE8812F9F7.jpg-1720941353465.jpg"],
 		"native_language":"English",
 		"language_to_learn":"Korean",
 		"bio":"Football and Soccer"
@@ -20,7 +22,9 @@
 		"birth_year": "1997",
 		"birth_month": "January",
 		"birth_day": "02",
-		"image":"random.png",
+		"gender":"female",
+		"images":
+		["image_picker_28545023-907A-4334-B159-B2A041720E53-24463-000000FE8812F9F7.jpg-1720941353465.jpg"],	
 		"native_language":"English",
 		"language_to_learn":"Korean",
 		"bio":"Football and Soccer"
@@ -33,7 +37,10 @@
 		"birth_year": "1997",
 		"birth_month": "January",
 		"birth_day": "02",
-		"image":"random.png",
+		"images":
+		["image_picker_28545023-907A-4334-B159-B2A041720E53-24463-000000FE8812F9F7.jpg-1720941353465.jpg"],			
+		
+		"gender":"female",
 		"native_language":"English",
 		"language_to_learn":"Korean",
 		"bio":"Football and Soccer"
@@ -46,7 +53,9 @@
 		"birth_year": "1997",
 		"birth_month": "January",
 		"birth_day": "02",
-		"image":"random.png",
+		"gender":"female",
+		"images":
+		["image_picker_28545023-907A-4334-B159-B2A041720E53-24463-000000FE8812F9F7.jpg-1720941353465.jpg"],	
 		"native_language":"English",
 		"language_to_learn":"Korean",
 		"bio":"Football and Soccer"
@@ -59,7 +68,9 @@
 		"birth_year": "1997",
 		"birth_month": "January",
 		"birth_day": "02",
-		"image":"random.png",
+		"gender":"female",
+		"images":
+		["image_picker_28545023-907A-4334-B159-B2A041720E53-24463-000000FE8812F9F7.jpg-1720941353465.jpg"],	
 		"native_language":"English",
 		"language_to_learn":"Korean",
 		"bio":"Football and Soccer"
@@ -72,7 +83,10 @@
 		"birth_year": "1997",
 		"birth_month": "January",
 		"birth_day": "02",
-		"image":"random.png",
+		"gender":"female",
+		"images":
+		["image_picker_28545023-907A-4334-B159-B2A041720E53-24463-000000FE8812F9F7.jpg-1720941353465.jpg"],	
+		
 		"native_language":"English",
 		"language_to_learn":"Korean",
 		"bio":"Football and Soccer"
