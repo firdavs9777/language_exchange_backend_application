@@ -4,16 +4,23 @@ const {
   createUser,
   updateUser,
   deleteUser,
-  userPhotoUpload
+  userPhotoUpload,
+  followUser,
+  unfollowUser,
+  getFollowing,
+  getFollowers
 } = require('../controllers/users');
 const express = require('express');
-const User = require('../models/User');
 const advancedResults = require('../middleware/advancedResults');
-const { protect, authorize } = require('../middleware/auth');
+// const { protect, authorize } = require('../middleware/auth');
 const router = express.Router({ mergeParams: true });
 // router.use(protect);
 // router.use(authorize('admin'));
 router.route('/').get(getUsers).post(createUser);
+router.route('/:userId/follow/:targetUserId').put(followUser);
+router.route('/:userId/unfollow/:targetUserId').put(unfollowUser);
+router.route('/:userId/followers').get(getFollowers);
+router.route('/:userId/following').get(getFollowing);
 router.route('/:id/photo').put(userPhotoUpload);
 router.route('/:id').get(getUser).put(updateUser).delete(deleteUser);
 

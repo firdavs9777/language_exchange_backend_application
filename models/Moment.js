@@ -12,17 +12,24 @@ const MomentSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true,'Author is required for the schema']
+    required: [true, 'Author is required for the schema']
   },
   comments: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: [mongoose.Schema.Types.Array],
     ref: 'Comment',
+  },
+  commentCount: {
+    type: Number,
+    default: 0
   },
   likeCount: {
     type: Number,
-    default: 0 
+    default: 0
   },
-  likedUsers: [mongoose.Schema.Types.ObjectId],
+  likedUsers: {
+    type: [mongoose.Schema.Types.ObjectId],
+    ref: 'User'
+  },
   slug: String,
   description: {
     type: String,
@@ -30,23 +37,21 @@ const MomentSchema = new mongoose.Schema({
     maxlength: [1000, 'Description can not be more than 500 characters']
   },
   location: {
-    location: {
-      // GeoJSON Point
-      type: {
-        type: String,
-        enum: ['Point']
-      },
-      coordinates: {
-        type: [Number],
-        index: '2dsphere'
-      },
-      formattedAddress: String,
-      street: String,
-      city: String,
-      state: String,
-      zipcode: String,
-      country: String
-    }
+    // GeoJSON Point
+    type: {
+      type: String,
+      enum: ['Point']
+    },
+    coordinates: {
+      type: [Number],
+      index: '2dsphere'
+    },
+    formattedAddress: String,
+    street: String,
+    city: String,
+    state: String,
+    zipcode: String,
+    country: String
   },
   images: {
     type: [String]
