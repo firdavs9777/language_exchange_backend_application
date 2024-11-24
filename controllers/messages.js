@@ -182,34 +182,34 @@ exports.getConversation = asyncHandler(async (req, res, next) => {
       { sender: receiverId, receiver: senderId }
     ]
   })
-    .populate('sender', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt')
-    .populate('receiver', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt')
+    .populate('sender', 'name email bio birth_day birth_month gender birth_year native_language images language_to_learn createdAt')
+    .populate('receiver', 'name email bio birth_day birth_month gender birth_year native_language images language_to_learn createdAt')
     .sort({ timeStamp: 1 }); // Sort messages by creation date in ascending order
-
-    console.log(messages);
-  // Transform the messages to include image URLs
-  // const messagesWithImageUrls = messages.map(message => ({
-  //   ...message._doc,
-  //   sender: {
-  //     ...message.sender._doc,
-  //     imageUrls: message.sender.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
-  //   },
-  //   receiver: {
-  //     ...message.receiver._doc,
-  //     imageUrls: message.receiver.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
-  //   }
-  // }));
 
   // Check if messages exist
   if (messages.length === 0) {
     return next(new ErrorResponse('No messages found for the given conversation', 404));
   }
 
+  // Transform the messages to include image URLs
+  const messagesWithImageUrls = messages.map(message => ({
+    ...message._doc,
+    sender: {
+      ...message.sender._doc,
+      imageUrls: message.sender.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+    },
+    receiver: {
+      ...message.receiver._doc,
+      imageUrls: message.receiver.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+    }
+  }));
+
   res.status(200).json({
     success: true,
-    data: messages,
+    data: messagesWithImageUrls,
   });
 });
+
 
 
 //@desc Update Moment

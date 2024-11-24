@@ -14,21 +14,24 @@ const ErrorResponse = require('../utils/errorResponse');
 exports.getMoments = asyncHandler(async (req, res, next) => {
   try {
     const moments = await Moment.find().populate('user', 'name email bio image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
+
     const momentsWithImages = moments.map(moment => {
       const userWithImageUrls = {
         ...moment.user._doc,
         imageUrls: moment.user.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
       };
       return {
+        commentCount: moment.comments,
         ...moment._doc,
         user: userWithImageUrls,
         imageUrls: moment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
       };
     });
 
+
     res.status(200).json(momentsWithImages);
   } catch (err) {
-    console.error(err);
+
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -38,41 +41,43 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
 // @access Public
 exports.getMoment = asyncHandler(async (req, res, next) => {
   // Find the moment by ID and populate user details
-  const moment = await Moment.findById(req.params.id)
-    .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
-    .populate('comments', 'text user moment');
 
-  // Check if moment exists
-  if (!moment) {
-    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
-  }
-  if(moment.likeCount < 0)
-  {
-        moment.likeCount = 0
-  }
-  // Construct image URLs
-  const imageUrls = (moment.images || []).map(image => 
-    `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-  );
-  const userImages = (moment.user.images || []).map(image => 
-    `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-  );
+  try {
 
-  // Create response object with image URLs
-  const momentsWithImages = {
-    ...moment._doc,
-    imageUrls, 
-    user: {
-      ...moment.user._doc,
-      imageUrls: userImages
+    const moment = await Moment.findById(req.params.id)
+      .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
+      .populate('comments', 'text user moment');
+
+    // Check if moment exists
+    if (!moment) {
+      return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
     }
-  };
+    // Construct image URLs
+    const imageUrls = (moment.images || []).map(image =>
+      `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+    );
+    const userImages = (moment.user.images || []).map(image =>
+      `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+    );
 
-  // Send response
-  res.status(200).json({
-    success: true,
-    data: momentsWithImages
-  });
+    // Create response object with image URLs
+    const momentsWithImages = {
+      ...moment._doc,
+      imageUrls,
+      user: {
+        ...moment.user._doc,
+        imageUrls: userImages
+      }
+    };
+    // Send response
+    res.status(200).json({
+      success: true,
+      data: momentsWithImages
+    });
+  }
+  catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
 });
 
 //@desc POST create Moment
@@ -80,6 +85,7 @@ exports.getMoment = asyncHandler(async (req, res, next) => {
 //@access Public
 
 exports.createMoment = asyncHandler(async (req, res, next) => {
+try {
   const moment = await Moment.create(req.body);
 
 
@@ -90,15 +96,15 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
   const momentsWithImages = {
     ...moment._doc,
     imageUrls: populatedMoment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
-  }  
+  }
   res.status(200).json({
     success: true,
     data: momentsWithImages
   });
-  // res.status(201).json({
-  //   success: true,
-  //   data: populatedMoment
-  // });
+}
+catch (error) {
+  res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+}
 });
 
 //@desc Update Moment
@@ -124,6 +130,7 @@ exports.updateMoment = asyncHandler(async (req, res, next) => {
 //@access Private
 
 exports.deleteMoment = asyncHandler(async (req, res, next) => {
+ try {
   const moment = await Moment.findByIdAndDelete(req.params.id);
   if (!moment) {
     return next(
@@ -132,6 +139,10 @@ exports.deleteMoment = asyncHandler(async (req, res, next) => {
   }
   moment.remove();
   res.status(200).json({ success: true, data: {}, message: 'Moment Deleted' });
+ }
+ catch (error) {
+  res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+}
 });
 
 
@@ -140,51 +151,52 @@ exports.deleteMoment = asyncHandler(async (req, res, next) => {
 //@access Private
 
 exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
-
-  const moment = await Moment.findById(req.params.id);
-  if (!moment) {
-    return next(
-      new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
-    );
-  }
-
-  // Ensure files were uploaded
-  if (!req.files || !req.files.file) {
-    return next(new ErrorResponse('Please upload a file', 400));
-  }
-
-  let files = req.files.file;
-  const imageFiles = [];
-
-  if (!Array.isArray(files)) {
-    files = [files]; // Convert single file to array
-  }
-
-  files.forEach(file => {
-    const filename = `${file.name}-${Date.now()}${path.extname(file.name)}`;
-    imageFiles.push(filename);
-
-    // Move the file to the uploads directory
-    file.mv(`./uploads/${filename}`, err => {
-      if (err) {
-        return next(new ErrorResponse('Problem with file upload', 500));
-      }
+  try {
+    const moment = await Moment.findById(req.params.id);
+    if (!moment) {
+      return next(
+        new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
+      );
+    }
+  
+    // Ensure files were uploaded
+    if (!req.files || !req.files.file) {
+      return next(new ErrorResponse('Please upload a file', 400));
+    }
+  
+    let files = req.files.file;
+    const imageFiles = [];
+  
+    if (!Array.isArray(files)) {
+      files = [files]; // Convert single file to array
+    }
+  
+    files.forEach(file => {
+      const filename = `${file.name}-${Date.now()}${path.extname(file.name)}`;
+      imageFiles.push(filename);
+  
+      // Move the file to the uploads directory
+      file.mv(`./uploads/${filename}`, err => {
+        if (err) {
+          return next(new ErrorResponse('Problem with file upload', 500));
+        }
+      });
     });
-  });
+  
+    // Add uploaded image filenames to the moment's images array
+    moment.images = moment.images.concat(imageFiles);
+    await moment.save();
+  
+  
+    res.status(200).json({
+      success: true,
+      data: moment
+    });
+  }
+  catch(error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
 
-  // Add uploaded image filenames to the moment's images array
-  moment.images = moment.images.concat(imageFiles);
-
-  // Save the updated moment
-  console.log('Request',req);
-  console.log('Response',res)
-  await moment.save();
-
-
-  res.status(200).json({
-    success: true,
-    data: moment
-  });
 });
 
 
@@ -196,15 +208,25 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
 exports.getUserMoments = asyncHandler(async (req, res, next) => {
   try {
     const moments = await Moment.find({ user: req.params.userId }).populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+ 
+    const momentsWithImages = moments.map(moment => {
+      const userWithImageUrls = {
+        ...moment.user._doc,
+        imageUrls: moment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+      };
+      return {
+        ...moment._doc,
+        imageUrls: moment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+      };
+    });
     res.status(200).json({
       success: true,
-      count:moments.length,
-      data: moments,
-   
+      count: momentsWithImages.length,
+      data: momentsWithImages,
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+    console.log(momentsWithImages)
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
   }
 });
 
@@ -230,21 +252,19 @@ exports.likeMoment = asyncHandler(async (req, res, next) => {
 
     // Add user to likedUsers and increment likeCount
     moment.likedUsers.push(userId);
-    if(moment.likeCount < 0)
-    {
-        moment.likeCount = 0
+    if (moment.likeCount < 0) {
+      moment.likeCount = 0
     }
-    moment.likeCount += 1;
-
-    await moment.save();
-
+    else {
+      moment.likeCount += 1;
+      await moment.save();
+    }
     res.status(200).json({
       success: true,
       data: moment
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
   }
 });
 
@@ -254,8 +274,6 @@ exports.likeMoment = asyncHandler(async (req, res, next) => {
 exports.dislikeMoment = asyncHandler(async (req, res, next) => {
   try {
     const moment = await Moment.findById(req.params.id);
-    console.log(res.message)
-
     if (!moment) {
       return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
     }
@@ -269,20 +287,18 @@ exports.dislikeMoment = asyncHandler(async (req, res, next) => {
 
     // remove the user from the list of array
     moment.likedUsers = moment.likedUsers.filter(user => user.toString() !== userId);
-    if(moment.likeCount < 0)
-    {
+    if (moment.likeCount < 0) {
       moment.likeCount = 0
     }
-    moment.likeCount -= 1;
-
-    await moment.save();
-
+    else {
+      moment.likeCount -= 1;
+      await moment.save();
+    }
     res.status(200).json({
       success: true,
       data: moment
     });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server error' });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
   }
 });

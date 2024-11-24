@@ -28,10 +28,10 @@ const languages = JSON.parse(
   fs.readFileSync(`${__dirname}/_data/languages.json`, 'utf-8')
 );
 
-// Read JSON Files 
-const comments = JSON.parse(
-  fs.readFileSync(`${__dirname}/_data/comments.json`, 'utf-8')
-);
+// // Read JSON Files 
+// const comments = JSON.parse(
+//   fs.readFileSync(`${__dirname}/_data/comments.json`, 'utf-8')
+// );
 
 // importData into DB
 const importData = async () => {
@@ -39,7 +39,7 @@ const importData = async () => {
     await Moment.create(moments);
     await User.create(users);
     await Languages.create(languages);
-    await Comments.create(comments);
+    // await Comments.create(comments);
     console.log('Data Imported...'.green.inverse);
     process.exit();
   } catch (err) {

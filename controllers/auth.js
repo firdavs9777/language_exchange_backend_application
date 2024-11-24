@@ -71,6 +71,7 @@ exports.logout = asyncHandler(async (req, res, next) => {
 exports.getMe = asyncHandler(async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
+    console.log(user)
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }

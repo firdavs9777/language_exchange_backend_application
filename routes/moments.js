@@ -21,7 +21,7 @@ router
   .route('/')
   .get(advancedResults(Moment, ''), getMoments)
   .post(protect,createMoment);
-router.route('/:id').get(getMoment).put(updateMoment).delete(deleteMoment);
+router.route('/:id').get(getMoment).put(protect,authorize,updateMoment).delete(protect,deleteMoment);
 router.route('/:id/photo').put(momentPhotoUpload);
 router.route('/user/:userId').get(advancedResults(Moment, ''), getUserMoments)
 router
