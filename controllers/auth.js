@@ -83,6 +83,7 @@ exports.getMe = asyncHandler(async (req, res, next) => {
       success: true,
       data: userWithImageUrls
     });
+    console.log(userWithImageUrls);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });
