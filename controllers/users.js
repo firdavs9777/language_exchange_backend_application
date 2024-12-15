@@ -233,7 +233,7 @@ exports.unfollowUser = asyncHandler(async (req, res) => {
 exports.getFollowers = asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
-  const user = await User.findById(userId).populate('followers', 'name email bio image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
+  const user = await User.findById(userId).populate('followers', 'name email bio followers following image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
   if (!user) {
     return res.status(404).json({ message: 'User not found' });
   }
@@ -261,7 +261,7 @@ exports.getFollowers = asyncHandler(async (req, res) => {
 exports.getFollowing = asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
-  const user = await User.findById(userId).populate('following', 'name email bio image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
+  const user = await User.findById(userId).populate('following', 'name email bio followers following image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
 
   if (!user) {
     return res.status(404).json({ message: 'User not found' });

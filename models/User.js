@@ -51,6 +51,7 @@ const UserSchema = new mongoose.Schema({
   },
   followers: { type: [mongoose.Schema.Types.ObjectId], ref: 'User' },
   following:  { type: [mongoose.Schema.Types.ObjectId], ref: 'User' },
+  
   native_language:{
        type: String,
        required: [true, 'Please add your native language']

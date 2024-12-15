@@ -87,8 +87,6 @@ exports.getMoment = asyncHandler(async (req, res, next) => {
 exports.createMoment = asyncHandler(async (req, res, next) => {
 try {
   const moment = await Moment.create(req.body);
-
-
   // Populate the user field
   const populatedMoment = await moment.populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
 
