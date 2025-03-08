@@ -13,7 +13,7 @@ const ErrorResponse = require('../utils/errorResponse');
 
 exports.getMoments = asyncHandler(async (req, res, next) => {
   try {
-    const moments = await Moment.find().populate('user', 'name email bio image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
+    const moments = await Moment.find().populate('user', 'name email mbti bio bloodType image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
 
     const momentsWithImages = moments.map(moment => {
       const userWithImageUrls = {
