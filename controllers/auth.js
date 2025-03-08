@@ -4,6 +4,76 @@ const ErrorResponse = require('../utils/errorResponse');
 const cookieParser = require('cookie-parser');
 const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
+const passport  = require('passport')
+const FacebookStrategy = require('passport-facebook').Strategy
+const path = require('path');
+// Configure Passport to use Facebook
+passport.use(
+  new FacebookStrategy(
+    {
+      clientID: process.env.FACEBOOK_APP_ID,
+      clientSecret: process.env.FACEBOOK_APP_SECRET,
+      callbackURL: '/api/v1/auth/facebook/callback',
+      profileFields: ['id', 'emails', 'name', 'photos'],
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      const { id, emails, name, photos } = profile;
+
+      try {
+        let user = await User.findOne({ facebookId: id });
+        
+        if (!user) {
+          user = await User.create({
+            facebookId: id,
+            // email: emails[0]?.value,
+            name: `${name.givenName} ${name.familyName}`,
+            images: photos[0]?.value,
+          });
+
+          user = await User.create({
+            facebookId: id,
+            email:'test@gmail.com',
+            bio,
+            gender,
+            password,
+            birth_year,
+            birth_month,
+            birth_day,
+            image,
+            native_language,
+            language_to_learn
+          });
+        }
+        
+        sendTokenResponse(user, 200, res);
+
+        done(null, user);
+      } catch (err) {
+        done(err, null);
+      }
+    }
+  )
+);
+
+// Facebook login route
+exports.facebookLogin = (req, res, next) => {
+  passport.authenticate('facebook', { scope: ['email'] })(req, res, next);
+};
+
+// Facebook callback route
+exports.facebookCallback = (req, res, next) => {
+  passport.authenticate('facebook', { session: false }, (err, user) => {
+    console.log(res)
+
+
+    if (err || !user) {
+      return res.status(400).json({ success: false, error: 'Facebook login failed' });
+    }
+
+    // Send token response
+    sendTokenResponse(user, 200, res);
+  })(req, res, next);
+};
 //@desc Register User
 //@route Post /api/v1/auth/register
 //@access Public
@@ -12,6 +82,7 @@ exports.register = asyncHandler(async (req, res, next) => {
   const { name, email, gender, password, bio, birth_year, birth_month, birth_day, image, native_language, language_to_learn } = req.body;
   req.body;
   // const imageBase64 = fs.readFileSync(file.path, 'base64');
+  
   const user = await User.create({
     name,
     email,
@@ -43,6 +114,10 @@ exports.login = asyncHandler(async (req, res, next) => {
   if (!user) {
     return next(new ErrorResponse('Invalid credentials', 400));
   }
+  const imageUrls = (user.images || []).map(image =>
+    `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+  );
+  user.images = imageUrls
   // check if password matches
   const isMatch = await user.matchPassword(password);
   if (!isMatch) {
@@ -155,6 +230,7 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     name,
     email,
     gender,
+    location,
     bio,
     birth_year,
     birth_month,
@@ -175,7 +251,7 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     birth_day,
     images,
     native_language,
-    language_to_learn
+    language_to_learn, location
   };
 
   // Find and update the user
@@ -188,7 +264,6 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
   if (!user) {
     return next(new ErrorResponse(`No user found with id of ${req.user.id}`, 404));
   }
-
   // Send response
   res.status(200).json({
     success: true,

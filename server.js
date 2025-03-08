@@ -15,7 +15,9 @@ const hpp = require('hpp');
 const cors = require('cors');
 const http = require('http');
 const io = require('socket.io')(http);
+const passport = require('passport')
 var bodyParser = require('body-parser');
+
 // Load env vars
 dotenv.config({
   path: './config/config.env'
@@ -91,6 +93,7 @@ app.use('/api/v1/auth/users', users);
 app.use('/api/v1/languages', languages)
 app.use('/api/v1/comments', comments);
 app.use(errorHandler);
+app.use(passport.initialize())
 
 // Socket.io connection
 io.on('connection', (socket) => {

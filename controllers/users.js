@@ -115,15 +115,13 @@ exports.userPhotoUpload = asyncHandler(async (req, res, next) => {
     if (user.images.length >= 10) {
       return next(new ErrorResponse('You can upload a maximum of 10 images', 400));
     }
-
-    console.log(user.images.length);
     const imageFiles = [];
     if (!Array.isArray(files)) {
       files = [files]; // Convert single file to array
     }
 
     // Limit the number of files to upload
-    const filesToUpload = files.slice(0, 10 - user.images.length); // Get only the remaining slots available
+    const filesToUpload = files.slice(0, 10 - user.images.length); 
     if (filesToUpload.length === 0) {
       return next(new ErrorResponse('No space left to upload more images', 400));
     }

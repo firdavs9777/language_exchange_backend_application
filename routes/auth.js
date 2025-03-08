@@ -7,12 +7,16 @@ const {
   resetPassword,
   updateDetails,
   updatePassword,
-  logout
+  logout,
+  facebookLogin,
+  facebookCallback
 } = require('../controllers/auth');
 
 const router = express.Router();
 const { protect } = require('../middleware/auth');
 
+router.get('/facebook', facebookLogin)
+router.get('/facebook/callback', facebookCallback)
 router.post('/register', register);
 router.post('/login', login);
 router.get('/logout', logout);

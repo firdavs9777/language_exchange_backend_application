@@ -20,18 +20,48 @@ const UserSchema = new mongoose.Schema({
       'Please use a valid email'
     ]
   },
-  role: {
-    type: String,
-  },
   password: {
     type: String,
     required: [true, 'Please add a password'],
     minLeng: 6,
     select: false
   },
+  mbti: {
+    type: String,
+    required: [false, 'Please add your mbti']
+  },
+  bloodType: {
+    type: String, required: [false, "Please add your blood type "]
+  },
+  location: {
+    // GeoJSON Point
+    type: {
+      type: String,
+      enum: ['Point']
+    },
+    coordinates: {
+      type: [Number],
+      index: '2dsphere'
+    },
+    formattedAddress: String,
+    street: String,
+    city: String,
+    state: String,
+    zipcode: String,
+    country: String
+  },
+  facebookId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
+  role: {
+    type: String,
+  },
+
   bio: {
     type: String,
-     required: [true, 'Please add your bio']
+    required: [true, 'Please add your bio']
   },
   birth_year: {
     type: String,
@@ -50,16 +80,16 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please add your image']
   },
   followers: { type: [mongoose.Schema.Types.ObjectId], ref: 'User' },
-  following:  { type: [mongoose.Schema.Types.ObjectId], ref: 'User' },
-  
-  native_language:{
-       type: String,
-       required: [true, 'Please add your native language']
-  },
-  language_to_learn:{
+  following: { type: [mongoose.Schema.Types.ObjectId], ref: 'User' },
+  native_language: {
     type: String,
-    required:[true, 'Please add language to learn']
+    required: [true, 'Please add your native language']
   },
+  language_to_learn: {
+    type: String,
+    required: [true, 'Please add language to learn']
+  },
+
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   createdAt: {
