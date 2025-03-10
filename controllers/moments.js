@@ -109,19 +109,25 @@ catch (error) {
 //@desc Update Moment
 //@route PUT /api/v1/moments/:id
 //@access Private
-
 exports.updateMoment = asyncHandler(async (req, res, next) => {
-  let moment = await Moment.findById(req.params.id);
-  if (!moment) {
-    return next(
-      new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
-    );
+  try {
+    let moment = await Moment.findById(req.params.id);
+
+    if (!moment) {
+      return next(
+        new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
+      );
+    }
+    moment = await Moment.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true
+    });
+    res.status(200).json({ success: true, data: moment });  
   }
-  moment = await Moment.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true
-  });
-  res.status(200).json({ success: true, data: moment });
+  catch (error) {
+    res.status(500).json({error:'Server error', message: `Error ${error}`})
+  }
+  
 });
 
 //@desc Delete Moment

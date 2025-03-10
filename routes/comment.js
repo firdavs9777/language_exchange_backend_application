@@ -5,7 +5,7 @@ const {
   deleteComment
 } = require('../controllers/comments');
 const advancedResults = require('../middleware/advancedResults');
-const { protect } = require('../middleware/auth');
+const { protect, authorize, authorizeComment} = require('../middleware/auth');
 // const { getMoment, createMoment } = require('../controllers/moments');
 const router = express.Router({mergeParams: true});
 // const { protect, authorize } = require('../middleware/auth');
@@ -14,6 +14,6 @@ router
   .route('/')
   .get(advancedResults(Comment, { path: 'moment', select:'name description'}), getComments)
   .post(protect,createComment);
-router.route('/:id').get(getComment).delete(deleteComment);
+router.route('/:id').get(getComment).delete(protect,authorizeComment('user'),deleteComment);
 // .put(updateMoment).delete(deleteMoment);
 module.exports = router;
