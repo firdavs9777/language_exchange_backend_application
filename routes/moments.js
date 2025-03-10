@@ -21,12 +21,12 @@ router
   .route('/')
   .get(advancedResults(Moment, ''), getMoments)
   .post(protect,createMoment);
-router.route('/:id').get(getMoment).put(protect,authorize,updateMoment).delete(protect,deleteMoment);
+router.route('/:id').get(getMoment).put(protect,authorize('user'),updateMoment).delete(protect,authorize('user'),deleteMoment);
 router.route('/:id/photo').put(momentPhotoUpload);
 router.route('/user/:userId').get(advancedResults(Moment, ''), getUserMoments)
 router
   .route('/:id/like')
-  .post(likeMoment);
+  .post(protect,likeMoment);
   router
   .route('/:id/dislike')
   .post(dislikeMoment);

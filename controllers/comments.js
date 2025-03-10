@@ -10,6 +10,7 @@ const ErrorResponse = require('../utils/errorResponse');
 
 exports.getComments = asyncHandler(async (req, res, next) => {
     let comments;
+    console.log(req.params)
     if (req.params.momentId) {
         comments = await Comment.find({ moment: req.params.momentId })
             .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
