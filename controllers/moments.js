@@ -2,6 +2,7 @@ const path = require('path');
 const asyncHandler = require('../middleware/async');
 const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
+const { default: sendTokenResponse } = require('./auth');
 
 //@desc Get all moments
 //@route Get /api/v1/moments
@@ -205,28 +206,41 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
 
 exports.getUserMoments = asyncHandler(async (req, res, next) => {
   try {
-    const moments = await Moment.find({ user: req.params.userId }).populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
- 
-    const momentsWithImages = moments.map(moment => {
+    const moments = await Moment.find({ user: req.params.userId }).populate(
+      'user',
+      'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v'
+    );
+
+    const momentsWithUserImages = moments.map((moment) => {
+      console.log(moment);
       const userWithImageUrls = {
         ...moment.user._doc,
-        imageUrls: moment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+        imageUrls: moment.user.images.map(
+          (image) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        ),
       };
+
       return {
         ...moment._doc,
-        imageUrls: moment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+        user: userWithImageUrls, // Now the user object contains imageUrls
+        imageUrls: moment.images.map(
+          (image) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        ),
       };
     });
+
+      sendTokenResponse(req.params.userId, 200, res);
+
     res.status(200).json({
       success: true,
-      count: momentsWithImages.length,
-      data: momentsWithImages,
+      count: momentsWithUserImages.length,
+      data: momentsWithUserImages,
     });
-    console.log(momentsWithImages)
   } catch (error) {
     res.status(500).json({ error: 'Server error', message: `Error ${error}` });
   }
 });
+
 
 
 
