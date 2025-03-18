@@ -229,7 +229,7 @@ exports.getUserMoments = asyncHandler(async (req, res, next) => {
       };
     });
 
-      sendTokenResponse(req.params.userId, 200, res);
+      // sendTokenResponse(req.params.userId, 200, res);
 
     res.status(200).json({
       success: true,
