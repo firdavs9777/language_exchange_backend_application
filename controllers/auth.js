@@ -7,6 +7,10 @@ const crypto = require('crypto');
 const passport  = require('passport')
 const FacebookStrategy = require('passport-facebook').Strategy
 const path = require('path');
+const { generateVerificationCode, checkVerificationCode } = require('./emailVerification');
+
+const usersVerification = {}; // Key: email, Value: { code, expiration }
+
 // Configure Passport to use Facebook
 passport.use(
   new FacebookStrategy(
@@ -165,61 +169,104 @@ exports.getMe = asyncHandler(async (req, res, next) => {
   }
 });
 
-//@desc  Forgot Password
-//@route Post /api/v1/auth/forgotpassword
-//@access Public
-exports.forgotPassword = asyncHandler(async (req, res, next) => {
-  const user = await User.findOne({ email: req.body.email });
-  if (!user) {
-    return next(new ErrorResponse('There is no user with that email', 404));
+//@desc    Send Email Verification Code
+//@route   POST /api/v1/auth/sendCodeEmail
+//@access  Public
+exports.sendEmailCode = asyncHandler(async (req, res, next) => {
+  const { email } = req.body;
+  if (!email) {
+    return next(new ErrorResponse('Email is required', 400));
   }
-  // Get reset token
-  const resetToken = user.getResetPasswordToken();
-  await user.save({ validateBeforeSave: false });
 
-  // Create rest url
-  const resetUrl = await `${req.protocol}://${req.get(
-    'host'
-  )}/api/v1/auth/resetpassword/${resetToken}`;
-  const message = `You are receiving this email because you (or someone else) has requested the reset of a password. Please make a PUT request to: \n\n ${resetUrl}`;
+  const user = await User.findOne({ email });
+  if (!user) {
+    return next(new ErrorResponse('No user found with this email', 404));
+  }
+
+  const code = crypto.randomInt(100000, 999999).toString();
+  const expiration = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+  usersVerification[email] = { code, expiration };
+
+  const message = `Your verification code is: ${code}`;
+  
   try {
     await sendEmail({
-      email: user.email,
-      subject: 'Password reset token',
-      message
+      email,
+      subject: 'Email Verification Code',
+      message,
     });
-    res.status(200).json({ success: true, data: 'Email sent' });
+
+    res.status(200).json({ success: true, data: 'Verification code sent' });
   } catch (err) {
-    user.resetPasswordToken = undefined;
-    user.resetPasswordExpire = undefined;
-    await user.save({ validateBeforeSave: false });
+    console.error(err);
     return next(new ErrorResponse('Email could not be sent', 500));
   }
 });
 
-//@desc  Reset Password
-//@route PUT /api/v1/auth/resetpassword/:resettoken
-//@access Public
-
-exports.resetPassword = asyncHandler(async (req, res, next) => {
-  // Get hashed token
-  const resetPasswordToken = crypto
-    .createHash('sha256')
-    .update(req.params.resettoken)
-    .digest('hex');
-  const user = await User.findOne({
-    resetPasswordToken,
-    resetPasswordExpire: { $gt: Date.now() }
-  });
-  if (!user) {
-    return next(new ErrorResponse('Invalid token', 400));
+//@desc    Verify Email Code
+//@route   POST /api/v1/auth/checkEmailCode
+//@access  Public
+exports.checkEmailCode = asyncHandler(async (req, res, next) => {
+  const { email, code } = req.body;
+  if (!email || !code) {
+    return next(new ErrorResponse('Email and code are required', 400));
   }
-  user.password = req.body.password;
-  user.resetPasswordToken = undefined;
-  user.resetPasswordExpire = undefined;
+
+  const stored = usersVerification[email];
+  if (!stored || stored.code !== code) {
+    return next(new ErrorResponse('Invalid code', 400));
+  }
+
+  if (stored.expiration < Date.now()) {
+    return next(new ErrorResponse('Code expired', 400));
+  }
+
+  delete usersVerification[email]; // Invalidate the code
+
+  // Optional: Mark user as verified in DB
+  const user = await User.findOne({ email });
+  if (user) {
+    user.isVerified = true;
+    await user.save();
+  }
+
+  res.status(200).json({ success: true, message: 'Email verified successfully' });
+});
+
+//@desc    Reset Password after Email Verification
+//@route   POST /api/v1/auth/resetpassword
+//@access  Public
+exports.resetPassword = asyncHandler(async (req, res, next) => {
+  const { email, newPassword } = req.body;
+
+  // Check if email and code are provided
+  if (!email || !newPassword) {
+    return next(new ErrorResponse('Email, verification code, and new password are required.', 400));
+  }
+
+  
+
+  
+  // Find the user by email
+  const user = await User.findOne({ email });
+  if (!user) {
+    return next(new ErrorResponse('User not found with that email', 404));
+  }
+
+  // Reset the user's password
+  user.password = newPassword;
+
+  // Clear verification data
+  delete usersVerification[email];  // Invalidate the verification code
+
+  // Save the updated user
   await user.save();
+
+  // Respond with the new token (or send a success response as needed)
   sendTokenResponse(user, 200, res);
 });
+
 
 // @desc Update User Info
 // @route Put /api/v1/auth/updatedetails
@@ -310,3 +357,5 @@ const sendTokenResponse = (user, statusCode, res) => {
     user: user
   });
 };
+
+
