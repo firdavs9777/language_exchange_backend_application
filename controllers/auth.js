@@ -239,6 +239,7 @@ exports.checkEmailCode = asyncHandler(async (req, res, next) => {
 //@access  Public
 exports.resetPassword = asyncHandler(async (req, res, next) => {
   const { email, newPassword } = req.body;
+  
 
   // Check if email and code are provided
   if (!email || !newPassword) {

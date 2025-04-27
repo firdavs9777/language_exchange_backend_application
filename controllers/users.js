@@ -7,26 +7,31 @@ const path = require('path');
 //@route get /api/v1/auth/users
 //@access Private/Admin
 exports.getUsers = asyncHandler(async (req, res, next) => {
-  const users = await User.find();
+  const page = Number(req.query.page) || 1;
+  const limit = Number(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-  // Mapping users to include imageUrls if images are not empty
+  const users = await User.find().skip(skip).limit(limit);
+
   const usersWithImages = users.map(user => {
-    let imageUrls = [];
-    if (Array.isArray(user.images) && user.images.length > 0) {
-      imageUrls = user.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`);
-    }
+    const imageUrls = (user.images || []).map(image => 
+      `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+    );
     return {
       ...user._doc,
-      imageUrls: imageUrls
+      imageUrls
     };
   });
 
   res.status(200).json({
     success: true,
-    count: usersWithImages.length,
+    page,   
+    limit,       
+    count: usersWithImages.length, 
     data: usersWithImages,
   });
 });
+
 //@desc Get single user
 //@route get /api/v1/auth/users/:id
 //@access Private/Admin
