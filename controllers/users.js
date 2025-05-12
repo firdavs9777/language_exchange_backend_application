@@ -1,289 +1,323 @@
 const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
-const advancedResults = require('../middleware/advancedResults');
 const path = require('path');
-//@desc Get All Users
-//@route get /api/v1/auth/users
-//@access Private/Admin
+const fs = require('fs').promises;
+
+// Utility function to delete image file
+const deleteImageFile = async (filename) => {
+  const filePath = path.join(__dirname, '../uploads', filename);
+  try {
+    await fs.unlink(filePath);
+  } catch (err) {
+    console.error(`Error deleting file ${filename}:`, err);
+    // Continue even if file deletion fails
+  }
+};
+
+// @desc     Get all users
+// @route    GET /api/v1/auth/users
+// @access   Private/Admin
 exports.getUsers = asyncHandler(async (req, res, next) => {
-  const page = Number(req.query.page) || 1;
-  const limit = Number(req.query.limit) || 10;
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
   const skip = (page - 1) * limit;
 
   const users = await User.find().skip(skip).limit(limit);
+  const total = await User.countDocuments();
 
-  const usersWithImages = users.map(user => {
-    const imageUrls = (user.images || []).map(image => 
-      `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-    );
-    return {
-      ...user._doc,
-      imageUrls
-    };
-  });
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const usersWithImages = users.map(user => ({
+    ...user.toObject(),
+    imageUrls: (user.images || []).map(image => 
+      `${baseUrl}/uploads/${encodeURIComponent(image)}`
+    )
+  }));
 
   res.status(200).json({
     success: true,
-    page,   
-    limit,       
-    count: usersWithImages.length, 
-    data: usersWithImages,
-  });
-});
-
-//@desc Get single user
-//@route get /api/v1/auth/users/:id
-//@access Private/Admin
-exports.getUser = asyncHandler(async (req, res, next) => {
-  const user = await User.findById(req.params.id);
-  // res.status(200).json({
-  //   success: true,
-  //   data: user
-  // });
-
-  if (!user) {
-    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
-  }
-  const usersWithImages = {
-    ...user._doc,
-    imageUrls: user.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
-  }
-  res.status(200).json({
-    success: true,
+    count: users.length,
+    total,
+    pages: Math.ceil(total / limit),
     data: usersWithImages
   });
 });
 
-//@desc Create user
-//@route POST /api/v1/auth/users
-//@access Private/Admin
-exports.createUser = asyncHandler(async (req, res, next) => {
-  const user = await User.create(req.body);
+// @desc     Get single user
+// @route    GET /api/v1/auth/users/:id
+// @access   Private/Admin
+exports.getUser = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  
+  if (!user) {
+    return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
+  }
+
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const userWithImages = {
+    ...user.toObject(),
+    imageUrls: user.images.map(image => 
+      `${baseUrl}/uploads/${encodeURIComponent(image)}`
+    )
+  };
 
   res.status(200).json({
     success: true,
+    data: userWithImages
+  });
+});
+
+// @desc     Create user
+// @route    POST /api/v1/auth/users
+// @access   Private/Admin
+exports.createUser = asyncHandler(async (req, res, next) => {
+  const user = await User.create(req.body);
+
+  res.status(201).json({
+    success: true,
     data: user
   });
-
-
-
 });
-// @desc Update user
-// @route PUT /api/v1/auth/users/:id
-// @access Private/Admin
+
+// @desc     Update user
+// @route    PUT /api/v1/auth/users/:id
+// @access   Private/Admin
 exports.updateUser = asyncHandler(async (req, res, next) => {
   const user = await User.findByIdAndUpdate(req.params.id, req.body, {
     new: true,
     runValidators: true
   });
-  console.log(req.body);
+
+  if (!user) {
+    return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
+  }
+
   res.status(200).json({
     success: true,
     data: user
   });
 });
 
-// @desc Delete user
-// @route Delete /api/v1/auth/users/:id
-// @access Private/Admin
+// @desc     Delete user
+// @route    DELETE /api/v1/auth/users/:id
+// @access   Private/Admin
 exports.deleteUser = asyncHandler(async (req, res, next) => {
-  await User.findByIdAndDelete(req.params.id);
+  const user = await User.findByIdAndDelete(req.params.id);
+
+  if (!user) {
+    return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
+  }
+
+  // Delete all user images
+  await Promise.all(
+    user.images.map(image => deleteImageFile(image))
+  );
+
   res.status(200).json({
     success: true,
     data: {}
   });
 });
 
-
-//@desc Upload photos for moment
-//@route PUT /api/v1/auth/users/:id/photos
-//@access Private
-
+// @desc     Upload user photos
+// @route    PUT /api/v1/auth/users/:id/photos
+// @access   Private
 exports.userPhotoUpload = asyncHandler(async (req, res, next) => {
-  try {
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
-    }
-
-    console.log('Request', req.files);
-    
-    // Ensure files were uploaded
-    if (!req.files || !req.files.file) {
-      return next(new ErrorResponse('Please upload a file', 400));
-    }
-
-    let files = req.files.file;
-
-    // Check if the user already has 10 images
-    if (user.images.length >= 10) {
-      return next(new ErrorResponse('You can upload a maximum of 10 images', 400));
-    }
-    const imageFiles = [];
-    if (!Array.isArray(files)) {
-      files = [files]; // Convert single file to array
-    }
-
-    // Limit the number of files to upload
-    const filesToUpload = files.slice(0, 10 - user.images.length); 
-    if (filesToUpload.length === 0) {
-      return next(new ErrorResponse('No space left to upload more images', 400));
-    }
-
-    filesToUpload.forEach(file => {
-      const filename = `${file.name}-${Date.now()}${path.extname(file.name)}`;
-      imageFiles.push(filename);
-      // Move the file to the uploads directory
-      file.mv(`./uploads/${filename}`, err => {
-        if (err) {
-          return next(new ErrorResponse('Problem with file upload', 500));
-        }
-      });
-    });
-
-    // Add uploaded image filenames to the user's images array
-    user.images = user.images.concat(imageFiles);
-
-    // Save the updated user
-    await user.save();
-    
-    res.status(200).json({
-      success: true,
-      data: user
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error: ${error.message}` });
-  }
-});
-
-
-
-// Follow a user
-exports.followUser = asyncHandler(async (req, res) => {
-  try {
-    const { userId, targetUserId } = req.params;
-
-    // Find both users
-    const user = await User.findById(userId);
-    const targetUser = await User.findById(targetUserId);
-
-    if (!user || !targetUser) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Check if the user is already following the target user
-    if (user.following.includes(targetUserId)) {
-      return res.status(400).json({ message: 'Already following this user' });
-    }
-
-    // Add targetUser to user's following list
-    user.following.push(targetUserId);
-    // Add user to targetUser's followers list
-    targetUser.followers.push(userId);
-
-    // Save both users
-    await user.save();
-    await targetUser.save();
-
-    res.status(200).json({
-      success: true,
-      message: `Now following ${targetUser.name}`
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: 'Server error',
-      success: false,
-      errorMessage: error
-    });
-  }
-});
-
-// Unfollow a user
-exports.unfollowUser = asyncHandler(async (req, res) => {
-  try {
-    const { userId, targetUserId } = req.params;
-
-    // Find both users
-    const user = await User.findById(userId);
-    const targetUser = await User.findById(targetUserId);
-
-    if (!user || !targetUser) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Check if the user is not following the target user
-    if (!user.following.includes(targetUserId)) {
-      return res.status(400).json({ message: 'Not following this user' });
-    }
-
-    // Remove targetUser from user's following list
-    user.following = user.following.filter(id => id.toString() !== targetUserId);
-    // Remove user from targetUser's followers list
-    targetUser.followers = targetUser.followers.filter(id => id.toString() !== userId);
-
-    // Save both users
-    await user.save();
-    await targetUser.save();
-
-    res.status(200).json({ message: `Unfollowed ${targetUser.name}` });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error });
-  }
-});
-
-// API to get list of followers of a user
-exports.getFollowers = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-
-  const user = await User.findById(userId).populate('followers', 'name email bio followers following image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
+  const user = await User.findById(req.params.id);
+  
   if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+    return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
-  const usersWithImages = user.followers.map(user => {
-    let imageUrls = [];
-    if (Array.isArray(user.images) && user.images.length > 0) {
-      imageUrls = user.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`);
+  if (!req.files?.file) {
+    return next(new ErrorResponse('Please upload a file', 400));
+  }
+
+  const files = Array.isArray(req.files.file) ? req.files.file : [req.files.file];
+  const remainingSlots = 10 - user.images.length;
+
+  if (remainingSlots <= 0) {
+    return next(new ErrorResponse('Maximum of 10 images already uploaded', 400));
+  }
+
+  const filesToUpload = files.slice(0, remainingSlots);
+  const uploadedFiles = [];
+
+  // Process each file sequentially
+  for (const file of filesToUpload) {
+    const filename = `${file.name}-${Date.now()}${path.extname(file.name)}`;
+    
+    try {
+      await file.mv(`./uploads/${filename}`);
+      uploadedFiles.push(filename);
+    } catch (err) {
+      console.error('Error moving file:', err);
+      // Clean up any already moved files if one fails
+      await Promise.all(
+        uploadedFiles.map(f => deleteImageFile(f))
+      );
+      return next(new ErrorResponse('Problem with file upload', 500));
     }
-    return {
-      ...user._doc,
-      imageUrls: imageUrls
-    };
-  });
+  }
+
+  user.images = [...user.images, ...uploadedFiles];
+  await user.save();
 
   res.status(200).json({
-    message: 'Success',
-    note: `Followers of ${user.name}`,
-    count: user.followers.length,
-    followers: usersWithImages,
+    success: true,
+    data: user
   });
 });
 
-// API to get list of users a user is following
-exports.getFollowing = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-
-  const user = await User.findById(userId).populate('following', 'name email bio followers following image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
-
+// @desc     Delete user photo
+// @route    DELETE /api/v1/auth/users/:userId/photos/:index
+// @access   Private
+exports.deleteUserPhoto = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.userId);
+  
   if (!user) {
-    return res.status(404).json({ message: 'User not found' });
+    return next(new ErrorResponse('User not found', 404));
   }
-  const usersWithImages = user.following.map(user => {
-    let imageUrls = [];
-    if (Array.isArray(user.images) && user.images.length > 0) {
-      imageUrls = user.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`);
-    }
-    return {
-      ...user._doc,
-      imageUrls: imageUrls
-    };
-  });
+
+  const index = parseInt(req.params.index);
+  if (isNaN(index) || index < 0 || index >= user.images.length) {
+    return next(new ErrorResponse('Invalid image index', 400));
+  }
+
+  const filename = user.images[index];
+  user.images.splice(index, 1);
+  
+  await Promise.all([
+    user.save(),
+    deleteImageFile(filename)
+  ]);
 
   res.status(200).json({
-    note: `Users followed by ${user.name}`,
-    following: usersWithImages,
-    message: 'Success',
-    count: usersWithImages.length,
+    success: true,
+    data: user.images
+  });
+});
+
+// @desc     Follow a user
+// @route    POST /api/v1/auth/users/:userId/follow/:targetUserId
+// @access   Private
+exports.followUser = asyncHandler(async (req, res, next) => {
+  const { userId, targetUserId } = req.params;
+
+  if (userId === targetUserId) {
+    return next(new ErrorResponse('Cannot follow yourself', 400));
+  }
+
+  const [user, targetUser] = await Promise.all([
+    User.findById(userId),
+    User.findById(targetUserId)
+  ]);
+
+  if (!user || !targetUser) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  if (user.following.includes(targetUserId)) {
+    return next(new ErrorResponse('Already following this user', 400));
+  }
+
+  user.following.push(targetUserId);
+  targetUser.followers.push(userId);
+
+  await Promise.all([user.save(), targetUser.save()]);
+
+  res.status(200).json({
+    success: true,
+    message: `Now following ${targetUser.name}`,
+    data: {
+      following: user.following,
+      followers: targetUser.followers
+    }
+  });
+});
+
+// @desc     Unfollow a user
+// @route    POST /api/v1/auth/users/:userId/unfollow/:targetUserId
+// @access   Private
+exports.unfollowUser = asyncHandler(async (req, res, next) => {
+  const { userId, targetUserId } = req.params;
+
+  const [user, targetUser] = await Promise.all([
+    User.findById(userId),
+    User.findById(targetUserId)
+  ]);
+
+  if (!user || !targetUser) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  if (!user.following.includes(targetUserId)) {
+    return next(new ErrorResponse('Not following this user', 400));
+  }
+
+  user.following = user.following.filter(id => id.toString() !== targetUserId);
+  targetUser.followers = targetUser.followers.filter(id => id.toString() !== userId);
+
+  await Promise.all([user.save(), targetUser.save()]);
+
+  res.status(200).json({
+    success: true,
+    message: `Unfollowed ${targetUser.name}`,
+    data: {
+      following: user.following,
+      followers: targetUser.followers
+    }
+  });
+});
+
+// @desc     Get user followers
+// @route    GET /api/v1/auth/users/:userId/followers
+// @access   Private
+exports.getFollowers = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.userId)
+    .populate('followers', 'name email images');
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const followers = user.followers.map(follower => ({
+    ...follower.toObject(),
+    imageUrls: follower.images.map(image => 
+      `${baseUrl}/uploads/${encodeURIComponent(image)}`
+    )
+  }));
+
+  res.status(200).json({
+    success: true,
+    count: followers.length,
+    data: followers
+  });
+});
+
+// @desc     Get user following
+// @route    GET /api/v1/auth/users/:userId/following
+// @access   Private
+exports.getFollowing = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.userId)
+    .populate('following', 'name email images');
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  const following = user.following.map(followedUser => ({
+    ...followedUser.toObject(),
+    imageUrls: followedUser.images.map(image => 
+      `${baseUrl}/uploads/${encodeURIComponent(image)}`
+    )
+  }));
+
+  res.status(200).json({
+    success: true,
+    count: following.length,
+    data: following
   });
 });
