@@ -92,10 +92,7 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
-  res.status(200).json({
-    success: true,
-    data: user
-  });
+   sendTokenResponse(user, 200, res);
 });
 
 // @desc     Delete user
@@ -163,10 +160,13 @@ exports.userPhotoUpload = asyncHandler(async (req, res, next) => {
   user.images = [...user.images, ...uploadedFiles];
   await user.save();
 
-  res.status(200).json({
-    success: true,
-    data: user
-  });
+
+  const imageUrls = (user.images || []).map(image =>
+    `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+  );
+  user.images = imageUrls
+
+  sendTokenResponse(user, 200, res);
 });
 
 // @desc     Delete user photo
@@ -191,11 +191,11 @@ exports.deleteUserPhoto = asyncHandler(async (req, res, next) => {
     user.save(),
     deleteImageFile(filename)
   ]);
-
-  res.status(200).json({
-    success: true,
-    data: user.images
-  });
+  const imageUrls = (user.images || []).map(image =>
+    `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+  );
+  user.images = imageUrls
+    sendTokenResponse(user, 200, res);
 });
 
 // @desc     Follow a user
@@ -321,3 +321,25 @@ exports.getFollowing = asyncHandler(async (req, res, next) => {
     data: following
   });
 });
+
+
+const sendTokenResponse = (user, statusCode, res) => {
+  // Create token
+  const token = user.getSignedJwtToken();
+  const options = {
+    expires: new Date(
+      Date.now() + process.env.JWT_COOKIE_EXPIRE * 24 * 60 * 60 * 1000
+    ),
+    httpOnly: true
+  };
+  // Securing Cookie in https
+  if (process.env.NODE_ENV === 'production') {
+    options.secure = true;
+  }
+  res.status(statusCode).cookie('token', token, options).json({
+    success: true,
+    token: token,
+    option: options,
+    user: user
+  });
+};
