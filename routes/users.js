@@ -8,7 +8,8 @@ const {
   followUser,
   unfollowUser,
   getFollowing,
-  getFollowers
+  getFollowers,
+  deleteUserPhoto
 } = require('../controllers/users');
 const express = require('express');
 const advancedResults = require('../middleware/advancedResults');
@@ -21,7 +22,7 @@ router.route('/:userId/follow/:targetUserId').put(followUser);
 router.route('/:userId/unfollow/:targetUserId').put(unfollowUser);
 router.route('/:userId/followers').get(protect,getFollowers);
 router.route('/:userId/following').get(protect,getFollowing);
-router.route('/:id/photo').put(userPhotoUpload);
+router.route('/:id/photo').put(userPhotoUpload).delete(deleteUserPhoto);
 router.route('/:id').get(getUser).put(updateUser).delete(deleteUser);
 
 module.exports = router;
