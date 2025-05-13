@@ -275,7 +275,7 @@ exports.unfollowUser = asyncHandler(async (req, res, next) => {
 // @access   Private
 exports.getFollowers = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.params.userId)
-    .populate('followers', 'name email images');
+    .populate('followers', 'name images bio gender mbti location language_to_learn native_language');
 
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
