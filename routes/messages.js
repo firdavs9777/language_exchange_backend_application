@@ -14,9 +14,9 @@ const {
 const advancedResults = require('../middleware/advancedResults');
 
 const router = express.Router();
-// const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 
-router.route('/').get(getMessages).post(createMessage);
+router.route('/').get(getMessages).post(protect,createMessage);
 router.route('/:id').get(getMessage).put(updateMessage).delete(deleteMessage);
 router.route('/user/:userId').get(getUserMessages);
 router.route('/senders/:userId').get(getUserSenders);
