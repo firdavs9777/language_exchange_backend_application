@@ -301,7 +301,7 @@ exports.getFollowers = asyncHandler(async (req, res, next) => {
 // @access   Private
 exports.getFollowing = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.params.userId)
-    .populate('following', 'name email images');
+     .populate('following', 'name images bio gender mbti location language_to_learn native_language');
 
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
