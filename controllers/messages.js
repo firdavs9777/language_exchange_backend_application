@@ -3,7 +3,7 @@ const asyncHandler = require('../middleware/async');
 const Message = require('../models/Message');
 const ErrorResponse = require('../utils/errorResponse');
 const { timeStamp } = require('console');
-
+const User = require("../models/User")
 //@desc Get all message
 //@route Get /api/v1/messages
 //@access Private
@@ -34,24 +34,36 @@ exports.getMessage = asyncHandler(async (req, res, next) => {
 // @desc Get messages for a single user
 // @route GET /api/v1/messages/user/:userId
 // @access Private
+
+
 exports.getUserMessages = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
+  
   const messages = await Message.find({
     $or: [{ sender: userId }, { receiver: userId }],
-  }).populate('sender', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt __v')
-    .populate('receiver', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt');
+  })
+  .populate('sender', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt __v')
+  .populate('receiver', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt');
   
   // Transform the messages to include image URLs
   const messagesWithImageUrls = messages.map(message => {
     // Ensure sender and receiver are not null
     const sender = message.sender ? {
       ...message.sender._doc,
-      imageUrls: message.sender.images ? message.sender.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`) : []
+      imageUrls: message.sender.images ? 
+        message.sender.images.map(image => 
+          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        ) : []
     } : { imageUrls: [] };
+    
     const receiver = message.receiver ? {
       ...message.receiver._doc,
-      imageUrls: message.receiver.images ? message.receiver.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`) : []
+      imageUrls: message.receiver.images ? 
+        message.receiver.images.map(image => 
+          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        ) : []
     } : { imageUrls: [] };
+    
     return {
       ...message._doc,
       sender,
@@ -144,20 +156,41 @@ exports.getMessagesFromUser = asyncHandler(async (req, res, next) => {
 //@access Private
 
 exports.createMessage = asyncHandler(async (req, res, next) => {
+  const { message, receiver } = req.body; // Remove sender from destructuring
+  
+  // Check authentication
+  if (!req.user) {
+    return next(new ErrorResponse('Not authenticated', 401));
+  }
+
+  const sender = req.user._id; // Get sender from authenticated user
+
   // Validate request body
-  const { message, sender, receiver } = req.body;
-  if (!message || !sender || !receiver) {
-    return next(new ErrorResponse('Please provide all required fields', 400));
+  if (!message || !receiver) {
+    return next(new ErrorResponse('Message content and receiver are required', 400));
+  }
+
+  // Check if receiver exists
+  const receiverExists = await User.findById(receiver);
+  if (!receiverExists) {
+    return next(new ErrorResponse('Receiver not found', 404));
   }
 
   // Create the message
   const newMessage = await Message.create({
     message,
-    sender,
+    sender, // Use the authenticated user's ID
     receiver,
   });
 
-  // Send the response
+  // Populate sender info
+  await newMessage.populate('sender', 'name image');
+
+  // Emit Socket.io event
+  if (req.app.get('socketio')) {
+    req.app.get('socketio').to(receiver).emit('newMessage', newMessage);
+  }
+
   res.status(201).json({
     success: true,
     data: newMessage,
