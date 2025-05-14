@@ -106,23 +106,7 @@ catch (error) {
 }
 });
 
-//@desc Update Moment
-//@route PUT /api/v1/moments/:id
-//@access Private
 
-exports.updateMoment = asyncHandler(async (req, res, next) => {
-  let moment = await Moment.findById(req.params.id);
-  if (!moment) {
-    return next(
-      new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
-    );
-  }
-  moment = await Moment.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-    runValidators: true
-  });
-  res.status(200).json({ success: true, data: moment });
-});
 
 //@desc Delete Moment
 //@route DELETE /api/v1/moments/:id
@@ -212,7 +196,6 @@ exports.getUserMoments = asyncHandler(async (req, res, next) => {
     );
 
     const momentsWithUserImages = moments.map((moment) => {
-      console.log(moment);
       const userWithImageUrls = {
         ...moment.user._doc,
         imageUrls: moment.user.images.map(
@@ -241,6 +224,86 @@ exports.getUserMoments = asyncHandler(async (req, res, next) => {
   }
 });
 
+
+//@desc Update a specific moment for a user
+//@route PUT /api/v1/moments/:momentId
+//@access Private (assuming users should only update their own moments)
+exports.updateMoment = asyncHandler(async (req, res, next) => {
+  try {
+    // Find the moment
+    let moment = await Moment.findById(req.params.id);
+
+    // If moment doesn't exist
+    if (!moment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Moment not found'
+      });
+    }
+
+    // Check if user owns the moment (assuming req.user.id comes from auth middleware)
+    if (moment.user.toString() !== req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to update this moment'
+      });
+    }
+
+    // Process any uploaded images if they exist in the request
+    if (req.files && req.files.length > 0) {
+      // Add new images to the existing ones
+      const newImages = req.files.map(file => file.filename);
+      req.body.images = [...moment.images, ...newImages];
+    }
+
+    // Update the moment
+    moment = await Moment.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true, // Return the updated document
+        runValidators: true // Run schema validators on update
+      }
+    );
+
+      if (!moment) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to update moment'
+      });
+    }
+      await moment.populate(
+      'user',
+      'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v'
+    );
+    // Format response with image URLs similar to GET method
+    const userWithImageUrls = {
+      ...moment.user._doc,
+      imageUrls: moment.user.images.map(
+        (image) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+      ),
+    };
+
+    const updatedMoment = {
+      ...moment._doc,
+      user: userWithImageUrls,
+      imageUrls: moment.images.map(
+        (image) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+      ),
+    };
+
+    res.status(200).json({
+      success: true,
+      data: updatedMoment
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false,
+      error: 'Server error', 
+      message: `Error ${error}` 
+    });
+  }
+});
 
 
 

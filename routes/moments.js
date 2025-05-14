@@ -24,6 +24,7 @@ router
 router.route('/:id').get(getMoment).put(protect,authorize('user'),updateMoment).delete(protect,authorize('user'),deleteMoment);
 router.route('/:id/photo').put(momentPhotoUpload);
 router.route('/user/:userId').get(advancedResults(Moment, ''), getUserMoments)
+
 router
   .route('/:id/like')
   .post(protect,likeMoment);
