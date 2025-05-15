@@ -420,11 +420,13 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
       `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
     );
   }
+    const token = user.getSignedJwtToken();
 
   // Send response
   res.status(200).json({
     success: true,
-    data: userObject
+    token,
+    user: userObject
   });
 });
 
