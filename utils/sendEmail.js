@@ -1,27 +1,22 @@
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
-// async..await is not allowed in global scope, must use a wrapper
 const sendEmail = async (options) => {
-  let transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: process.env.SMTP_PORT,
-    secure: false,
-    auth: {
-      user: process.env.SMTP_EMAIL,
-      pass: process.env.SMTP_PASSWORD
-    }
-  });
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-  // send mail with defined transport object
-  const message = {
-    from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`,
+  const msg = {
     to: options.email,
+    from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`, // Verified sender
     subject: options.subject,
-    text: options.message
+    text: options.message,
+    html: options.html, // Optional: if you want to send HTML content
   };
 
-  console.log(options.email)
-  const info = await transporter.sendMail(message);
-  console.log('Message sent: %s', info.messageId);
+  try {
+    const response = await sgMail.send(msg);
+    console.log('Email sent:', response[0].statusCode);
+  } catch (error) {
+    console.error('Error sending email:', error);
+  }
 };
+
 module.exports = sendEmail;

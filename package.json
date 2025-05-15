@@ -10,6 +10,7 @@
   "author": "Firdavs Mutalipov",
   "license": "ISC",
   "dependencies": {
+    "@sendgrid/mail": "^8.1.5",
     "bcryptjs": "^2.4.3",
     "colors": "^1.4.0",
     "cookie-parser": "^1.4.6",
