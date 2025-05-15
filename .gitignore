@@ -48,5 +48,13 @@ Thumbs.db
 *.mov
 *.wmv
 
-*.env
+
+# .gitignore additions
+
+# Environment files
+.env
 config/config.env
+*.env.local
+*.env.development
+*.env.test
+*.env.production
