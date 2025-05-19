@@ -99,6 +99,7 @@ io.use((socket, next) => {
 });
 
 // Socket.IO Connection Handler
+// Socket.IO Connection Handler
 io.on('connection', (socket) => {
   console.log(`User ${socket.user.id} connected`);
 
@@ -107,21 +108,41 @@ io.on('connection', (socket) => {
 
   socket.on('sendMessage', async ({ sender, receiver, message }) => {
     try {
+      // Create and save the message to the database
       const newMessage = await Message.create({ sender, receiver, message });
       
-      // Emit only to relevant parties
-      socket.to(`user_${receiver}`).emit('message', newMessage);
-      socket.emit('message', newMessage);
+      // Load the complete message with populated sender information
+      const populatedMessage = await Message.findById(newMessage._id)
+        .populate('sender', 'name imageUrls')
+        .populate('receiver', 'name imageUrls');
+      
+      // Send to the receiver
+      socket.to(`user_${receiver}`).emit('message', populatedMessage);
+      
+      // Option 1: Either send acknowledgment to sender
+      socket.emit('messageSent', populatedMessage);
+      
+      // Option 2: Or send to the same 'message' event (uncomment if you prefer this approach)
+      // socket.emit('message', populatedMessage);
     } catch (err) {
       console.error('Message save error:', err);
+      // Notify sender of error
+      socket.emit('messageError', { message: 'Failed to save message', originalMessage: message });
     }
+  });
+
+  socket.on('typing', ({ sender, receiver }) => {
+    socket.to(`user_${receiver}`).emit('userTyping', { user: sender });
+  });
+
+  socket.on('stopTyping', ({ sender, receiver }) => {
+    socket.to(`user_${receiver}`).emit('userStopTyping', { user: sender });
   });
 
   socket.on('disconnect', () => {
     console.log(`User ${socket.user.id} disconnected`);
   });
 });
-
 // Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
