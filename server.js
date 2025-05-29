@@ -119,6 +119,7 @@ io.on('connection', (socket) => {
       // Send to the receiver
       socket.to(`user_${receiver}`).emit('message', populatedMessage);
       
+      console.log(populatedMessage)
       // Option 1: Either send acknowledgment to sender
       socket.emit('messageSent', populatedMessage);
       
