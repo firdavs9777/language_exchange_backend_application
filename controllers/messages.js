@@ -209,7 +209,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       return senders;
     }, []);
 
-    console.log('Unieques', uniqueSenders);
+
 
     res.status(200).json({
       success: true,
@@ -241,7 +241,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         imageUrls: message.receiver.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
       }
     }));
-    console.log(messagesWithImageUrls);
+
 
     res.status(200).json({
       success: true,
