@@ -8,6 +8,7 @@ const fileUpload = require('express-fileupload');
 const cookieParser = require('cookie-parser');
 const errorHandler = require('./middleware/error');
 const connectDb = require('./config/db');
+const removeIndex = require("./config/rm_unique")
 const mongoSanitize = require('express-mongo-sanitize');
 const helmet = require('helmet');
 const xss = require('xss-clean');
@@ -24,6 +25,7 @@ const { Server } = require('socket.io');
 dotenv.config({ path: './config/config.env' });
 
 // Connect to database
+// removeIndex();
 connectDb();
 
 // Route files
