@@ -89,7 +89,52 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add language to learn']
   },
+  status: {
+    type: String,
+    enum: ['online', 'away', 'busy', 'offline'],
+    default: 'offline',
+    index: true
+  },
+  isOnline: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  lastSeen: {
+    type: Date,
+    default: Date.now,
+    index: true
+  },
+  lastActive: {
+    type: Date,
+    default: Date.now
+  },
+  socketId: {
+    type: String,
+    sparse: true // Allow multiple null values
+  },
+  // Privacy settings for status
+  statusVisibility: {
+    type: String,
+    enum: ['everyone', 'contacts', 'nobody'],
+    default: 'everyone'
+  },
+  lastSeenVisibility: {
+    type: String,
+    enum: ['everyone', 'contacts', 'nobody'],
+    default: 'everyone'
+  },
 
+  resetPasswordToken: String,
+  resetPasswordExpire: Date,
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   createdAt: {
