@@ -36,8 +36,8 @@ const comments = require('./routes/comment');
 const Message = require('./models/Message');
 
 const app = express();
+app.set('trust proxy', true);
 const server = http.createServer(app);
-
 // Initialize Socket.IO with proper CORS and options
 const io = new Server(server, {
   cors: {
@@ -54,6 +54,7 @@ const io = new Server(server, {
 
 // Middleware setup
 app.use(cookieParser());
+
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: false }));
 
