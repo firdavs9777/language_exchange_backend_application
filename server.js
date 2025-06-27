@@ -1,4 +1,4 @@
-// FIXED SERVER CODE
+// FIXED SERVER CODE WITH CORS DOMAIN CONFIGURATION
 const path = require('path');
 const express = require('express');
 const dotenv = require('dotenv');
@@ -38,14 +38,23 @@ const Message = require('./models/Message');
 const app = express();
 const server = http.createServer(app);
 
+// CORS allowed origins
+const allowedOrigins = [
+  process.env.FRONTEND_URL || "http://localhost:3000",
+  "http://10.0.2.2:3000", // For Android emulator
+  "http://localhost:3000",
+  "http://banatalk.com",
+  "https://banatalk.com",
+  "http://www.banatalk.com",
+  "https://www.banatalk.com",
+  "http://api.banatalk.com",
+  "https://api.banatalk.com"
+];
+
 // Initialize Socket.IO with proper CORS and options
 const io = new Server(server, {
   cors: {
-    origin: [
-      process.env.FRONTEND_URL || "http://localhost:3000",
-      "http://10.0.2.2:3000", // For Android emulator
-      "http://localhost:3000"
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -75,7 +84,26 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(xss());
 app.use(rateLimit({ windowMs: 10 * 60 * 1000, max: 10000 }));
 app.use(hpp());
-app.use(cors());
+
+// UPDATED: Enhanced CORS configuration
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      console.log('❌ CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token'],
+  exposedHeaders: ['set-cookie']
+}));
+
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(passport.initialize());
 
@@ -424,6 +452,7 @@ io.on('connection', async (socket) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`.yellow.bold);
+  console.log(`🌐 CORS enabled for domains: ${allowedOrigins.join(', ')}`.cyan);
 });
 
 // Error handling
