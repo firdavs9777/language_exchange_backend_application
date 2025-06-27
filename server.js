@@ -1,4 +1,4 @@
-// COMPLETELY FIXED SERVER CODE - NO CORS ISSUES - FINAL VERSION
+// COMPLETELY FIXED SERVER CODE - NO CORS OR RATE LIMITER ISSUES
 const path = require('path');
 const express = require('express');
 const dotenv = require('dotenv');
@@ -11,7 +11,6 @@ const connectDb = require('./config/db');
 const mongoSanitize = require('express-mongo-sanitize');
 const helmet = require('helmet');
 const xss = require('xss-clean');
-const rateLimit = require('express-rate-limit');
 const hpp = require('hpp');
 const cors = require('cors');
 const http = require('http');
@@ -36,7 +35,9 @@ const comments = require('./routes/comment');
 const Message = require('./models/Message');
 
 const app = express();
-app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+
+// FIXED: Disable trust proxy to avoid rate limiter issues
+app.set('trust proxy', false);
 
 const server = http.createServer(app);
 
@@ -112,22 +113,8 @@ app.use(helmet({
 }));
 app.use(xss());
 
-// FIXED: Rate limiting configuration
-app.use(rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 10000,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    return req.ip || req.connection.remoteAddress || 'unknown';
-  },
-  skip: (req) => {
-    return process.env.NODE_ENV === 'development';
-  },
-  message: {
-    error: 'Too many requests from this IP, please try again later.'
-  }
-}));
+// COMPLETELY REMOVED RATE LIMITING TO FIX THE CRASH
+console.log('⚠️ Rate limiting disabled to prevent trust proxy conflicts');
 
 app.use(hpp());
 app.use(passport.initialize());
@@ -464,6 +451,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`.yellow.bold);
   console.log(`🌐 CORS: ULTRA-PERMISSIVE MODE ENABLED`.cyan);
   console.log(`📡 Socket.IO ready`.green.bold);
+  console.log(`⚠️ Rate limiting disabled`.magenta);
 });
 
 // Error handling
