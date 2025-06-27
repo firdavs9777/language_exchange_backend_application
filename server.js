@@ -36,7 +36,8 @@ const comments = require('./routes/comment');
 const Message = require('./models/Message');
 
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+
 const server = http.createServer(app);
 
 // SINGLE CORS CONFIGURATION - ALL DOMAINS
@@ -122,13 +123,23 @@ app.use(helmet({
 app.use(xss());
 
 // Rate limiting
+// FIXED: Rate limiting configuration
 app.use(rateLimit({
-  windowMs: 10 * 60 * 1000,
-  max: 10000,
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 10000, // limit each IP to 10000 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
+  // FIXED: Remove trust proxy from rate limiter
+  keyGenerator: (req) => {
+    // Use a simple IP extraction that doesn't rely on trust proxy
+    return req.ip || req.connection.remoteAddress || 'unknown';
+  },
+  // Skip rate limiting in development
   skip: (req) => {
     return process.env.NODE_ENV === 'development';
+  },
+  message: {
+    error: 'Too many requests from this IP, please try again later.'
   }
 }));
 
