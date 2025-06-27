@@ -1,4 +1,4 @@
-// COMPLETELY FIXED SERVER CODE - NO CORS ISSUES
+// COMPLETELY FIXED SERVER CODE - NO CORS ISSUES - FINAL VERSION
 const path = require('path');
 const express = require('express');
 const dotenv = require('dotenv');
@@ -40,7 +40,7 @@ app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
 
 const server = http.createServer(app);
 
-// SINGLE CORS CONFIGURATION - ALL DOMAINS
+// CORS DOMAINS
 const allowedOrigins = [
   "http://localhost:3000",
   "http://10.0.2.2:3000",
@@ -55,7 +55,7 @@ const allowedOrigins = [
 // Socket.IO with CORS
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: "*", // Allow all origins for Socket.IO
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -66,36 +66,26 @@ const io = new Server(server, {
 // Middleware setup in correct order
 app.use(cookieParser());
 
-// SINGLE CORS MIDDLEWARE - MOST PERMISSIVE
-app.use(cors({
-  origin: function (origin, callback) {
-    console.log('🌐 Request from origin:', origin);
-    // Allow requests with no origin (mobile apps, postman, etc.)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      console.log('✅ CORS allowed for:', origin);
-      return callback(null, true);
-    }
-    
-    console.log('❌ CORS blocked for:', origin);
-    callback(null, true); // TEMPORARILY ALLOW ALL FOR DEBUGGING
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With', 
-    'Content-Type',
-    'Accept',
-    'Authorization',
-    'Cache-Control',
-    'X-Access-Token'
-  ],
-  exposedHeaders: ['set-cookie'],
-  preflightContinue: false,
-  optionsSuccessStatus: 200
-}));
+// ULTRA-PERMISSIVE CORS - MANUAL HEADERS (REPLACES THE CORS MIDDLEWARE)
+app.use((req, res, next) => {
+  const origin = req.get('Origin');
+  console.log(`🌐 ${req.method} request from: ${origin || 'no-origin'} to ${req.path}`);
+  
+  // Set CORS headers manually - allow everything
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, X-Access-Token');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
+  
+  // Handle preflight OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    console.log('✅ Preflight request handled for:', origin);
+    return res.status(200).end();
+  }
+  
+  next();
+});
 
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: false }));
@@ -122,19 +112,15 @@ app.use(helmet({
 }));
 app.use(xss());
 
-// Rate limiting
 // FIXED: Rate limiting configuration
 app.use(rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 10000, // limit each IP to 10000 requests per windowMs
+  windowMs: 10 * 60 * 1000,
+  max: 10000,
   standardHeaders: true,
   legacyHeaders: false,
-  // FIXED: Remove trust proxy from rate limiter
   keyGenerator: (req) => {
-    // Use a simple IP extraction that doesn't rely on trust proxy
     return req.ip || req.connection.remoteAddress || 'unknown';
   },
-  // Skip rate limiting in development
   skip: (req) => {
     return process.env.NODE_ENV === 'development';
   },
@@ -152,7 +138,8 @@ app.get('/health', (req, res) => {
     success: true,
     message: 'Server is healthy',
     timestamp: new Date().toISOString(),
-    cors: 'enabled'
+    cors: 'enabled',
+    origin: req.get('Origin')
   });
 });
 
@@ -475,7 +462,7 @@ io.on('connection', async (socket) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`.yellow.bold);
-  console.log(`🌐 CORS enabled for: ${allowedOrigins.join(', ')}`.cyan);
+  console.log(`🌐 CORS: ULTRA-PERMISSIVE MODE ENABLED`.cyan);
   console.log(`📡 Socket.IO ready`.green.bold);
 });
 
