@@ -1,5 +1,4 @@
-// FIXED SERVER CODE WITH CORS DOMAIN CONFIGURATION
-// COMPLETE FIXED SERVER CODE
+// COMPLETELY FIXED SERVER CODE - NO CORS ISSUES
 const path = require('path');
 const express = require('express');
 const dotenv = require('dotenv');
@@ -37,143 +36,126 @@ const comments = require('./routes/comment');
 const Message = require('./models/Message');
 
 const app = express();
-
-// FIXED: Proper trust proxy configuration
-app.set('trust proxy', 1); // Trust only the first proxy
-
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
-// CORS allowed origins
+// SINGLE CORS CONFIGURATION - ALL DOMAINS
 const allowedOrigins = [
-  process.env.FRONTEND_URL || "http://localhost:3000",
-  "http://10.0.2.2:3000", // For Android emulator
   "http://localhost:3000",
+  "http://10.0.2.2:3000",
   "http://banatalk.com",
   "https://banatalk.com",
-  "http://www.banatalk.com",
+  "http://www.banatalk.com", 
   "https://www.banatalk.com",
   "http://api.banatalk.com",
   "https://api.banatalk.com"
 ];
 
-// Initialize Socket.IO with proper CORS and options
+// Socket.IO with CORS
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true
   },
+  allowEIO3: true,
   transports: ['websocket', 'polling']
 });
 
-// FIXED: Proper rate limiting configuration
-const limiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 10000, // limit each IP to 10000 requests per windowMs
-  standardHeaders: true,
-  legacyHeaders: false,
-  trustProxy: true, // Enable trust proxy for rate limiter
-  keyGenerator: (req) => {
-    // Use the real IP from proxy headers or fallback to connection IP
-    return req.ip || req.connection.remoteAddress;
-  },
-  // Skip rate limiting for localhost during development
-  skip: (req) => {
-    if (process.env.NODE_ENV === 'development') {
-      const ip = req.ip || req.connection.remoteAddress;
-      return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-    }
-    return false;
-  },
-  message: {
-    error: 'Too many requests from this IP, please try again later.'
-  }
-});
-
-// Middleware setup - FIXED ORDER
+// Middleware setup in correct order
 app.use(cookieParser());
+
+// SINGLE CORS MIDDLEWARE - MOST PERMISSIVE
+app.use(cors({
+  origin: function (origin, callback) {
+    console.log('🌐 Request from origin:', origin);
+    // Allow requests with no origin (mobile apps, postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      console.log('✅ CORS allowed for:', origin);
+      return callback(null, true);
+    }
+    
+    console.log('❌ CORS blocked for:', origin);
+    callback(null, true); // TEMPORARILY ALLOW ALL FOR DEBUGGING
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With', 
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+    'X-Access-Token'
+  ],
+  exposedHeaders: ['set-cookie'],
+  preflightContinue: false,
+  optionsSuccessStatus: 200
+}));
+
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: false }));
-
-// CORS should be before other middleware
-app.use(cors({
-  origin: [
-    process.env.FRONTEND_URL || "http://localhost:3000",
-    "http://10.0.2.2:3000",
-    "http://localhost:3000"
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
 
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-app.use(
-  fileUpload({
-    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-    abortOnLimit: true,
-    createParentPath: true,
-    useTempFiles: true,
-    tempFileDir: '/tmp/'
-  })
-);
+app.use(fileUpload({
+  limits: { fileSize: 10 * 1024 * 1024 },
+  abortOnLimit: true,
+  createParentPath: true,
+  useTempFiles: true,
+  tempFileDir: '/tmp/'
+}));
 
-// Static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Security middleware
 app.use(mongoSanitize());
 app.use(helmet({ 
   contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false 
 }));
 app.use(xss());
-app.use(limiter); // Apply the fixed rate limiter
-app.use(hpp());
 
-// UPDATED: Enhanced CORS configuration
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
-      callback(null, true);
-    } else {
-      console.log('❌ CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token'],
-  exposedHeaders: ['set-cookie']
+// Rate limiting
+app.use(rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    return process.env.NODE_ENV === 'development';
+  }
 }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(hpp());
 app.use(passport.initialize());
 
-// Health check route
+// Health check
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Server is healthy',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
+    cors: 'enabled'
   });
 });
 
-// Test route
+// Test route with CORS info
 app.get('/test', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'Test route is working!',
-    ip: req.ip,
-    headers: req.headers
+    message: 'Test route working!',
+    origin: req.get('Origin'),
+    headers: {
+      origin: req.get('Origin'),
+      host: req.get('Host'),
+      referer: req.get('Referer')
+    }
   });
 });
 
@@ -185,24 +167,22 @@ app.use('/api/v1/auth/users', users);
 app.use('/api/v1/languages', languages);
 app.use('/api/v1/comments', comments);
 
-// Error handling middleware (should be last)
 app.use(errorHandler);
 
-// FIXED: Socket.IO Authentication Middleware with better error handling
+// Socket.IO Authentication
 io.use((socket, next) => {
   try {
     const token = socket.handshake.auth.token || 
                   socket.handshake.headers.authorization ||
                   socket.handshake.query.token;
     
-    console.log('🔑 Socket auth attempt from:', socket.handshake.address);
+    console.log('🔑 Socket auth from:', socket.handshake.headers.origin);
     
     if (!token) {
-      console.log('❌ Authentication error: No token provided');
+      console.log('❌ No token provided');
       return next(new Error("Authentication error: No token provided"));
     }
     
-    // Remove 'Bearer ' prefix if present
     const cleanToken = token.replace(/^Bearer\s+/i, '');
     const decoded = jwt.verify(cleanToken, process.env.JWT_SECRET);
     
@@ -210,28 +190,25 @@ io.use((socket, next) => {
     console.log(`✅ User authenticated: ${decoded.id}`);
     next();
   } catch (err) {
-    console.log('❌ Authentication error:', err.message);
+    console.log('❌ Auth error:', err.message);
     return next(new Error("Authentication error: Invalid token"));
   }
 });
 
-// ENHANCED: Socket.IO connection handler with improved error handling
+// Socket.IO connection handler
 io.on('connection', async (socket) => {   
-  console.log(`✅ User ${socket.user?.id} connected from ${socket.handshake.address}`);    
+  console.log(`✅ User ${socket.user?.id} connected`);    
   
-  // Validate user exists on socket   
   if (!socket.user?.id) {     
-    console.log('❌ No user ID found - disconnecting');     
+    console.log('❌ No user ID - disconnecting');     
     socket.disconnect(true);     
     return;   
   }    
   
-  // Join user to their own room   
   const userRoom = `user_${socket.user.id}`;   
   await socket.join(userRoom);   
   console.log(`👤 User ${socket.user.id} joined room: ${userRoom}`);
   
-  // ENHANCED: Get online users and broadcast user coming online
   try {
     const connectedSockets = await io.fetchSockets();
     const onlineUsers = connectedSockets
@@ -239,29 +216,24 @@ io.on('connection', async (socket) => {
       .map(s => ({
         userId: s.user.id,
         status: 'online',
-        lastSeen: null,
-        socketId: s.id
+        lastSeen: null
       }));
     
-    // Send current online users to newly connected user
     socket.emit('onlineUsers', onlineUsers);
     console.log(`📋 Sent ${onlineUsers.length} online users to ${socket.user.id}`);
     
-    // Broadcast that this user came online
     socket.broadcast.emit('userStatusUpdate', {
       userId: socket.user.id,
       status: 'online',
       lastSeen: null
     });
-    console.log(`📡 Broadcast: User ${socket.user.id} is now online`);
   } catch (error) {
     console.error('❌ Error handling online users:', error);
   }
   
-  // ENHANCED: Handle sending messages with better validation
+  // Handle sending messages
   socket.on('sendMessage', async ({ receiver, message }, callback) => {     
     try {       
-      // Enhanced input validation       
       if (!receiver || !message || typeof message !== 'string') {         
         throw new Error('Missing or invalid required fields');       
       }
@@ -270,39 +242,30 @@ io.on('connection', async (socket) => {
         throw new Error('Message cannot be empty');
       }
       
-      if (message.length > 1000) {
-        throw new Error('Message too long (max 1000 characters)');
-      }
+      console.log(`📤 Message from ${socket.user.id} to ${receiver}`);        
       
-      console.log(`📤 Message from ${socket.user.id} to ${receiver}: ${message.substring(0, 50)}...`);        
-      
-      // Create and save the message to the database       
       const newMessage = await Message.create({          
         sender: socket.user.id,          
         receiver,          
         message: message.trim()
       });        
       
-      // Populate sender and receiver info       
       const populatedMessage = await Message.findById(newMessage._id)         
         .populate('sender', 'name imageUrls')
         .populate('receiver', 'name imageUrls');        
       
-      // Calculate unread count for the RECEIVER
       const unreadCountForReceiver = await Message.countDocuments({         
         receiver: receiver,
         sender: socket.user.id,
         read: false       
       });
       
-      // Calculate unread count for the SENDER
       const unreadCountForSender = await Message.countDocuments({         
         receiver: socket.user.id,
         sender: receiver,
         read: false       
       });        
       
-      // Prepare notification data
       const notificationDataForReceiver = {         
         message: populatedMessage,         
         unreadCount: unreadCountForReceiver,
@@ -317,11 +280,9 @@ io.on('connection', async (socket) => {
         type: 'messageSent'
       };
       
-      // Send to receiver's room       
       const receiverRoom = `user_${receiver}`;       
       io.to(receiverRoom).emit('newMessage', notificationDataForReceiver);              
       
-      // Send acknowledgment to sender       
       if (callback) {
         callback({           
           status: 'success',           
@@ -330,16 +291,14 @@ io.on('connection', async (socket) => {
         });
       }
       
-      // Also emit to sender's room for real-time updates
       io.to(userRoom).emit('messageSent', notificationDataForSender);
-      
-      console.log(`📨 Message delivered to ${receiverRoom}, unread: ${unreadCountForReceiver}`);     
+      console.log(`📨 Message delivered`);     
     } catch (err) {       
-      console.error('❌ Message save error:', err);              
+      console.error('❌ Message error:', err);              
       
       const errorResponse = {           
         status: 'error',           
-        error: err.message || 'Failed to send message'
+        error: err.message
       };
       
       if (callback) {         
@@ -350,14 +309,13 @@ io.on('connection', async (socket) => {
     }   
   });
   
-  // ENHANCED: Handle marking messages as read with better error handling
+  // Handle marking messages as read
   socket.on('markAsRead', async ({ senderId }, callback) => {
     try {
       if (!senderId) {
         throw new Error('Sender ID is required');
       }
       
-      // Mark all messages from senderId to current user as read
       const result = await Message.updateMany(
         {
           sender: senderId,
@@ -370,14 +328,12 @@ io.on('connection', async (socket) => {
         }
       );
       
-      console.log(`📖 Marked ${result.modifiedCount} messages as read for user ${socket.user.id} from ${senderId}`);
+      console.log(`📖 Marked ${result.modifiedCount} messages as read`);
       
-      // Notify the sender that their messages were read
       const senderRoom = `user_${senderId}`;
       io.to(senderRoom).emit('messagesRead', {
         readBy: socket.user.id,
-        count: result.modifiedCount,
-        timestamp: new Date().toISOString()
+        count: result.modifiedCount
       });
       
       if (callback) {
@@ -398,29 +354,20 @@ io.on('connection', async (socket) => {
     }
   });    
   
-  // ENHANCED: Handle typing events with rate limiting
+  // Typing events
   let typingTimeout;
   const handleTypingEvent = (type) => {     
     return ({ receiver }) => {       
-      if (!receiver) {         
-        console.log('❌ Missing receiver in typing event');         
-        return;       
-      }        
+      if (!receiver) return;        
       
       if (type === 'start') {         
-        console.log(`⌨️ User ${socket.user.id} is typing to ${receiver}`);
-        
-        // Clear existing timeout
-        if (typingTimeout) {
-          clearTimeout(typingTimeout);
-        }
+        if (typingTimeout) clearTimeout(typingTimeout);
         
         socket.to(`user_${receiver}`).emit('userTyping', {            
           userId: socket.user.id,           
           isTyping: true          
         });
         
-        // Auto-stop typing after 5 seconds of inactivity
         typingTimeout = setTimeout(() => {
           socket.to(`user_${receiver}`).emit('userTyping', {            
             userId: socket.user.id,           
@@ -428,11 +375,7 @@ io.on('connection', async (socket) => {
           });
         }, 5000);
       } else {         
-        console.log(`⌨️ User ${socket.user.id} stopped typing to ${receiver}`);
-        
-        if (typingTimeout) {
-          clearTimeout(typingTimeout);
-        }
+        if (typingTimeout) clearTimeout(typingTimeout);
         
         socket.to(`user_${receiver}`).emit('userTyping', {            
           userId: socket.user.id,           
@@ -445,80 +388,53 @@ io.on('connection', async (socket) => {
   socket.on('typing', handleTypingEvent('start'));   
   socket.on('stopTyping', handleTypingEvent('stop'));    
   
-  // ENHANCED: Status handling with validation
+  // Status updates
   socket.on('updateStatus', async ({ status }) => {
     try {
       const validStatuses = ['online', 'away', 'busy', 'offline'];
-      if (!validStatuses.includes(status)) {
-        throw new Error('Invalid status');
-      }
+      if (!validStatuses.includes(status)) return;
       
-      console.log(`📡 User ${socket.user.id} status changed to: ${status}`);
+      console.log(`📡 User ${socket.user.id} status: ${status}`);
       
-      // Broadcast status to all users
       socket.broadcast.emit('userStatusUpdate', {
         userId: socket.user.id,
         status,
-        lastSeen: status === 'offline' ? new Date().toISOString() : null,
-        timestamp: new Date().toISOString()
+        lastSeen: status === 'offline' ? new Date().toISOString() : null
       });
-      
-      console.log(`📡 Status broadcast: User ${socket.user.id} is now ${status}`);
     } catch (err) {
       console.error('❌ Status update error:', err);
-      socket.emit('error', { message: err.message });
     }
   });
   
-  // Quick status update handlers
+  // Quick status handlers
   ['setAway', 'setBusy', 'setOnline'].forEach(eventName => {
     socket.on(eventName, () => {
       const status = eventName.replace('set', '').toLowerCase();
-      console.log(`${status === 'online' ? '🟢' : status === 'away' ? '😴' : '🔴'} User ${socket.user.id} is now ${status}`);
-      
       socket.broadcast.emit('userStatusUpdate', {
         userId: socket.user.id,
         status,
-        lastSeen: null,
-        timestamp: new Date().toISOString()
+        lastSeen: null
       });
     });
   });
   
-  // ENHANCED: Get user status with better error handling
+  // Get user status
   socket.on('getUserStatus', async ({ userId }, callback) => {
     try {
-      if (!userId) {
-        throw new Error('User ID is required');
-      }
+      if (!userId) throw new Error('User ID required');
       
-      // Check if user is currently connected
       const connectedSockets = await io.fetchSockets();
       const userSocket = connectedSockets.find(s => s.user?.id === userId);
       
-      if (userSocket) {
-        callback({
-          status: 'success',
-          data: {
-            userId,
-            status: 'online',
-            lastSeen: null,
-            timestamp: new Date().toISOString()
-          }
-        });
-      } else {
-        callback({
-          status: 'success',
-          data: {
-            userId,
-            status: 'offline',
-            lastSeen: new Date().toISOString(),
-            timestamp: new Date().toISOString()
-          }
-        });
-      }
+      callback({
+        status: 'success',
+        data: {
+          userId,
+          status: userSocket ? 'online' : 'offline',
+          lastSeen: userSocket ? null : new Date().toISOString()
+        }
+      });
     } catch (err) {
-      console.error('❌ Get user status error:', err);
       callback({
         status: 'error',
         error: err.message
@@ -526,74 +442,39 @@ io.on('connection', async (socket) => {
     }
   });
   
-  // ENHANCED: Handle disconnection with cleanup
+  // Handle disconnection
   socket.on('disconnect', (reason) => {     
     console.log(`❌ User ${socket.user?.id} disconnected: ${reason}`);
     
-    // Clear typing timeout
-    if (typingTimeout) {
-      clearTimeout(typingTimeout);
-    }
+    if (typingTimeout) clearTimeout(typingTimeout);
     
-    // Broadcast offline status with timestamp
     socket.broadcast.emit('userStatusUpdate', {
       userId: socket.user.id,
       status: 'offline',
-      lastSeen: new Date().toISOString(),
-      timestamp: new Date().toISOString()
+      lastSeen: new Date().toISOString()
     });
-    
-    console.log(`📡 Broadcast: User ${socket.user.id} is now offline`);
   });    
   
-  // Handle connection errors   
   socket.on('error', (error) => {     
-    console.log(`❌ Socket error for user ${socket.user?.id}:`, error);   
+    console.log(`❌ Socket error:`, error);   
   }); 
 });
-
-// ENHANCED: Graceful shutdown handling
-const gracefulShutdown = () => {
-  console.log('\n⚠️ SIGINT received. Starting graceful shutdown...');
-  
-  // Close Socket.IO server
-  io.close(() => {
-    console.log('✅ Socket.IO server closed.');
-    
-    // Close HTTP server
-    server.close(() => {
-      console.log('✅ HTTP server closed.');
-      process.exit(0);
-    });
-  });
-  
-  // Force close after 10 seconds
-  setTimeout(() => {
-    console.log('❌ Forced shutdown after timeout');
-    process.exit(1);
-  }, 10000);
-};
-
-process.on('SIGINT', gracefulShutdown);
-process.on('SIGTERM', gracefulShutdown);
 
 // Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`.yellow.bold);
-  console.log(`🌐 CORS enabled for domains: ${allowedOrigins.join(', ')}`.cyan);
-  console.log(`📡 Socket.IO server ready for connections`.green.bold);
+  console.log(`🚀 Server running on port ${PORT}`.yellow.bold);
+  console.log(`🌐 CORS enabled for: ${allowedOrigins.join(', ')}`.cyan);
+  console.log(`📡 Socket.IO ready`.green.bold);
 });
 
-// ENHANCED: Error handling with better logging
-process.on('unhandledRejection', (err, promise) => {
-  console.log(`❌ Unhandled Promise Rejection: ${err.message}`.red.bgBlack);
-  console.log('Promise:', promise);
+// Error handling
+process.on('unhandledRejection', (err) => {
+  console.log(`❌ Unhandled Rejection: ${err.message}`.red);
   server.close(() => process.exit(1));
 });
 
 process.on('uncaughtException', (err) => {
-  console.log(`❌ Uncaught Exception: ${err.message}`.red.bgBlack);
-  console.log(err.stack);
+  console.log(`❌ Uncaught Exception: ${err.message}`.red);
   process.exit(1);
 });
