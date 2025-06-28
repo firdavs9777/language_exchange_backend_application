@@ -281,6 +281,42 @@ exports.sendEmailCode = asyncHandler(async (req, res, next) => {
   }
 });
 
+
+exports.registerEmailCode = asyncHandler(async (req, res, next) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return next(new ErrorResponse('Email is required', 400));
+  }
+
+  // Generate a secure random code
+  const code = crypto.randomInt(100000, 999999).toString();
+  const expiration = Date.now() + 15 * 60 * 1000; // 15 minutes
+
+  // Store verification data
+  usersVerification[email] = { code, expiration };
+
+  const message = `Your verification code is: ${code}`;
+  
+  try {
+    await sendEmail({
+      email,
+      subject: 'Email Verification Code',
+      message,
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Verification code sent',
+      expiresIn: '15 minutes'
+    });
+  } catch (err) {
+    console.error('Email sending error:', err);
+    return next(new ErrorResponse('Email could not be sent', 500));
+  }
+});
+
+
 /**
  * @desc    Verify Email Code
  * @route   POST /api/v1/auth/checkEmailCode
