@@ -10,7 +10,8 @@ const {
   facebookCallback,
   sendEmailCode,
   checkEmailCode,
-  resetPassword
+  resetPassword,
+  registerEmailCode
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -26,6 +27,7 @@ router.put('/updatedetails', protect, updateDetails);
 router.put('/updatepassword', protect, updatePassword);
 router.post('/resetpassword', resetPassword);
 router.post('/sendCodeEmail', sendEmailCode);
+router.post('/registerCodeEmail', registerEmailCode);
 router.post('/checkEmailCode', checkEmailCode);
 
 module.exports = router;
