@@ -151,7 +151,7 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
 // @access Private
 exports.createStory = asyncHandler(async (req, res, next) => {
   try {
-    const { text, backgroundColor, textColor, privacy, mediaType } = req.body;
+    const { text, backgroundColor, textColor, privacy } = req.body;
     const userId = req.user.id;
     
     if (!req.files?.file && !text) {
@@ -160,6 +160,7 @@ exports.createStory = asyncHandler(async (req, res, next) => {
     
     let mediaUrl = '';
     let thumbnail = '';
+    let mediaType = '';
     
     if (req.files?.file) {
       const file = req.files.file;
