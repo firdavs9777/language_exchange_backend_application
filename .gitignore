@@ -53,7 +53,7 @@ Thumbs.db
 
 # Environment files
 .env
-# config/config.env
+config/config.env
 *.env.local
 *.env.development
 *.env.test
