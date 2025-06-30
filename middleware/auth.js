@@ -4,6 +4,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const User = require('../models/User');
 const Moment = require('../models/Moment');
 const Comment = require('../models/Comment');
+const Story = require('../models/Story');
 
 // Protect routes
 exports.protect = asyncHandler(async (req, res, next) => {
@@ -32,13 +33,23 @@ exports.protect = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.authorize = (resourceOwnerField) => {
+exports.authorize = (resourceOwnerField, modelType) => {
   return asyncHandler(async (req, res, next) => {
     console.log('req.params.id:', req.params.id);
     if (req.params.id) {
       const resourceId = req.params.id;
-      const Model = Moment;
+      let Model;
+      if (modelType === 'moment') {
+        Model = Moment;
+      }
+      else if (modelType === 'comment') {
+        Model = Comment
+      }
+      else {
+        Model = Story
+      }
 
+      
       const resource = await Model.findById(resourceId);
 
       console.log('resource:', resource);

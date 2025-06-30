@@ -2,15 +2,7 @@ const path = require('path');
 const asyncHandler = require('../middleware/async');
 const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
-const { default: sendTokenResponse } = require('./auth');
 
-//@desc Get all moments
-//@route Get /api/v1/moments
-//@access Public
-
-// exports.getMoments = asyncHandler(async (req, res, next) => {
-//   res.status(200).json(res.advancedResults);
-// });
 
 exports.getMoments = asyncHandler(async (req, res, next) => {
   try {

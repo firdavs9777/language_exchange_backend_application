@@ -33,12 +33,13 @@ const users = require('./routes/users');
 const languages = require('./routes/languages');
 const comments = require('./routes/comment');
 const Message = require('./models/Message');
+const stories = require('./routes/story')
 
 const app = express();
 
 // FIXED: Disable trust proxy to avoid rate limiter issues
 app.set('trust proxy', false);
-
+app.use(cors());
 const server = http.createServer(app);
 
 // CORS DOMAINS
@@ -151,6 +152,7 @@ app.use('/api/v1/messages', messages);
 app.use('/api/v1/auth/users', users);
 app.use('/api/v1/languages', languages);
 app.use('/api/v1/comments', comments);
+app.use('/api/v1/stories', stories);
 
 app.use(errorHandler);
 
