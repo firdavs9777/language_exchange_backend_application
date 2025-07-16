@@ -33,18 +33,33 @@ passport.use(
     async (accessToken, refreshToken, profile, done) => {
       try {
         const { id, emails, name, photos } = profile;
+        const email = emails && emails[0] ? emails[0].value : null;
         
-        // Try to find existing user by Facebook ID
+        // Try to find existing user by Facebook ID first
         let user = await User.findOne({ facebookId: id });
+        
+        if (!user && email) {
+          // If no Facebook user found, check if user exists by email
+          user = await User.findOne({ email });
+          
+          if (user) {
+            // Link Facebook account to existing user
+            user.facebookId = id;
+            if (photos && photos[0] && (!user.images || user.images.length === 0)) {
+              user.images = [photos[0].value];
+            }
+            await user.save();
+          }
+        }
         
         if (!user) {
           // Create new user if not found
           user = await User.create({
             facebookId: id,
-            email: emails && emails[0] ? emails[0].value : null,
+            email,
             name: `${name.givenName || ''} ${name.familyName || ''}`.trim(),
             images: photos && photos[0] ? [photos[0].value] : [],
-            // Other fields can be set to default values or collected later
+            isVerified: true, // Facebook users are pre-verified
           });
         }
         
@@ -82,7 +97,7 @@ exports.facebookCallback = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Facebook login failed, no user returned', 400));
     }
 
-    sendTokenResponse(user, 200, res);
+    sendTokenResponse(user, 200, res, req);
   })(req, res, next);
 });
 
@@ -121,7 +136,7 @@ exports.register = asyncHandler(async (req, res, next) => {
     language_to_learn
   });
   
-  sendTokenResponse(user, 200, res);
+  sendTokenResponse(user, 200, res, req);
 });
 
 /**
@@ -151,38 +166,7 @@ exports.login = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Invalid credentials', 401));
   }
   
-  // Convert to object to safely modify without impacting schema
-  const userObject = user.toObject();
-  
-  // Add image URLs
-  if (userObject.images && Array.isArray(userObject.images)) {
-    userObject.imageUrls = userObject.images.map(image => 
-      `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-    );
-  }
-  
-  // Use the original user for token generation, but return enhanced object
-  const token = user.getSignedJwtToken();
-  
-  const options = {
-    expires: new Date(
-      Date.now() + (process.env.JWT_COOKIE_EXPIRE || 30) * 24 * 60 * 60 * 1000
-    ),
-    httpOnly: true
-  };
-  
-  // Secure cookies in production
-  if (process.env.NODE_ENV === 'production') {
-    options.secure = true;
-  }
-  
-  res.status(200)
-    .cookie('token', token, options)
-    .json({
-      success: true,
-      token,
-      user: userObject
-    });
+  sendTokenResponse(user, 200, res, req);
 });
 
 /**
@@ -217,14 +201,7 @@ exports.getMe = asyncHandler(async (req, res, next) => {
     }
     
     // Convert user to plain object and add image URLs
-    const userObject = user.toObject();
-    
-    // Add full URLs for all images
-    if (userObject.images && Array.isArray(userObject.images)) {
-      userObject.imageUrls = userObject.images.map(image => 
-        `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-      );
-    }
+    const userObject = processUserImages(user, req);
     
     res.status(200).json({
       success: true,
@@ -281,7 +258,11 @@ exports.sendEmailCode = asyncHandler(async (req, res, next) => {
   }
 });
 
-
+/**
+ * @desc    Send Email Verification Code for Registration
+ * @route   POST /api/v1/auth/registerEmailCode
+ * @access  Public
+ */
 exports.registerEmailCode = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
   
@@ -289,19 +270,25 @@ exports.registerEmailCode = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Email is required', 400));
   }
 
+  // Check if user already exists
+  const existingUser = await User.findOne({ email });
+  if (existingUser) {
+    return next(new ErrorResponse('User with this email already exists', 400));
+  }
+
   // Generate a secure random code
   const code = crypto.randomInt(100000, 999999).toString();
   const expiration = Date.now() + 15 * 60 * 1000; // 15 minutes
 
   // Store verification data
-  usersVerification[email] = { code, expiration };
+  usersVerification[email] = { code, expiration, type: 'registration' };
 
-  const message = `Your verification code is: ${code}`;
+  const message = `Your verification code for registration is: ${code}`;
   
   try {
     await sendEmail({
       email,
-      subject: 'Email Verification Code',
+      subject: 'Registration Verification Code',
       message,
     });
 
@@ -315,7 +302,6 @@ exports.registerEmailCode = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Email could not be sent', 500));
   }
 });
-
 
 /**
  * @desc    Verify Email Code
@@ -345,7 +331,7 @@ exports.checkEmailCode = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Verification code has expired', 400));
   }
 
-  // Mark user as verified in DB
+  // Mark user as verified in DB if they exist
   const user = await User.findOne({ email });
   
   if (user) {
@@ -353,7 +339,7 @@ exports.checkEmailCode = asyncHandler(async (req, res, next) => {
     await user.save();
   }
 
-  // Don't delete the verification yet if it might be needed for password reset
+  // Keep the verification for potential password reset or registration completion
 
   res.status(200).json({ 
     success: true, 
@@ -396,7 +382,7 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
   await user.save();
 
   // Return new token
-  sendTokenResponse(user, 200, res);
+  sendTokenResponse(user, 200, res, req);
 });
 
 /**
@@ -448,22 +434,7 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`User not found`, 404));
   }
   
-  // Convert to plain object and add image URLs
-  const userObject = user.toObject();
-  
-  if (userObject.images && Array.isArray(userObject.images)) {
-    userObject.imageUrls = userObject.images.map(image => 
-      `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-    );
-  }
-    const token = user.getSignedJwtToken();
-
-  // Send response
-  res.status(200).json({
-    success: true,
-    token,
-    user: userObject
-  });
+  sendTokenResponse(user, 200, res, req);
 });
 
 /**
@@ -494,7 +465,7 @@ exports.updatePassword = asyncHandler(async (req, res, next) => {
   user.password = newPassword;
   await user.save();
   
-  sendTokenResponse(user, 200, res);
+  sendTokenResponse(user, 200, res, req);
 });
 
 /**
@@ -510,20 +481,15 @@ function processUserImages(user, req) {
       `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
     );
     
-    // For backward compatibility and direct access in templates
-    if (userObject._doc) {
-      userObject._doc.imageUrls = userObject.imageUrls;
-    }
-    
     return userObject;
   }
-  return user;
+  return user.toObject ? user.toObject() : { ...user };
 }
 
 /**
  * Helper function to generate and send JWT token response
  */
-const sendTokenResponse = (user, statusCode, res) => {
+const sendTokenResponse = (user, statusCode, res, req = null) => {
   try {
     // Make sure we have a valid user with the getSignedJwtToken method
     if (!user || typeof user.getSignedJwtToken !== 'function') {
@@ -546,15 +512,8 @@ const sendTokenResponse = (user, statusCode, res) => {
       options.secure = true;
     }
     
-    // Convert user to plain object for response
-    const userObject = user.toObject ? user.toObject() : { ...user };
-    
-    // Add image URLs
-    if (userObject.images && Array.isArray(userObject.images)) {
-      userObject.imageUrls = userObject.images.map(image => 
-        `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-      );
-    }
+    // Convert user to plain object for response and add image URLs if req is available
+    const userObject = req ? processUserImages(user, req) : (user.toObject ? user.toObject() : { ...user });
     
     res.status(statusCode)
       .cookie('token', token, options)
