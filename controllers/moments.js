@@ -6,26 +6,135 @@ const ErrorResponse = require('../utils/errorResponse');
 
 exports.getMoments = asyncHandler(async (req, res, next) => {
   try {
-    const moments = await Moment.find().populate('user', 'name email mbti bio bloodType image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
+    console.log('getMoments called');
+    console.log('Query params:', req.query);
 
-    const momentsWithImages = moments.map(moment => {
-      const userWithImageUrls = {
-        ...moment.user._doc,
-        imageUrls: moment.user.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
-      };
-      return {
-        commentCount: moment.comments,
-        ...moment._doc,
-        user: userWithImageUrls,
-        imageUrls: moment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
-      };
+    // Extract pagination parameters
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const maxLimit = 50;
+    const actualLimit = Math.min(limit, maxLimit);
+
+    console.log('Pagination params:', { page, limit, skip, actualLimit });
+
+    // Check if Moment model exists
+    if (!Moment) {
+      console.error('Moment model not found');
+      return res.status(500).json({ error: 'Moment model not found' });
+    }
+
+    console.log('Getting total count...');
+    const totalMoments = await Moment.countDocuments();
+    console.log('Total moments:', totalMoments);
+
+    console.log('Fetching moments...');
+    const moments = await Moment.find()
+      .populate('user', 'name email mbti bio bloodType image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(actualLimit);
+
+    console.log('Moments fetched:', moments.length);
+
+    if (!moments || moments.length === 0) {
+      console.log('No moments found');
+      return res.status(200).json({
+        moments: [],
+        pagination: {
+          currentPage: page,
+          totalPages: 0,
+          totalMoments: 0,
+          limit: actualLimit,
+          hasNextPage: false,
+          hasPrevPage: false,
+          nextPage: null,
+          prevPage: null
+        }
+      });
+    }
+
+    console.log('Processing moments...');
+    const momentsWithImages = moments.map((moment, index) => {
+      try {
+        console.log(`Processing moment ${index + 1}:`, moment._id);
+
+        // Check if user exists and is populated
+        if (!moment.user) {
+          console.warn(`Moment ${moment._id} has no user`);
+          return {
+            commentCount: moment.comments || 0,
+            ...moment._doc,
+            user: null,
+            imageUrls: (moment.images || []).map(image =>
+              `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+            )
+          };
+        }
+
+        // Safely handle user images
+        const userImages = moment.user.images || [];
+        const userWithImageUrls = {
+          ...moment.user._doc,
+          imageUrls: userImages.map(image =>
+            `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+          )
+        };
+
+        // Safely handle moment images
+        const momentImages = moment.images || [];
+
+        return {
+          commentCount: moment.comments || 0,
+          ...moment._doc,
+          user: userWithImageUrls,
+          imageUrls: momentImages.map(image =>
+            `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+          )
+        };
+      } catch (mapError) {
+        console.error(`Error processing moment ${index + 1}:`, mapError);
+        // Return a safe version of the moment
+        return {
+          commentCount: moment.comments || 0,
+          ...moment._doc,
+          user: moment.user || null,
+          imageUrls: []
+        };
+      }
     });
 
+    console.log('Moments processed successfully');
 
-    res.status(200).json(momentsWithImages);
+    // Calculate pagination metadata
+    const totalPages = Math.ceil(totalMoments / actualLimit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
+
+    const response = {
+      moments: momentsWithImages,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalMoments,
+        limit: actualLimit,
+        hasNextPage,
+        hasPrevPage,
+        nextPage: hasNextPage ? page + 1 : null,
+        prevPage: hasPrevPage ? page - 1 : null
+      }
+    };
+
+    console.log('Sending response with', momentsWithImages.length, 'moments');
+    res.status(200).json(response);
+
   } catch (err) {
-
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error in getMoments:', err);
+    console.error('Stack trace:', err.stack);
+    res.status(500).json({
+      error: 'Server error',
+      message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
+    });
   }
 });
 
@@ -133,23 +242,23 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
         new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
       );
     }
-  
+
     // Ensure files were uploaded
     if (!req.files || !req.files.file) {
       return next(new ErrorResponse('Please upload a file', 400));
     }
-  
+
     let files = req.files.file;
     const imageFiles = [];
-  
+
     if (!Array.isArray(files)) {
       files = [files]; // Convert single file to array
     }
-  
+
     files.forEach(file => {
       const filename = `${file.name}-${Date.now()}${path.extname(file.name)}`;
       imageFiles.push(filename);
-  
+
       // Move the file to the uploads directory
       file.mv(`./uploads/${filename}`, err => {
         if (err) {
@@ -157,12 +266,12 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
         }
       });
     });
-  
+
     // Add uploaded image filenames to the moment's images array
     moment.images = moment.images.concat(imageFiles);
     await moment.save();
-  
-  
+
+
     res.status(200).json({
       success: true,
       data: moment
@@ -289,10 +398,10 @@ exports.updateMoment = asyncHandler(async (req, res, next) => {
       data: updatedMoment
     });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Server error', 
-      message: `Error ${error}` 
+      error: 'Server error',
+      message: `Error ${error}`
     });
   }
 });
