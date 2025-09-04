@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const slugify = require('slugify');
+const ISO6391 = require('iso-639-1'); 
 const MomentSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -54,8 +55,14 @@ const MomentSchema = new mongoose.Schema({
   },
   language: {
     type: String,
-    enum: ['english', 'spanish', 'french', 'german', 'korean', 'japanese', 'chinese'],
-    default: 'english'
+    validate: {
+      validator: function(v) {
+        // Allow empty string or valid ISO639-1 codes
+        return v === '' || ISO6391.validate(v);
+      },
+      message: 'Invalid language code. Must be a valid ISO639-1 code.'
+    },
+    default: 'en'
   },
   privacy: {
     type: String,
