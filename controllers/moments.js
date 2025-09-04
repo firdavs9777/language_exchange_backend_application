@@ -3,115 +3,59 @@ const asyncHandler = require('../middleware/async');
 const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
 
-
 exports.getMoments = asyncHandler(async (req, res, next) => {
   try {
-    console.log('getMoments called');
-    console.log('Query params:', req.query);
-
-    // Extract pagination parameters
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const maxLimit = 50;
-    const actualLimit = Math.min(limit, maxLimit);
+    const actualLimit = Math.min(limit, 50);
 
-    console.log('Pagination params:', { page, limit, skip, actualLimit });
+    // Build query based on privacy and user
+    let query = { privacy: 'public' }; // Default to public posts
 
-    // Check if Moment model exists
-    if (!Moment) {
-      console.error('Moment model not found');
-      return res.status(500).json({ error: 'Moment model not found' });
+    // If user is logged in, they can see their own posts and friends' posts
+    if (req.user) {
+      query = {
+        $or: [
+          { privacy: 'public' },
+          { user: req.user._id }, // User's own posts
+          // Add friends logic here when you implement it
+          // { privacy: 'friends', user: { $in: req.user.friends } }
+        ]
+      };
     }
 
-    console.log('Getting total count...');
-    const totalMoments = await Moment.countDocuments();
-    console.log('Total moments:', totalMoments);
+    const totalMoments = await Moment.countDocuments(query);
 
-    console.log('Fetching moments...');
-    const moments = await Moment.find()
+    const moments = await Moment.find(query)
       .populate('user', 'name email mbti bio bloodType image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(actualLimit);
 
-    console.log('Moments fetched:', moments.length);
+    const momentsWithImages = moments.map(moment => {
+      const userWithImageUrls = {
+        ...moment.user._doc,
+        imageUrls: (moment.user.images || []).map(image =>
+          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        )
+      };
 
-    if (!moments || moments.length === 0) {
-      console.log('No moments found');
-      return res.status(200).json({
-        moments: [],
-        pagination: {
-          currentPage: page,
-          totalPages: 0,
-          totalMoments: 0,
-          limit: actualLimit,
-          hasNextPage: false,
-          hasPrevPage: false,
-          nextPage: null,
-          prevPage: null
-        }
-      });
-    }
-
-    console.log('Processing moments...');
-    const momentsWithImages = moments.map((moment, index) => {
-      try {
-        console.log(`Processing moment ${index + 1}:`, moment._id);
-
-        // Check if user exists and is populated
-        if (!moment.user) {
-          console.warn(`Moment ${moment._id} has no user`);
-          return {
-            commentCount: moment.comments || 0,
-            ...moment._doc,
-            user: null,
-            imageUrls: (moment.images || []).map(image =>
-              `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-            )
-          };
-        }
-
-        // Safely handle user images
-        const userImages = moment.user.images || [];
-        const userWithImageUrls = {
-          ...moment.user._doc,
-          imageUrls: userImages.map(image =>
-            `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-          )
-        };
-
-        // Safely handle moment images
-        const momentImages = moment.images || [];
-
-        return {
-          commentCount: moment.comments || 0,
-          ...moment._doc,
-          user: userWithImageUrls,
-          imageUrls: momentImages.map(image =>
-            `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-          )
-        };
-      } catch (mapError) {
-        console.error(`Error processing moment ${index + 1}:`, mapError);
-        // Return a safe version of the moment
-        return {
-          commentCount: moment.comments || 0,
-          ...moment._doc,
-          user: moment.user || null,
-          imageUrls: []
-        };
-      }
+      return {
+        commentCount: moment.comments || 0,
+        ...moment._doc,
+        user: userWithImageUrls,
+        imageUrls: (moment.images || []).map(image =>
+          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        )
+      };
     });
 
-    console.log('Moments processed successfully');
-
-    // Calculate pagination metadata
     const totalPages = Math.ceil(totalMoments / actualLimit);
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
 
-    const response = {
+    res.status(200).json({
       moments: momentsWithImages,
       pagination: {
         currentPage: page,
@@ -121,20 +65,12 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
         hasNextPage,
         hasPrevPage,
         nextPage: hasNextPage ? page + 1 : null,
-        prevPage: hasPrevPage ? page - 1 : null
+        prevPage: hasPrevPage ? page - 1 : null,
       }
-    };
-
-    console.log('Sending response with', momentsWithImages.length, 'moments');
-    res.status(200).json(response);
-
-  } catch (err) {
-    console.error('Error in getMoments:', err);
-    console.error('Stack trace:', err.stack);
-    res.status(500).json({
-      error: 'Server error',
-      message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
     });
+  } catch (err) {
+    console.error('Error fetching moments:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -187,26 +123,61 @@ exports.getMoment = asyncHandler(async (req, res, next) => {
 //@access Public
 
 exports.createMoment = asyncHandler(async (req, res, next) => {
-try {
-  const moment = await Moment.create(req.body);
-  // Populate the user field
-  const populatedMoment = await moment.populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+  try {
+    const {
+      title,
+      description,
+      user,
+      mood,
+      tags,
+      category,
+      language,
+      privacy,
+      location,
+      scheduledFor
+    } = req.body;
 
+    // Create moment data object
+    const momentData = {
+      title,
+      description,
+      user,
+      mood: mood || '',
+      tags: tags || [],
+      category: category || 'general',
+      language: language || 'english',
+      privacy: privacy || 'public',
+      scheduledFor: scheduledFor || null
+    };
 
-  const momentsWithImages = {
-    ...moment._doc,
-    imageUrls: populatedMoment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+    // Handle location if provided
+    if (location && location.coordinates) {
+      momentData.location = location;
+    }
+
+    const moment = await Moment.create(momentData);
+
+    // Populate the user field
+    const populatedMoment = await moment.populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+
+    const momentsWithImages = {
+      ...moment._doc,
+      imageUrls: populatedMoment.images.map(image =>
+        `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+      )
+    };
+
+    res.status(200).json({
+      success: true,
+      data: momentsWithImages
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Server error',
+      message: error.message
+    });
   }
-  res.status(200).json({
-    success: true,
-    data: momentsWithImages
-  });
-}
-catch (error) {
-  res.status(500).json({ error: 'Server error', message: `Error ${error}` });
-}
 });
-
 
 
 //@desc Delete Moment
