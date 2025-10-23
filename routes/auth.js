@@ -12,7 +12,9 @@ const {
   checkEmailCode,
   resetPassword,
   verifyCode,
-  sendVerificationCode
+  sendVerificationCode,
+  forgotPassword,
+  verifyResetCode
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -26,9 +28,13 @@ router.get('/logout', logout);
 router.get('/me', protect, getMe);
 router.put('/updatedetails', protect, updateDetails);
 router.put('/updatepassword', protect, updatePassword);
-router.post('/resetpassword', resetPassword);
+
 router.post('/sendEmailCode', sendVerificationCode);
 router.post('/verifyEmailCode', verifyCode);
+router.post('/register', register);
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-reset-code', verifyResetCode);
+router.post('/reset-password', resetPassword);
 // router.post('/checkEmailCode', checkEmailCode);
 
 module.exports = router;

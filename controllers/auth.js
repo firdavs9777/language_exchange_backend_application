@@ -438,44 +438,228 @@ exports.verifyCode = asyncHandler(async (req, res, next) => {
   });
 });
 
+// In controllers/auth.js
 
 /**
- * @desc    Reset Password after Email Verification
- * @route   POST /api/v1/auth/resetpassword
+ * @desc    Send Password Reset Code
+ * @route   POST /api/v1/auth/forgot-password
+ * @access  Public
+ */
+exports.forgotPassword = asyncHandler(async (req, res, next) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return next(new ErrorResponse('Please provide an email address', 400));
+  }
+
+  // Email validation
+  const emailRegex = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+  if (!emailRegex.test(email)) {
+    return next(new ErrorResponse('Please provide a valid email address', 400));
+  }
+
+  // Find user by email
+  const user = await User.findOne({ email }).select('+passwordResetCode +passwordResetExpire');
+  
+  if (!user) {
+    return next(new ErrorResponse('No account found with that email address', 404));
+  }
+
+  // Check if user has completed registration
+  if (!user.isRegistrationComplete) {
+    return next(new ErrorResponse('Please complete your registration first', 400));
+  }
+
+  // Generate password reset code
+  const code = user.generatePasswordResetCode();
+  await user.save({ validateBeforeSave: false });
+
+  // Email content
+  const message = `Your password reset code for BanaTalk is: ${code}. This code will expire in 15 minutes.`;
+  
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f6f6f6; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f6f6f6; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <tr>
+            <td style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 40px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Password Reset Request 🔒</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 40px 30px;">
+              <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
+                We received a request to reset your password. Use the code below to reset it:
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                <tr>
+                  <td align="center">
+                    <table cellpadding="0" cellspacing="0" style="background-color: #fff5f5; border: 3px solid #f5576c; border-radius: 12px; padding: 25px;">
+                      <tr>
+                        <td>
+                          <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666; text-align: center; text-transform: uppercase; letter-spacing: 1px;">
+                            Your Reset Code
+                          </p>
+                          <p style="margin: 0; font-size: 42px; font-weight: bold; color: #f5576c; letter-spacing: 10px; font-family: 'Courier New', monospace; text-align: center;">
+                            ${code}
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 25px 0;">
+                <tr>
+                  <td>
+                    <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
+                      ⏰ <strong>Important:</strong> This code will expire in <strong>15 minutes</strong>. If you didn't request this, please ignore this email.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              <p style="font-size: 14px; color: #999999; line-height: 1.6; margin: 30px 0 0 0; text-align: center;">
+                If you didn't request a password reset, your account is still secure. You can safely ignore this email.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color: #f9f9f9; padding: 25px 30px; text-align: center; border-top: 1px solid #eeeeee;">
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
+                Need help? Contact us at <a href="mailto:support@banatalk.com" style="color: #f5576c; text-decoration: none;">support@banatalk.com</a>
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #999999;">
+                © ${new Date().getFullYear()} BanaTalk. All rights reserved.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+  
+  try {
+    await sendEmail({
+      email: user.email,
+      subject: 'BanaTalk - Password Reset Code',
+      message,
+      html
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      message: 'Password reset code sent to your email',
+      data: {
+        email: user.email,
+        expiresIn: '5 minutes'
+      }
+    });
+  } catch (err) {
+    console.error('❌ Email sending error:', err);
+    
+    // Clear reset fields on error
+    user.passwordResetCode = undefined;
+    user.passwordResetExpire = undefined;
+    await user.save({ validateBeforeSave: false });
+    
+    return next(new ErrorResponse('Email could not be sent. Please try again later.', 500));
+  }
+});
+
+/**
+ * @desc    Verify Password Reset Code
+ * @route   POST /api/v1/auth/verify-reset-code
+ * @access  Public
+ */
+exports.verifyResetCode = asyncHandler(async (req, res, next) => {
+  const { email, code } = req.body;
+  
+  if (!email || !code) {
+    return next(new ErrorResponse('Please provide both email and reset code', 400));
+  }
+
+  // Hash the provided code
+  const hashedCode = crypto
+    .createHash('sha256')
+    .update(code.toString())
+    .digest('hex');
+
+  // Find user with matching email, code, and non-expired reset code
+  const user = await User.findOne({
+    email,
+    passwordResetCode: hashedCode,
+    passwordResetExpire: { $gt: Date.now() }
+  }).select('+passwordResetCode +passwordResetExpire');
+
+  if (!user) {
+    return next(new ErrorResponse('Invalid or expired reset code', 400));
+  }
+
+  res.status(200).json({ 
+    success: true, 
+    message: 'Code verified! You can now reset your password.',
+    data: {
+      email: user.email,
+      verified: true
+    }
+  });
+});
+
+/**
+ * @desc    Reset Password (after code verification)
+ * @route   POST /api/v1/auth/reset-password
  * @access  Public
  */
 exports.resetPassword = asyncHandler(async (req, res, next) => {
-  const { email, newPassword } = req.body;
+  const { email, code, newPassword } = req.body;
   
-  if (!email || !newPassword) {
-    return next(new ErrorResponse('Email and new password are required', 400));
+  if (!email || !code || !newPassword) {
+    return next(new ErrorResponse('Please provide email, code, and new password', 400));
   }
 
-  // Find the user by email
-  const user = await User.findOne({ email });
-  
+  // Validate password
+  if (newPassword.length < 6) {
+    return next(new ErrorResponse('Password must be at least 6 characters', 400));
+  }
+
+  // Hash the provided code
+  const hashedCode = crypto
+    .createHash('sha256')
+    .update(code.toString())
+    .digest('hex');
+
+  // Find user with matching email, code, and non-expired reset code
+  const user = await User.findOne({
+    email,
+    passwordResetCode: hashedCode,
+    passwordResetExpire: { $gt: Date.now() }
+  }).select('+passwordResetCode +passwordResetExpire +password');
+
   if (!user) {
-    return next(new ErrorResponse('User not found with that email', 404));
+    return next(new ErrorResponse('Invalid or expired reset code', 400));
   }
 
-  // Check if there was a verification process (optional security check)
-  const verification = usersVerification[email];
-  if (!verification) {
-    return next(new ErrorResponse('Email verification required before password reset', 400));
-  }
-
-  // Reset the user's password
+  // Set new password (will be hashed by pre-save middleware)
   user.password = newPassword;
-
-  // Clear verification data
-  delete usersVerification[email];
-
-  // Save the updated user
+  user.passwordResetCode = undefined;
+  user.passwordResetExpire = undefined;
   await user.save();
 
-  // Return new token
-  sendTokenResponse(user, 200, res, req);
+  // Send token response (log user in automatically)
+  sendTokenResponse(user, 200, res);
 });
+
 
 /**
  * @desc    Update User Info

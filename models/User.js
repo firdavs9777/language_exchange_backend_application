@@ -45,6 +45,14 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     select: false
   },
+    passwordResetCode: {
+    type: String,
+    select: false
+  },
+  passwordResetExpire: {
+    type: Date,
+    select: false
+  },
   
   mbti: {
     type: String,
@@ -160,6 +168,21 @@ const UserSchema = new mongoose.Schema({
   }
 });
 
+UserSchema.methods.generatePasswordResetCode = function () {
+  // Generate 6-digit code
+  const code = crypto.randomInt(100000, 999999).toString();
+  
+  // Hash and store the code
+  this.passwordResetCode = crypto
+    .createHash('sha256')
+    .update(code)
+    .digest('hex');
+  
+  // Set expiration (5 minutes)
+  this.passwordResetExpire = Date.now() + 5 * 60 * 1000;
+  
+  return code; // Return unhashed code to send via email
+};
 // Encrypt password using bcrypt
 UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
