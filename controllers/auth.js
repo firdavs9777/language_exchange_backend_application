@@ -9,7 +9,7 @@ const FacebookStrategy = require('passport-facebook').Strategy;
 // In-memory verification storage with automatic cleanup
 const usersVerification = {};
 
-// Clean expired verification codes every 15 minutes
+// Clean expired verification codes every 5 minutes
 setInterval(() => {
   const now = Date.now();
   Object.keys(usersVerification).forEach(email => {
@@ -17,7 +17,7 @@ setInterval(() => {
       delete usersVerification[email];
     }
   });
-}, 15 * 60 * 1000);
+},5 * 60 * 1000);
 
 /**
  * Configure Facebook Authentication Strategy
@@ -108,35 +108,61 @@ exports.facebookCallback = asyncHandler(async (req, res, next) => {
  */
 exports.register = asyncHandler(async (req, res, next) => {
   const { 
-    name, 
     email, 
-    gender, 
     password, 
+    name, 
+    gender, 
     bio, 
     birth_year, 
     birth_month, 
-    birth_day, 
-    image, 
-    native_language, 
-    language_to_learn 
-  } = req.body;
-  
-  // Create user with validated data
-  const user = await User.create({
-    name,
-    email,
-    bio,
-    gender,
-    password,
-    birth_year,
-    birth_month,
     birth_day,
-    images: image ? [image] : [],
+    images,
     native_language,
-    language_to_learn
-  });
+    language_to_learn,
+    mbti,
+    bloodType
+  } = req.body;
+
+  // Validate required fields
+  if (!email || !password || !name || !gender || !bio || !birth_year || !birth_month || !birth_day  || !native_language || !language_to_learn) {
+    return next(new ErrorResponse('Please provide all required fields', 400));
+  }
+
+  // Find user by email
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    return next(new ErrorResponse('Please verify your email first', 400));
+  }
+
+  if (!user.isEmailVerified) {
+    return next(new ErrorResponse('Please verify your email before completing registration', 400));
+  }
+
+  // Check if user already completed registration
+  if (user.name && !user.name.startsWith('TempUser_')) {
+    return next(new ErrorResponse('User already registered. Please login instead.', 400));
+  }
+
+  // Update user with actual data
+  user.name = name;
+  user.gender = gender;
+  user.password = password; // Will be hashed by pre-save middleware
+  user.bio = bio;
+  user.birth_year = birth_year;
+  user.birth_month = birth_month;
+  user.birth_day = birth_day;
+  user.native_language = native_language;
+  user.language_to_learn = language_to_learn;
   
-  sendTokenResponse(user, 200, res, req);
+  // Optional fields
+  if (mbti) user.mbti = mbti;
+  if (bloodType) user.bloodType = bloodType;
+
+  await user.save();
+
+  // Send token response
+  sendTokenResponse(user, 201, res);
 });
 
 /**
@@ -215,137 +241,211 @@ exports.getMe = asyncHandler(async (req, res, next) => {
 
 /**
  * @desc    Send Email Verification Code
- * @route   POST /api/v1/auth/sendCodeEmail
+ * @route   POST /api/v1/auth/send-verification-code
  * @access  Public
  */
-exports.sendEmailCode = asyncHandler(async (req, res, next) => {
+exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
   
   if (!email) {
-    return next(new ErrorResponse('Email is required', 400));
+    return next(new ErrorResponse('Please provide an email address', 400));
   }
 
-  const user = await User.findOne({ email });
+  // Email validation
+  const emailRegex = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+  if (!emailRegex.test(email)) {
+    return next(new ErrorResponse('Please provide a valid email address', 400));
+  }
+
+  // Check if user already exists and is verified
+  let user = await User.findOne({ email }).select('+emailVerificationCode +emailVerificationExpire');
   
+  if (user && user.isEmailVerified) {
+    return next(new ErrorResponse('A user with this email already exists', 400));
+  }
+
+  // If user exists but not verified, regenerate code
+  // If user doesn't exist, create temporary user
   if (!user) {
-    return next(new ErrorResponse('No user found with this email', 404));
+    user = await User.create({
+      email,
+      name: 'TempUser_' + Date.now(),
+      gender: 'not_set',
+      password: crypto.randomBytes(32).toString('hex'),
+      bio: 'User bio not set yet',
+      birth_year: '2000',
+      birth_month: '01',
+      birth_day: '01',
+      images: ['default.jpg'],
+      native_language: 'English',
+      language_to_learn: 'Korean',
+      isEmailVerified: false
+    });
   }
 
-  // Generate a secure random code
-  const code = crypto.randomInt(100000, 999999).toString();
-  const expiration = Date.now() + 15 * 60 * 1000; // 15 minutes
+  // Generate verification code
+  const code = user.generateEmailVerificationCode();
+  await user.save({ validateBeforeSave: false });
 
-  // Store verification data
-  usersVerification[email] = { code, expiration };
-
-  const message = `Your verification code is: ${code}`;
+  // Email content
+  const message = `Your verification code for BanaTalk is: ${code}. This code will expire in 15 minutes.`;
+  
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f6f6f6; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f6f6f6; padding: 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Welcome to BanaTalk! 🎉</h1>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px 30px;">
+              <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
+                Thank you for signing up! To complete your registration, please use the verification code below:
+              </p>
+              
+              <!-- Verification Code Box -->
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+                <tr>
+                  <td align="center">
+                    <table cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border: 3px solid #667eea; border-radius: 12px; padding: 25px;">
+                      <tr>
+                        <td>
+                          <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666; text-align: center; text-transform: uppercase; letter-spacing: 1px;">
+                            Your Verification Code
+                          </p>
+                          <p style="margin: 0; font-size: 42px; font-weight: bold; color: #667eea; letter-spacing: 10px; font-family: 'Courier New', monospace; text-align: center;">
+                            ${code}
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+              
+              <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 25px 0;">
+                <tr>
+                  <td>
+                    <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
+                      ⏰ <strong>Important:</strong> This code will expire in <strong>15 minutes</strong>. Please complete your registration soon!
+                    </p>
+                  </td>
+                </tr>
+              </table>
+              
+              <p style="font-size: 14px; color: #999999; line-height: 1.6; margin: 30px 0 0 0; text-align: center;">
+                If you didn't request this code, please ignore this email and no account will be created.
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background-color: #f9f9f9; padding: 25px 30px; text-align: center; border-top: 1px solid #eeeeee;">
+              <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
+                Need help? Contact us at <a href="mailto:support@banatalk.com" style="color: #667eea; text-decoration: none;">support@banatalk.com</a>
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #999999;">
+                © ${new Date().getFullYear()} BanaTalk. All rights reserved.
+              </p>
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
   
   try {
     await sendEmail({
-      email,
-      subject: 'Email Verification Code',
+      email: user.email,
+      subject: 'BanaTalk - Email Verification Code',
       message,
+      html
     });
 
     res.status(200).json({ 
       success: true, 
-      message: 'Verification code sent',
-      expiresIn: '15 minutes'
+      message: 'Verification code sent to your email',
+      data: {
+        email: user.email,
+        expiresIn: '15 minutes'
+      }
     });
   } catch (err) {
-    console.error('Email sending error:', err);
-    return next(new ErrorResponse('Email could not be sent', 500));
-  }
-});
-
-/**
- * @desc    Send Email Verification Code for Registration
- * @route   POST /api/v1/auth/registerEmailCode
- * @access  Public
- */
-exports.registerEmailCode = asyncHandler(async (req, res, next) => {
-  const { email } = req.body;
-  
-  if (!email) {
-    return next(new ErrorResponse('Email is required', 400));
-  }
-
-  // Check if user already exists
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return next(new ErrorResponse('User with this email already exists', 400));
-  }
-
-  // Generate a secure random code
-  const code = crypto.randomInt(100000, 999999).toString();
-  const expiration = Date.now() + 15 * 60 * 1000; // 15 minutes
-
-  // Store verification data
-  usersVerification[email] = { code, expiration, type: 'registration' };
-
-  const message = `Your verification code for registration is: ${code}`;
-  
-  try {
-    await sendEmail({
-      email,
-      subject: 'Registration Verification Code',
-      message,
-    });
-
-    res.status(200).json({ 
-      success: true, 
-      message: 'Verification code sent',
-      expiresIn: '15 minutes'
-    });
-  } catch (err) {
-    console.error('Email sending error:', err);
-    return next(new ErrorResponse('Email could not be sent', 500));
+    console.error('❌ Email sending error:', err);
+    
+    // Clear verification fields on error
+    user.emailVerificationCode = undefined;
+    user.emailVerificationExpire = undefined;
+    await user.save({ validateBeforeSave: false });
+    
+    return next(new ErrorResponse('Email could not be sent. Please try again later.', 500));
   }
 });
 
 /**
  * @desc    Verify Email Code
- * @route   POST /api/v1/auth/checkEmailCode
+ * @route   POST /api/v1/auth/verify-code
  * @access  Public
  */
-exports.checkEmailCode = asyncHandler(async (req, res, next) => {
+exports.verifyCode = asyncHandler(async (req, res, next) => {
   const { email, code } = req.body;
   
   if (!email || !code) {
-    return next(new ErrorResponse('Email and code are required', 400));
+    return next(new ErrorResponse('Please provide both email and verification code', 400));
   }
 
-  const verification = usersVerification[email];
-  
-  if (!verification) {
-    return next(new ErrorResponse('No verification code found for this email', 400));
-  }
-  
-  if (verification.code !== code) {
-    return next(new ErrorResponse('Invalid verification code', 400));
+  // Hash the provided code
+  const hashedCode = crypto
+    .createHash('sha256')
+    .update(code.toString())
+    .digest('hex');
+
+  // Find user with matching email, code, and non-expired verification
+  const user = await User.findOne({
+    email,
+    emailVerificationCode: hashedCode,
+    emailVerificationExpire: { $gt: Date.now() }
+  }).select('+emailVerificationCode +emailVerificationExpire');
+
+  if (!user) {
+    return next(new ErrorResponse('Invalid or expired verification code', 400));
   }
 
-  if (verification.expiration < Date.now()) {
-    // Remove expired code
-    delete usersVerification[email];
-    return next(new ErrorResponse('Verification code has expired', 400));
-  }
-
-  // Mark user as verified in DB if they exist
-  const user = await User.findOne({ email });
-  
-  if (user) {
-    user.isVerified = true;
-    await user.save();
-  }
-
-  // Keep the verification for potential password reset or registration completion
+  // Mark email as verified and clear verification fields
+  user.isEmailVerified = true;
+  user.emailVerificationCode = undefined;
+  user.emailVerificationExpire = undefined;
+  await user.save({ validateBeforeSave: false });
 
   res.status(200).json({ 
     success: true, 
-    message: 'Email verified successfully' 
+    message: 'Email verified successfully! You can now complete your registration.',
+    data: {
+      email: user.email,
+      verified: true
+    }
   });
 });
+
 
 /**
  * @desc    Reset Password after Email Verification

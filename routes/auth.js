@@ -11,7 +11,8 @@ const {
   sendEmailCode,
   checkEmailCode,
   resetPassword,
-  registerEmailCode
+  verifyCode,
+  sendVerificationCode
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -26,8 +27,8 @@ router.get('/me', protect, getMe);
 router.put('/updatedetails', protect, updateDetails);
 router.put('/updatepassword', protect, updatePassword);
 router.post('/resetpassword', resetPassword);
-router.post('/sendCodeEmail', sendEmailCode);
-router.post('/registerCodeEmail', registerEmailCode);
-router.post('/checkEmailCode', checkEmailCode);
+router.post('/sendEmailCode', sendVerificationCode);
+router.post('/verifyEmailCode', verifyCode);
+// router.post('/checkEmailCode', checkEmailCode);
 
 module.exports = router;

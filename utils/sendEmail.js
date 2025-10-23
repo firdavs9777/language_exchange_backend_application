@@ -1,21 +1,41 @@
-const sgMail = require('@sendgrid/mail');
+const formData = require('form-data');
+const Mailgun = require('mailgun.js');
 
 const sendEmail = async (options) => {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  const mailgun = new Mailgun(formData);
+  
+  // Determine API URL based on region
+  const apiUrl = process.env.MAILGUN_REGION === 'eu' 
+    ? 'https://api.eu.mailgun.net' 
+    : 'https://api.mailgun.net';
+  
+  const mg = mailgun.client({
+    username: 'api',
+    key: process.env.MAILGUN_API_KEY,
+    url: apiUrl
+  });
 
-  const msg = {
+  const messageData = {
+    from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`,
     to: options.email,
-    from: `${process.env.FROM_NAME} <${process.env.FROM_EMAIL}>`, // Verified sender
     subject: options.subject,
-    text: options.message,
-    html: options.html, // Optional: if you want to send HTML content
   };
 
+  // Add HTML and text (text is fallback for email clients that don't support HTML)
+  if (options.html) {
+    messageData.html = options.html;
+    messageData.text = options.message || 'Please view this email in an HTML-compatible email client.';
+  } else {
+    messageData.text = options.message;
+  }
+
   try {
-    const response = await sgMail.send(msg);
-    console.log('Email sent:', response[0].statusCode);
+    const response = await mg.messages.create(process.env.MAILGUN_DOMAIN, messageData);
+    console.log('✅ Email sent successfully:', response.id);
+    return response;
   } catch (error) {
-    console.error('Error sending email:', error);
+    console.error('❌ Error sending email:', error);
+    throw error;
   }
 };
 
