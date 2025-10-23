@@ -3,28 +3,73 @@ const asyncHandler = require('../middleware/async');
 const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
 
-
 exports.getMoments = asyncHandler(async (req, res, next) => {
   try {
-    const moments = await Moment.find().populate('user', 'name email mbti bio bloodType image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v');
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const actualLimit = Math.min(limit, 50);
+
+    // Build query based on privacy and user
+    let query = { privacy: 'public' }; // Default to public posts
+
+    // If user is logged in, they can see their own posts and friends' posts
+    if (req.user) {
+      query = {
+        $or: [
+          { privacy: 'public' },
+          { user: req.user._id }, // User's own posts
+          // Add friends logic here when you implement it
+          // { privacy: 'friends', user: { $in: req.user.friends } }
+        ]
+      };
+    }
+
+    const totalMoments = await Moment.countDocuments(query);
+
+    const moments = await Moment.find(query)
+      .populate('user', 'name email mbti bio bloodType image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(actualLimit);
 
     const momentsWithImages = moments.map(moment => {
       const userWithImageUrls = {
         ...moment.user._doc,
-        imageUrls: moment.user.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+        imageUrls: (moment.user.images || []).map(image =>
+          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        )
       };
+
       return {
-        commentCount: moment.comments,
+        commentCount: moment.comments || 0,
         ...moment._doc,
         user: userWithImageUrls,
-        imageUrls: moment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+        imageUrls: (moment.images || []).map(image =>
+          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        )
       };
     });
 
+    const totalPages = Math.ceil(totalMoments / actualLimit);
+    const hasNextPage = page < totalPages;
+    const hasPrevPage = page > 1;
 
-    res.status(200).json(momentsWithImages);
+    res.status(200).json({
+      moments: momentsWithImages,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalMoments,
+        limit: actualLimit,
+        hasNextPage,
+        hasPrevPage,
+        nextPage: hasNextPage ? page + 1 : null,
+        prevPage: hasPrevPage ? page - 1 : null,
+      }
+    });
   } catch (err) {
-
+    console.error('Error fetching moments:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -78,26 +123,61 @@ exports.getMoment = asyncHandler(async (req, res, next) => {
 //@access Public
 
 exports.createMoment = asyncHandler(async (req, res, next) => {
-try {
-  const moment = await Moment.create(req.body);
-  // Populate the user field
-  const populatedMoment = await moment.populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+  try {
+    const {
+      title,
+      description,
+      user,
+      mood,
+      tags,
+      category,
+      language,
+      privacy,
+      location,
+      scheduledFor
+    } = req.body;
 
+    // Create moment data object
+    const momentData = {
+      title,
+      description,
+      user,
+      mood: mood || '',
+      tags: tags || [],
+      category: category || 'general',
+      language: language || 'english',
+      privacy: privacy || 'public',
+      scheduledFor: scheduledFor || null
+    };
 
-  const momentsWithImages = {
-    ...moment._doc,
-    imageUrls: populatedMoment.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+    // Handle location if provided
+    if (location && location.coordinates) {
+      momentData.location = location;
+    }
+
+    const moment = await Moment.create(momentData);
+
+    // Populate the user field
+    const populatedMoment = await moment.populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+
+    const momentsWithImages = {
+      ...moment._doc,
+      imageUrls: populatedMoment.images.map(image =>
+        `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+      )
+    };
+
+    res.status(200).json({
+      success: true,
+      data: momentsWithImages
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: 'Server error',
+      message: error.message
+    });
   }
-  res.status(200).json({
-    success: true,
-    data: momentsWithImages
-  });
-}
-catch (error) {
-  res.status(500).json({ error: 'Server error', message: `Error ${error}` });
-}
 });
-
 
 
 //@desc Delete Moment
@@ -133,23 +213,23 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
         new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
       );
     }
-  
+
     // Ensure files were uploaded
     if (!req.files || !req.files.file) {
       return next(new ErrorResponse('Please upload a file', 400));
     }
-  
+
     let files = req.files.file;
     const imageFiles = [];
-  
+
     if (!Array.isArray(files)) {
       files = [files]; // Convert single file to array
     }
-  
+
     files.forEach(file => {
       const filename = `${file.name}-${Date.now()}${path.extname(file.name)}`;
       imageFiles.push(filename);
-  
+
       // Move the file to the uploads directory
       file.mv(`./uploads/${filename}`, err => {
         if (err) {
@@ -157,12 +237,12 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
         }
       });
     });
-  
+
     // Add uploaded image filenames to the moment's images array
     moment.images = moment.images.concat(imageFiles);
     await moment.save();
-  
-  
+
+
     res.status(200).json({
       success: true,
       data: moment
@@ -289,10 +369,10 @@ exports.updateMoment = asyncHandler(async (req, res, next) => {
       data: updatedMoment
     });
   } catch (error) {
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      error: 'Server error', 
-      message: `Error ${error}` 
+      error: 'Server error',
+      message: `Error ${error}`
     });
   }
 });
