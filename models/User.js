@@ -33,6 +33,10 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+   isRegistrationComplete: {  // ADD THIS NEW FIELD
+    type: Boolean,
+    default: false
+  },
   emailVerificationCode: {
     type: String,
     select: false

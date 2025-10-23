@@ -124,7 +124,7 @@ exports.register = asyncHandler(async (req, res, next) => {
   } = req.body;
 
   // Validate required fields
-  if (!email || !password || !name || !gender || !bio || !birth_year || !birth_month || !birth_day  || !native_language || !language_to_learn) {
+  if (!email || !password || !name || !gender || !bio || !birth_year || !birth_month || !birth_day || !native_language || !language_to_learn) {
     return next(new ErrorResponse('Please provide all required fields', 400));
   }
 
@@ -139,8 +139,8 @@ exports.register = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Please verify your email before completing registration', 400));
   }
 
-  // Check if user already completed registration
-  if (user.name && !user.name.startsWith('TempUser_')) {
+  // Check if registration is already complete
+  if (user.isRegistrationComplete) {
     return next(new ErrorResponse('User already registered. Please login instead.', 400));
   }
 
@@ -152,8 +152,10 @@ exports.register = asyncHandler(async (req, res, next) => {
   user.birth_year = birth_year;
   user.birth_month = birth_month;
   user.birth_day = birth_day;
+  user.images = images || ['default.jpg'];
   user.native_language = native_language;
   user.language_to_learn = language_to_learn;
+  user.isRegistrationComplete = true;  // MARK AS COMPLETE
   
   // Optional fields
   if (mbti) user.mbti = mbti;
@@ -257,14 +259,14 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Please provide a valid email address', 400));
   }
 
-  // Check if user already exists and is verified
+  // Check if user already exists and is fully registered
   let user = await User.findOne({ email }).select('+emailVerificationCode +emailVerificationExpire');
   
-  if (user && user.isEmailVerified) {
-    return next(new ErrorResponse('A user with this email already exists', 400));
+  if (user && user.isEmailVerified && user.isRegistrationComplete) {  // CHECK BOTH FLAGS
+    return next(new ErrorResponse('A user with this email already exists. Please login instead.', 400));
   }
 
-  // If user exists but not verified, regenerate code
+  // If user exists but not verified or not registered, regenerate code
   // If user doesn't exist, create temporary user
   if (!user) {
     user = await User.create({
@@ -279,7 +281,8 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
       images: ['default.jpg'],
       native_language: 'English',
       language_to_learn: 'Korean',
-      isEmailVerified: false
+      isEmailVerified: false,
+      isRegistrationComplete: false  // SET TO FALSE
     });
   }
 
@@ -287,8 +290,8 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   const code = user.generateEmailVerificationCode();
   await user.save({ validateBeforeSave: false });
 
-  // Email content
-  const message = `Your verification code for BanaTalk is: ${code}. This code will expire in 15 minutes.`;
+  // Email content (same as before)
+  const message = `Your verification code for BanaTalk is: ${code}. This code will expire in 5 minutes.`;
   
   const html = `
 <!DOCTYPE html>
@@ -302,22 +305,16 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          
-          <!-- Header -->
           <tr>
             <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
               <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Welcome to BanaTalk! 🎉</h1>
             </td>
           </tr>
-          
-          <!-- Content -->
           <tr>
             <td style="padding: 40px 30px;">
               <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
                 Thank you for signing up! To complete your registration, please use the verification code below:
               </p>
-              
-              <!-- Verification Code Box -->
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
                   <td align="center">
@@ -336,24 +333,20 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
                   </td>
                 </tr>
               </table>
-              
               <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 25px 0;">
                 <tr>
                   <td>
                     <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                      ⏰ <strong>Important:</strong> This code will expire in <strong>15 minutes</strong>. Please complete your registration soon!
+                      ⏰ <strong>Important:</strong> This code will expire in <strong>5 minutes</strong>. Please complete your registration soon!
                     </p>
                   </td>
                 </tr>
               </table>
-              
               <p style="font-size: 14px; color: #999999; line-height: 1.6; margin: 30px 0 0 0; text-align: center;">
                 If you didn't request this code, please ignore this email and no account will be created.
               </p>
             </td>
           </tr>
-          
-          <!-- Footer -->
           <tr>
             <td style="background-color: #f9f9f9; padding: 25px 30px; text-align: center; border-top: 1px solid #eeeeee;">
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
@@ -364,7 +357,6 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
               </p>
             </td>
           </tr>
-          
         </table>
       </td>
     </tr>
@@ -386,7 +378,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
       message: 'Verification code sent to your email',
       data: {
         email: user.email,
-        expiresIn: '15 minutes'
+        expiresIn: '5 minutes'
       }
     });
   } catch (err) {
