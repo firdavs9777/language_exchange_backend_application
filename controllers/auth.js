@@ -153,7 +153,7 @@ exports.register = asyncHandler(async (req, res, next) => {
   user.birth_year = birth_year;
   user.birth_month = birth_month;
   user.birth_day = birth_day;
-  user.images = images || ['default.jpg'];
+  user.images = images ;
   user.native_language = native_language;
   user.language_to_learn = language_to_learn;
   user.location = location;
@@ -268,25 +268,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('A user with this email already exists. Please login instead.', 400));
   }
 
-  // If user exists but not verified or not registered, regenerate code
-  // If user doesn't exist, create temporary user
-  if (!user) {
-    user = await User.create({
-      email,
-      name: 'TempUser_' + Date.now(),
-      gender: 'not_set',
-      password: crypto.randomBytes(32).toString('hex'),
-      bio: 'User bio not set yet',
-      birth_year: '2000',
-      birth_month: '01',
-      birth_day: '01',
-      images: ['default.jpg'],
-      native_language: 'English',
-      language_to_learn: 'Korean',
-      isEmailVerified: false,
-      isRegistrationComplete: false  // SET TO FALSE
-    });
-  }
+  
 
   // Generate verification code
   const code = user.generateEmailVerificationCode();

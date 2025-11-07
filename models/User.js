@@ -228,7 +228,7 @@ UserSchema.methods.generateEmailVerificationCode = function () {
     .digest('hex');
   
   // Set expiration (15 minutes)
-  this.emailVerificationExpire = Date.now() + 15 * 60 * 1000;
+  this.emailVerificationExpire = Date.now() + 5 * 60 * 1000;
   
   return code; // Return unhashed code to send via email
 };
