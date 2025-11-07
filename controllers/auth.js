@@ -120,11 +120,12 @@ exports.register = asyncHandler(async (req, res, next) => {
     native_language,
     language_to_learn,
     mbti,
-    bloodType
+    bloodType, 
+    location
   } = req.body;
 
   // Validate required fields
-  if (!email || !password || !name || !gender || !bio || !birth_year || !birth_month || !birth_day || !native_language || !language_to_learn) {
+  if (!email || !password || !name || !gender || !bio || !birth_year || !birth_month || !birth_day || !native_language || !language_to_learn || !location) {
     return next(new ErrorResponse('Please provide all required fields', 400));
   }
 
@@ -155,6 +156,7 @@ exports.register = asyncHandler(async (req, res, next) => {
   user.images = images || ['default.jpg'];
   user.native_language = native_language;
   user.language_to_learn = language_to_learn;
+  user.location = location;
   user.isRegistrationComplete = true;  // MARK AS COMPLETE
   
   // Optional fields
