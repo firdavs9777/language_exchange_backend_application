@@ -5,6 +5,10 @@ const sendEmail = require('../utils/sendEmail');
 const crypto = require('crypto');
 const passport = require('passport');
 const FacebookStrategy = require('passport-facebook').Strategy;
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const jwt = require('jsonwebtoken');
+const { logSecurityEvent } = require('../utils/securityLogger');
+const { getDeviceInfo } = require('../validators/authValidator');
 
 // In-memory verification storage with automatic cleanup
 const usersVerification = {};
@@ -59,13 +63,67 @@ passport.use(
             email,
             name: `${name.givenName || ''} ${name.familyName || ''}`.trim(),
             images: photos && photos[0] ? [photos[0].value] : [],
-            isVerified: true, // Facebook users are pre-verified
+            isEmailVerified: true, // Facebook users are pre-verified
+            isRegistrationComplete: true // Facebook users skip email verification
           });
         }
         
         return done(null, user);
       } catch (err) {
         console.error('Facebook auth error:', err);
+        return done(err, null);
+      }
+    }
+  )
+);
+
+/**
+ * Configure Google Authentication Strategy
+ */
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      callbackURL: '/api/v1/auth/google/callback',
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        const { id, emails, name, photos } = profile;
+        const email = emails && emails[0] ? emails[0].value : null;
+        
+        // Try to find existing user by Google ID first
+        let user = await User.findOne({ googleId: id });
+        
+        if (!user && email) {
+          // If no Google user found, check if user exists by email
+          user = await User.findOne({ email });
+          
+          if (user) {
+            // Link Google account to existing user
+            user.googleId = id;
+            if (photos && photos[0] && photos[0].value && (!user.images || user.images.length === 0)) {
+              user.images = [photos[0].value];
+            }
+            await user.save();
+          }
+        }
+        
+        if (!user) {
+          // Create new user if not found
+          user = await User.create({
+            googleId: id,
+            email,
+            name: `${name.givenName || ''} ${name.familyName || ''}`.trim() || name.displayName || 'User',
+            images: photos && photos[0] && photos[0].value ? [photos[0].value] : [],
+            isEmailVerified: true, // Google users are pre-verified
+            isRegistrationComplete: true // Google users skip email verification
+          });
+        }
+        
+        return done(null, user);
+      } catch (err) {
+        console.error('Google auth error:', err);
         return done(err, null);
       }
     }
@@ -90,6 +148,9 @@ exports.facebookCallback = asyncHandler(async (req, res, next) => {
   passport.authenticate('facebook', { session: false }, async (err, user) => {
     if (err) {
       console.error('Facebook auth callback error:', err);
+      logSecurityEvent('FACEBOOK_AUTH_FAILED', {
+        error: err.message
+      });
       return next(new ErrorResponse('Facebook authentication failed', 500));
     }
     
@@ -97,7 +158,55 @@ exports.facebookCallback = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Facebook login failed, no user returned', 400));
     }
 
-    sendTokenResponse(user, 200, res, req);
+    const deviceInfo = getDeviceInfo(req);
+    logSecurityEvent('FACEBOOK_LOGIN_SUCCESS', {
+      userId: user._id,
+      email: user.email,
+      ipAddress: deviceInfo.ipAddress
+    });
+
+    sendTokenResponse(user, 200, res, req, deviceInfo);
+  })(req, res, next);
+});
+
+/**
+ * @desc    Google login route
+ * @route   GET /api/v1/auth/google
+ * @access  Public
+ */
+exports.googleLogin = (req, res, next) => {
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'] 
+  })(req, res, next);
+};
+
+/**
+ * @desc    Google callback route
+ * @route   GET /api/v1/auth/google/callback
+ * @access  Public
+ */
+exports.googleCallback = asyncHandler(async (req, res, next) => {
+  passport.authenticate('google', { session: false }, async (err, user) => {
+    if (err) {
+      console.error('Google auth callback error:', err);
+      logSecurityEvent('GOOGLE_AUTH_FAILED', {
+        error: err.message
+      });
+      return next(new ErrorResponse('Google authentication failed', 500));
+    }
+    
+    if (!user) {
+      return next(new ErrorResponse('Google login failed, no user returned', 400));
+    }
+
+    const deviceInfo = getDeviceInfo(req);
+    logSecurityEvent('GOOGLE_LOGIN_SUCCESS', {
+      userId: user._id,
+      email: user.email,
+      ipAddress: deviceInfo.ipAddress
+    });
+
+    sendTokenResponse(user, 200, res, req, deviceInfo);
   })(req, res, next);
 });
 
@@ -176,6 +285,7 @@ exports.register = asyncHandler(async (req, res, next) => {
  */
 exports.login = asyncHandler(async (req, res, next) => {
   const { email, password } = req.body;
+  const deviceInfo = getDeviceInfo(req);
   
   // Validate email and password
   if (!email || !password) {
@@ -183,37 +293,207 @@ exports.login = asyncHandler(async (req, res, next) => {
   }
   
   // Check for user
-  const user = await User.findOne({ email }).select('+password');
+  const user = await User.findOne({ email }).select('+password +loginAttempts +lockUntil');
   
   if (!user) {
-    return next(new ErrorResponse('Invalid credentials', 400));
+    logSecurityEvent('LOGIN_FAILED', {
+      email,
+      reason: 'User not found',
+      ipAddress: deviceInfo.ipAddress
+    });
+    return next(new ErrorResponse('Invalid credentials', 401));
+  }
+  
+  // Check if account is locked
+  if (user.isLocked) {
+    const lockTime = Math.ceil((user.lockUntil - Date.now()) / 1000 / 60);
+    logSecurityEvent('LOGIN_BLOCKED', {
+      email: user.email,
+      userId: user._id,
+      reason: 'Account locked',
+      lockTimeMinutes: lockTime,
+      ipAddress: deviceInfo.ipAddress
+    });
+    return next(new ErrorResponse(`Account is locked. Please try again in ${lockTime} minutes.`, 423));
+  }
+  
+  // Check if user has completed registration
+  if (!user.isRegistrationComplete) {
+    return next(new ErrorResponse('Please complete your registration first', 400));
   }
   
   // Check if password matches
   const isMatch = await user.matchPassword(password);
   
   if (!isMatch) {
+    // Increment login attempts
+    await user.incLoginAttempts();
+    
+    // Log failed attempt
+    user.loginHistory.push({
+      ipAddress: deviceInfo.ipAddress,
+      userAgent: deviceInfo.userAgent,
+      device: deviceInfo.device,
+      success: false
+    });
+    await user.save({ validateBeforeSave: false });
+    
+    logSecurityEvent('LOGIN_FAILED', {
+      email: user.email,
+      userId: user._id,
+      reason: 'Invalid password',
+      attempts: user.loginAttempts + 1,
+      ipAddress: deviceInfo.ipAddress
+    });
+    
     return next(new ErrorResponse('Invalid credentials', 401));
   }
   
-  sendTokenResponse(user, 200, res, req);
+  // Reset login attempts on successful login
+  await user.resetLoginAttempts();
+  
+  // Log successful login
+  user.loginHistory.push({
+    ipAddress: deviceInfo.ipAddress,
+    userAgent: deviceInfo.userAgent,
+    device: deviceInfo.device,
+    success: true
+  });
+  
+  // Keep only last 20 login history entries
+  if (user.loginHistory.length > 20) {
+    user.loginHistory = user.loginHistory.slice(-20);
+  }
+  
+  await user.save({ validateBeforeSave: false });
+  
+  logSecurityEvent('LOGIN_SUCCESS', {
+    email: user.email,
+    userId: user._id,
+    ipAddress: deviceInfo.ipAddress,
+    device: deviceInfo.device
+  });
+  
+  sendTokenResponse(user, 200, res, req, deviceInfo);
 });
 
 /**
  * @desc    Logout user
- * @route   GET /api/v1/auth/logout
+ * @route   POST /api/v1/auth/logout
  * @access  Private
  */
 exports.logout = asyncHandler(async (req, res, next) => {
+  const { refreshToken } = req.body;
+  
+  // If refresh token provided, revoke it
+  if (refreshToken) {
+    const user = await User.findById(req.user.id);
+    if (user) {
+      await user.revokeRefreshToken(refreshToken);
+      logSecurityEvent('REFRESH_TOKEN_REVOKED', {
+        userId: user._id,
+        email: user.email
+      });
+    }
+  }
+  
   res.cookie('token', 'none', {
     expires: new Date(Date.now() + 10 * 1000), // 10 seconds
     httpOnly: true
   });
   
+  logSecurityEvent('LOGOUT', {
+    userId: req.user.id,
+    email: req.user.email
+  });
+  
   res.status(200).json({
     success: true,
+    message: 'Logged out successfully',
     data: {}
   });
+});
+
+/**
+ * @desc    Logout from all devices
+ * @route   POST /api/v1/auth/logout-all
+ * @access  Private
+ */
+exports.logoutAll = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.user.id);
+  
+  if (user) {
+    await user.revokeAllRefreshTokens();
+    logSecurityEvent('LOGOUT_ALL_DEVICES', {
+      userId: user._id,
+      email: user.email
+    });
+  }
+  
+  res.status(200).json({
+    success: true,
+    message: 'Logged out from all devices successfully',
+    data: {}
+  });
+});
+
+/**
+ * @desc    Refresh access token
+ * @route   POST /api/v1/auth/refresh-token
+ * @access  Public
+ */
+exports.refreshToken = asyncHandler(async (req, res, next) => {
+  const { refreshToken } = req.body;
+  
+  if (!refreshToken) {
+    return next(new ErrorResponse('Refresh token is required', 400));
+  }
+  
+  try {
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET + '_refresh');
+    
+    if (decoded.type !== 'refresh') {
+      return next(new ErrorResponse('Invalid token type', 401));
+    }
+    
+    // Find user and check if refresh token is valid
+    const user = await User.findById(decoded.id);
+    
+    if (!user) {
+      return next(new ErrorResponse('User not found', 404));
+    }
+    
+    // Check if refresh token exists in user's refresh tokens
+    const hashedToken = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const tokenExists = user.refreshTokens.some(rt => rt.token === hashedToken);
+    
+    if (!tokenExists) {
+      logSecurityEvent('REFRESH_TOKEN_INVALID', {
+        userId: user._id,
+        email: user.email
+      });
+      return next(new ErrorResponse('Invalid refresh token', 401));
+    }
+    
+    // Generate new access token
+    const accessToken = user.getSignedJwtToken();
+    
+    logSecurityEvent('TOKEN_REFRESHED', {
+      userId: user._id,
+      email: user.email
+    });
+    
+    res.status(200).json({
+      success: true,
+      token: accessToken
+    });
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return next(new ErrorResponse('Refresh token expired', 401));
+    }
+    return next(new ErrorResponse('Invalid refresh token', 401));
+  }
 });
 
 /**
@@ -264,15 +544,28 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   // Check if user already exists and is fully registered
   let user = await User.findOne({ email }).select('+emailVerificationCode +emailVerificationExpire');
   
-  if (user && user.isEmailVerified && user.isRegistrationComplete) {  // CHECK BOTH FLAGS
+  if (user && user.isEmailVerified && user.isRegistrationComplete) {
     return next(new ErrorResponse('A user with this email already exists. Please login instead.', 400));
   }
 
-  
+  // Create user if doesn't exist (for email verification flow)
+  if (!user) {
+    user = await User.create({
+      email,
+      isEmailVerified: false,
+      isRegistrationComplete: false
+    });
+  }
 
   // Generate verification code
   const code = user.generateEmailVerificationCode();
   await user.save({ validateBeforeSave: false });
+  
+  // Log security event
+  logSecurityEvent('EMAIL_VERIFICATION_SENT', {
+    email: user.email,
+    userId: user._id
+  });
 
   // Email content (same as before)
   const message = `Your verification code for BanaTalk is: ${code}. This code will expire in 5 minutes.`;
@@ -612,9 +905,10 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Please provide email, code, and new password', 400));
   }
 
-  // Validate password
-  if (newPassword.length < 6) {
-    return next(new ErrorResponse('Password must be at least 6 characters', 400));
+  // Validate password strength
+  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
+  if (!strongPasswordRegex.test(newPassword)) {
+    return next(new ErrorResponse('Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, and one number', 400));
   }
 
   // Hash the provided code
@@ -718,12 +1012,28 @@ exports.updatePassword = asyncHandler(async (req, res, next) => {
 
   // Check current password
   if (!(await user.matchPassword(currentPassword))) {
+    logSecurityEvent('PASSWORD_UPDATE_FAILED', {
+      userId: user._id,
+      email: user.email,
+      reason: 'Incorrect current password'
+    });
     return next(new ErrorResponse('Current password is incorrect', 401));
+  }
+  
+  // Validate new password strength
+  const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d@$!%*?&]{8,}$/;
+  if (!strongPasswordRegex.test(newPassword)) {
+    return next(new ErrorResponse('New password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, and one number', 400));
   }
   
   // Update password
   user.password = newPassword;
   await user.save();
+  
+  logSecurityEvent('PASSWORD_UPDATED', {
+    userId: user._id,
+    email: user.email
+  });
   
   sendTokenResponse(user, 200, res, req);
 });
@@ -749,7 +1059,7 @@ function processUserImages(user, req) {
 /**
  * Helper function to generate and send JWT token response
  */
-const sendTokenResponse = (user, statusCode, res, req = null) => {
+const sendTokenResponse = (user, statusCode, res, req = null, deviceInfo = null) => {
   try {
     // Make sure we have a valid user with the getSignedJwtToken method
     if (!user || typeof user.getSignedJwtToken !== 'function') {
@@ -757,8 +1067,15 @@ const sendTokenResponse = (user, statusCode, res, req = null) => {
       throw new Error('Invalid user object');
     }
     
-    // Create token
+    // Create access token
     const token = user.getSignedJwtToken();
+    
+    // Generate refresh token if device info provided
+    let refreshToken = null;
+    if (deviceInfo) {
+      refreshToken = user.generateRefreshToken(deviceInfo);
+      user.save({ validateBeforeSave: false });
+    }
     
     const options = {
       expires: new Date(
@@ -770,18 +1087,26 @@ const sendTokenResponse = (user, statusCode, res, req = null) => {
     // Secure cookies in production
     if (process.env.NODE_ENV === 'production') {
       options.secure = true;
+      options.sameSite = 'strict';
     }
     
     // Convert user to plain object for response and add image URLs if req is available
     const userObject = req ? processUserImages(user, req) : (user.toObject ? user.toObject() : { ...user });
     
+    const response = {
+      success: true,
+      token,
+      user: userObject
+    };
+    
+    // Include refresh token in response if generated
+    if (refreshToken) {
+      response.refreshToken = refreshToken;
+    }
+    
     res.status(statusCode)
       .cookie('token', token, options)
-      .json({
-        success: true,
-        token,
-        user: userObject
-      });
+      .json(response);
   } catch (error) {
     console.error('Error in sendTokenResponse:', error);
     res.status(500).json({

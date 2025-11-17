@@ -6,35 +6,137 @@ const {
   updateDetails,
   updatePassword,
   logout,
+  logoutAll,
+  refreshToken,
   facebookLogin,
   facebookCallback,
-  sendEmailCode,
-  checkEmailCode,
-  resetPassword,
-  verifyCode,
+  googleLogin,
+  googleCallback,
   sendVerificationCode,
+  verifyCode,
   forgotPassword,
-  verifyResetCode
+  verifyResetCode,
+  resetPassword
 } = require('../controllers/auth');
 
 const router = express.Router();
 const { protect } = require('../middleware/auth');
+const { validate } = require('../middleware/validation');
+const {
+  authLimiter,
+  loginLimiter,
+  emailLimiter
+} = require('../middleware/rateLimiter');
+const {
+  registerValidation,
+  loginValidation,
+  emailVerificationValidation,
+  verifyCodeValidation,
+  forgotPasswordValidation,
+  verifyResetCodeValidation,
+  resetPasswordValidation,
+  updatePasswordValidation,
+  updateDetailsValidation,
+  refreshTokenValidation
+} = require('../validators/authValidator');
 
-router.get('/facebook', facebookLogin)
-router.get('/facebook/callback', facebookCallback)
-router.post('/register', register);
-router.post('/login', login);
-router.get('/logout', logout);
+// Public routes - OAuth
+router.get('/facebook', facebookLogin);
+router.get('/facebook/callback', facebookCallback);
+router.get('/google', googleLogin);
+router.get('/google/callback', googleCallback);
+
+// Email verification (rate limited)
+router.post(
+  '/send-verification-code',
+  emailLimiter,
+  emailVerificationValidation,
+  validate,
+  sendVerificationCode
+);
+
+router.post(
+  '/verify-code',
+  authLimiter,
+  verifyCodeValidation,
+  validate,
+  verifyCode
+);
+
+// Registration (rate limited)
+router.post(
+  '/register',
+  authLimiter,
+  registerValidation,
+  validate,
+  register
+);
+
+// Login (rate limited)
+router.post(
+  '/login',
+  loginLimiter,
+  loginValidation,
+  validate,
+  login
+);
+
+// Password reset (rate limited)
+router.post(
+  '/forgot-password',
+  emailLimiter,
+  forgotPasswordValidation,
+  validate,
+  forgotPassword
+);
+
+router.post(
+  '/verify-reset-code',
+  authLimiter,
+  verifyResetCodeValidation,
+  validate,
+  verifyResetCode
+);
+
+router.post(
+  '/reset-password',
+  authLimiter,
+  resetPasswordValidation,
+  validate,
+  resetPassword
+);
+
+// Refresh token
+router.post(
+  '/refresh-token',
+  refreshTokenValidation,
+  validate,
+  refreshToken
+);
+
+// Protected routes
 router.get('/me', protect, getMe);
-router.put('/updatedetails', protect, updateDetails);
-router.put('/updatepassword', protect, updatePassword);
+router.post('/logout', protect, logout);
+router.post('/logout-all', protect, logoutAll);
 
-router.post('/sendEmailCode', sendVerificationCode);
-router.post('/verifyEmailCode', verifyCode);
-router.post('/register', register);
-router.post('/forgot-password', forgotPassword);
-router.post('/verify-reset-code', verifyResetCode);
-router.post('/reset-password', resetPassword);
-// router.post('/checkEmailCode', checkEmailCode);
+router.put(
+  '/updatedetails',
+  protect,
+  updateDetailsValidation,
+  validate,
+  updateDetails
+);
+
+router.put(
+  '/updatepassword',
+  protect,
+  updatePasswordValidation,
+  validate,
+  updatePassword
+);
+
+// Legacy routes (for backward compatibility)
+router.post('/sendEmailCode', emailLimiter, sendVerificationCode);
+router.post('/verifyEmailCode', authLimiter, verifyCode);
 
 module.exports = router;

@@ -83,6 +83,11 @@ const UserSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
   },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
   role: {
     type: String,
   },
@@ -158,6 +163,61 @@ const UserSchema = new mongoose.Schema({
   },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
+  
+  // Account Security Fields
+  loginAttempts: {
+    type: Number,
+    default: 0
+  },
+  lockUntil: {
+    type: Date
+  },
+  refreshTokens: [{
+    token: {
+      type: String,
+      required: true
+    },
+    device: {
+      type: String,
+      default: 'Unknown'
+    },
+    ipAddress: String,
+    userAgent: String,
+    createdAt: {
+      type: Date,
+      default: Date.now,
+      expires: 30 * 24 * 60 * 60 // 30 days
+    }
+  }],
+  loginHistory: [{
+    ipAddress: String,
+    userAgent: String,
+    device: String,
+    location: String,
+    loginAt: {
+      type: Date,
+      default: Date.now
+    },
+    success: {
+      type: Boolean,
+      default: true
+    }
+  }],
+  
+  // Email change verification
+  newEmail: {
+    type: String,
+    select: false
+  },
+  emailChangeCode: {
+    type: String,
+    select: false
+  },
+  emailChangeExpire: {
+    type: Date,
+    select: false
+  },
+  
   createdAt: {
     type: Date,
     default: Date.now
@@ -227,10 +287,94 @@ UserSchema.methods.generateEmailVerificationCode = function () {
     .update(code)
     .digest('hex');
   
-  // Set expiration (15 minutes)
+  // Set expiration (5 minutes)
   this.emailVerificationExpire = Date.now() + 5 * 60 * 1000;
   
   return code; // Return unhashed code to send via email
+};
+
+// Account lockout methods
+UserSchema.virtual('isLocked').get(function() {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
+});
+
+UserSchema.methods.incLoginAttempts = async function() {
+  // If we have a previous lock that has expired, restart at 1
+  if (this.lockUntil && this.lockUntil < Date.now()) {
+    return this.updateOne({
+      $set: { loginAttempts: 1 },
+      $unset: { lockUntil: 1 }
+    });
+  }
+  
+  const updates = { $inc: { loginAttempts: 1 } };
+  
+  // Lock account after 5 failed attempts for 2 hours
+  if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
+    updates.$set = { lockUntil: Date.now() + 2 * 60 * 60 * 1000 }; // 2 hours
+  }
+  
+  return this.updateOne(updates);
+};
+
+UserSchema.methods.resetLoginAttempts = async function() {
+  return this.updateOne({
+    $set: { loginAttempts: 0 },
+    $unset: { lockUntil: 1 }
+  });
+};
+
+// Generate refresh token
+UserSchema.methods.generateRefreshToken = function(deviceInfo = {}) {
+  const refreshToken = jwt.sign(
+    { id: this._id, type: 'refresh' },
+    process.env.JWT_SECRET + '_refresh',
+    { expiresIn: '30d' }
+  );
+  
+  // Store refresh token
+  this.refreshTokens.push({
+    token: crypto.createHash('sha256').update(refreshToken).digest('hex'),
+    device: deviceInfo.device || 'Unknown',
+    ipAddress: deviceInfo.ipAddress,
+    userAgent: deviceInfo.userAgent
+  });
+  
+  // Keep only last 5 devices
+  if (this.refreshTokens.length > 5) {
+    this.refreshTokens = this.refreshTokens.slice(-5);
+  }
+  
+  return refreshToken;
+};
+
+// Revoke refresh token
+UserSchema.methods.revokeRefreshToken = function(token) {
+  const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+  this.refreshTokens = this.refreshTokens.filter(
+    rt => rt.token !== hashedToken
+  );
+  return this.save();
+};
+
+// Revoke all refresh tokens
+UserSchema.methods.revokeAllRefreshTokens = function() {
+  this.refreshTokens = [];
+  return this.save();
+};
+
+// Generate email change code
+UserSchema.methods.generateEmailChangeCode = function(newEmail) {
+  const code = crypto.randomInt(100000, 999999).toString();
+  
+  this.newEmail = newEmail;
+  this.emailChangeCode = crypto
+    .createHash('sha256')
+    .update(code)
+    .digest('hex');
+  this.emailChangeExpire = Date.now() + 15 * 60 * 1000; // 15 minutes
+  
+  return code;
 };
 
 module.exports = mongoose.model('User', UserSchema);
