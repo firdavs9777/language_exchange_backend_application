@@ -1196,7 +1196,7 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
         language_to_learn: 'en',
         location: {
           type: 'Point',
-          coordinates: [0, 0],
+          coordinates: [0.0, 0.0],
           formattedAddress: 'Not specified',
           city: 'Not specified',
           country: 'Not specified'
