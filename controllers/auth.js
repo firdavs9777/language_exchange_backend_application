@@ -1194,8 +1194,8 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
         birth_year: '2000',
         birth_month: '1',
         birth_day: '1',
-        native_language: 'en',
-        language_to_learn: 'en',
+        native_language: 'English',
+        language_to_learn: 'Korean',
         location: {
           type: 'Point',
           coordinates: [0.0, 0.0],
