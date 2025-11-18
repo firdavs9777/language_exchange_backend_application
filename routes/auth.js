@@ -16,7 +16,8 @@ const {
   verifyCode,
   forgotPassword,
   verifyResetCode,
-  resetPassword
+  resetPassword,
+  googleMobileLogin
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -138,5 +139,5 @@ router.put(
 // Legacy routes (for backward compatibility)
 router.post('/sendCodeEmail', emailLimiter, emailVerificationValidation, validate, sendVerificationCode);
 router.post('/verifyEmailCode', authLimiter, verifyCodeValidation, validate, verifyCode);
-
+router.post('/google/mobile', authLimiter, googleMobileLogin);
 module.exports = router;

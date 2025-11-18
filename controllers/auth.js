@@ -1129,3 +1129,74 @@ const sendTokenResponse = (user, statusCode, res, req = null, deviceInfo = null)
     });
   }
 };
+
+/**
+ * @desc    Google login for mobile (ID token verification)
+ * @route   POST /api/v1/auth/google/mobile
+ * @access  Public
+ */
+exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
+  const { idToken } = req.body;
+  
+  if (!idToken) {
+    return next(new ErrorResponse('ID token is required', 400));
+  }
+  
+  try {
+    // Verify the ID token with Google
+    const { OAuth2Client } = require('google-auth-library');
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    
+    const ticket = await client.verifyIdToken({
+      idToken: idToken,
+      audience: [
+        process.env.GOOGLE_CLIENT_ID, // Web client ID
+        '810869785173-6jl1i1b32lghpsdq6lp92a7b1vuedoh4.apps.googleusercontent.com' // iOS client ID
+      ]
+    });
+    
+    const payload = ticket.getPayload();
+    const { sub: googleId, email, name, picture } = payload;
+    
+    console.log('✅ Google token verified:', { googleId, email, name });
+    
+    // Find or create user
+    let user = await User.findOne({ googleId });
+    
+    if (!user && email) {
+      user = await User.findOne({ email });
+      
+      if (user) {
+        user.googleId = googleId;
+        if (picture && (!user.images || user.images.length === 0)) {
+          user.images = [picture];
+        }
+        await user.save();
+      }
+    }
+    
+    if (!user) {
+      user = await User.create({
+        googleId,
+        email,
+        name: name || 'User',
+        images: picture ? [picture] : [],
+        isEmailVerified: true,
+        isRegistrationComplete: true
+      });
+    }
+    
+    const deviceInfo = getDeviceInfo(req);
+    logSecurityEvent('GOOGLE_MOBILE_LOGIN_SUCCESS', {
+      userId: user._id,
+      email: user.email,
+      ipAddress: deviceInfo.ipAddress
+    });
+    
+    sendTokenResponse(user, 200, res, req, deviceInfo);
+    
+  } catch (error) {
+    console.error('❌ Google mobile auth error:', error);
+    return next(new ErrorResponse('Invalid Google token', 401));
+  }
+});
