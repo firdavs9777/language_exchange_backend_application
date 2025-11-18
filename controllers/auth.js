@@ -1135,6 +1135,7 @@ const sendTokenResponse = (user, statusCode, res, req = null, deviceInfo = null)
  * @route   POST /api/v1/auth/google/mobile
  * @access  Public
  */
+
 exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
   const { idToken } = req.body;
   
@@ -1143,15 +1144,14 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
   }
   
   try {
-    // Verify the ID token with Google
     const { OAuth2Client } = require('google-auth-library');
     const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
     
     const ticket = await client.verifyIdToken({
       idToken: idToken,
       audience: [
-        process.env.GOOGLE_CLIENT_ID, // Web client ID
-        '810869785173-6jl1i1b32lghpsdq6lp92a7b1vuedoh4.apps.googleusercontent.com' // iOS client ID
+        process.env.GOOGLE_CLIENT_ID,
+        '810869785173-6jl1i1b32lghpsdq6lp92a7b1vuedoh4.apps.googleusercontent.com'
       ]
     });
     
@@ -1160,12 +1160,14 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
     
     console.log('✅ Google token verified:', { googleId, email, name });
     
-    // Find or create user
+    // Try to find existing user by Google ID
     let user = await User.findOne({ googleId });
     
+    // If not found by Google ID, try by email
     if (!user && email) {
       user = await User.findOne({ email });
       
+      // If user exists with this email, link Google account
       if (user) {
         user.googleId = googleId;
         if (picture && (!user.images || user.images.length === 0)) {
@@ -1175,6 +1177,7 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
       }
     }
     
+    // If still no user, create new one
     if (!user) {
       user = await User.create({
         googleId,
@@ -1182,8 +1185,27 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
         name: name || 'User',
         images: picture ? [picture] : [],
         isEmailVerified: true,
-        isRegistrationComplete: true
+        isRegistrationComplete: true,
+        // Default values for required fields (only for new OAuth users)
+        gender: 'other',
+        bio: 'Hello! I joined using Google. 👋',
+        birth_year: '2000',
+        birth_month: '1',
+        birth_day: '1',
+        native_language: 'en',
+        language_to_learn: 'en',
+        location: {
+          type: 'Point',
+          coordinates: [0, 0],
+          formattedAddress: 'Not specified',
+          city: 'Not specified',
+          country: 'Not specified'
+        }
       });
+      
+      console.log('✅ New Google user created:', user._id);
+    } else {
+      console.log('✅ Existing user logged in:', user._id);
     }
     
     const deviceInfo = getDeviceInfo(req);

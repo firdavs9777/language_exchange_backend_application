@@ -10,7 +10,9 @@ const UserSchema = new mongoose.Schema({
   },
   gender: {
     type: String,
-    required: [true, 'Please add your gender'],
+    required: function() {
+      return !this.googleId && !this.facebookId;
+    }
   },
   email: {
     type: String,
@@ -23,7 +25,9 @@ const UserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Please add a password'],
+    required: function() {
+      return !this.googleId && !this.facebookId;
+    },
     minLength: 6,
     select: false
   },
@@ -33,7 +37,7 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-   isRegistrationComplete: {  // ADD THIS NEW FIELD
+  isRegistrationComplete: {
     type: Boolean,
     default: false
   },
@@ -45,7 +49,7 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     select: false
   },
-    passwordResetCode: {
+  passwordResetCode: {
     type: String,
     select: false
   },
@@ -93,23 +97,33 @@ const UserSchema = new mongoose.Schema({
   },
   bio: {
     type: String,
-    required: [true, 'Please add your bio']
+    required: function() {
+      return !this.googleId && !this.facebookId;
+    }
   },
   birth_year: {
     type: String,
-    required: [true, 'Please add birth year']
+    required: function() {
+      return !this.googleId && !this.facebookId;
+    }
   },
   birth_month: {
     type: String,
-    required: [true, 'Please add birth month']
+    required: function() {
+      return !this.googleId && !this.facebookId;
+    }
   },
   birth_day: {
     type: String,
-    required: [true, 'Please add birth day']
+    required: function() {
+      return !this.googleId && !this.facebookId;
+    }
   },
   images: {
     type: [String],
-    required: [true, 'Please add your image']
+    required: function() {
+      return !this.googleId && !this.facebookId;
+    }
   },
   followers: {
     type: [mongoose.Schema.Types.ObjectId],
@@ -121,11 +135,15 @@ const UserSchema = new mongoose.Schema({
   },
   native_language: {
     type: String,
-    required: [true, 'Please add your native language']
+    required: function() {
+      return !this.googleId && !this.facebookId;
+    }
   },
   language_to_learn: {
     type: String,
-    required: [true, 'Please add language to learn']
+    required: function() {
+      return !this.googleId && !this.facebookId;
+    }
   },
   status: {
     type: String,
@@ -243,6 +261,7 @@ UserSchema.methods.generatePasswordResetCode = function () {
   
   return code; // Return unhashed code to send via email
 };
+
 // Encrypt password using bcrypt
 UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
