@@ -92,6 +92,10 @@ const UserSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
   },
+  profileCompleted: {
+  type: Boolean,
+  default: false
+},
   role: {
     type: String,
   },

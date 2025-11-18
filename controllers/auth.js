@@ -992,6 +992,10 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     return acc;
   }, {});
 
+   if (native_language && language_to_learn && gender && birth_year !== '2000') {
+    fieldsToUpdate.profileCompleted = true;
+  }
+
   // Find and update the user
   const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
     new: true,
@@ -1193,6 +1197,7 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
         bio: 'Hello! I joined using Google. 👋',
         birth_year: '2000',
         birth_month: '1',
+        profileCompleted: false,
         birth_day: '1',
         native_language: 'English',
         language_to_learn: 'Korean',
