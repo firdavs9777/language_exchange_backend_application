@@ -136,7 +136,7 @@ router.put(
 );
 
 // Legacy routes (for backward compatibility)
-router.post('/sendEmailCode', emailLimiter, sendVerificationCode);
-router.post('/verifyEmailCode', authLimiter, verifyCode);
+router.post('/sendCodeEmail', emailLimiter, emailVerificationValidation, validate, sendVerificationCode);
+router.post('/verifyEmailCode', authLimiter, verifyCodeValidation, validate, verifyCode);
 
 module.exports = router;

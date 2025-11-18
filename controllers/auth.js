@@ -549,12 +549,26 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   }
 
   // Create user if doesn't exist (for email verification flow)
+  // Create with minimal fields and skip validation
   if (!user) {
-    user = await User.create({
+    user = new User({
       email,
       isEmailVerified: false,
-      isRegistrationComplete: false
+      isRegistrationComplete: false,
+      // Set temporary values for required fields (will be updated during registration)
+      name: 'Temporary User',
+      gender: 'other',
+      bio: 'Temporary bio',
+      birth_year: '2000',
+      birth_month: '1',
+      birth_day: '1',
+      native_language: 'en',
+      language_to_learn: 'en',
+      images: [],
+      password: crypto.randomBytes(20).toString('hex') // Temporary password, will be set during registration
     });
+    // Save without validation
+    await user.save({ validateBeforeSave: false });
   }
 
   // Generate verification code

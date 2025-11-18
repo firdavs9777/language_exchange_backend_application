@@ -99,9 +99,17 @@ const MomentSchema = new mongoose.Schema({
 
   createdAt: {
     type: Date,
-    default: Date.now()
+    default: Date.now,
+    index: true
   }
 });
+
+// Database Indexes for Performance
+MomentSchema.index({ user: 1, createdAt: -1 }); // For user moments queries
+MomentSchema.index({ privacy: 1, createdAt: -1 }); // For public feed queries
+MomentSchema.index({ category: 1, createdAt: -1 }); // For category filtering
+MomentSchema.index({ language: 1, createdAt: -1 }); // For language filtering
+MomentSchema.index({ 'location.coordinates': '2dsphere' }); // For geospatial queries (already exists but explicit)
 
 // Validation function for tags array
 function arrayLimit(val) {

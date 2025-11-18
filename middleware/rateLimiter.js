@@ -19,7 +19,7 @@ exports.generalLimiter = rateLimit({
  */
 exports.authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // limit each IP to 5 requests per windowMs
+  max: 100, // limit each IP to 5 requests per windowMs
   message: {
     success: false,
     error: 'Too many authentication attempts, please try again after 15 minutes.'
@@ -34,7 +34,7 @@ exports.authLimiter = rateLimit({
  */
 exports.emailLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // limit each IP to 3 email requests per hour
+  max: 5, // limit each IP to 3 email requests per hour
   message: {
     success: false,
     error: 'Too many email requests, please try again after 1 hour.'

@@ -1,451 +1,482 @@
 const path = require('path');
+const fs = require('fs').promises;
 const asyncHandler = require('../middleware/async');
 const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
+const { generateImageUrls, processUserImages, processMomentImages } = require('../utils/imageUtils');
 
+// Minimal user fields for population (performance optimization)
+const USER_FIELDS = 'name email bio images native_language language_to_learn';
+
+/**
+ * @desc    Get all moments (feed)
+ * @route   GET /api/v1/moments
+ * @access  Public/Private
+ */
 exports.getMoments = asyncHandler(async (req, res, next) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-    const actualLimit = Math.min(limit, 50);
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const actualLimit = Math.min(limit, 50); // Max 50 per page
 
-    // Build query based on privacy and user
-    let query = { privacy: 'public' }; // Default to public posts
+  // Build query based on privacy and user
+  let query = { privacy: 'public' };
 
-    // If user is logged in, they can see their own posts and friends' posts
-    if (req.user) {
-      query = {
-        $or: [
-          { privacy: 'public' },
-          { user: req.user._id }, // User's own posts
-          // Add friends logic here when you implement it
-          // { privacy: 'friends', user: { $in: req.user.friends } }
-        ]
-      };
-    }
+  // If user is logged in, they can see their own posts
+  if (req.user) {
+    query = {
+      $or: [
+        { privacy: 'public' },
+        { user: req.user._id }, // User's own posts (any privacy)
+        // Future: { privacy: 'friends', user: { $in: req.user.friends } }
+      ]
+    };
+  }
 
-    const totalMoments = await Moment.countDocuments(query);
-
-    const moments = await Moment.find(query)
-      .populate('user', 'name email mbti bio bloodType image birth_day birth_month gender birth_year native_language images language_to_learn createdAt __v')
+  // Optimize: Count and query in parallel
+  const [totalMoments, moments] = await Promise.all([
+    Moment.countDocuments(query),
+    Moment.find(query)
+      .populate('user', USER_FIELDS)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(actualLimit);
+      .limit(actualLimit)
+      .lean() // Use lean() for read-only queries (faster)
+  ]);
 
-    const momentsWithImages = moments.map(moment => {
-      const userWithImageUrls = {
-        ...moment.user._doc,
-        imageUrls: (moment.user.images || []).map(image =>
-          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-        )
-      };
+  // Process images for all moments
+  const momentsWithImages = moments.map(moment => {
+    const userWithImages = processUserImages(moment.user, req);
+    const momentWithImages = processMomentImages(moment, req);
+    
+    return {
+      ...momentWithImages,
+      user: userWithImages,
+      commentCount: moment.comments?.length || moment.commentCount || 0
+    };
+  });
 
-      return {
-        commentCount: moment.comments || 0,
-        ...moment._doc,
-        user: userWithImageUrls,
-        imageUrls: (moment.images || []).map(image =>
-          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-        )
-      };
-    });
+  const totalPages = Math.ceil(totalMoments / actualLimit);
 
-    const totalPages = Math.ceil(totalMoments / actualLimit);
-    const hasNextPage = page < totalPages;
-    const hasPrevPage = page > 1;
-
-    res.status(200).json({
-      moments: momentsWithImages,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalMoments,
-        limit: actualLimit,
-        hasNextPage,
-        hasPrevPage,
-        nextPage: hasNextPage ? page + 1 : null,
-        prevPage: hasPrevPage ? page - 1 : null,
-      }
-    });
-  } catch (err) {
-    console.error('Error fetching moments:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
+  res.status(200).json({
+    success: true,
+    moments: momentsWithImages,
+    pagination: {
+      currentPage: page,
+      totalPages,
+      totalMoments,
+      limit: actualLimit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+    }
+  });
 });
 
-// @desc Get single moment
-// @route Get /api/v1/moments/:id
-// @access Public
+/**
+ * @desc    Get single moment
+ * @route   GET /api/v1/moments/:id
+ * @access  Public
+ */
 exports.getMoment = asyncHandler(async (req, res, next) => {
-  // Find the moment by ID and populate user details
+  const moment = await Moment.findById(req.params.id)
+    .populate('user', USER_FIELDS)
+    .populate({
+      path: 'comments',
+      select: 'text user createdAt',
+      populate: {
+        path: 'user',
+        select: 'name images'
+      },
+      options: { sort: { createdAt: -1 }, limit: 50 } // Limit comments
+    })
+    .lean();
 
-  try {
-
-    const moment = await Moment.findById(req.params.id)
-      .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
-      .populate('comments', 'text user moment');
-
-    // Check if moment exists
-    if (!moment) {
-      return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
-    }
-    // Construct image URLs
-    const imageUrls = (moment.images || []).map(image =>
-      `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-    );
-    const userImages = (moment.user.images || []).map(image =>
-      `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-    );
-
-    // Create response object with image URLs
-    const momentsWithImages = {
-      ...moment._doc,
-      imageUrls,
-      user: {
-        ...moment.user._doc,
-        imageUrls: userImages
-      }
-    };
-    // Send response
-    res.status(200).json({
-      success: true,
-      data: momentsWithImages
-    });
-  }
-  catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
-  }
-});
-
-//@desc POST create Moment
-//@route POST /api/v1/moments
-//@access Public
-
-exports.createMoment = asyncHandler(async (req, res, next) => {
-  try {
-    const {
-      title,
-      description,
-      user,
-      mood,
-      tags,
-      category,
-      language,
-      privacy,
-      location,
-      scheduledFor
-    } = req.body;
-
-    // Create moment data object
-    const momentData = {
-      title,
-      description,
-      user,
-      mood: mood || '',
-      tags: tags || [],
-      category: category || 'general',
-      language: language || 'english',
-      privacy: privacy || 'public',
-      scheduledFor: scheduledFor || null
-    };
-
-    // Handle location if provided
-    if (location && location.coordinates) {
-      momentData.location = location;
-    }
-
-    const moment = await Moment.create(momentData);
-
-    // Populate the user field
-    const populatedMoment = await moment.populate('user', 'name email bio image birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
-
-    const momentsWithImages = {
-      ...moment._doc,
-      imageUrls: populatedMoment.images.map(image =>
-        `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-      )
-    };
-
-    res.status(200).json({
-      success: true,
-      data: momentsWithImages
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: 'Server error',
-      message: error.message
-    });
-  }
-});
-
-
-//@desc Delete Moment
-//@route DELETE /api/v1/moments/:id
-//@access Private
-
-exports.deleteMoment = asyncHandler(async (req, res, next) => {
- try {
-  const moment = await Moment.findByIdAndDelete(req.params.id);
   if (!moment) {
-    return next(
-      new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
-    );
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
   }
-  moment.remove();
-  res.status(200).json({ success: true, data: {}, message: 'Moment Deleted' });
- }
- catch (error) {
-  res.status(500).json({ error: 'Server error', message: `Error ${error}` });
-}
+
+  // Process images
+  const userWithImages = processUserImages(moment.user, req);
+  const momentWithImages = processMomentImages(moment, req);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      ...momentWithImages,
+      user: userWithImages,
+      commentCount: moment.comments?.length || moment.commentCount || 0
+    }
+  });
 });
 
+/**
+ * @desc    Create moment
+ * @route   POST /api/v1/moments
+ * @access  Private
+ */
+exports.createMoment = asyncHandler(async (req, res, next) => {
+  const {
+    title,
+    description,
+    mood,
+    tags,
+    category,
+    language,
+    privacy,
+    location,
+    scheduledFor
+  } = req.body;
 
-//@desc Upload photos for moment
-//@route PUT /api/v1/moments/:id/photos
-//@access Private
+  // Use authenticated user instead of body user (security)
+  const userId = req.user._id;
 
-exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
-  try {
-    const moment = await Moment.findById(req.params.id);
-    if (!moment) {
-      return next(
-        new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
-      );
-    }
-
-    // Ensure files were uploaded
-    if (!req.files || !req.files.file) {
-      return next(new ErrorResponse('Please upload a file', 400));
-    }
-
-    let files = req.files.file;
-    const imageFiles = [];
-
-    if (!Array.isArray(files)) {
-      files = [files]; // Convert single file to array
-    }
-
-    files.forEach(file => {
-      const filename = `${file.name}-${Date.now()}${path.extname(file.name)}`;
-      imageFiles.push(filename);
-
-      // Move the file to the uploads directory
-      file.mv(`./uploads/${filename}`, err => {
-        if (err) {
-          return next(new ErrorResponse('Problem with file upload', 500));
-        }
-      });
-    });
-
-    // Add uploaded image filenames to the moment's images array
-    moment.images = moment.images.concat(imageFiles);
-    await moment.save();
-
-
-    res.status(200).json({
-      success: true,
-      data: moment
-    });
-  }
-  catch(error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  // Validate scheduled date
+  if (scheduledFor && new Date(scheduledFor) < new Date()) {
+    return next(new ErrorResponse('Scheduled date must be in the future', 400));
   }
 
+  // Create moment data
+  const momentData = {
+    title,
+    description,
+    user: userId,
+    mood: mood || '',
+    tags: tags || [],
+    category: category || 'general',
+    language: language || 'en',
+    privacy: privacy || 'public',
+    scheduledFor: scheduledFor || null
+  };
+
+  // Handle location if provided
+  if (location && location.coordinates) {
+    momentData.location = {
+      type: 'Point',
+      coordinates: location.coordinates,
+      formattedAddress: location.formattedAddress,
+      street: location.street,
+      city: location.city,
+      state: location.state,
+      zipcode: location.zipcode,
+      country: location.country
+    };
+  }
+
+  const moment = await Moment.create(momentData);
+
+  // Populate user for response
+  await moment.populate('user', USER_FIELDS);
+  const userWithImages = processUserImages(moment.user, req);
+  const momentWithImages = processMomentImages(moment, req);
+
+  res.status(201).json({
+    success: true,
+    data: {
+      ...momentWithImages,
+      user: userWithImages
+    }
+  });
 });
 
-
-
-//@desc Get all moments for a single user
-//@route Get /api/v1/moments/user/:userId
-//@access Public
-
-exports.getUserMoments = asyncHandler(async (req, res, next) => {
-  try {
-    const moments = await Moment.find({ user: req.params.userId }).populate(
-      'user',
-      'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v'
-    );
-
-    const momentsWithUserImages = moments.map((moment) => {
-      const userWithImageUrls = {
-        ...moment.user._doc,
-        imageUrls: moment.user.images.map(
-          (image) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-        ),
-      };
-
-      return {
-        ...moment._doc,
-        user: userWithImageUrls, // Now the user object contains imageUrls
-        imageUrls: moment.images.map(
-          (image) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-        ),
-      };
-    });
-
-      // sendTokenResponse(req.params.userId, 200, res);
-
-    res.status(200).json({
-      success: true,
-      count: momentsWithUserImages.length,
-      data: momentsWithUserImages,
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
-  }
-});
-
-
-//@desc Update a specific moment for a user
-//@route PUT /api/v1/moments/:momentId
-//@access Private (assuming users should only update their own moments)
+/**
+ * @desc    Update moment
+ * @route   PUT /api/v1/moments/:id
+ * @access  Private
+ */
 exports.updateMoment = asyncHandler(async (req, res, next) => {
-  try {
-    // Find the moment
-    let moment = await Moment.findById(req.params.id);
+  let moment = await Moment.findById(req.params.id);
 
-    // If moment doesn't exist
-    if (!moment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Moment not found'
-      });
+  if (!moment) {
+    return next(new ErrorResponse('Moment not found', 404));
+  }
+
+  // Check ownership
+  if (moment.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized to update this moment', 403));
+  }
+
+  // Prepare update data (exclude user field for security)
+  const { user, ...updateData } = req.body;
+
+  // Handle location update
+  if (updateData.location && updateData.location.coordinates) {
+    updateData.location = {
+      type: 'Point',
+      coordinates: updateData.location.coordinates,
+      formattedAddress: updateData.location.formattedAddress,
+      street: updateData.location.street,
+      city: updateData.location.city,
+      state: updateData.location.state,
+      zipcode: updateData.location.zipcode,
+      country: updateData.location.country
+    };
+  }
+
+  // Update moment
+  moment = await Moment.findByIdAndUpdate(
+    req.params.id,
+    updateData,
+    {
+      new: true,
+      runValidators: true
     }
+  );
 
-    // Check if user owns the moment (assuming req.user.id comes from auth middleware)
-    if (moment.user.toString() !== req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized to update this moment'
-      });
+  await moment.populate('user', USER_FIELDS);
+  const userWithImages = processUserImages(moment.user, req);
+  const momentWithImages = processMomentImages(moment, req);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      ...momentWithImages,
+      user: userWithImages
     }
+  });
+});
 
-    // Process any uploaded images if they exist in the request
-    if (req.files && req.files.length > 0) {
-      // Add new images to the existing ones
-      const newImages = req.files.map(file => file.filename);
-      req.body.images = [...moment.images, ...newImages];
-    }
+/**
+ * @desc    Delete moment
+ * @route   DELETE /api/v1/moments/:id
+ * @access  Private
+ */
+exports.deleteMoment = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
 
-    // Update the moment
-    moment = await Moment.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true, // Return the updated document
-        runValidators: true // Run schema validators on update
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  // Check ownership
+  if (moment.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized to delete this moment', 403));
+  }
+
+  // Delete associated images (optional cleanup)
+  if (moment.images && moment.images.length > 0) {
+    // Delete images asynchronously (don't block response)
+    moment.images.forEach(async (image) => {
+      try {
+        await fs.unlink(`./uploads/${image}`);
+      } catch (err) {
+        // Ignore errors (file might not exist)
+        console.error(`Failed to delete image ${image}:`, err.message);
       }
-    );
-
-      if (!moment) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to update moment'
-      });
-    }
-      await moment.populate(
-      'user',
-      'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v'
-    );
-    // Format response with image URLs similar to GET method
-    const userWithImageUrls = {
-      ...moment.user._doc,
-      imageUrls: moment.user.images.map(
-        (image) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-      ),
-    };
-
-    const updatedMoment = {
-      ...moment._doc,
-      user: userWithImageUrls,
-      imageUrls: moment.images.map(
-        (image) => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-      ),
-    };
-
-    res.status(200).json({
-      success: true,
-      data: updatedMoment
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: 'Server error',
-      message: `Error ${error}`
     });
   }
+
+  await moment.deleteOne();
+
+  res.status(200).json({
+    success: true,
+    data: {},
+    message: 'Moment deleted successfully'
+  });
 });
 
+/**
+ * @desc    Upload photos to moment
+ * @route   PUT /api/v1/moments/:id/photo
+ * @access  Private
+ */
+exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
 
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
 
-//@desc Like a moment
-//@route POST /api/v1/moments/:id/like
-//@access Private
+  // Check ownership
+  if (moment.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized to upload photos to this moment', 403));
+  }
+
+  // Validate file upload
+  if (!req.files || !req.files.file) {
+    return next(new ErrorResponse('Please upload a file', 400));
+  }
+
+  // Validate file types
+  const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  let files = Array.isArray(req.files.file) ? req.files.file : [req.files.file];
+  
+  // Validate all files
+  for (const file of files) {
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      return next(new ErrorResponse(`Invalid file type: ${file.mimetype}. Allowed types: ${allowedMimeTypes.join(', ')}`, 400));
+    }
+    if (file.size > 10 * 1024 * 1024) { // 10MB
+      return next(new ErrorResponse(`File ${file.name} exceeds 10MB limit`, 400));
+    }
+  }
+
+  // Limit number of images per moment (max 10)
+  const maxImages = 10;
+  if (moment.images.length + files.length > maxImages) {
+    return next(new ErrorResponse(`Maximum ${maxImages} images allowed per moment`, 400));
+  }
+
+  const imageFiles = [];
+  const uploadPromises = [];
+
+  // Process each file
+  for (const file of files) {
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1E9)}${path.extname(file.name)}`;
+    imageFiles.push(filename);
+
+    // Move file asynchronously
+    uploadPromises.push(
+      file.mv(`./uploads/${filename}`).catch(err => {
+        throw new Error(`Failed to upload ${file.name}: ${err.message}`);
+      })
+    );
+  }
+
+  // Wait for all uploads to complete
+  await Promise.all(uploadPromises);
+
+  // Update moment with new images
+  moment.images = [...moment.images, ...imageFiles];
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      images: moment.images,
+      imageUrls: generateImageUrls(moment.images, req)
+    }
+  });
+});
+
+/**
+ * @desc    Get user's moments
+ * @route   GET /api/v1/moments/user/:userId
+ * @access  Public
+ */
+exports.getUserMoments = asyncHandler(async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const actualLimit = Math.min(limit, 50);
+
+  // Build query - show all user moments if viewing own profile, otherwise only public
+  let query = { user: req.params.userId };
+  
+  // If not viewing own profile, only show public moments
+  if (!req.user || req.user._id.toString() !== req.params.userId) {
+    query.privacy = 'public';
+  }
+
+  const [totalMoments, moments] = await Promise.all([
+    Moment.countDocuments(query),
+    Moment.find(query)
+      .populate('user', USER_FIELDS)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(actualLimit)
+      .lean()
+  ]);
+
+  const momentsWithImages = moments.map(moment => {
+    const userWithImages = processUserImages(moment.user, req);
+    const momentWithImages = processMomentImages(moment, req);
+    
+    return {
+      ...momentWithImages,
+      user: userWithImages,
+      commentCount: moment.comments?.length || moment.commentCount || 0
+    };
+  });
+
+  const totalPages = Math.ceil(totalMoments / actualLimit);
+
+  res.status(200).json({
+    success: true,
+    count: momentsWithImages.length,
+    totalMoments,
+    data: momentsWithImages,
+    pagination: {
+      currentPage: page,
+      totalPages,
+      limit: actualLimit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1,
+      nextPage: page < totalPages ? page + 1 : null,
+      prevPage: page > 1 ? page - 1 : null,
+    }
+  });
+});
+
+/**
+ * @desc    Like a moment
+ * @route   POST /api/v1/moments/:id/like
+ * @access  Private
+ */
 exports.likeMoment = asyncHandler(async (req, res, next) => {
-  try {
-    const moment = await Moment.findById(req.params.id);
+  const moment = await Moment.findById(req.params.id);
 
-    if (!moment) {
-      return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
-    }
-
-    const userId = req.body.userId; // Ensure this user ID is obtained from request body or session
-
-    // Check if the user has already liked this moment
-    if (moment.likedUsers.includes(userId)) {
-      return res.status(400).json({ message: 'You have already liked this moment' });
-    }
-
-    // Add user to likedUsers and increment likeCount
-    moment.likedUsers.push(userId);
-    if (moment.likeCount < 0) {
-      moment.likeCount = 0
-    }
-    else {
-      moment.likeCount += 1;
-      await moment.save();
-    }
-    res.status(200).json({
-      success: true,
-      data: moment
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
   }
+
+  const userId = req.user._id.toString();
+
+  // Check if already liked
+  if (moment.likedUsers.some(id => id.toString() === userId)) {
+    return res.status(200).json({
+      success: true,
+      message: 'Already liked',
+      data: {
+        _id: moment._id,
+        likeCount: moment.likeCount,
+        isLiked: true
+      }
+    });
+  }
+
+  // Add like
+  moment.likedUsers.push(userId);
+  moment.likeCount = Math.max(0, moment.likeCount + 1);
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      likeCount: moment.likeCount,
+      isLiked: true
+    }
+  });
 });
 
-//@desc Like a moment
-//@route POST /api/v1/moments/:id/dislike
-//@access Private
+/**
+ * @desc    Dislike (unlike) a moment
+ * @route   POST /api/v1/moments/:id/dislike
+ * @access  Private
+ */
 exports.dislikeMoment = asyncHandler(async (req, res, next) => {
-  try {
-    const moment = await Moment.findById(req.params.id);
-    if (!moment) {
-      return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
-    }
+  const moment = await Moment.findById(req.params.id);
 
-    const userId = req.body.userId; // Ensure this user ID is obtained from request body or session
-
-    // Check if the user has already liked this moment
-    // if (moment.likedUsers.includes(userId)) {
-    //   return res.status(400).json({ message: 'You have already disliked' });
-    // }
-
-    // remove the user from the list of array
-    moment.likedUsers = moment.likedUsers.filter(user => user.toString() !== userId);
-    if (moment.likeCount < 0) {
-      moment.likeCount = 0
-    }
-    else {
-      moment.likeCount -= 1;
-      await moment.save();
-    }
-    res.status(200).json({
-      success: true,
-      data: moment
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
   }
+
+  const userId = req.user._id.toString();
+
+  // Remove like
+  moment.likedUsers = moment.likedUsers.filter(id => id.toString() !== userId);
+  moment.likeCount = Math.max(0, moment.likeCount - 1);
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      likeCount: moment.likeCount,
+      isLiked: false
+    }
+  });
 });

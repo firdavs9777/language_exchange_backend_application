@@ -219,10 +219,14 @@ io.on('connection', async (socket) => {
   }
   
   // Handle sending messages
-  socket.on('sendMessage', async ({ receiver, message }, callback) => {     
-    try {       
+  socket.on('sendMessage', async (data, callback) => {     
+    try {
+      // Handle both object and direct parameter formats
+      const receiver = data?.receiver || data?.receiverId;
+      const message = data?.message || data?.text || data?.content;
+      
       if (!receiver || !message || typeof message !== 'string') {         
-        throw new Error('Missing or invalid required fields');       
+        throw new Error('Missing or invalid required fields. Expected: { receiver, message }');       
       }
       
       if (message.trim().length === 0) {
@@ -297,8 +301,11 @@ io.on('connection', async (socket) => {
   });
   
   // Handle marking messages as read
-  socket.on('markAsRead', async ({ senderId }, callback) => {
+  socket.on('markAsRead', async (data, callback) => {
     try {
+      // Handle both object and direct parameter formats
+      const senderId = data?.senderId || data;
+      
       if (!senderId) {
         throw new Error('Sender ID is required');
       }

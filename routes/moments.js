@@ -1,5 +1,4 @@
 const express = require('express');
-const Moment = require('../models/Moment');
 const {
   getMoments,
   getMoment,
@@ -11,24 +10,26 @@ const {
   likeMoment,
   dislikeMoment
 } = require('../controllers/moments');
-const advancedResults = require('../middleware/advancedResults');
-const commentRouter = require('./comment')
+const { validate } = require('../middleware/validation');
+const { createMomentValidation, updateMomentValidation } = require('../validators/momentValidator');
+const commentRouter = require('./comment');
 const router = express.Router();
-const { protect, authorize } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 
-router.use('/:momentId/comments',commentRouter)
-router
-  .route('/')
-  .get(advancedResults(Moment, ''), getMoments)
-  .post(protect,createMoment);
-router.route('/:id').get(getMoment).put(protect,authorize('user','moment'),updateMoment).delete(protect,authorize('user', 'moment'),deleteMoment);
-router.route('/:id/photo').put(momentPhotoUpload);
-router.route('/user/:userId').get(advancedResults(Moment, ''), getUserMoments)
+// Comments routes
+router.use('/:momentId/comments', commentRouter);
 
-router
-  .route('/:id/like')
-  .post(protect,likeMoment);
-  router
-  .route('/:id/dislike')
-  .post(dislikeMoment);
+// Public routes
+router.route('/').get(getMoments);
+router.route('/:id').get(getMoment);
+router.route('/user/:userId').get(getUserMoments);
+
+// Protected routes
+router.route('/').post(protect, createMomentValidation, validate, createMoment);
+router.route('/:id').put(protect, updateMomentValidation, validate, updateMoment);
+router.route('/:id').delete(protect, deleteMoment);
+router.route('/:id/photo').put(protect, momentPhotoUpload);
+router.route('/:id/like').post(protect, likeMoment);
+router.route('/:id/dislike').post(protect, dislikeMoment);
+
 module.exports = router;
