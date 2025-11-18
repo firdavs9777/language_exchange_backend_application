@@ -992,19 +992,26 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     return acc;
   }, {});
 
-   if (native_language && language_to_learn && gender && birth_year !== '2000') {
+  // If user is updating profile details, mark profile as completed
+  if (native_language && language_to_learn && gender && birth_year !== '2000') {
     fieldsToUpdate.profileCompleted = true;
   }
 
-  // Find and update the user
-  const user = await User.findByIdAndUpdate(req.user.id, fieldsToUpdate, {
-    new: true,
-    runValidators: true
-  });
+  // Find and update the user - use validateBeforeSave: false for OAuth users
+  const user = await User.findByIdAndUpdate(
+    req.user.id, 
+    fieldsToUpdate, 
+    {
+      new: true,
+      runValidators: false, // Disable validation for OAuth users
+    }
+  );
 
   if (!user) {
     return next(new ErrorResponse(`User not found`, 404));
   }
+  
+  console.log('✅ User updated successfully:', user._id);
   
   sendTokenResponse(user, 200, res, req);
 });
