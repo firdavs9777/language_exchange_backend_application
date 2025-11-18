@@ -959,6 +959,8 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.updateDetails = asyncHandler(async (req, res, next) => {
+  console.log('📝 Update details request body:', JSON.stringify(req.body, null, 2));
+  
   // Extract the fields to update
   const {
     name,
@@ -992,28 +994,35 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     return acc;
   }, {});
 
+  console.log('📝 Fields to update:', JSON.stringify(fieldsToUpdate, null, 2));
+
   // If user is updating profile details, mark profile as completed
   if (native_language && language_to_learn && gender && birth_year !== '2000') {
     fieldsToUpdate.profileCompleted = true;
   }
 
-  // Find and update the user - use validateBeforeSave: false for OAuth users
-  const user = await User.findByIdAndUpdate(
-    req.user.id, 
-    fieldsToUpdate, 
-    {
-      new: true,
-      runValidators: false, // Disable validation for OAuth users
-    }
-  );
+  try {
+    // Find and update the user
+    const user = await User.findByIdAndUpdate(
+      req.user.id, 
+      fieldsToUpdate, 
+      {
+        new: true,
+        runValidators: false,
+      }
+    );
 
-  if (!user) {
-    return next(new ErrorResponse(`User not found`, 404));
+    if (!user) {
+      return next(new ErrorResponse(`User not found`, 404));
+    }
+    
+    console.log('✅ User updated successfully:', user._id);
+    
+    sendTokenResponse(user, 200, res, req);
+  } catch (error) {
+    console.error('❌ Update error:', error);
+    return next(new ErrorResponse(error.message || 'Failed to update user', 400));
   }
-  
-  console.log('✅ User updated successfully:', user._id);
-  
-  sendTokenResponse(user, 200, res, req);
 });
 
 /**
