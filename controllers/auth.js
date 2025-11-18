@@ -1052,18 +1052,20 @@ exports.updatePassword = asyncHandler(async (req, res, next) => {
   sendTokenResponse(user, 200, res, req);
 });
 
-/**
- * Helper function to process user images to include full URLs
- */
 function processUserImages(user, req) {
   if (user.images && Array.isArray(user.images) && user.images.length > 0) {
     // Create a deep copy of the user object to avoid schema issues
     const userObject = user.toObject ? user.toObject() : { ...user };
     
     // Add fully qualified image URLs
-    userObject.imageUrls = user.images.map(image => 
-      `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-    );
+    userObject.imageUrls = user.images.map(image => {
+      // Check if image is already a full URL (OAuth providers like Google/Facebook)
+      if (image.startsWith('http://') || image.startsWith('https://')) {
+        return image;
+      }
+      // For local file uploads, construct the full URL
+      return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`;
+    });
     
     return userObject;
   }
