@@ -11,7 +11,13 @@ const {
   getFollowers,
   deleteUserPhoto,
   updatePrivacySettings,
-  getPrivacySettings
+  getPrivacySettings,
+  activateVIPSubscription,
+  deactivateVIPSubscription,
+  getVIPStatus,
+  upgradeVisitor,
+  checkVisitorLimits,
+  changeUserMode
 } = require('../controllers/users');
 const express = require('express');
 const advancedResults = require('../middleware/advancedResults');
@@ -36,6 +42,33 @@ router
   .route('/:userId/privacy')
   .get(protect, getPrivacySettings)
   .put(protect, updatePrivacySettingsValidation, validate, updatePrivacySettings);
+
+// VIP subscription routes (must be before /:id route)
+router
+  .route('/:userId/vip/activate')
+  .post(protect, activateVIPSubscription);
+
+router
+  .route('/:userId/vip/deactivate')
+  .post(protect, deactivateVIPSubscription);
+
+router
+  .route('/:userId/vip/status')
+  .get(protect, getVIPStatus);
+
+// Visitor routes
+router
+  .route('/:userId/upgrade-visitor')
+  .post(protect, upgradeVisitor);
+
+router
+  .route('/:userId/visitor/limits')
+  .get(protect, checkVisitorLimits);
+
+// Admin route for changing user mode
+router
+  .route('/:userId/mode')
+  .put(protect, authorize('admin'), changeUserMode);
 
 router.route('/:id').get(getUser).put(updateUser).delete(deleteUser);
 

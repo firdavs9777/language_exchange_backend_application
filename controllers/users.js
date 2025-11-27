@@ -405,6 +405,11 @@ exports.activateVIPSubscription = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
   const { plan, paymentMethod } = req.body;
 
+  // Check if user is updating their own subscription or is admin
+  if (req.user._id.toString() !== userId && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to activate VIP for this user', 403));
+  }
+
   // Validate plan
   if (!['monthly', 'quarterly', 'yearly'].includes(plan)) {
     return next(new ErrorResponse('Invalid subscription plan', 400));
@@ -436,6 +441,11 @@ exports.activateVIPSubscription = asyncHandler(async (req, res, next) => {
 exports.deactivateVIPSubscription = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
+  // Check if user is updating their own subscription or is admin
+  if (req.user._id.toString() !== userId && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to deactivate VIP for this user', 403));
+  }
+
   const user = await User.findById(userId);
 
   if (!user) {
@@ -465,6 +475,11 @@ exports.deactivateVIPSubscription = asyncHandler(async (req, res, next) => {
 exports.getVIPStatus = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
+  // Users can view their own VIP status, or admins can view any user's status
+  if (req.user._id.toString() !== userId && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to view VIP status for this user', 403));
+  }
+
   const user = await User.findById(userId).select('userMode vipSubscription vipFeatures');
 
   if (!user) {
@@ -487,6 +502,11 @@ exports.getVIPStatus = asyncHandler(async (req, res, next) => {
 // @access   Private
 exports.upgradeVisitor = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
+
+  // Users can upgrade themselves, or admins can upgrade any user
+  if (req.user._id.toString() !== userId && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to upgrade this user', 403));
+  }
 
   const user = await User.findById(userId);
 
@@ -515,6 +535,11 @@ exports.upgradeVisitor = asyncHandler(async (req, res, next) => {
 // @access   Private
 exports.checkVisitorLimits = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
+
+  // Users can check their own limits, or admins can check any user's limits
+  if (req.user._id.toString() !== userId && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to view visitor limits for this user', 403));
+  }
 
   const user = await User.findById(userId);
 
