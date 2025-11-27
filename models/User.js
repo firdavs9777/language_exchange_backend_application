@@ -99,6 +99,98 @@ const UserSchema = new mongoose.Schema({
   role: {
     type: String,
   },
+
+  // User Mode: visitor, regular, or vip
+  userMode: {
+    type: String,
+    enum: ['visitor', 'regular', 'vip'],
+    default: 'regular'
+  },
+
+  // VIP subscription details
+  vipSubscription: {
+    isActive: {
+      type: Boolean,
+      default: false
+    },
+    plan: {
+      type: String,
+      enum: ['monthly', 'quarterly', 'yearly', null],
+      default: null
+    },
+    startDate: {
+      type: Date,
+      default: null
+    },
+    endDate: {
+      type: Date,
+      default: null
+    },
+    autoRenew: {
+      type: Boolean,
+      default: false
+    },
+    paymentMethod: {
+      type: String,
+      default: null
+    },
+    lastPaymentDate: {
+      type: Date,
+      default: null
+    },
+    nextBillingDate: {
+      type: Date,
+      default: null
+    }
+  },
+
+  // VIP features
+  vipFeatures: {
+    unlimitedMessages: {
+      type: Boolean,
+      default: false
+    },
+    prioritySupport: {
+      type: Boolean,
+      default: false
+    },
+    noAds: {
+      type: Boolean,
+      default: false
+    },
+    customBadge: {
+      type: Boolean,
+      default: false
+    },
+    advancedSearch: {
+      type: Boolean,
+      default: false
+    },
+    translationFeature: {
+      type: Boolean,
+      default: false
+    }
+  },
+
+  // Visitor mode limitations
+  visitorLimitations: {
+    messagesSent: {
+      type: Number,
+      default: 0
+    },
+    lastMessageReset: {
+      type: Date,
+      default: Date.now
+    },
+    profileViewsToday: {
+      type: Number,
+      default: 0
+    },
+    lastProfileViewReset: {
+      type: Date,
+      default: Date.now
+    }
+  },
   bio: {
     type: String,
     required: function() {
@@ -423,15 +515,163 @@ UserSchema.methods.revokeAllRefreshTokens = function() {
 // Generate email change code
 UserSchema.methods.generateEmailChangeCode = function(newEmail) {
   const code = crypto.randomInt(100000, 999999).toString();
-  
+
   this.newEmail = newEmail;
   this.emailChangeCode = crypto
     .createHash('sha256')
     .update(code)
     .digest('hex');
   this.emailChangeExpire = Date.now() + 15 * 60 * 1000; // 15 minutes
-  
+
   return code;
+};
+
+// Check if user is VIP
+UserSchema.methods.isVIP = function() {
+  return this.userMode === 'vip' && this.vipSubscription.isActive &&
+         this.vipSubscription.endDate > Date.now();
+};
+
+// Check if user is visitor
+UserSchema.methods.isVisitor = function() {
+  return this.userMode === 'visitor';
+};
+
+// Activate VIP subscription
+UserSchema.methods.activateVIP = function(plan, paymentMethod) {
+  const now = new Date();
+  let endDate = new Date();
+
+  // Calculate end date based on plan
+  switch(plan) {
+    case 'monthly':
+      endDate.setMonth(endDate.getMonth() + 1);
+      break;
+    case 'quarterly':
+      endDate.setMonth(endDate.getMonth() + 3);
+      break;
+    case 'yearly':
+      endDate.setFullYear(endDate.getFullYear() + 1);
+      break;
+  }
+
+  this.userMode = 'vip';
+  this.vipSubscription = {
+    isActive: true,
+    plan: plan,
+    startDate: now,
+    endDate: endDate,
+    autoRenew: false,
+    paymentMethod: paymentMethod,
+    lastPaymentDate: now,
+    nextBillingDate: endDate
+  };
+
+  // Enable all VIP features
+  this.vipFeatures = {
+    unlimitedMessages: true,
+    prioritySupport: true,
+    noAds: true,
+    customBadge: true,
+    advancedSearch: true,
+    translationFeature: true
+  };
+
+  return this.save();
+};
+
+// Deactivate VIP subscription
+UserSchema.methods.deactivateVIP = function() {
+  this.userMode = 'regular';
+  this.vipSubscription.isActive = false;
+
+  // Disable all VIP features
+  this.vipFeatures = {
+    unlimitedMessages: false,
+    prioritySupport: false,
+    noAds: false,
+    customBadge: false,
+    advancedSearch: false,
+    translationFeature: false
+  };
+
+  return this.save();
+};
+
+// Convert visitor to regular user
+UserSchema.methods.upgradeFromVisitor = function() {
+  if (this.userMode === 'visitor') {
+    this.userMode = 'regular';
+    // Reset visitor limitations
+    this.visitorLimitations = {
+      messagesSent: 0,
+      lastMessageReset: Date.now(),
+      profileViewsToday: 0,
+      lastProfileViewReset: Date.now()
+    };
+    return this.save();
+  }
+  return Promise.resolve(this);
+};
+
+// Check visitor message limit (e.g., 10 messages per day)
+UserSchema.methods.canSendMessage = function() {
+  if (this.userMode === 'vip') return true;
+  if (this.userMode === 'regular') return true;
+
+  if (this.userMode === 'visitor') {
+    const now = new Date();
+    const lastReset = new Date(this.visitorLimitations.lastMessageReset);
+
+    // Reset counter if it's a new day
+    if (now.getDate() !== lastReset.getDate()) {
+      this.visitorLimitations.messagesSent = 0;
+      this.visitorLimitations.lastMessageReset = now;
+    }
+
+    return this.visitorLimitations.messagesSent < 10; // 10 messages per day for visitors
+  }
+
+  return false;
+};
+
+// Increment visitor message count
+UserSchema.methods.incrementMessageCount = function() {
+  if (this.userMode === 'visitor') {
+    this.visitorLimitations.messagesSent += 1;
+    return this.save();
+  }
+  return Promise.resolve(this);
+};
+
+// Check visitor profile view limit (e.g., 20 profiles per day)
+UserSchema.methods.canViewProfile = function() {
+  if (this.userMode === 'vip') return true;
+  if (this.userMode === 'regular') return true;
+
+  if (this.userMode === 'visitor') {
+    const now = new Date();
+    const lastReset = new Date(this.visitorLimitations.lastProfileViewReset);
+
+    // Reset counter if it's a new day
+    if (now.getDate() !== lastReset.getDate()) {
+      this.visitorLimitations.profileViewsToday = 0;
+      this.visitorLimitations.lastProfileViewReset = now;
+    }
+
+    return this.visitorLimitations.profileViewsToday < 20; // 20 profile views per day for visitors
+  }
+
+  return false;
+};
+
+// Increment visitor profile view count
+UserSchema.methods.incrementProfileViewCount = function() {
+  if (this.userMode === 'visitor') {
+    this.visitorLimitations.profileViewsToday += 1;
+    return this.save();
+  }
+  return Promise.resolve(this);
 };
 
 module.exports = mongoose.model('User', UserSchema);

@@ -398,6 +398,178 @@ exports.getPrivacySettings = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc     Activate VIP subscription for user
+// @route    POST /api/v1/auth/users/:userId/vip/activate
+// @access   Private
+exports.activateVIPSubscription = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+  const { plan, paymentMethod } = req.body;
+
+  // Validate plan
+  if (!['monthly', 'quarterly', 'yearly'].includes(plan)) {
+    return next(new ErrorResponse('Invalid subscription plan', 400));
+  }
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  // Activate VIP
+  await user.activateVIP(plan, paymentMethod);
+
+  res.status(200).json({
+    success: true,
+    message: 'VIP subscription activated successfully',
+    data: {
+      userMode: user.userMode,
+      vipSubscription: user.vipSubscription,
+      vipFeatures: user.vipFeatures
+    }
+  });
+});
+
+// @desc     Deactivate VIP subscription for user
+// @route    POST /api/v1/auth/users/:userId/vip/deactivate
+// @access   Private
+exports.deactivateVIPSubscription = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  if (!user.isVIP()) {
+    return next(new ErrorResponse('User does not have an active VIP subscription', 400));
+  }
+
+  // Deactivate VIP
+  await user.deactivateVIP();
+
+  res.status(200).json({
+    success: true,
+    message: 'VIP subscription deactivated successfully',
+    data: {
+      userMode: user.userMode,
+      vipSubscription: user.vipSubscription
+    }
+  });
+});
+
+// @desc     Get VIP subscription status
+// @route    GET /api/v1/auth/users/:userId/vip/status
+// @access   Private
+exports.getVIPStatus = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  const user = await User.findById(userId).select('userMode vipSubscription vipFeatures');
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      isVIP: user.isVIP(),
+      userMode: user.userMode,
+      vipSubscription: user.vipSubscription,
+      vipFeatures: user.vipFeatures
+    }
+  });
+});
+
+// @desc     Upgrade visitor to regular user
+// @route    POST /api/v1/auth/users/:userId/upgrade-visitor
+// @access   Private
+exports.upgradeVisitor = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  if (!user.isVisitor()) {
+    return next(new ErrorResponse('User is not in visitor mode', 400));
+  }
+
+  // Upgrade from visitor
+  await user.upgradeFromVisitor();
+
+  res.status(200).json({
+    success: true,
+    message: 'User upgraded from visitor to regular successfully',
+    data: {
+      userMode: user.userMode
+    }
+  });
+});
+
+// @desc     Check visitor limitations
+// @route    GET /api/v1/auth/users/:userId/visitor/limits
+// @access   Private
+exports.checkVisitorLimits = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  if (!user.isVisitor()) {
+    return next(new ErrorResponse('User is not in visitor mode', 400));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      canSendMessage: user.canSendMessage(),
+      canViewProfile: user.canViewProfile(),
+      visitorLimitations: user.visitorLimitations,
+      limits: {
+        messagesPerDay: 10,
+        profileViewsPerDay: 20
+      }
+    }
+  });
+});
+
+// @desc     Change user mode (admin only)
+// @route    PUT /api/v1/auth/users/:userId/mode
+// @access   Private/Admin
+exports.changeUserMode = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+  const { userMode } = req.body;
+
+  // Validate userMode
+  if (!['visitor', 'regular', 'vip'].includes(userMode)) {
+    return next(new ErrorResponse('Invalid user mode', 400));
+  }
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  user.userMode = userMode;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: `User mode changed to ${userMode} successfully`,
+    data: {
+      userMode: user.userMode
+    }
+  });
+});
+
 const sendTokenResponse = (user, statusCode, res) => {
   // Create token
   const token = user.getSignedJwtToken();
