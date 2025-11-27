@@ -1,6 +1,7 @@
 const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
+const { processUserImages } = require('../utils/imageUtils');
 const path = require('path');
 const fs = require('fs').promises;
 
@@ -322,6 +323,80 @@ exports.getFollowing = asyncHandler(async (req, res, next) => {
   });
 });
 
+/**
+ * @desc     Update user privacy settings
+ * @route    PUT /api/v1/auth/users/:userId/privacy
+ * @access   Private
+ */
+exports.updatePrivacySettings = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+  const { privacySettings } = req.body;
+
+  // Check if user is updating their own privacy settings
+  if (req.user._id.toString() !== userId) {
+    return next(new ErrorResponse('Not authorized to update this user\'s privacy settings', 403));
+  }
+
+  // Find user
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  // Validate privacy settings object
+  if (!privacySettings || typeof privacySettings !== 'object') {
+    return next(new ErrorResponse('Privacy settings must be an object', 400));
+  }
+
+  // Update privacy settings (merge with existing settings)
+  user.privacySettings = {
+    ...user.privacySettings,
+    ...privacySettings
+  };
+
+  await user.save();
+
+  // Process user images for response
+  const userWithImages = processUserImages(user, req);
+
+  res.status(200).json({
+    success: true,
+    message: 'Privacy settings updated successfully',
+    data: {
+      _id: user._id,
+      privacySettings: user.privacySettings
+    }
+  });
+});
+
+/**
+ * @desc     Get user privacy settings
+ * @route    GET /api/v1/auth/users/:userId/privacy
+ * @access   Private
+ */
+exports.getPrivacySettings = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  // Users can only view their own privacy settings
+  if (req.user._id.toString() !== userId) {
+    return next(new ErrorResponse('Not authorized to view this user\'s privacy settings', 403));
+  }
+
+  const user = await User.findById(userId).select('privacySettings');
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: user._id,
+      privacySettings: user.privacySettings || {}
+    }
+  });
+});
 
 const sendTokenResponse = (user, statusCode, res) => {
   // Create token

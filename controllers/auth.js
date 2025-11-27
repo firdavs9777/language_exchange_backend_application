@@ -973,7 +973,8 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     birth_day,
     images,
     native_language,
-    language_to_learn
+    language_to_learn,
+    privacySettings
   } = req.body;
 
   // Remove undefined fields
@@ -988,11 +989,24 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     images,
     native_language,
     language_to_learn, 
-    location
+    location,
+    privacySettings
   }).reduce((acc, [key, value]) => {
     if (value !== undefined) acc[key] = value;
     return acc;
   }, {});
+
+  // Handle privacy settings merge (if provided)
+  if (privacySettings && typeof privacySettings === 'object') {
+    // Get current user to merge with existing privacy settings
+    const currentUser = await User.findById(req.user.id);
+    if (currentUser) {
+      fieldsToUpdate.privacySettings = {
+        ...currentUser.privacySettings,
+        ...privacySettings
+      };
+    }
+  }
 
   console.log('📝 Fields to update:', JSON.stringify(fieldsToUpdate, null, 2));
 

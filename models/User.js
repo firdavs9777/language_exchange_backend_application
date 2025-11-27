@@ -183,6 +183,40 @@ const UserSchema = new mongoose.Schema({
     enum: ['everyone', 'contacts', 'nobody'],
     default: 'everyone'
   },
+  privacySettings: {
+    showCountryRegion: {
+      type: Boolean,
+      default: true
+    },
+    showCity: {
+      type: Boolean,
+      default: true
+    },
+    showAge: {
+      type: Boolean,
+      default: true
+    },
+    showZodiac: {
+      type: Boolean,
+      default: true
+    },
+    showOnlineStatus: {
+      type: Boolean,
+      default: true
+    },
+    showGiftingLevel: {
+      type: Boolean,
+      default: true
+    },
+    birthdayNotification: {
+      type: Boolean,
+      default: true
+    },
+    personalizedAds: {
+      type: Boolean,
+      default: true
+    }
+  },
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   
