@@ -206,7 +206,19 @@ exports.googleCallback = asyncHandler(async (req, res, next) => {
       ipAddress: deviceInfo.ipAddress
     });
 
-    sendTokenResponse(user, 200, res, req, deviceInfo);
+    try {
+      const token = user.getSignedJwtToken();
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      
+      // Redirect to React callback page with token
+      res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+    } catch (error) {
+      console.error('Token generation error:', error);
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      res.redirect(`${frontendUrl}/login?error=token_failed`);
+    }
+
+    // sendTokenResponse(user, 200, res, req, deviceInfo);
   })(req, res, next);
 });
 
