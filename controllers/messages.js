@@ -295,16 +295,15 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Receiver not found', 404));
     }
 
-    // Check if sender has blocked receiver or vice versa
-    const senderUser = await User.findById(sender);
-    if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
-      return next(new ErrorResponse('Cannot send message to this user', 403));
-    }
-
     // Check message limit (user should be loaded by middleware if used, otherwise load it)
     const senderUser = req.limitationUser || await User.findById(sender);
     if (!senderUser) {
       return next(new ErrorResponse('Sender user not found', 404));
+    }
+
+    // Check if sender has blocked receiver or vice versa
+    if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
+      return next(new ErrorResponse('Cannot send message to this user', 403));
     }
 
     // Check if user can send message
