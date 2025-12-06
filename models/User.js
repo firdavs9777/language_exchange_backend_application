@@ -1067,4 +1067,51 @@ UserSchema.methods.resetDailyLimits = function() {
   return Promise.resolve(this);
 };
 
+// Block a user
+UserSchema.methods.blockUser = function(userId, reason = null) {
+  // Check if already blocked
+  const alreadyBlocked = this.blockedUsers.some(
+    block => block.userId.toString() === userId.toString()
+  );
+  
+  if (alreadyBlocked) {
+    return Promise.resolve(this);
+  }
+  
+  this.blockedUsers.push({
+    userId: userId,
+    blockedAt: new Date(),
+    reason: reason
+  });
+  
+  // Remove from following/followers if exists
+  this.following = this.following.filter(
+    id => id.toString() !== userId.toString()
+  );
+  
+  return this.save();
+};
+
+// Unblock a user
+UserSchema.methods.unblockUser = function(userId) {
+  this.blockedUsers = this.blockedUsers.filter(
+    block => block.userId.toString() !== userId.toString()
+  );
+  return this.save();
+};
+
+// Check if user is blocked
+UserSchema.methods.isBlocked = function(userId) {
+  return this.blockedUsers.some(
+    block => block.userId.toString() === userId.toString()
+  );
+};
+
+// Check if user is blocked by another user
+UserSchema.methods.isBlockedBy = function(userId) {
+  return this.blockedBy.some(
+    block => block.userId.toString() === userId.toString()
+  );
+};
+
 module.exports = mongoose.model('User', UserSchema);
