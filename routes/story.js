@@ -10,6 +10,7 @@ const {
   deleteStory,
   markStoryViewed
 } = require('../controllers/stories');
+const { checkStoryLimit } = require('../middleware/checkLimitations');
 
 const advancedResults = require('../middleware/advancedResults');
 const router = express.Router();
@@ -28,7 +29,7 @@ router
 // Main stories routes
 router
   .route('/')
-  .post(protect, createStory);
+  .post(protect, checkStoryLimit, createStory);
 
 // Individual story routes
 router

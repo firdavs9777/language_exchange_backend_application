@@ -27,8 +27,10 @@ const MessageSchema = new mongoose.Schema({
   },
   message: {
     type: String,
-    required: [true, 'Message content is required'],
-    maxlength: [500, 'Message cannot exceed 500 characters'],
+    required: function() {
+      return !this.media || !this.media.type;
+    },
+    maxlength: [2000, 'Message cannot exceed 2000 characters'],
     trim: true
   },
   readBy: [{
@@ -61,7 +63,23 @@ const MessageSchema = new mongoose.Schema({
     url: String,
     type: {
       type: String,
-      enum: ['image', 'video', 'document', 'audio', null]
+      enum: ['image', 'video', 'document', 'audio', 'location', null]
+    },
+    thumbnail: String,
+    fileName: String,
+    fileSize: Number,
+    mimeType: String,
+    duration: Number, // For audio/video in seconds
+    dimensions: {
+      width: Number,
+      height: Number
+    },
+    // For location type
+    location: {
+      latitude: Number,
+      longitude: Number,
+      address: String,
+      placeName: String
     }
   },
   reactions: [{
@@ -75,6 +93,58 @@ const MessageSchema = new mongoose.Schema({
   isGroupMessage: {
     type: Boolean,
     default: false
+  },
+  // Message management fields
+  editedAt: {
+    type: Date
+  },
+  isEdited: {
+    type: Boolean,
+    default: false
+  },
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: {
+    type: Date
+  },
+  deletedFor: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  // Reply functionality
+  replyTo: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Message'
+  },
+  // Forward functionality
+  forwardedFrom: {
+    sender: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    messageId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message'
+    },
+    originalMessage: String
+  },
+  isForwarded: {
+    type: Boolean,
+    default: false
+  },
+  // Pin functionality
+  pinned: {
+    type: Boolean,
+    default: false
+  },
+  pinnedAt: {
+    type: Date
+  },
+  pinnedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
   }
 }, {
   toJSON: { virtuals: true },
@@ -212,5 +282,9 @@ MessageSchema.methods.removeParticipant = function(userId) {
     participant => !participant.equals(userId)
   );
 };
+
+// Text index for search (will be created on first use)
+// Note: MongoDB text indexes are created separately via ensureIndex or createIndex
+// This is just documentation - actual index creation happens in migration or startup
 
 module.exports = mongoose.model('Message', MessageSchema);

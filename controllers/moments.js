@@ -132,6 +132,36 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
   // Use authenticated user instead of body user (security)
   const userId = req.user._id;
 
+  // Check moment creation limit
+  const User = require('../models/User');
+  const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
+  const LIMITS = require('../config/limitations');
+  
+  const user = req.limitationUser || await User.findById(userId);
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  // Visitors cannot create moments
+  if (user.userMode === 'visitor') {
+    return next(new ErrorResponse('Visitors cannot create moments. Please upgrade to regular user.', 403));
+  }
+
+  // Reset counters if new day
+  await resetDailyCounters(user);
+  await user.save();
+
+  // Check if user can create moment
+  const canCreate = await user.canCreateMoment();
+  if (!canCreate) {
+    const current = user.regularUserLimitations.momentsCreatedToday || 0;
+    const max = LIMITS.regular.momentsPerDay;
+    const now = new Date();
+    const nextReset = new Date(now);
+    nextReset.setHours(24, 0, 0, 0);
+    return next(formatLimitError('moments', current, max, nextReset));
+  }
+
   // Validate scheduled date
   if (scheduledFor && new Date(scheduledFor) < new Date()) {
     return next(new ErrorResponse('Scheduled date must be in the future', 400));
@@ -165,6 +195,9 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
   }
 
   const moment = await Moment.create(momentData);
+
+  // Increment moment count after successful creation
+  await user.incrementMomentCount();
 
   // Populate user for response
   await moment.populate('user', USER_FIELDS);

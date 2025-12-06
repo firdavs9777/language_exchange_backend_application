@@ -1,6 +1,6 @@
 const asyncHandler = require('../middleware/async');
 const Comment = require('../models/Comment');
-
+const User = require('../models/User');
 const Moment = require('../models/Moment')
 const ErrorResponse = require('../utils/errorResponse');
 
@@ -86,11 +86,44 @@ exports.createComment = asyncHandler(async (req, res, next) => {
     try {
         req.body.moment = req.params.momentId;
         req.body.user = req.user.id;
+        
+        // Check comment creation limit
+        const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
+        const LIMITS = require('../config/limitations');
+        
+        const user = req.limitationUser || await User.findById(req.user.id);
+        if (!user) {
+            return next(new ErrorResponse('User not found', 404));
+        }
+
+        // Visitors cannot create comments
+        if (user.userMode === 'visitor') {
+            return next(new ErrorResponse('Visitors cannot create comments. Please upgrade to regular user.', 403));
+        }
+
+        // Reset counters if new day
+        await resetDailyCounters(user);
+        await user.save();
+
+        // Check if user can create comment
+        const canCreate = await user.canCreateComment();
+        if (!canCreate) {
+            const current = user.regularUserLimitations.commentsCreatedToday || 0;
+            const max = LIMITS.regular.commentsPerDay;
+            const now = new Date();
+            const nextReset = new Date(now);
+            nextReset.setHours(24, 0, 0, 0);
+            return next(formatLimitError('comments', current, max, nextReset));
+        }
+        
         const moment = await Moment.findById(req.params.momentId);
         if (!moment) {
             return next(new ErrorResponse(`No moment with the id of ${req.params.momentId}`))
         }
         const comment = await Comment.create(req.body);
+        
+        // Increment comment count after successful creation
+        await user.incrementCommentCount();
         moment.comments.push(comment);
         // Update the comment count
         if (moment.commentCount < 0) {

@@ -17,7 +17,8 @@ const {
   getVIPStatus,
   upgradeVisitor,
   checkVisitorLimits,
-  changeUserMode
+  changeUserMode,
+  getUserLimits
 } = require('../controllers/users');
 const express = require('express');
 const advancedResults = require('../middleware/advancedResults');
@@ -69,6 +70,11 @@ router
 router
   .route('/:userId/mode')
   .put(protect, authorize('admin'), changeUserMode);
+
+// User limits route
+router
+  .route('/:userId/limits')
+  .get(protect, getUserLimits);
 
 router.route('/:id').get(getUser).put(updateUser).delete(deleteUser);
 

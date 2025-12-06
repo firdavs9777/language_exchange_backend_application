@@ -12,6 +12,7 @@ const {
 } = require('../controllers/moments');
 const { validate } = require('../middleware/validation');
 const { createMomentValidation, updateMomentValidation } = require('../validators/momentValidator');
+const { checkMomentLimit } = require('../middleware/checkLimitations');
 const commentRouter = require('./comment');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
@@ -25,7 +26,7 @@ router.route('/:id').get(getMoment);
 router.route('/user/:userId').get(getUserMoments);
 
 // Protected routes
-router.route('/').post(protect, createMomentValidation, validate, createMoment);
+router.route('/').post(protect, checkMomentLimit, createMomentValidation, validate, createMoment);
 router.route('/:id').put(protect, updateMomentValidation, validate, updateMoment);
 router.route('/:id').delete(protect, deleteMoment);
 router.route('/:id/photo').put(protect, momentPhotoUpload);

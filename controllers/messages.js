@@ -106,7 +106,25 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   //@access Private
 
   exports.getMessages = asyncHandler(async (req, res, next) => {
-    const messages = await Message.find()
+    const userId = req.user?._id;
+    let query = { isDeleted: { $ne: true } };
+    
+    // If user is authenticated, filter out blocked users
+    if (userId) {
+      const user = await User.findById(userId).select('blockedUsers blockedBy');
+      if (user) {
+        const blockedUserIds = [
+          ...user.blockedUsers.map(b => b.userId.toString()),
+          ...user.blockedBy.map(b => b.userId.toString())
+        ];
+        query.$and = [
+          { sender: { $nin: blockedUserIds } },
+          { receiver: { $nin: blockedUserIds } }
+        ];
+      }
+    }
+    
+    const messages = await Message.find(query)
       .populate('sender', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls image language_to_learn createdAt __v')
       .populate('receiver', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt __v');
     res.status(200).json({
@@ -253,7 +271,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   //@access Private
 
   exports.createMessage = asyncHandler(async (req, res, next) => {
-    const { message, receiver } = req.body; // Remove sender from destructuring
+    const { message, receiver, replyTo, forwardedFrom, location } = req.body; // Remove sender from destructuring
   
     // Check authentication
     if (!req.user) {
@@ -262,9 +280,13 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
 
     const sender = req.user._id; // Get sender from authenticated user
 
-    // Validate request body
-    if (!message || !receiver) {
-      return next(new ErrorResponse('Message content and receiver are required', 400));
+    // Validate request body - either message or media must be present
+    if (!message && !req.processedMedia && !location) {
+      return next(new ErrorResponse('Message content, media, or location is required', 400));
+    }
+
+    if (!receiver) {
+      return next(new ErrorResponse('Receiver is required', 400));
     }
 
     // Check if receiver exists
@@ -273,24 +295,145 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Receiver not found', 404));
     }
 
-    // Create the message
-    const newMessage = await Message.create({
-      message,
-      sender, // Use the authenticated user's ID
+    // Check if sender has blocked receiver or vice versa
+    const senderUser = await User.findById(sender);
+    if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
+      return next(new ErrorResponse('Cannot send message to this user', 403));
+    }
+
+    // Check message limit (user should be loaded by middleware if used, otherwise load it)
+    const senderUser = req.limitationUser || await User.findById(sender);
+    if (!senderUser) {
+      return next(new ErrorResponse('Sender user not found', 404));
+    }
+
+    // Check if user can send message
+    const canSend = await senderUser.canSendMessage();
+    if (!canSend) {
+      const LIMITS = require('../config/limitations');
+      let current = 0;
+      let max = 0;
+      const now = new Date();
+      const nextReset = new Date(now);
+      nextReset.setHours(24, 0, 0, 0);
+
+      if (senderUser.userMode === 'regular') {
+        current = senderUser.regularUserLimitations.messagesSentToday || 0;
+        max = LIMITS.regular.messagesPerDay;
+      } else if (senderUser.userMode === 'visitor') {
+        current = senderUser.visitorLimitations.messagesSent || 0;
+        max = LIMITS.visitor.messagesPerDay;
+      }
+
+      const { formatLimitError } = require('../utils/limitations');
+      return next(formatLimitError('messages', current, max, nextReset));
+    }
+
+    // Build message data
+    const messageData = {
+      message: message || null,
+      sender,
       receiver,
+    };
+
+    // Add media if present
+    if (req.processedMedia) {
+      messageData.media = req.processedMedia;
+    }
+
+    // Add location if present
+    if (location && location.latitude && location.longitude) {
+      messageData.media = {
+        type: 'location',
+        location: {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          address: location.address || null,
+          placeName: location.placeName || null
+        }
+      };
+    }
+
+    // Add reply information
+    if (replyTo) {
+      const replyToMessage = await Message.findById(replyTo);
+      if (replyToMessage) {
+        messageData.replyTo = replyTo;
+      }
+    }
+
+    // Add forward information
+    if (forwardedFrom && forwardedFrom.messageId) {
+      const originalMessage = await Message.findById(forwardedFrom.messageId)
+        .populate('sender', 'name');
+      
+      if (originalMessage) {
+        messageData.isForwarded = true;
+        messageData.forwardedFrom = {
+          sender: originalMessage.sender._id,
+          messageId: forwardedFrom.messageId,
+          originalMessage: originalMessage.message
+        };
+      }
+    }
+
+    // Create the message
+    const newMessage = await Message.create(messageData);
+
+    // Increment message count
+    await senderUser.incrementMessageCount();
+
+    // Update or create conversation
+    const Conversation = require('../models/Conversation');
+    let conversation = await Conversation.findOne({
+      participants: { $all: [sender, receiver], $size: 2 },
+      isGroup: false
     });
 
+    if (!conversation) {
+      conversation = await Conversation.create({
+        participants: [sender, receiver],
+        isGroup: false
+      });
+    }
+
+    // Update conversation
+    conversation.lastMessage = newMessage._id;
+    conversation.lastMessageAt = new Date();
+    await conversation.updateUnreadCount(receiver, 1);
+    await conversation.save();
+
     // Populate sender info
-    await newMessage.populate('sender', 'name image');
+    await newMessage.populate('sender', 'name images');
+    await newMessage.populate('receiver', 'name images');
+    if (newMessage.replyTo) {
+      await newMessage.populate('replyTo', 'message sender');
+    }
+
+    // Add media URL to response if exists
+    const responseData = newMessage.toObject();
+    if (responseData.media && responseData.media.url && !responseData.media.url.startsWith('http')) {
+      responseData.media.url = `${req.protocol}://${req.get('host')}/uploads/${responseData.media.url}`;
+      if (responseData.media.thumbnail) {
+        responseData.media.thumbnail = `${req.protocol}://${req.get('host')}/uploads/${responseData.media.thumbnail}`;
+      }
+    }
 
     // Emit Socket.io event
     if (req.app.get('socketio')) {
-      req.app.get('socketio').to(receiver).emit('newMessage', newMessage);
+      const io = req.app.get('socketio');
+      const receiverRoom = `user_${receiver}`;
+      
+      io.to(receiverRoom).emit('newMessage', {
+        message: responseData,
+        conversationId: conversation._id,
+        unreadCount: conversation.unreadCount.find(u => u.user.toString() === receiver.toString())?.count || 0
+      });
     }
 
     res.status(201).json({
       success: true,
-      data: newMessage,
+      data: responseData,
     });
   });
 // GET /api/conversations

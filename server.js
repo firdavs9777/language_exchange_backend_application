@@ -33,7 +33,10 @@ const users = require('./routes/users');
 const languages = require('./routes/languages');
 const comments = require('./routes/comment');
 const Message = require('./models/Message');
-const stories = require('./routes/story')
+const stories = require('./routes/story');
+const purchases = require('./routes/purchases');
+const userBlocks = require('./routes/userBlocks');
+const conversations = require('./routes/conversations');
 
 const app = express();
 
@@ -153,6 +156,9 @@ app.use('/api/v1/auth/users', users);
 app.use('/api/v1/languages', languages);
 app.use('/api/v1/comments', comments);
 app.use('/api/v1/stories', stories);
+app.use('/api/v1/purchases', purchases);
+app.use('/api/v1/users', userBlocks);
+app.use('/api/v1/conversations', conversations);
 
 app.use(errorHandler);
 
@@ -233,13 +239,56 @@ io.on('connection', async (socket) => {
         throw new Error('Message cannot be empty');
       }
       
-      console.log(`📤 Message from ${socket.user.id} to ${receiver}`);        
+      console.log(`📤 Message from ${socket.user.id} to ${receiver}`);
+      
+      // Check message limit before creating message
+      const User = require('./models/User');
+      const { resetDailyCounters, formatLimitError } = require('./utils/limitations');
+      const LIMITS = require('./config/limitations');
+      
+      const senderUser = await User.findById(socket.user.id);
+      if (!senderUser) {
+        throw new Error('User not found');
+      }
+      
+      // Reset counters if new day
+      await resetDailyCounters(senderUser);
+      await senderUser.save();
+      
+      // Check block status
+      if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
+        throw new Error('Cannot send message to this user');
+      }
+      
+      // Check if user can send message
+      const canSend = await senderUser.canSendMessage();
+      if (!canSend) {
+        let current = 0;
+        let max = 0;
+        const now = new Date();
+        const nextReset = new Date(now);
+        nextReset.setHours(24, 0, 0, 0);
+        
+        if (senderUser.userMode === 'regular') {
+          current = senderUser.regularUserLimitations.messagesSentToday || 0;
+          max = LIMITS.regular.messagesPerDay;
+        } else if (senderUser.userMode === 'visitor') {
+          current = senderUser.visitorLimitations.messagesSent || 0;
+          max = LIMITS.visitor.messagesPerDay;
+        }
+        
+        const errorMsg = `Daily messages limit exceeded. You have used ${current} of ${max} messages today. Limit resets at ${nextReset.toLocaleString()}.`;
+        throw new Error(errorMsg);
+      }
       
       const newMessage = await Message.create({          
         sender: socket.user.id,          
         receiver,          
         message: message.trim()
-      });        
+      });
+      
+      // Increment message count after successful creation
+      await senderUser.incrementMessageCount();        
       
       const populatedMessage = await Message.findById(newMessage._id)         
         .populate('sender', 'name imageUrls')

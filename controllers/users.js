@@ -595,6 +595,37 @@ exports.changeUserMode = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc     Get user limitations status
+// @route    GET /api/v1/auth/users/:userId/limits
+// @access   Private
+exports.getUserLimits = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  // Users can view their own limits, or admins can view any user's limits
+  if (req.user._id.toString() !== userId && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to view limits for this user', 403));
+  }
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  // Reset counters if new day
+  const { resetDailyCounters, getUserLimits } = require('../utils/limitations');
+  await resetDailyCounters(user);
+  await user.save();
+
+  // Get limit information
+  const limitsInfo = getUserLimits(user);
+
+  res.status(200).json({
+    success: true,
+    data: limitsInfo
+  });
+});
+
 const sendTokenResponse = (user, statusCode, res) => {
   // Create token
   const token = user.getSignedJwtToken();

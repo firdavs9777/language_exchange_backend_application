@@ -154,6 +154,35 @@ exports.createStory = asyncHandler(async (req, res, next) => {
     const { text, backgroundColor, textColor, privacy } = req.body;
     const userId = req.user.id;
     
+    // Check story creation limit
+    const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
+    const LIMITS = require('../config/limitations');
+    
+    const user = req.limitationUser || await User.findById(userId);
+    if (!user) {
+      return next(new ErrorResponse('User not found', 404));
+    }
+
+    // Visitors cannot create stories
+    if (user.userMode === 'visitor') {
+      return next(new ErrorResponse('Visitors cannot create stories. Please upgrade to regular user.', 403));
+    }
+
+    // Reset counters if new day
+    await resetDailyCounters(user);
+    await user.save();
+
+    // Check if user can create story
+    const canCreate = await user.canCreateStory();
+    if (!canCreate) {
+      const current = user.regularUserLimitations.storiesCreatedToday || 0;
+      const max = LIMITS.regular.storiesPerDay;
+      const now = new Date();
+      const nextReset = new Date(now);
+      nextReset.setHours(24, 0, 0, 0);
+      return next(formatLimitError('stories', current, max, nextReset));
+    }
+    
     if (!req.files?.file && !text) {
       return next(new ErrorResponse('Either media file or text is required', 400));
     }
@@ -199,6 +228,9 @@ exports.createStory = asyncHandler(async (req, res, next) => {
       textColor: textColor || '#ffffff',
       privacy: privacy || 'friends'
     });
+    
+    // Increment story count after successful creation
+    await user.incrementStoryCount();
     
     await story.populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
     

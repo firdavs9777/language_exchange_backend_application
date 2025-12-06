@@ -146,7 +146,18 @@ const UserSchema = new mongoose.Schema({
     nextBillingDate: {
       type: Date,
       default: null
-    }
+    },
+    transactions: [{
+      transactionId: String,
+      productId: String,
+      plan: String,
+      purchaseDate: Date,
+      type: {
+        type: String,
+        enum: ['initial', 'renewal', 'upgrade', 'downgrade'],
+        default: 'initial'
+      }
+    }]
   },
 
   // VIP features
@@ -184,6 +195,49 @@ const UserSchema = new mongoose.Schema({
       default: 0
     },
     lastMessageReset: {
+      type: Date,
+      default: Date.now
+    },
+    profileViewsToday: {
+      type: Number,
+      default: 0
+    },
+    lastProfileViewReset: {
+      type: Date,
+      default: Date.now
+    }
+  },
+  // Regular user limitations
+  regularUserLimitations: {
+    messagesSentToday: {
+      type: Number,
+      default: 0
+    },
+    lastMessageReset: {
+      type: Date,
+      default: Date.now
+    },
+    momentsCreatedToday: {
+      type: Number,
+      default: 0
+    },
+    lastMomentReset: {
+      type: Date,
+      default: Date.now
+    },
+    storiesCreatedToday: {
+      type: Number,
+      default: 0
+    },
+    lastStoryReset: {
+      type: Date,
+      default: Date.now
+    },
+    commentsCreatedToday: {
+      type: Number,
+      default: 0
+    },
+    lastCommentReset: {
       type: Date,
       default: Date.now
     },
@@ -234,6 +288,33 @@ const UserSchema = new mongoose.Schema({
     type: [mongoose.Schema.Types.ObjectId],
     ref: 'User'
   },
+  // User blocking
+  blockedUsers: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    blockedAt: {
+      type: Date,
+      default: Date.now
+    },
+    reason: {
+      type: String,
+      default: null
+    }
+  }],
+  blockedBy: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    blockedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   native_language: {
     type: String,
     required: function() {
@@ -619,63 +700,370 @@ UserSchema.methods.upgradeFromVisitor = function() {
   return Promise.resolve(this);
 };
 
-// Check visitor message limit (e.g., 10 messages per day)
+// Check message limit based on user mode
 UserSchema.methods.canSendMessage = function() {
+  const LIMITS = require('../config/limitations');
+  
   if (this.userMode === 'vip') return true;
-  if (this.userMode === 'regular') return true;
+
+  if (this.userMode === 'regular') {
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastMessageReset);
+
+    // Reset counter if it's a new day
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.messagesSentToday = 0;
+      this.regularUserLimitations.lastMessageReset = now;
+    }
+
+    return this.regularUserLimitations.messagesSentToday < LIMITS.regular.messagesPerDay;
+  }
 
   if (this.userMode === 'visitor') {
     const now = new Date();
     const lastReset = new Date(this.visitorLimitations.lastMessageReset);
 
     // Reset counter if it's a new day
-    if (now.getDate() !== lastReset.getDate()) {
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
       this.visitorLimitations.messagesSent = 0;
       this.visitorLimitations.lastMessageReset = now;
     }
 
-    return this.visitorLimitations.messagesSent < 10; // 10 messages per day for visitors
+    return this.visitorLimitations.messagesSent < LIMITS.visitor.messagesPerDay;
   }
 
   return false;
 };
 
-// Increment visitor message count
+// Increment message count based on user mode
 UserSchema.methods.incrementMessageCount = function() {
+  if (this.userMode === 'vip') {
+    return Promise.resolve(this); // VIP has unlimited messages
+  }
+
+  if (this.userMode === 'regular') {
+    // Reset if new day
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastMessageReset);
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.messagesSentToday = 0;
+      this.regularUserLimitations.lastMessageReset = now;
+    }
+    this.regularUserLimitations.messagesSentToday += 1;
+    return this.save();
+  }
+
   if (this.userMode === 'visitor') {
+    // Reset if new day
+    const now = new Date();
+    const lastReset = new Date(this.visitorLimitations.lastMessageReset);
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.visitorLimitations.messagesSent = 0;
+      this.visitorLimitations.lastMessageReset = now;
+    }
     this.visitorLimitations.messagesSent += 1;
     return this.save();
   }
+
   return Promise.resolve(this);
 };
 
-// Check visitor profile view limit (e.g., 20 profiles per day)
+// Check profile view limit based on user mode
 UserSchema.methods.canViewProfile = function() {
+  const LIMITS = require('../config/limitations');
+  
   if (this.userMode === 'vip') return true;
-  if (this.userMode === 'regular') return true;
+
+  if (this.userMode === 'regular') {
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastProfileViewReset);
+
+    // Reset counter if it's a new day
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.profileViewsToday = 0;
+      this.regularUserLimitations.lastProfileViewReset = now;
+    }
+
+    return this.regularUserLimitations.profileViewsToday < LIMITS.regular.profileViewsPerDay;
+  }
 
   if (this.userMode === 'visitor') {
     const now = new Date();
     const lastReset = new Date(this.visitorLimitations.lastProfileViewReset);
 
     // Reset counter if it's a new day
-    if (now.getDate() !== lastReset.getDate()) {
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
       this.visitorLimitations.profileViewsToday = 0;
       this.visitorLimitations.lastProfileViewReset = now;
     }
 
-    return this.visitorLimitations.profileViewsToday < 20; // 20 profile views per day for visitors
+    return this.visitorLimitations.profileViewsToday < LIMITS.visitor.profileViewsPerDay;
   }
 
   return false;
 };
 
-// Increment visitor profile view count
+// Increment profile view count based on user mode
 UserSchema.methods.incrementProfileViewCount = function() {
+  if (this.userMode === 'vip') {
+    return Promise.resolve(this); // VIP has unlimited profile views
+  }
+
+  if (this.userMode === 'regular') {
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastProfileViewReset);
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.profileViewsToday = 0;
+      this.regularUserLimitations.lastProfileViewReset = now;
+    }
+    this.regularUserLimitations.profileViewsToday += 1;
+    return this.save();
+  }
+
   if (this.userMode === 'visitor') {
+    const now = new Date();
+    const lastReset = new Date(this.visitorLimitations.lastProfileViewReset);
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.visitorLimitations.profileViewsToday = 0;
+      this.visitorLimitations.lastProfileViewReset = now;
+    }
     this.visitorLimitations.profileViewsToday += 1;
     return this.save();
   }
+
+  return Promise.resolve(this);
+};
+
+// Check if regular user can create moment
+UserSchema.methods.canCreateMoment = function() {
+  const LIMITS = require('../config/limitations');
+  
+  if (this.userMode === 'vip') return true;
+  if (this.userMode === 'visitor') return false; // Visitors cannot create moments
+
+  if (this.userMode === 'regular') {
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastMomentReset);
+
+    // Reset counter if it's a new day
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.momentsCreatedToday = 0;
+      this.regularUserLimitations.lastMomentReset = now;
+    }
+
+    return this.regularUserLimitations.momentsCreatedToday < LIMITS.regular.momentsPerDay;
+  }
+
+  return false;
+};
+
+// Increment moment count for regular users
+UserSchema.methods.incrementMomentCount = function() {
+  if (this.userMode === 'vip') {
+    return Promise.resolve(this); // VIP has unlimited moments
+  }
+
+  if (this.userMode === 'regular') {
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastMomentReset);
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.momentsCreatedToday = 0;
+      this.regularUserLimitations.lastMomentReset = now;
+    }
+    this.regularUserLimitations.momentsCreatedToday += 1;
+    return this.save();
+  }
+
+  return Promise.resolve(this);
+};
+
+// Check if regular user can create story
+UserSchema.methods.canCreateStory = function() {
+  const LIMITS = require('../config/limitations');
+  
+  if (this.userMode === 'vip') return true;
+  if (this.userMode === 'visitor') return false; // Visitors cannot create stories
+
+  if (this.userMode === 'regular') {
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastStoryReset);
+
+    // Reset counter if it's a new day
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.storiesCreatedToday = 0;
+      this.regularUserLimitations.lastStoryReset = now;
+    }
+
+    return this.regularUserLimitations.storiesCreatedToday < LIMITS.regular.storiesPerDay;
+  }
+
+  return false;
+};
+
+// Increment story count for regular users
+UserSchema.methods.incrementStoryCount = function() {
+  if (this.userMode === 'vip') {
+    return Promise.resolve(this); // VIP has unlimited stories
+  }
+
+  if (this.userMode === 'regular') {
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastStoryReset);
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.storiesCreatedToday = 0;
+      this.regularUserLimitations.lastStoryReset = now;
+    }
+    this.regularUserLimitations.storiesCreatedToday += 1;
+    return this.save();
+  }
+
+  return Promise.resolve(this);
+};
+
+// Check if regular user can create comment
+UserSchema.methods.canCreateComment = function() {
+  const LIMITS = require('../config/limitations');
+  
+  if (this.userMode === 'vip') return true;
+  if (this.userMode === 'visitor') return false; // Visitors cannot create comments
+
+  if (this.userMode === 'regular') {
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastCommentReset);
+
+    // Reset counter if it's a new day
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.commentsCreatedToday = 0;
+      this.regularUserLimitations.lastCommentReset = now;
+    }
+
+    return this.regularUserLimitations.commentsCreatedToday < LIMITS.regular.commentsPerDay;
+  }
+
+  return false;
+};
+
+// Increment comment count for regular users
+UserSchema.methods.incrementCommentCount = function() {
+  if (this.userMode === 'vip') {
+    return Promise.resolve(this); // VIP has unlimited comments
+  }
+
+  if (this.userMode === 'regular') {
+    const now = new Date();
+    const lastReset = new Date(this.regularUserLimitations.lastCommentReset);
+    if (now.getDate() !== lastReset.getDate() || 
+        now.getMonth() !== lastReset.getMonth() || 
+        now.getFullYear() !== lastReset.getFullYear()) {
+      this.regularUserLimitations.commentsCreatedToday = 0;
+      this.regularUserLimitations.lastCommentReset = now;
+    }
+    this.regularUserLimitations.commentsCreatedToday += 1;
+    return this.save();
+  }
+
+  return Promise.resolve(this);
+};
+
+// Reset all daily limits if it's a new day
+UserSchema.methods.resetDailyLimits = function() {
+  const now = new Date();
+  let needsSave = false;
+
+  // Reset regular user limitations
+  if (this.userMode === 'regular') {
+    const lastMessageReset = new Date(this.regularUserLimitations.lastMessageReset);
+    const lastMomentReset = new Date(this.regularUserLimitations.lastMomentReset);
+    const lastStoryReset = new Date(this.regularUserLimitations.lastStoryReset);
+    const lastCommentReset = new Date(this.regularUserLimitations.lastCommentReset);
+    const lastProfileViewReset = new Date(this.regularUserLimitations.lastProfileViewReset);
+
+    const isNewDay = (lastReset) => {
+      return now.getDate() !== lastReset.getDate() || 
+             now.getMonth() !== lastReset.getMonth() || 
+             now.getFullYear() !== lastReset.getFullYear();
+    };
+
+    if (isNewDay(lastMessageReset)) {
+      this.regularUserLimitations.messagesSentToday = 0;
+      this.regularUserLimitations.lastMessageReset = now;
+      needsSave = true;
+    }
+    if (isNewDay(lastMomentReset)) {
+      this.regularUserLimitations.momentsCreatedToday = 0;
+      this.regularUserLimitations.lastMomentReset = now;
+      needsSave = true;
+    }
+    if (isNewDay(lastStoryReset)) {
+      this.regularUserLimitations.storiesCreatedToday = 0;
+      this.regularUserLimitations.lastStoryReset = now;
+      needsSave = true;
+    }
+    if (isNewDay(lastCommentReset)) {
+      this.regularUserLimitations.commentsCreatedToday = 0;
+      this.regularUserLimitations.lastCommentReset = now;
+      needsSave = true;
+    }
+    if (isNewDay(lastProfileViewReset)) {
+      this.regularUserLimitations.profileViewsToday = 0;
+      this.regularUserLimitations.lastProfileViewReset = now;
+      needsSave = true;
+    }
+  }
+
+  // Reset visitor limitations
+  if (this.userMode === 'visitor') {
+    const lastMessageReset = new Date(this.visitorLimitations.lastMessageReset);
+    const lastProfileViewReset = new Date(this.visitorLimitations.lastProfileViewReset);
+
+    const isNewDay = (lastReset) => {
+      return now.getDate() !== lastReset.getDate() || 
+             now.getMonth() !== lastReset.getMonth() || 
+             now.getFullYear() !== lastReset.getFullYear();
+    };
+
+    if (isNewDay(lastMessageReset)) {
+      this.visitorLimitations.messagesSent = 0;
+      this.visitorLimitations.lastMessageReset = now;
+      needsSave = true;
+    }
+    if (isNewDay(lastProfileViewReset)) {
+      this.visitorLimitations.profileViewsToday = 0;
+      this.visitorLimitations.lastProfileViewReset = now;
+      needsSave = true;
+    }
+  }
+
+  if (needsSave) {
+    return this.save();
+  }
+
   return Promise.resolve(this);
 };
 
