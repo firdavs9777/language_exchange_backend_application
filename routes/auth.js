@@ -17,7 +17,8 @@ const {
   forgotPassword,
   verifyResetCode,
   resetPassword,
-  googleMobileLogin
+  googleMobileLogin,
+  appleMobileLogin
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -140,4 +141,5 @@ router.put(
 router.post('/sendCodeEmail', emailLimiter, emailVerificationValidation, validate, sendVerificationCode);
 router.post('/verifyEmailCode', authLimiter, verifyCodeValidation, validate, verifyCode);
 router.post('/google/mobile', authLimiter, googleMobileLogin);
+router.post('/apple/mobile', authLimiter, appleMobileLogin); 
 module.exports = router;

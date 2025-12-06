@@ -130,6 +130,105 @@ passport.use(
   )
 );
 
+
+/**
+ * @desc    Apple Sign-In for mobile (ID token verification)
+ * @route   POST /api/v1/auth/apple/mobile
+ * @access  Public
+ */
+exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
+  const { identityToken, user: appleUser } = req.body;
+  
+  if (!identityToken) {
+    return next(new ErrorResponse('Identity token is required', 400));
+  }
+  
+  try {
+    const jwt = require('jsonwebtoken');
+    const appleSignin = require('apple-signin-auth');
+    
+    // Verify the identity token with Apple
+    const appleResponse = await appleSignin.verifyIdToken(identityToken, {
+      audience: process.env.APPLE_BUNDLE_ID || 'com.banatalk.app',
+      ignoreExpiration: false, // Set to true for development/testing only
+    });
+    
+    const { sub: appleId, email } = appleResponse;
+    
+    console.log('✅ Apple token verified:', { appleId, email });
+    
+    // Try to find existing user by Apple ID
+    let user = await User.findOne({ appleId });
+    
+    // If not found by Apple ID, try by email (if email was provided)
+    if (!user && email) {
+      user = await User.findOne({ email });
+      
+      // If user exists with this email, link Apple account
+      if (user) {
+        user.appleId = appleId;
+        await user.save();
+      }
+    }
+    
+    // If still no user, create new one
+    if (!user) {
+      // Apple user data from the first-time sign-in (may be null on subsequent logins)
+      const fullName = appleUser?.fullName;
+      const userName = fullName 
+        ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim() 
+        : 'Apple User';
+      
+      user = await User.create({
+        appleId,
+        email: email || `${appleId}@privaterelay.appleid.com`, // Apple may hide email
+        name: userName || 'Apple User',
+        images: [],
+        isEmailVerified: true,
+        isRegistrationComplete: true,
+        // Default values for required fields (only for new OAuth users)
+        gender: 'other',
+        bio: 'Hello! I joined using Apple. 🍎',
+        birth_year: '2000',
+        birth_month: '1',
+        birth_day: '1',
+        profileCompleted: false,
+        native_language: 'English',
+        language_to_learn: 'Korean',
+        location: {
+          type: 'Point',
+          coordinates: [0.0, 0.0],
+          formattedAddress: 'Not specified',
+          city: 'Not specified',
+          country: 'Not specified'
+        }
+      });
+      
+      console.log('✅ New Apple user created:', user._id);
+    } else {
+      console.log('✅ Existing user logged in:', user._id);
+    }
+    
+    const deviceInfo = getDeviceInfo(req);
+    logSecurityEvent('APPLE_MOBILE_LOGIN_SUCCESS', {
+      userId: user._id,
+      email: user.email,
+      ipAddress: deviceInfo.ipAddress
+    });
+    
+    sendTokenResponse(user, 200, res, req, deviceInfo);
+    
+  } catch (error) {
+    console.error('❌ Apple sign-in error:', error);
+    logSecurityEvent('APPLE_AUTH_FAILED', {
+      error: error.message
+    });
+    return next(new ErrorResponse('Invalid Apple token', 401));
+  }
+});
+
+
+
 /**
  * @desc    Facebook login route
  * @route   GET /api/v1/auth/facebook

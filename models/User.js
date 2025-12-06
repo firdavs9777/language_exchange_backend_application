@@ -11,7 +11,7 @@ const UserSchema = new mongoose.Schema({
   gender: {
     type: String,
     required: function() {
-      return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId && !this.appleId;
     }
   },
   email: {
@@ -26,7 +26,7 @@ const UserSchema = new mongoose.Schema({
   password: {
     type: String,
     required: function() {
-      return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId && !this.appleId;
     },
     minLength: 6,
     select: false
@@ -92,6 +92,11 @@ const UserSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
   },
+  appleId: {
+  type: String,
+  unique: true,
+  sparse: true,
+},
   profileCompleted: {
   type: Boolean,
   default: false
@@ -194,31 +199,31 @@ const UserSchema = new mongoose.Schema({
   bio: {
     type: String,
     required: function() {
-      return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId && !this.appleId;
     }
   },
   birth_year: {
     type: String,
     required: function() {
-      return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId && !this.appleId;
     }
   },
   birth_month: {
     type: String,
     required: function() {
-      return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId && !this.appleId;
     }
   },
   birth_day: {
     type: String,
     required: function() {
-      return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId && !this.appleId;
     }
   },
   images: {
     type: [String],
     required: function() {
-      return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId && !this.appleId;
     }
   },
   followers: {
@@ -232,13 +237,13 @@ const UserSchema = new mongoose.Schema({
   native_language: {
     type: String,
     required: function() {
-      return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId && !this.appleId;
     }
   },
   language_to_learn: {
     type: String,
     required: function() {
-      return !this.googleId && !this.facebookId;
+      return !this.googleId && !this.facebookId && !this.appleId;
     }
   },
   status: {
