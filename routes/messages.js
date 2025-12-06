@@ -33,28 +33,17 @@ router.route('/search').get(protect, searchMessages);
 router.route('/conversations').post(protect, createConversationRoom).get(protect, getConversationRooms);
 
 // Message management routes (must be before /:id route)
-const {
-  editMessage,
-  deleteMessage as deleteMessageManagement,
-  replyToMessage,
-  forwardMessage,
-  pinMessage,
-  getMessageReplies
-} = require('../controllers/messageManagement');
-const {
-  addReaction,
-  removeReaction,
-  getMessageReactions
-} = require('../controllers/messageReactions');
+const messageManagement = require('../controllers/messageManagement');
+const messageReactions = require('../controllers/messageReactions');
 
-router.route('/:id/reply').post(protect, replyToMessage);
-router.route('/:id/forward').post(protect, forwardMessage);
-router.route('/:id/pin').post(protect, pinMessage);
-router.route('/:id/replies').get(protect, getMessageReplies);
-router.route('/:id/reactions').get(protect, getMessageReactions).post(protect, addReaction);
-router.route('/:id/reactions/:emoji').delete(protect, removeReaction);
+router.route('/:id/reply').post(protect, messageManagement.replyToMessage);
+router.route('/:id/forward').post(protect, messageManagement.forwardMessage);
+router.route('/:id/pin').post(protect, messageManagement.pinMessage);
+router.route('/:id/replies').get(protect, messageManagement.getMessageReplies);
+router.route('/:id/reactions').get(protect, messageReactions.getMessageReactions).post(protect, messageReactions.addReaction);
+router.route('/:id/reactions/:emoji').delete(protect, messageReactions.removeReaction);
 
-router.route('/:id').get(getMessage).put(protect, editMessage).delete(protect, deleteMessageManagement);
+router.route('/:id').get(getMessage).put(protect, messageManagement.editMessage).delete(protect, messageManagement.deleteMessage);
 router.route('/user/:userId').get(getUserMessages);
 router.route('/senders/:userId').get(getUserSenders);
 router.route('/conversation/:senderId/:receiverId').get(getConversation);
