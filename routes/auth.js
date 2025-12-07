@@ -18,7 +18,8 @@ const {
   verifyResetCode,
   resetPassword,
   googleMobileLogin,
-  appleMobileLogin
+  appleMobileLogin,
+  deleteAccount
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -118,6 +119,7 @@ router.post(
 
 // Protected routes
 router.get('/me', protect, getMe);
+router.delete('/me', protect, deleteAccount);
 router.post('/logout', protect, logout);
 router.post('/logout-all', protect, logoutAll);
 
@@ -142,4 +144,5 @@ router.post('/sendCodeEmail', emailLimiter, emailVerificationValidation, validat
 router.post('/verifyEmailCode', authLimiter, verifyCodeValidation, validate, verifyCode);
 router.post('/google/mobile', authLimiter, googleMobileLogin);
 router.post('/apple/mobile', authLimiter, appleMobileLogin); 
+
 module.exports = router;

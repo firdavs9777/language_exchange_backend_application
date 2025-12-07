@@ -1370,3 +1370,74 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Invalid Google token', 401));
   }
 });
+
+/**
+ * @desc    Delete user account
+ * @route   DELETE /api/v1/auth/me
+ * @access  Private
+ */
+exports.deleteAccount = asyncHandler(async (req, res, next) => {
+  const { password, confirmText } = req.body;
+
+  // Get user with password
+  const user = await User.findById(req.user.id).select('+password');
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  const isOAuthUser = !!(user.googleId || user.facebookId || user.appleId);
+  // For OAuth users (Google, Facebook, Apple) - no password required
+  if (!isOAuthUser) {
+    // Regular email users must confirm with password
+    if (!password) {
+      return next(new ErrorResponse('Please provide your password to confirm account deletion', 400));
+    }
+
+    // Verify password
+    const isPasswordCorrect = await user.matchPassword(password);
+    if (!isPasswordCorrect) {
+      logSecurityEvent('ACCOUNT_DELETE_FAILED', {
+        userId: user._id,
+        email: user.email,
+        reason: 'Incorrect password'
+      });
+      return next(new ErrorResponse('Incorrect password', 401));
+    }
+  }
+
+  // Verify confirmation text
+  if (confirmText !== 'DELETE') {
+    return next(new ErrorResponse('Please type DELETE to confirm account deletion', 400));
+  }
+
+  try {
+    // Log account deletion
+    logSecurityEvent('ACCOUNT_DELETED', {
+      userId: user._id,
+      email: user.email,
+      userMode: user.userMode,
+      isVIP: user.isVIP(),
+      deletedAt: new Date()
+    });
+
+    // Delete user account
+    await User.findByIdAndDelete(req.user.id);
+
+    // Clear cookie
+    res.cookie('token', 'none', {
+      expires: new Date(Date.now() + 10 * 1000),
+      httpOnly: true
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Your account has been permanently deleted',
+      data: {}
+    });
+
+  } catch (error) {
+    console.error('❌ Account deletion error:', error);
+    return next(new ErrorResponse('Failed to delete account', 500));
+  }
+});
