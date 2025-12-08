@@ -101,10 +101,11 @@ const UserSchema = new mongoose.Schema({
   type: Boolean,
   default: false
 },
-  role: {
-    type: String,
-  },
-
+role: {
+  type: String,
+  enum: ['user', 'admin'],  // Add enum
+  default: 'user'            // Add default
+},
   // User Mode: visitor, regular, or vip
   userMode: {
     type: String,

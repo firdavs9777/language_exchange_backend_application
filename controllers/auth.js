@@ -1441,3 +1441,25 @@ exports.deleteAccount = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Failed to delete account', 500));
   }
 });
+
+/**
+ * @desc    Make user admin (development only)
+ * @route   PUT /api/v1/auth/make-admin/:userId
+ * @access  Public (should be protected in production!)
+ */
+exports.makeAdmin = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.userId);
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  user.role = 'admin';
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: `User ${user.name} is now an admin`,
+    data: user
+  });
+});

@@ -19,7 +19,8 @@ const {
   resetPassword,
   googleMobileLogin,
   appleMobileLogin,
-  deleteAccount
+  deleteAccount,
+  makeAdmin
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -144,5 +145,7 @@ router.post('/sendCodeEmail', emailLimiter, emailVerificationValidation, validat
 router.post('/verifyEmailCode', authLimiter, verifyCodeValidation, validate, verifyCode);
 router.post('/google/mobile', authLimiter, googleMobileLogin);
 router.post('/apple/mobile', authLimiter, appleMobileLogin); 
+router.put('/make-admin/:userId', makeAdmin);
+
 
 module.exports = router;
