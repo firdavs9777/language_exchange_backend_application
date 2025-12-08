@@ -11,7 +11,7 @@ const {
   dismissReport,
   deleteReport,
   getReportStats
-} = require('../controllers/reports');
+} = require('../controllers/report');
 
 const router = express.Router();
 
