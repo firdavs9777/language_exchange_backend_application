@@ -10,10 +10,10 @@ const { logSecurityEvent } = require('../utils/securityLogger');
  * @access  Private
  */
 exports.createReport = asyncHandler(async (req, res, next) => {
-  const { type, reportedId, reportedUser, reason, description } = req.body;
+  const { type, reportId, reportedUser, reason, description } = req.body;
 
   // Validate required fields
-  if (!type || !reportedId || !reportedUser || !reason) {
+  if (!type || !reportId || !reportedUser || !reason) {
     return next(new ErrorResponse('Please provide all required fields', 400));
   }
 
@@ -21,7 +21,7 @@ exports.createReport = asyncHandler(async (req, res, next) => {
   const hasReported = await Report.hasUserReported(
     req.user.id,
     type,
-    reportedId
+    reportId
   );
 
   if (hasReported) {
@@ -31,7 +31,7 @@ exports.createReport = asyncHandler(async (req, res, next) => {
   // Create report
   const report = await Report.create({
     type,
-    reportedId,
+    reportId,
     reportedBy: req.user.id,
     reportedUser,
     reason,
