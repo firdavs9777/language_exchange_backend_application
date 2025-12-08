@@ -15,7 +15,7 @@ const {
 
 const router = express.Router();
 
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, authorizeRole } = require('../middleware/auth');
 
 // Public routes (none for reports)
 
@@ -27,14 +27,14 @@ router.post('/', createReport);
 router.get('/my-reports', getMyReports);
 
 // Admin only routes
-router.get('/', authorize('admin'), getAllReports);
-router.get('/stats', authorize('admin'), getReportStats);
-router.get('/stats/pending', authorize('admin'), getPendingCount);
-router.get('/user/:userId', authorize('admin'), getReportsByUser);
-router.get('/:id', authorize('admin'), getReport);
-router.put('/:id/review', authorize('admin'), startReview);
-router.put('/:id/resolve', authorize('admin'), resolveReport);
-router.put('/:id/dismiss', authorize('admin'), dismissReport);
-router.delete('/:id', authorize('admin'), deleteReport);
+router.get('/', authorizeRole('admin'), getAllReports);
+router.get('/stats', authorizeRole('admin'), getReportStats);
+router.get('/stats/pending', authorizeRole('admin'), getPendingCount);
+router.get('/user/:userId', authorizeRole('admin'), getReportsByUser);
+router.get('/:id', authorizeRole('admin'), getReport);
+router.put('/:id/review', authorizeRole('admin'), startReview);
+router.put('/:id/resolve', authorizeRole('admin'), resolveReport);
+router.put('/:id/dismiss', authorizeRole('admin'), dismissReport);
+router.delete('/:id', authorizeRole('admin'), deleteReport);
 
 module.exports = router;

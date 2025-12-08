@@ -79,6 +79,25 @@ exports.authorize = (resourceOwnerField, modelType) => {
     }
   });
 };
+
+exports.authorizeRole = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return next(new ErrorResponse('Not authorized to access this route', 401));
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return next(
+        new ErrorResponse(
+          `User role '${req.user.role || 'none'}' is not authorized to access this route`,
+          403
+        )
+      );
+    }
+    
+    next();
+  };
+};
 exports.authorizeComment = (resourceOwnerField) => {
   return asyncHandler(async (req, res, next) => {
     console.log('req.params.id:', req.params.id);
