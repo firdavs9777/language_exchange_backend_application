@@ -112,7 +112,9 @@ ReportSchema.pre('save', function(next) {
 ReportSchema.index({ status: 1, createdAt: -1 });
 ReportSchema.index({ reportedBy: 1 });
 ReportSchema.index({ reportedUser: 1 });
-ReportSchema.index({ type: 1, reportedId: 1 });
+ReportSchema.index({ type: 1, reportId: 1 });
+// Compound index to prevent duplicate reports efficiently
+ReportSchema.index({ reportedBy: 1, type: 1, reportId: 1 }, { unique: true });
 
 // Method to mark as resolved
 ReportSchema.methods.resolve = function(moderatorId, action, notes) {
@@ -144,13 +146,13 @@ ReportSchema.statics.getReportsByUser = function(userId) {
 };
 
 // Static method to check if content is already reported by user
-ReportSchema.statics.hasUserReported = async function(userId, type, contentId) {
-  const count = await this.countDocuments({
+ReportSchema.statics.hasUserReported = async function(userId, type, reportId) {
+  const existingReport = await this.findOne({
     reportedBy: userId,
     type: type,
-    reportedId: contentId
+    reportId: reportId
   });
-  return count > 0;
+  return !!existingReport;
 };
 
 module.exports = mongoose.model("Report", ReportSchema);

@@ -16,6 +16,7 @@ exports.createReport = asyncHandler(async (req, res, next) => {
   if (!type || !reportId || !reportedUser || !reason) {
     return next(new ErrorResponse('Please provide all required fields', 400));
   }
+  
 
   // Check if user already reported this content
   const hasReported = await Report.hasUserReported(
@@ -25,18 +26,38 @@ exports.createReport = asyncHandler(async (req, res, next) => {
   );
 
   if (hasReported) {
-    return next(new ErrorResponse('You have already reported this content', 400));
+    return next(new ErrorResponse('You have already reported this content. Please wait for moderation.', 400));
+  }
+
+  // Additional check: Try to find existing report (in case unique index doesn't catch it)
+  const existingReport = await Report.findOne({
+    reportedBy: req.user.id,
+    type: type,
+    reportId: reportId
+  });
+
+  if (existingReport) {
+    return next(new ErrorResponse('You have already reported this content. Please wait for moderation.', 400));
   }
 
   // Create report
-  const report = await Report.create({
-    type,
-    reportId,
-    reportedBy: req.user.id,
-    reportedUser,
-    reason,
-    description
-  });
+  let report;
+  try {
+    report = await Report.create({
+      type,
+      reportId,
+      reportedBy: req.user.id,
+      reportedUser,
+      reason,
+      description
+    });
+  } catch (error) {
+    // Handle duplicate key error (from unique index)
+    if (error.code === 11000 || error.name === 'MongoServerError') {
+      return next(new ErrorResponse('You have already reported this content. Please wait for moderation.', 400));
+    }
+    throw error;
+  }
 
   // Log security event
   logSecurityEvent('CONTENT_REPORTED', {
