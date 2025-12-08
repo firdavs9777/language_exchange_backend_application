@@ -37,6 +37,7 @@ const stories = require('./routes/story');
 const purchases = require('./routes/purchases');
 const userBlocks = require('./routes/userBlocks');
 const conversations = require('./routes/conversations');
+const reports = require('./routes/report')
 
 const app = express();
 
@@ -159,7 +160,7 @@ app.use('/api/v1/stories', stories);
 app.use('/api/v1/purchases', purchases);
 app.use('/api/v1/users', userBlocks);
 app.use('/api/v1/conversations', conversations);
-
+app.use('/api/v1/reports', reports);
 app.use(errorHandler);
 
 // Socket.IO Authentication
