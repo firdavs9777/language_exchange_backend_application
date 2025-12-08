@@ -58,6 +58,10 @@ const ReportSchema = new mongoose.Schema({
     ],
     default: "pending",
   },
+    moderatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User"
+  },
   // Moderator notes
   moderatorNotes: {
     type: String,
