@@ -4,7 +4,6 @@ const express = require('express');
 const dotenv = require('dotenv');
 const morgan = require('morgan');
 const colors = require('colors');
-const fileUpload = require('express-fileupload');
 const cookieParser = require('cookie-parser');
 const errorHandler = require('./middleware/error');
 const connectDb = require('./config/db');
@@ -100,15 +99,6 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-app.use(fileUpload({
-  limits: { fileSize: 10 * 1024 * 1024 },
-  abortOnLimit: true,
-  createParentPath: true,
-  useTempFiles: true,
-  tempFileDir: '/tmp/'
-}));
-
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(mongoSanitize());

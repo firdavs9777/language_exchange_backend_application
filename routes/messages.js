@@ -18,6 +18,7 @@ const { processMediaUpload } = require('../controllers/mediaUpload');
 const { validateMediaUpload } = require('../middleware/mediaUpload');
 const advancedResults = require('../middleware/advancedResults');
 const { checkMessageLimit } = require('../middleware/checkLimitations');
+const { uploadSingle } = require('../middleware/uploadToSpaces');
 
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
@@ -25,8 +26,7 @@ const { protect, authorize } = require('../middleware/auth');
 router.route('/').get(getMessages).post(
   protect, 
   checkMessageLimit, 
-  validateMediaUpload(['image', 'audio', 'video', 'document']),
-  processMediaUpload,
+  uploadSingle('attachment', 'bananatalk/messages'),
   createMessage
 );
 router.route('/search').get(protect, searchMessages);

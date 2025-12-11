@@ -4,6 +4,7 @@ const Message = require('../models/Message');
 const ErrorResponse = require('../utils/errorResponse');
 const { timeStamp } = require('console');
 const User = require("../models/User")
+const deleteFromSpaces = require('../utils/deleteFromSpaces');
 
 /**
  * @desc    Create a new conversation room between users
@@ -167,7 +168,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         ...message.sender._doc,
         imageUrls: message.sender.images ?
           message.sender.images.map(image =>
-            `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+            image
           ) : []
       } : { imageUrls: [] };
     
@@ -175,7 +176,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         ...message.receiver._doc,
         imageUrls: message.receiver.images ?
           message.receiver.images.map(image =>
-            `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+            image
           ) : []
       } : { imageUrls: [] };
     
@@ -215,7 +216,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         // Include message content and timestamps if needed
         const senderData = {
           ...message.sender._doc,
-          imageUrls: message.sender.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`),
+          imageUrls: message.sender.images.map(image => image),
           recentMessage: {
             content: message.message,  // Assuming `content` is a field in Message
             sentAt: message.createdAt   // Assuming `createdAt` is a field in Message
@@ -252,11 +253,11 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       ...message._doc,
       sender: {
         ...message.sender._doc,
-        imageUrls: message.sender.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+        imageUrls: message.sender.images.map(image => image)
       },
       receiver: {
         ...message.receiver._doc,
-        imageUrls: message.receiver.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+        imageUrls: message.receiver.images.map(image => image)
       }
     }));
 
@@ -271,76 +272,36 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   //@access Private
 
   exports.createMessage = asyncHandler(async (req, res, next) => {
-    const { message, receiver, replyTo, forwardedFrom, location } = req.body; // Remove sender from destructuring
-  
-    // Check authentication
-    if (!req.user) {
-      return next(new ErrorResponse('Not authenticated', 401));
-    }
-
-    const sender = req.user._id; // Get sender from authenticated user
-
-    // Validate request body - either message or media must be present
-    if (!message && !req.processedMedia && !location) {
-      return next(new ErrorResponse('Message content, media, or location is required', 400));
-    }
-
-    if (!receiver) {
-      return next(new ErrorResponse('Receiver is required', 400));
-    }
-
-    // Check if receiver exists
+    const { message, receiver, replyTo, forwardedFrom, location } = req.body;
+    if (!req.user) return next(new ErrorResponse('Not authenticated', 401));
+    const sender = req.user._id;
+    if (!message && !req.file && !location) return next(new ErrorResponse('Message content, attachment, or location is required', 400));
+    if (!receiver) return next(new ErrorResponse('Receiver is required', 400));
     const receiverExists = await User.findById(receiver);
-    if (!receiverExists) {
-      return next(new ErrorResponse('Receiver not found', 404));
-    }
-
-    // Check message limit (user should be loaded by middleware if used, otherwise load it)
+    if (!receiverExists) return next(new ErrorResponse('Receiver not found', 404));
     const senderUser = req.limitationUser || await User.findById(sender);
-    if (!senderUser) {
-      return next(new ErrorResponse('Sender user not found', 404));
-    }
-
-    // Check if sender has blocked receiver or vice versa
-    if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
-      return next(new ErrorResponse('Cannot send message to this user', 403));
-    }
-
-    // Check if user can send message
+    if (!senderUser) return next(new ErrorResponse('Sender user not found', 404));
+    if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) return next(new ErrorResponse('Cannot send message to this user', 403));
     const canSend = await senderUser.canSendMessage();
     if (!canSend) {
       const LIMITS = require('../config/limitations');
-      let current = 0;
-      let max = 0;
-      const now = new Date();
-      const nextReset = new Date(now);
-      nextReset.setHours(24, 0, 0, 0);
-
-      if (senderUser.userMode === 'regular') {
-        current = senderUser.regularUserLimitations.messagesSentToday || 0;
-        max = LIMITS.regular.messagesPerDay;
-      } else if (senderUser.userMode === 'visitor') {
-        current = senderUser.visitorLimitations.messagesSent || 0;
-        max = LIMITS.visitor.messagesPerDay;
-      }
-
+      let current = 0, max = 0; const now = new Date(); const nextReset = new Date(now); nextReset.setHours(24, 0, 0, 0);
+      if (senderUser.userMode === 'regular') { current = senderUser.regularUserLimitations.messagesSentToday || 0; max = LIMITS.regular.messagesPerDay; }
+      else if (senderUser.userMode === 'visitor') { current = senderUser.visitorLimitations.messagesSent || 0; max = LIMITS.visitor.messagesPerDay; }
       const { formatLimitError } = require('../utils/limitations');
       return next(formatLimitError('messages', current, max, nextReset));
     }
-
-    // Build message data
-    const messageData = {
-      message: message || null,
-      sender,
-      receiver,
-    };
-
-    // Add media if present
-    if (req.processedMedia) {
-      messageData.media = req.processedMedia;
+    const messageData = { message: message || null, sender, receiver };
+    // DigitalOcean Spaces attachment logic
+    if (req.file) {
+      messageData.media = {
+        url: req.file.location,
+        type: req.file.mimetype.startsWith('video/') ? 'video' : req.file.mimetype.startsWith('image/') ? 'image' : req.file.mimetype,
+        fileName: req.file.originalname,
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype
+      };
     }
-
-    // Add location if present
     if (location && location.latitude && location.longitude) {
       messageData.media = {
         type: 'location',
@@ -352,20 +313,12 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         }
       };
     }
-
-    // Add reply information
     if (replyTo) {
       const replyToMessage = await Message.findById(replyTo);
-      if (replyToMessage) {
-        messageData.replyTo = replyTo;
-      }
+      if (replyToMessage) messageData.replyTo = replyTo;
     }
-
-    // Add forward information
     if (forwardedFrom && forwardedFrom.messageId) {
-      const originalMessage = await Message.findById(forwardedFrom.messageId)
-        .populate('sender', 'name');
-      
+      const originalMessage = await Message.findById(forwardedFrom.messageId).populate('sender', 'name');
       if (originalMessage) {
         messageData.isForwarded = true;
         messageData.forwardedFrom = {
@@ -375,65 +328,19 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         };
       }
     }
-
-    // Create the message
     const newMessage = await Message.create(messageData);
-
-    // Increment message count
     await senderUser.incrementMessageCount();
-
-    // Update or create conversation
     const Conversation = require('../models/Conversation');
-    let conversation = await Conversation.findOne({
-      participants: { $all: [sender, receiver], $size: 2 },
-      isGroup: false
-    });
-
-    if (!conversation) {
-      conversation = await Conversation.create({
-        participants: [sender, receiver],
-        isGroup: false
-      });
-    }
-
-    // Update conversation
+    let conversation = await Conversation.findOne({ participants: { $all: [sender, receiver], $size: 2 }, isGroup: false });
+    if (!conversation) conversation = await Conversation.create({ participants: [sender, receiver], isGroup: false });
     conversation.lastMessage = newMessage._id;
     conversation.lastMessageAt = new Date();
     await conversation.updateUnreadCount(receiver, 1);
     await conversation.save();
-
-    // Populate sender info
     await newMessage.populate('sender', 'name images');
     await newMessage.populate('receiver', 'name images');
-    if (newMessage.replyTo) {
-      await newMessage.populate('replyTo', 'message sender');
-    }
-
-    // Add media URL to response if exists
-    const responseData = newMessage.toObject();
-    if (responseData.media && responseData.media.url && !responseData.media.url.startsWith('http')) {
-      responseData.media.url = `${req.protocol}://${req.get('host')}/uploads/${responseData.media.url}`;
-      if (responseData.media.thumbnail) {
-        responseData.media.thumbnail = `${req.protocol}://${req.get('host')}/uploads/${responseData.media.thumbnail}`;
-      }
-    }
-
-    // Emit Socket.io event
-    if (req.app.get('socketio')) {
-      const io = req.app.get('socketio');
-      const receiverRoom = `user_${receiver}`;
-      
-      io.to(receiverRoom).emit('newMessage', {
-        message: responseData,
-        conversationId: conversation._id,
-        unreadCount: conversation.unreadCount.find(u => u.user.toString() === receiver.toString())?.count || 0
-      });
-    }
-
-    res.status(201).json({
-      success: true,
-      data: responseData,
-    });
+    if (newMessage.replyTo) await newMessage.populate('replyTo', 'message sender');
+    res.status(201).json({ success: true, data: newMessage });
   });
 // GET /api/conversations
 exports.getConversationRooms = asyncHandler(async (req, res, next) => {
@@ -504,11 +411,11 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
       ...message._doc,
       sender: {
         ...message.sender._doc,
-        imageUrls: message.sender.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+        imageUrls: message.sender.images.map(image => image)
       },
       receiver: {
         ...message.receiver._doc,
-        imageUrls: message.receiver.images.map(image => `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`)
+        imageUrls: message.receiver.images.map(image => image)
       }
     }));
 
@@ -544,12 +451,10 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
 
   exports.deleteMessage = asyncHandler(async (req, res, next) => {
     const message = await Message.findByIdAndDelete(req.params.id);
-    if (!message) {
-      return next(
-        new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404)
-      );
+    if (!message) return next(new ErrorResponse(`Message not found with id of ${req.params.id}`, 404));
+    if (message.media && message.media.url && /^https?:\/\/.*digitaloceanspaces\.com\//.test(message.media.url)) {
+      await deleteFromSpaces(message.media.url);
     }
-    message.remove();
     res.status(200).json({ success: true, data: {}, message: 'Message Deleted' });
   })
 

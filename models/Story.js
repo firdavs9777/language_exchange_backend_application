@@ -5,6 +5,7 @@ const StorySchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true
   },
   mediaUrl: String,
+  mediaUrls: [String], // NEW: To support multiple uploads per story (to Spaces)
   mediaType: {
     type: String,
     enum: ['image', 'video','text'], 

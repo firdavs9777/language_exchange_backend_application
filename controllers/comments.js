@@ -23,7 +23,7 @@ exports.getComments = asyncHandler(async (req, res, next) => {
     comments = comments.map(comment => {
         const userImages = comment.user.images || [];
         const imageUrls = userImages.map(image =>
-            `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+            image
         );
 
         return {
@@ -60,7 +60,7 @@ exports.getComment = asyncHandler(async (req, res, next) => {
     // Extract user images and map them to URLs
     const userImages = comment.user.images || [];
     const imageUrls = userImages.map(image =>
-        `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        image
     );
 
     // Construct the response object
@@ -86,11 +86,16 @@ exports.createComment = asyncHandler(async (req, res, next) => {
     try {
         req.body.moment = req.params.momentId;
         req.body.user = req.user.id;
-        
+
+        // Add DigitalOcean Spaces image if uploaded
+        if (req.file && req.file.location) {
+            req.body.imageUrl = req.file.location;
+        }
+
         // Check comment creation limit
         const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
         const LIMITS = require('../config/limitations');
-        
+
         const user = req.limitationUser || await User.findById(req.user.id);
         if (!user) {
             return next(new ErrorResponse('User not found', 404));
@@ -115,13 +120,13 @@ exports.createComment = asyncHandler(async (req, res, next) => {
             nextReset.setHours(24, 0, 0, 0);
             return next(formatLimitError('comments', current, max, nextReset));
         }
-        
+
         const moment = await Moment.findById(req.params.momentId);
         if (!moment) {
             return next(new ErrorResponse(`No moment with the id of ${req.params.momentId}`))
         }
         const comment = await Comment.create(req.body);
-        
+
         // Increment comment count after successful creation
         await user.incrementCommentCount();
         moment.comments.push(comment);

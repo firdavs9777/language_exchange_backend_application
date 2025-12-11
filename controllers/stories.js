@@ -3,6 +3,7 @@ const asyncHandler = require('../middleware/async');
 const Story = require('../models/Story');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
+const deleteFromSpaces = require('../utils/deleteFromSpaces');
 
 // @desc Get stories feed (from people you follow)
 // @route GET /api/v1/stories/feed
@@ -41,7 +42,7 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
           user: {
             ...story.user._doc,
             imageUrls: story.user.images.map(image => 
-              `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+              image
             )
           },
           stories: [],
@@ -52,8 +53,8 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
       
       const storyWithUrls = {
         ...story._doc,
-        mediaUrl: story.mediaUrl ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.mediaUrl)}` : null,
-        thumbnail: story.thumbnail ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.thumbnail)}` : null,
+        mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
+        thumbnail: story.thumbnail ? story.thumbnail : null,
         user: userStoriesMap[userId].user
       };
       
@@ -124,15 +125,15 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
       const userWithImageUrls = {
         ...story.user._doc,
         imageUrls: story.user.images.map(image => 
-          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+          image
         )
       };
       
       return {
         ...story._doc,
         user: userWithImageUrls,
-        mediaUrl: story.mediaUrl ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.mediaUrl)}` : null,
-        thumbnail: story.thumbnail ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.thumbnail)}` : null
+        mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
+        thumbnail: story.thumbnail ? story.thumbnail : null
       };
     });
     
@@ -153,101 +154,45 @@ exports.createStory = asyncHandler(async (req, res, next) => {
   try {
     const { text, backgroundColor, textColor, privacy } = req.body;
     const userId = req.user.id;
-    
-    // Check story creation limit
     const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
     const LIMITS = require('../config/limitations');
-    
     const user = req.limitationUser || await User.findById(userId);
-    if (!user) {
-      return next(new ErrorResponse('User not found', 404));
-    }
-
-    // Visitors cannot create stories
-    if (user.userMode === 'visitor') {
-      return next(new ErrorResponse('Visitors cannot create stories. Please upgrade to regular user.', 403));
-    }
-
-    // Reset counters if new day
-    await resetDailyCounters(user);
-    await user.save();
-
-    // Check if user can create story
+    if (!user) return next(new ErrorResponse('User not found', 404));
+    if (user.userMode === 'visitor') return next(new ErrorResponse('Visitors cannot create stories. Please upgrade to regular user.', 403));
+    await resetDailyCounters(user); await user.save();
     const canCreate = await user.canCreateStory();
     if (!canCreate) {
       const current = user.regularUserLimitations.storiesCreatedToday || 0;
       const max = LIMITS.regular.storiesPerDay;
       const now = new Date();
-      const nextReset = new Date(now);
-      nextReset.setHours(24, 0, 0, 0);
+      const nextReset = new Date(now); nextReset.setHours(24, 0, 0, 0);
       return next(formatLimitError('stories', current, max, nextReset));
     }
-    
-    if (!req.files?.file && !text) {
-      return next(new ErrorResponse('Either media file or text is required', 400));
-    }
-    
-    let mediaUrl = '';
-    let thumbnail = '';
+    // --- NEW for Spaces ---
+    let mediaUrls = [];
     let mediaType = '';
-    
-    if (req.files?.file) {
-      const file = req.files.file;
-      
-      // Validate file type
-      if (!file.mimetype.startsWith('image/') && !file.mimetype.startsWith('video/')) {
-        return next(new ErrorResponse('Please upload an image or video file', 400));
-      }
-      
-      // Create unique filename
-      const filename = `story-${userId}-${Date.now()}${path.extname(file.name)}`;
-      mediaUrl = filename;
-      mediaType = file.mimetype.startsWith('video/') ? 'video' : 'image';
-      
-      // Move file to uploads directory
-      file.mv(`./uploads/${filename}`, err => {
-        if (err) {
-          return next(new ErrorResponse('Problem with file upload', 500));
-        }
-      });
-      
-      // Generate thumbnail for videos (placeholder for now)
-      if (mediaType === 'video') {
-        thumbnail = `thumb-${filename}`;
-        // TODO: Implement video thumbnail generation
-      }
+    if (req.files && req.files.length > 0) {
+      mediaUrls = req.files.map(f => f.location);
+      // Check mimetype of first file (all should be same type ideally)
+      mediaType = req.files[0].mimetype.startsWith('video/') ? 'video' : 'image';
     }
-    
-    const story = await Story.create({
+    if (mediaUrls.length === 0 && !text) {
+      return next(new ErrorResponse('Either media or text required', 400));
+    }
+    const storyData = {
       user: userId,
-      mediaUrl,
-      mediaType,
-      thumbnail,
+      mediaUrls,
+      mediaType: mediaUrls.length ? mediaType : 'text',
       text,
       backgroundColor: backgroundColor || '#000000',
       textColor: textColor || '#ffffff',
       privacy: privacy || 'friends'
-    });
-    
-    // Increment story count after successful creation
+    };
+    const story = await Story.create(storyData);
     await user.incrementStoryCount();
-    
     await story.populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
-    
-    const userWithImageUrls = {
-      ...story.user._doc,
-      imageUrls: story.user.images.map(image => 
-        `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-      )
-    };
-    
-    const storyWithUrls = {
-      ...story._doc,
-      user: userWithImageUrls,
-      mediaUrl: story.mediaUrl ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.mediaUrl)}` : null,
-      thumbnail: story.thumbnail ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.thumbnail)}` : null
-    };
-    
+    const userWithImageUrls = { ...story.user._doc, imageUrls: story.user.images };
+    const storyWithUrls = { ...story._doc, user: userWithImageUrls };
     res.status(201).json({
       success: true,
       data: storyWithUrls
@@ -257,30 +202,19 @@ exports.createStory = asyncHandler(async (req, res, next) => {
   }
 });
 
-// @desc Delete story
-// @route DELETE /api/v1/stories/:id
-// @access Private
+// Delete story and clean up Spaces media
 exports.deleteStory = asyncHandler(async (req, res, next) => {
   try {
     const story = await Story.findById(req.params.id);
-    
-    if (!story) {
-      return next(new ErrorResponse(`Story not found with id of ${req.params.id}`, 404));
+    if (!story) return next(new ErrorResponse(`Story not found with id of ${req.params.id}`, 404));
+    if (story.user.toString() !== req.user.id) return next(new ErrorResponse('Not authorized to delete this story', 403));
+    // Delete all media from Spaces
+    if (Array.isArray(story.mediaUrls)) {
+      await Promise.all(story.mediaUrls.map(url => deleteFromSpaces(url)));
     }
-    
-    // Check if user owns the story
-    if (story.user.toString() !== req.user.id) {
-      return next(new ErrorResponse('Not authorized to delete this story', 403));
-    }
-    
     story.isActive = false;
     await story.save();
-    
-    res.status(200).json({ 
-      success: true, 
-      data: {}, 
-      message: 'Story deleted successfully' 
-    });
+    res.status(200).json({ success: true, data: {}, message: 'Story deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Server error', message: `Error ${error}` });
   }
@@ -310,7 +244,7 @@ exports.getStoryViewers = asyncHandler(async (req, res, next) => {
       user: {
         ...view.user._doc,
         imageUrls: view.user.images.map(image => 
-          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+          image
         )
       }
     })).sort((a, b) => new Date(b.viewedAt) - new Date(a.viewedAt));
@@ -391,15 +325,15 @@ exports.getMyStories = asyncHandler(async (req, res, next) => {
       const userWithImageUrls = {
         ...story.user._doc,
         imageUrls: story.user.images.map(image => 
-          `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+          image
         )
       };
       
       return {
         ...story._doc,
         user: userWithImageUrls,
-        mediaUrl: story.mediaUrl ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.mediaUrl)}` : null,
-        thumbnail: story.thumbnail ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.thumbnail)}` : null
+        mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
+        thumbnail: story.thumbnail ? story.thumbnail : null
       };
     });
     
@@ -433,15 +367,15 @@ exports.getStory = asyncHandler(async (req, res, next) => {
     const userWithImageUrls = {
       ...story.user._doc,
       imageUrls: story.user.images.map(image => 
-        `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
+        image
       )
     };
     
     const storyWithUrls = {
       ...story._doc,
       user: userWithImageUrls,
-      mediaUrl: story.mediaUrl ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.mediaUrl)}` : null,
-      thumbnail: story.thumbnail ? `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(story.thumbnail)}` : null
+      mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
+      thumbnail: story.thumbnail ? story.thumbnail : null
     };
     
     res.status(200).json({

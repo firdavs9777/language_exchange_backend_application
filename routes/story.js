@@ -11,6 +11,7 @@ const {
   markStoryViewed
 } = require('../controllers/stories');
 const { checkStoryLimit } = require('../middleware/checkLimitations');
+const { uploadMultiple } = require('../middleware/uploadToSpaces');
 
 const advancedResults = require('../middleware/advancedResults');
 const router = express.Router();
@@ -29,7 +30,7 @@ router
 // Main stories routes
 router
   .route('/')
-  .post(protect, checkStoryLimit, createStory);
+  .post(protect, checkStoryLimit, uploadMultiple('media', 5, 'bananatalk/stories'), createStory);
 
 // Individual story routes
 router

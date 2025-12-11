@@ -19,7 +19,8 @@ const CommentSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref:'Moment',
     required: [true,'Moment is required for the schema']
-  }
+  },
+  imageUrl: { type: String },
 });
 
 module.exports = mongoose.model('Comment', CommentSchema);

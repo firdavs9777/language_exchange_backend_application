@@ -28,11 +28,10 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
   const users = await User.find().skip(skip).limit(limit);
   const total = await User.countDocuments();
 
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
   const usersWithImages = users.map(user => ({
     ...user.toObject(),
-    imageUrls: (user.images || []).map(image => 
-      `${baseUrl}/uploads/${encodeURIComponent(image)}`
+    imageUrls: user.images.map(image => 
+      image
     )
   }));
 
@@ -55,11 +54,10 @@ exports.getUser = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
   const userWithImages = {
     ...user.toObject(),
     imageUrls: user.images.map(image => 
-      `${baseUrl}/uploads/${encodeURIComponent(image)}`
+      image
     )
   };
 
@@ -250,11 +248,10 @@ exports.getFollowers = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User not found', 404));
   }
 
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
   const followers = user.followers.map(follower => ({
     ...follower.toObject(),
     imageUrls: follower.images.map(image => 
-      `${baseUrl}/uploads/${encodeURIComponent(image)}`
+      image
     )
   }));
 
@@ -276,11 +273,10 @@ exports.getFollowing = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User not found', 404));
   }
 
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
   const following = user.following.map(followedUser => ({
     ...followedUser.toObject(),
     imageUrls: followedUser.images.map(image => 
-      `${baseUrl}/uploads/${encodeURIComponent(image)}`
+      image
     )
   }));
 
