@@ -1,3 +1,4 @@
+// routes/moments.js
 const express = require('express');
 const {
   getMoments,
@@ -13,6 +14,7 @@ const {
 const { validate } = require('../middleware/validation');
 const { createMomentValidation, updateMomentValidation } = require('../validators/momentValidator');
 const { checkMomentLimit } = require('../middleware/checkLimitations');
+const { uploadMultiple } = require('../middleware/uploadToSpaces'); // Add this
 const commentRouter = require('./comment');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
@@ -29,7 +31,14 @@ router.route('/user/:userId').get(getUserMoments);
 router.route('/').post(protect, checkMomentLimit, createMomentValidation, validate, createMoment);
 router.route('/:id').put(protect, updateMomentValidation, validate, updateMoment);
 router.route('/:id').delete(protect, deleteMoment);
-router.route('/:id/photo').put(protect, momentPhotoUpload);
+
+// Updated photo upload route with Spaces middleware
+router.route('/:id/photo').put(
+  protect, 
+  uploadMultiple('file', 10, 'bananatalk/moments'), // Upload up to 10 images
+  momentPhotoUpload
+);
+
 router.route('/:id/like').post(protect, likeMoment);
 router.route('/:id/dislike').post(protect, dislikeMoment);
 

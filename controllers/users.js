@@ -4,6 +4,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const { processUserImages } = require('../utils/imageUtils');
 const path = require('path');
 const fs = require('fs').promises;
+const deleteFromSpaces = require('../utils/deleteFromSpaces');
 
 // Utility function to delete image file
 const deleteImageFile = async (filename) => {
@@ -108,7 +109,7 @@ exports.deleteUser = asyncHandler(async (req, res, next) => {
 
   // Delete all user images
   await Promise.all(
-    user.images.map(image => deleteImageFile(image))
+    user.images.map(image => deleteFromSpaces(image))
   );
 
   res.status(200).json({
@@ -117,86 +118,53 @@ exports.deleteUser = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc     Upload user photos
-// @route    PUT /api/v1/auth/users/:id/photos
-// @access   Private
+// @desc     Upload user photo (Spaces)
+// @route    PUT /api/v1/auth/users/:id/photo
 exports.userPhotoUpload = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.params.id);
-  
   if (!user) {
     return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
-  if (!req.files?.file) {
+  if (!req.file || !req.file.location) {
     return next(new ErrorResponse('Please upload a file', 400));
   }
 
-  const files = Array.isArray(req.files.file) ? req.files.file : [req.files.file];
-  const remainingSlots = 10 - user.images.length;
-
-  if (remainingSlots <= 0) {
+  // Optionally limit number of images (like old code)
+  if (user.images.length >= 10) {
     return next(new ErrorResponse('Maximum of 10 images already uploaded', 400));
   }
 
-  const filesToUpload = files.slice(0, remainingSlots);
-  const uploadedFiles = [];
-
-  // Process each file sequentially
-  for (const file of filesToUpload) {
-    const filename = `${file.name}-${Date.now()}${path.extname(file.name)}`;
-    
-    try {
-      await file.mv(`./uploads/${filename}`);
-      uploadedFiles.push(filename);
-    } catch (err) {
-      console.error('Error moving file:', err);
-      // Clean up any already moved files if one fails
-      await Promise.all(
-        uploadedFiles.map(f => deleteImageFile(f))
-      );
-      return next(new ErrorResponse('Problem with file upload', 500));
-    }
-  }
-
-  user.images = [...user.images, ...uploadedFiles];
+  user.images.push(req.file.location);
   await user.save();
 
-
-  const imageUrls = (user.images || []).map(image =>
-    `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-  );
-  user.images = imageUrls
-
-  sendTokenResponse(user, 200, res);
+  return res.status(200).json({
+    success: true,
+    images: user.images
+  });
 });
 
-// @desc     Delete user photo
-// @route    DELETE /api/v1/auth/users/:userId/photos/:index
-// @access   Private
+// @desc     Delete user photo (Spaces)
+// @route    DELETE /api/v1/auth/users/:userId/photo/:index
 exports.deleteUserPhoto = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.params.userId);
-  
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
   }
-
   const index = parseInt(req.params.index);
   if (isNaN(index) || index < 0 || index >= user.images.length) {
     return next(new ErrorResponse('Invalid image index', 400));
   }
-
-  const filename = user.images[index];
+  const url = user.images[index];
   user.images.splice(index, 1);
-  
   await Promise.all([
     user.save(),
-    deleteImageFile(filename)
+    deleteFromSpaces(url)
   ]);
-  const imageUrls = (user.images || []).map(image =>
-    `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`
-  );
-  user.images = imageUrls
-    sendTokenResponse(user, 200, res);
+  return res.status(200).json({
+    success: true,
+    images: user.images
+  });
 });
 
 // @desc     Follow a user
