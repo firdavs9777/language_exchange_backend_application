@@ -10,9 +10,8 @@
   "author": "Firdavs Mutalipov",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.948.0",
-    "@aws-sdk/lib-storage": "^3.948.0",
     "apple-signin-auth": "^2.0.0",
+    "aws-sdk": "^2.1693.0",
     "bcryptjs": "^2.4.3",
     "colors": "^1.4.0",
     "compression": "^1.8.0",
