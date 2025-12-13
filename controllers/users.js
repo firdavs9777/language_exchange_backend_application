@@ -5,6 +5,7 @@ const { processUserImages } = require('../utils/imageUtils');
 const path = require('path');
 const fs = require('fs').promises;
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
+const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 
 
@@ -55,7 +56,7 @@ exports.uploadMultiplePhotos = asyncHandler(async (req, res, next) => {
     totalImages: user.images.length
   });
 });
-// @desc     Get all users
+// @desc     Get all users (Community/Explore)
 // @route    GET /api/v1/auth/users
 // @access   Private/Admin
 exports.getUsers = asyncHandler(async (req, res, next) => {
@@ -63,8 +64,31 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
   const limit = parseInt(req.query.limit, 10) || 10;
   const skip = (page - 1) * limit;
 
-  const users = await User.find().skip(skip).limit(limit);
-  const total = await User.countDocuments();
+  // Get blocked users if authenticated
+  let blockedUserIds = [];
+  if (req.user) {
+    blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
+  }
+
+  // Build query - exclude blocked users
+  let query = {};
+  if (blockedUserIds.length > 0) {
+    query._id = { $nin: blockedUserIds };
+  }
+
+  // Also exclude current user from results
+  if (req.user) {
+    if (query._id) {
+      query._id.$nin.push(req.user._id);
+    } else {
+      query._id = { $nin: [req.user._id] };
+    }
+  }
+
+  const [users, total] = await Promise.all([
+    User.find(query).skip(skip).limit(limit),
+    User.countDocuments(query)
+  ]);
 
   const usersWithImages = users.map(user => ({
     ...user.toObject(),
@@ -387,7 +411,21 @@ exports.getFollowers = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User not found', 404));
   }
 
-  const followers = user.followers.map(follower => ({
+  // Get blocked users if authenticated
+  let blockedUserIds = [];
+  if (req.user) {
+    blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
+  }
+
+  // Filter out blocked users from followers list
+  let followers = user.followers || [];
+  if (blockedUserIds.length > 0) {
+    followers = followers.filter(follower => 
+      !blockedUserIds.includes(follower._id.toString())
+    );
+  }
+
+  const followersWithImages = followers.map(follower => ({
     ...follower.toObject(),
     imageUrls: follower.images.map(image => 
       image
@@ -396,8 +434,8 @@ exports.getFollowers = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({
     success: true,
-    count: followers.length,
-    data: followers
+    count: followersWithImages.length,
+    data: followersWithImages
   });
 });
 
@@ -412,7 +450,21 @@ exports.getFollowing = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User not found', 404));
   }
 
-  const following = user.following.map(followedUser => ({
+  // Get blocked users if authenticated
+  let blockedUserIds = [];
+  if (req.user) {
+    blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
+  }
+
+  // Filter out blocked users from following list
+  let following = user.following || [];
+  if (blockedUserIds.length > 0) {
+    following = following.filter(followedUser => 
+      !blockedUserIds.includes(followedUser._id.toString())
+    );
+  }
+
+  const followingWithImages = following.map(followedUser => ({
     ...followedUser.toObject(),
     imageUrls: followedUser.images.map(image => 
       image
@@ -421,8 +473,8 @@ exports.getFollowing = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({
     success: true,
-    count: following.length,
-    data: following
+    count: followingWithImages.length,
+    data: followingWithImages
   });
 });
 

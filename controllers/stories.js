@@ -16,14 +16,21 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
     const userId = req.user.id;
     
     // Get blocked users
-    const blockedUserIds = await getBlockedUserIds(userId);
+    const blockedUserIds = Array.from(await getBlockedUserIds(userId));
+    console.log(`📚 [Stories Feed] User ${userId} - Blocked users: ${blockedUserIds.length}`, blockedUserIds);
     
     // Get users that current user is following
     const user = await User.findById(userId).populate('following', '_id');
     let followingIds = user.following?.map(following => following._id.toString()) || [];
+    console.log(`📚 [Stories Feed] User ${userId} - Following count (before filter): ${followingIds.length}`);
     
     // Filter out blocked users from following list
+    const beforeFilter = followingIds.length;
     followingIds = followingIds.filter(id => !blockedUserIds.includes(id));
+    const afterFilter = followingIds.length;
+    if (beforeFilter !== afterFilter) {
+      console.log(`📚 [Stories Feed] User ${userId} - Filtered out ${beforeFilter - afterFilter} blocked users from following list`);
+    }
     
     // Add current user to see their own stories
     followingIds.push(userId);
@@ -38,6 +45,8 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
     })
     .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
     .sort({ user: 1, createdAt: 1 });
+    
+    console.log(`📚 [Stories Feed] User ${userId} - Found ${stories.length} stories (after blocking filter)`);
 
     // Group stories by user
     const userStoriesMap = {};
@@ -84,10 +93,24 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
       return new Date(b.latestStory.createdAt) - new Date(a.latestStory.createdAt);
     });
 
+    console.log(`📚 [Stories Feed] User ${userId} - Returning ${storiesFeed.length} user story groups`);
+    console.log(`📚 [Stories Feed] User ${userId} - Story groups:`, storiesFeed.map(s => ({
+      userId: s._id,
+      userName: s.user.name,
+      storyCount: s.stories.length,
+      hasUnviewed: s.hasUnviewed
+    })));
+
     res.status(200).json({
       success: true,
       count: storiesFeed.length,
-      data: storiesFeed
+      data: storiesFeed,
+      debug: {
+        blockedUsersCount: blockedUserIds.length,
+        followingCount: afterFilter,
+        totalStoriesFound: stories.length,
+        userStoryGroups: storiesFeed.length
+      }
     });
   } catch (error) {
     res.status(500).json({ error: 'Server error', message: `Error ${error}` });
@@ -103,10 +126,19 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
     const viewerId = req.user.id;
     const now = new Date();
     
+    console.log(`📚 [Get User Stories] Viewer: ${viewerId}, Target User: ${userId}`);
+    
     // Check if blocked
     if (viewerId !== userId) {
       const blockStatus = await checkBlockStatus(viewerId, userId);
+      console.log(`📚 [Get User Stories] Block status:`, {
+        isBlocked: blockStatus.isBlocked,
+        iBlockedThem: blockStatus.iBlockedThem,
+        theyBlockedMe: blockStatus.theyBlockedMe
+      });
+      
       if (blockStatus.isBlocked) {
+        console.log(`📚 [Get User Stories] BLOCKED - Returning empty result`);
         return res.status(200).json({
           success: true,
           count: 0,
@@ -147,6 +179,8 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
       }
     }
     
+    console.log(`📚 [Get User Stories] Found ${stories.length} active stories for user ${userId}`);
+    
     const storiesWithUrls = stories.map(story => {
       const userWithImageUrls = {
         ...story.user._doc,
@@ -163,12 +197,15 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
       };
     });
     
+    console.log(`📚 [Get User Stories] Returning ${storiesWithUrls.length} stories for user ${userId}`);
+    
     res.status(200).json({
       success: true,
       count: storiesWithUrls.length,
       data: storiesWithUrls
     });
   } catch (error) {
+    console.error(`📚 [Get User Stories] Error:`, error);
     res.status(500).json({ error: 'Server error', message: `Error ${error}` });
   }
 });
@@ -339,6 +376,8 @@ exports.getMyStories = asyncHandler(async (req, res, next) => {
     const userId = req.user.id;
     const now = new Date();
     
+    console.log(`📚 [Get My Stories] User: ${userId}`);
+    
     const stories = await Story.find({
       user: userId,
       isActive: true,
@@ -346,6 +385,10 @@ exports.getMyStories = asyncHandler(async (req, res, next) => {
     })
     .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
     .sort({ createdAt: -1 });
+    
+    console.log(`📚 [Get My Stories] Found ${stories.length} active stories`);
+    
+    console.log(`📚 [Get My Stories] Found ${stories.length} active stories`);
     
     const storiesWithUrls = stories.map(story => {
       const userWithImageUrls = {
@@ -363,12 +406,15 @@ exports.getMyStories = asyncHandler(async (req, res, next) => {
       };
     });
     
+    console.log(`📚 [Get My Stories] Returning ${storiesWithUrls.length} stories`);
+    
     res.status(200).json({
       success: true,
       count: storiesWithUrls.length,
       data: storiesWithUrls
     });
   } catch (error) {
+    console.error(`📚 [Get My Stories] Error:`, error);
     res.status(500).json({ error: 'Server error', message: `Error ${error}` });
   }
 });
@@ -392,9 +438,18 @@ exports.getStory = asyncHandler(async (req, res, next) => {
     
     // Check if blocked
     const storyOwnerId = story.user._id.toString();
+    console.log(`📚 [Get Story] Story ID: ${req.params.id}, Owner: ${storyOwnerId}, Viewer: ${req.user.id}`);
+    
     if (req.user.id !== storyOwnerId) {
       const blockStatus = await checkBlockStatus(req.user.id, storyOwnerId);
+      console.log(`📚 [Get Story] Block status:`, {
+        isBlocked: blockStatus.isBlocked,
+        iBlockedThem: blockStatus.iBlockedThem,
+        theyBlockedMe: blockStatus.theyBlockedMe
+      });
+      
       if (blockStatus.isBlocked) {
+        console.log(`📚 [Get Story] BLOCKED - Returning 403`);
         return next(new ErrorResponse('This content is not available', 403));
       }
     }

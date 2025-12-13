@@ -24,7 +24,7 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
   // Get blocked users if authenticated
   let blockedUserIds = [];
   if (req.user) {
-    blockedUserIds = await getBlockedUserIds(req.user._id);
+    blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
   }
 
   // Build query based on privacy and user
@@ -32,16 +32,27 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
 
   // If user is logged in, they can see their own posts
   if (req.user) {
+    // Exclude blocked users from both conditions
+    const publicQuery = { privacy: 'public' };
+    const ownPostsQuery = { user: req.user._id };
+    
+    // Apply blocking filter to public posts
+    if (blockedUserIds.length > 0) {
+      publicQuery.user = { $nin: blockedUserIds };
+    }
+    
     query = {
       $or: [
-        { privacy: 'public' },
-        { user: req.user._id }, // User's own posts (any privacy)
+        publicQuery,
+        ownPostsQuery // User's own posts (any privacy) - don't block own posts
       ]
     };
+  } else {
+    // For non-authenticated users, just filter blocked (though they shouldn't have any)
+    if (blockedUserIds.length > 0) {
+      query.user = { $nin: blockedUserIds };
+    }
   }
-
-  // Add blocking filter - exclude moments from blocked users
-  query = addBlockingFilter(query, 'user', blockedUserIds);
 
   // Optimize: Count and query in parallel
   const [totalMoments, moments] = await Promise.all([
@@ -781,7 +792,7 @@ exports.getTrendingMoments = asyncHandler(async (req, res, next) => {
   // Get blocked users if authenticated
   let blockedUserIds = [];
   if (req.user) {
-    blockedUserIds = await getBlockedUserIds(req.user._id);
+    blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
   }
 
   // Last 7 days
@@ -794,8 +805,10 @@ exports.getTrendingMoments = asyncHandler(async (req, res, next) => {
     createdAt: { $gte: sevenDaysAgo }
   };
 
-  // Add blocking filter
-  query = addBlockingFilter(query, 'user', blockedUserIds);
+  // Exclude blocked users
+  if (blockedUserIds.length > 0) {
+    query.user = { $nin: blockedUserIds };
+  }
 
   const [totalMoments, moments] = await Promise.all([
     Moment.countDocuments(query),
@@ -850,7 +863,7 @@ exports.exploreMoments = asyncHandler(async (req, res, next) => {
   // Get blocked users if authenticated
   let blockedUserIds = [];
   if (req.user) {
-    blockedUserIds = await getBlockedUserIds(req.user._id);
+    blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
   }
 
   let query = {
@@ -867,8 +880,10 @@ exports.exploreMoments = asyncHandler(async (req, res, next) => {
     query.tags = { $in: tagArray };
   }
 
-  // Add blocking filter
-  query = addBlockingFilter(query, 'user', blockedUserIds);
+  // Exclude blocked users
+  if (blockedUserIds.length > 0) {
+    query.user = { $nin: blockedUserIds };
+  }
 
   const [totalMoments, moments] = await Promise.all([
     Moment.countDocuments(query),
