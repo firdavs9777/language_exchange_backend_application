@@ -388,30 +388,57 @@ exports.getMyStories = asyncHandler(async (req, res, next) => {
     
     console.log(`📚 [Get My Stories] Found ${stories.length} active stories`);
     
-    console.log(`📚 [Get My Stories] Found ${stories.length} active stories`);
-    
     const storiesWithUrls = stories.map(story => {
-      const userWithImageUrls = {
-        ...story.user._doc,
-        imageUrls: story.user.images.map(image => 
-          image
-        )
-      };
+      // Handle both populated and non-populated user
+      let userWithImageUrls;
+      if (story.user && story.user._doc) {
+        userWithImageUrls = {
+          ...story.user._doc,
+          imageUrls: story.user.images ? story.user.images.map(image => image) : []
+        };
+      } else if (story.user) {
+        userWithImageUrls = {
+          ...story.user.toObject ? story.user.toObject() : story.user,
+          imageUrls: story.user.images ? story.user.images.map(image => image) : []
+        };
+      } else {
+        // Fallback if user is not populated
+        userWithImageUrls = {
+          _id: story.user,
+          imageUrls: []
+        };
+      }
       
       return {
-        ...story._doc,
+        ...story.toObject ? story.toObject() : story._doc,
+        _id: story._id,
         user: userWithImageUrls,
-        mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
-        thumbnail: story.thumbnail ? story.thumbnail : null
+        mediaUrl: story.mediaUrls && story.mediaUrls.length > 0 ? story.mediaUrls[0] : (story.mediaUrl || null),
+        mediaUrls: story.mediaUrls || [],
+        thumbnail: story.thumbnail || null,
+        text: story.text || null,
+        backgroundColor: story.backgroundColor || '#000000',
+        textColor: story.textColor || '#ffffff',
+        privacy: story.privacy || 'friends',
+        viewCount: story.viewCount || 0,
+        createdAt: story.createdAt,
+        updatedAt: story.updatedAt
       };
     });
     
     console.log(`📚 [Get My Stories] Returning ${storiesWithUrls.length} stories`);
+    console.log(`📚 [Get My Stories] Sample story:`, storiesWithUrls.length > 0 ? {
+      _id: storiesWithUrls[0]._id,
+      mediaUrl: storiesWithUrls[0].mediaUrl,
+      hasUser: !!storiesWithUrls[0].user,
+      userId: storiesWithUrls[0].user?._id
+    } : 'No stories');
     
     res.status(200).json({
       success: true,
       count: storiesWithUrls.length,
-      data: storiesWithUrls
+      data: storiesWithUrls,
+      message: storiesWithUrls.length === 0 ? 'No active stories found' : 'Stories retrieved successfully'
     });
   } catch (error) {
     console.error(`📚 [Get My Stories] Error:`, error);
