@@ -7,6 +7,54 @@ const fs = require('fs').promises;
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 
 
+
+
+// @desc     Upload multiple user photos at once (Spaces)
+// @route    POST /api/v1/auth/users/:id/photos
+// @access   Private
+exports.uploadMultiplePhotos = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  
+  if (!user) {
+    return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
+  }
+
+  // Check authorization
+  if (req.user._id.toString() !== req.params.id && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to upload photos for this user', 403));
+  }
+
+  if (!req.files || req.files.length === 0) {
+    return next(new ErrorResponse('Please upload at least one file', 400));
+  }
+
+  // Check if adding these would exceed limit
+  const totalImages = user.images.length + req.files.length;
+  if (totalImages > 10) {
+    // Rollback - delete uploaded files from Spaces
+    await Promise.all(
+      req.files.map(file => deleteFromSpaces(file.location))
+    );
+    return next(new ErrorResponse(
+      `Cannot upload ${req.files.length} images. Maximum of 10 images allowed (you currently have ${user.images.length})`, 
+      400
+    ));
+  }
+
+  // Add all uploaded images
+  const newImageUrls = req.files.map(file => file.location);
+  user.images.push(...newImageUrls);
+  
+  await user.save();
+
+  return res.status(200).json({
+    success: true,
+    message: `${req.files.length} image(s) uploaded successfully`,
+    images: user.images,
+    uploadedImages: newImageUrls,
+    totalImages: user.images.length
+  });
+});
 // @desc     Get all users
 // @route    GET /api/v1/auth/users
 // @access   Private/Admin

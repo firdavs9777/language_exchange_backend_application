@@ -7,6 +7,7 @@ const {
   updateProfilePicture,
   removeProfilePicture,
   userPhotoUpload,
+  uploadMultiplePhotos, 
   followUser,
   unfollowUser,
   getFollowing,
@@ -27,7 +28,7 @@ const advancedResults = require('../middleware/advancedResults');
 const { protect, authorize } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const { updatePrivacySettingsValidation } = require('../validators/privacyValidator');
-const { uploadSingle } = require('../middleware/uploadToSpaces');
+const { uploadSingle, uploadMultiple } = require('../middleware/uploadToSpaces'); // ADD uploadMultiple
 const router = express.Router({ mergeParams: true });
 
 // router.use(protect);
@@ -47,11 +48,17 @@ router
   .put(protect, uploadSingle('photo', 'bananatalk/profiles'), updateProfilePicture)
   .delete(protect, removeProfilePicture);
 
-// Additional photos routes (for gallery/additional images)
+// Single photo upload route
 router
   .route('/:id/photo')
   .put(protect, uploadSingle('photo', 'bananatalk/profiles'), userPhotoUpload);
 
+// Multiple photos upload route (NEW)
+router
+  .route('/:id/photos')
+  .post(protect, uploadMultiple('photos', 5, 'bananatalk/profiles'), uploadMultiplePhotos);
+
+// Delete photo at specific index
 router
   .route('/:userId/photo/:index')
   .delete(protect, deleteUserPhoto);
