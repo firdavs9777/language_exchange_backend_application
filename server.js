@@ -184,7 +184,7 @@ io.on('connection', async (socket) => {
   console.log(`✅ User ${socket.user?.id} connected`);    
   
   if (!socket.user?.id) {     
-    console.log('❌ No user ID - disconnecting');     
+    console.log('❌ No userhç ID - disconnecting');     
     socket.disconnect(true);     
     return;   
   }    

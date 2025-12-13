@@ -7,14 +7,14 @@
 
 module.exports = {
   visitor: {
-    messagesPerDay: 10,
-    profileViewsPerDay: 20
+    messagesPerDay: 100,
+    profileViewsPerDay: 100
   },
   regular: {
-    messagesPerDay: 50,
-    momentsPerDay: 5,
-    storiesPerDay: 3,
-    commentsPerDay: 20,
+    messagesPerDay: 500,
+    momentsPerDay: 100,
+    storiesPerDay: 100,
+    commentsPerDay: 30,
     profileViewsPerDay: 100
   },
   vip: {

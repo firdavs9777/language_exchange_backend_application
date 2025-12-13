@@ -6,16 +6,6 @@ const path = require('path');
 const fs = require('fs').promises;
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 
-// Utility function to delete image file
-const deleteImageFile = async (filename) => {
-  const filePath = path.join(__dirname, '../uploads', filename);
-  try {
-    await fs.unlink(filePath);
-  } catch (err) {
-    console.error(`Error deleting file ${filename}:`, err);
-    // Continue even if file deletion fails
-  }
-};
 
 // @desc     Get all users
 // @route    GET /api/v1/auth/users
@@ -116,19 +106,108 @@ exports.deleteUser = asyncHandler(async (req, res, next) => {
   });
 });
 
-// @desc     Upload user photo (Spaces)
-// @route    PUT /api/v1/auth/users/:id/photo
-exports.userPhotoUpload = asyncHandler(async (req, res, next) => {
+// @desc     Update profile picture (first image only)
+// @route    PUT /api/v1/auth/users/:id/profile-picture
+// @access   Private
+exports.updateProfilePicture = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.params.id);
+  
   if (!user) {
     return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
+  }
+
+  // Check authorization - user can only update their own profile picture
+  if (req.user._id.toString() !== req.params.id && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to update this user\'s profile picture', 403));
   }
 
   if (!req.file || !req.file.location) {
     return next(new ErrorResponse('Please upload a file', 400));
   }
 
-  // Optionally limit number of images (like old code)
+  const newImageUrl = req.file.location;
+  let oldProfilePicture = null;
+  
+  if (user.images.length > 0) {
+    // Replace existing profile picture
+    oldProfilePicture = user.images[0];
+    user.images[0] = newImageUrl;
+  } else {
+    // First time adding profile picture
+    user.images.unshift(newImageUrl);
+  }
+
+  await user.save();
+
+  // Delete old image from Spaces if it existed
+  if (oldProfilePicture) {
+    await deleteFromSpaces(oldProfilePicture);
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: oldProfilePicture ? 'Profile picture updated successfully' : 'Profile picture added successfully',
+    images: user.images,
+    imageUrl: newImageUrl
+  });
+});
+
+// @desc     Remove profile picture (first image only)
+// @route    DELETE /api/v1/auth/users/:id/profile-picture
+// @access   Private
+exports.removeProfilePicture = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  // Check authorization - user can only remove their own profile picture
+  if (req.user._id.toString() !== req.params.id && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to remove this user\'s profile picture', 403));
+  }
+
+  if (user.images.length === 0) {
+    return next(new ErrorResponse('No profile picture to remove', 400));
+  }
+
+  const profilePictureUrl = user.images[0];
+  
+  // Remove first image
+  user.images.shift();
+  
+  await user.save();
+  
+  // Delete from Spaces
+  await deleteFromSpaces(profilePictureUrl);
+
+  return res.status(200).json({
+    success: true,
+    message: 'Profile picture removed successfully',
+    images: user.images
+  });
+});
+
+// @desc     Upload additional user photo (Spaces)
+// @route    PUT /api/v1/auth/users/:id/photo
+// @access   Private
+exports.userPhotoUpload = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id);
+  
+  if (!user) {
+    return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
+  }
+
+  // Check authorization - user can only upload to their own profile
+  if (req.user._id.toString() !== req.params.id && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to upload photos for this user', 403));
+  }
+
+  if (!req.file || !req.file.location) {
+    return next(new ErrorResponse('Please upload a file', 400));
+  }
+
+  // Check image limit (maximum 10 images)
   if (user.images.length >= 10) {
     return next(new ErrorResponse('Maximum of 10 images already uploaded', 400));
   }
@@ -138,29 +217,41 @@ exports.userPhotoUpload = asyncHandler(async (req, res, next) => {
 
   return res.status(200).json({
     success: true,
+    message: 'Image added successfully',
     images: user.images
   });
 });
 
-// @desc     Delete user photo (Spaces)
+// @desc     Delete user photo at specific index (Spaces)
 // @route    DELETE /api/v1/auth/users/:userId/photo/:index
+// @access   Private
 exports.deleteUserPhoto = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.params.userId);
+  
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
   }
+
+  // Check authorization - user can only delete their own photos
+  if (req.user._id.toString() !== req.params.userId && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to delete this user\'s photos', 403));
+  }
+
   const index = parseInt(req.params.index);
+  
   if (isNaN(index) || index < 0 || index >= user.images.length) {
     return next(new ErrorResponse('Invalid image index', 400));
   }
+
   const url = user.images[index];
   user.images.splice(index, 1);
-  await Promise.all([
-    user.save(),
-    deleteFromSpaces(url)
-  ]);
+  
+  await user.save();
+  await deleteFromSpaces(url);
+
   return res.status(200).json({
     success: true,
+    message: 'Image deleted successfully',
     images: user.images
   });
 });

@@ -4,6 +4,8 @@ const {
   createUser,
   updateUser,
   deleteUser,
+  updateProfilePicture,
+  removeProfilePicture,
   userPhotoUpload,
   followUser,
   unfollowUser,
@@ -27,17 +29,32 @@ const { validate } = require('../middleware/validation');
 const { updatePrivacySettingsValidation } = require('../validators/privacyValidator');
 const { uploadSingle } = require('../middleware/uploadToSpaces');
 const router = express.Router({ mergeParams: true });
+
 // router.use(protect);
 // router.use(authorize('admin'));
+
 router.route('/').get(getUsers).post(createUser);
+
+// Follow/Unfollow routes
 router.route('/:userId/follow/:targetUserId').put(followUser);
 router.route('/:userId/unfollow/:targetUserId').put(unfollowUser);
 router.route('/:userId/followers').get(protect, getFollowers);
 router.route('/:userId/following').get(protect, getFollowing);
-router.route('/:id/photo').put(uploadSingle('photo', 'bananatalk/profiles'), userPhotoUpload);
+
+// Profile picture routes (dedicated endpoints for main profile picture)
+router
+  .route('/:id/profile-picture')
+  .put(protect, uploadSingle('photo', 'bananatalk/profiles'), updateProfilePicture)
+  .delete(protect, removeProfilePicture);
+
+// Additional photos routes (for gallery/additional images)
+router
+  .route('/:id/photo')
+  .put(protect, uploadSingle('photo', 'bananatalk/profiles'), userPhotoUpload);
+
 router
   .route('/:userId/photo/:index')
-  .delete(deleteUserPhoto);
+  .delete(protect, deleteUserPhoto);
 
 // Privacy settings routes
 router
@@ -77,6 +94,7 @@ router
   .route('/:userId/limits')
   .get(protect, getUserLimits);
 
+// User CRUD routes (must be last to avoid conflicts)
 router.route('/:id').get(getUser).put(updateUser).delete(deleteUser);
 
 module.exports = router;
