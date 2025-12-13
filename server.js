@@ -1,4 +1,4 @@
-// COMPLETELY FIXED SERVER CODE - NO CORS OR RATE LIMITER ISSUES
+// server.js - CLEAN VERSION WITH SEPARATED SOCKET LOGIC
 const path = require('path');
 const express = require('express');
 const dotenv = require('dotenv');
@@ -13,12 +13,12 @@ const xss = require('xss-clean');
 const hpp = require('hpp');
 const cors = require('cors');
 const http = require('http');
-const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const bodyParser = require('body-parser');
 const { Server } = require('socket.io');
+const { initializeSocket } = require('./socket/socketHandler');
 
-// Load env vars first
+// Load environment variables
 dotenv.config({ path: './config/config.env' });
 
 // Connect to database
@@ -31,21 +31,22 @@ const messages = require('./routes/messages');
 const users = require('./routes/users');
 const languages = require('./routes/languages');
 const comments = require('./routes/comment');
-const Message = require('./models/Message');
 const stories = require('./routes/story');
 const purchases = require('./routes/purchases');
 const userBlocks = require('./routes/userBlocks');
 const conversations = require('./routes/conversations');
-const reports = require('./routes/report')
+const reports = require('./routes/report');
 
+// Initialize Express app
 const app = express();
 
-// FIXED: Disable trust proxy to avoid rate limiter issues
+// Disable trust proxy (prevents rate limiter conflicts)
 app.set('trust proxy', false);
-app.use(cors());
+
+// Create HTTP server
 const server = http.createServer(app);
 
-// CORS DOMAINS
+// CORS configuration
 const allowedOrigins = [
   "http://localhost:3000",
   "http://10.0.2.2:3000",
@@ -57,7 +58,7 @@ const allowedOrigins = [
   "https://api.banatalk.com"
 ];
 
-// Socket.IO with CORS
+// Initialize Socket.IO
 const io = new Server(server, {
   cors: {
     origin: "*", // Allow all origins for Socket.IO
@@ -65,18 +66,30 @@ const io = new Server(server, {
     credentials: true
   },
   allowEIO3: true,
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-// Middleware setup in correct order
+// Initialize socket event handlers
+initializeSocket(io);
+
+// Make io accessible to routes
+app.set('io', io);
+
+// Middleware - Cookie Parser
 app.use(cookieParser());
 
-// ULTRA-PERMISSIVE CORS - MANUAL HEADERS (REPLACES THE CORS MIDDLEWARE)
+// Middleware - CORS (Manual Headers)
 app.use((req, res, next) => {
   const origin = req.get('Origin');
-  console.log(`🌐 ${req.method} request from: ${origin || 'no-origin'} to ${req.path}`);
   
-  // Set CORS headers manually - allow everything
+  // Log request
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🌐 ${req.method} ${req.path} from ${origin || 'no-origin'}`);
+  }
+  
+  // Set CORS headers
   res.header('Access-Control-Allow-Origin', origin || '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, X-Access-Token');
@@ -85,57 +98,54 @@ app.use((req, res, next) => {
   
   // Handle preflight OPTIONS requests
   if (req.method === 'OPTIONS') {
-    console.log('✅ Preflight request handled for:', origin);
     return res.status(200).end();
   }
   
   next();
 });
 
+// Middleware - Body Parser
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: false }));
 
+// Middleware - Morgan (Development logging)
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
+// Middleware - Static files
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use(mongoSanitize());
+// Middleware - Security
+app.use(mongoSanitize()); // Prevent NoSQL injection
 app.use(helmet({ 
   contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false 
 }));
-app.use(xss());
+app.use(xss()); // Prevent XSS attacks
+app.use(hpp()); // Prevent HTTP Parameter Pollution
 
-// COMPLETELY REMOVED RATE LIMITING TO FIX THE CRASH
-console.log('⚠️ Rate limiting disabled to prevent trust proxy conflicts');
-
-app.use(hpp());
+// Middleware - Passport
 app.use(passport.initialize());
 
-// Health check
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Server is healthy',
     timestamp: new Date().toISOString(),
-    cors: 'enabled',
-    origin: req.get('Origin')
+    environment: process.env.NODE_ENV,
+    socketIO: 'connected'
   });
 });
 
-// Test route with CORS info
+// Test endpoint
 app.get('/test', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'Test route working!',
+    message: 'API is working!',
     origin: req.get('Origin'),
-    headers: {
-      origin: req.get('Origin'),
-      host: req.get('Host'),
-      referer: req.get('Referer')
-    }
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -151,365 +161,68 @@ app.use('/api/v1/purchases', purchases);
 app.use('/api/v1/users', userBlocks);
 app.use('/api/v1/conversations', conversations);
 app.use('/api/v1/reports', reports);
+
+// Error handler middleware (must be last)
 app.use(errorHandler);
-
-// Socket.IO Authentication
-io.use((socket, next) => {
-  try {
-    const token = socket.handshake.auth.token || 
-                  socket.handshake.headers.authorization ||
-                  socket.handshake.query.token;
-    
-    console.log('🔑 Socket auth from:', socket.handshake.headers.origin);
-    
-    if (!token) {
-      console.log('❌ No token provided');
-      return next(new Error("Authentication error: No token provided"));
-    }
-    
-    const cleanToken = token.replace(/^Bearer\s+/i, '');
-    const decoded = jwt.verify(cleanToken, process.env.JWT_SECRET);
-    
-    socket.user = decoded;
-    console.log(`✅ User authenticated: ${decoded.id}`);
-    next();
-  } catch (err) {
-    console.log('❌ Auth error:', err.message);
-    return next(new Error("Authentication error: Invalid token"));
-  }
-});
-
-// Socket.IO connection handler
-io.on('connection', async (socket) => {   
-  console.log(`✅ User ${socket.user?.id} connected`);    
-  
-  if (!socket.user?.id) {     
-    console.log('❌ No userhç ID - disconnecting');     
-    socket.disconnect(true);     
-    return;   
-  }    
-  
-  const userRoom = `user_${socket.user.id}`;   
-  await socket.join(userRoom);   
-  console.log(`👤 User ${socket.user.id} joined room: ${userRoom}`);
-  
-  try {
-    const connectedSockets = await io.fetchSockets();
-    const onlineUsers = connectedSockets
-      .filter(s => s.user?.id && s.user.id !== socket.user.id)
-      .map(s => ({
-        userId: s.user.id,
-        status: 'online',
-        lastSeen: null
-      }));
-    
-    socket.emit('onlineUsers', onlineUsers);
-    console.log(`📋 Sent ${onlineUsers.length} online users to ${socket.user.id}`);
-    
-    socket.broadcast.emit('userStatusUpdate', {
-      userId: socket.user.id,
-      status: 'online',
-      lastSeen: null
-    });
-  } catch (error) {
-    console.error('❌ Error handling online users:', error);
-  }
-  
-  // Handle sending messages
-  socket.on('sendMessage', async (data, callback) => {     
-    try {
-      // Handle both object and direct parameter formats
-      const receiver = data?.receiver || data?.receiverId;
-      const message = data?.message || data?.text || data?.content;
-      
-      if (!receiver || !message || typeof message !== 'string') {         
-        throw new Error('Missing or invalid required fields. Expected: { receiver, message }');       
-      }
-      
-      if (message.trim().length === 0) {
-        throw new Error('Message cannot be empty');
-      }
-      
-      console.log(`📤 Message from ${socket.user.id} to ${receiver}`);
-      
-      // Check message limit before creating message
-      const User = require('./models/User');
-      const { resetDailyCounters, formatLimitError } = require('./utils/limitations');
-      const LIMITS = require('./config/limitations');
-      
-      const senderUser = await User.findById(socket.user.id);
-      if (!senderUser) {
-        throw new Error('User not found');
-      }
-      
-      // Reset counters if new day
-      await resetDailyCounters(senderUser);
-      await senderUser.save();
-      
-      // Check block status
-      if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
-        throw new Error('Cannot send message to this user');
-      }
-      
-      // Check if user can send message
-      const canSend = await senderUser.canSendMessage();
-      if (!canSend) {
-        let current = 0;
-        let max = 0;
-        const now = new Date();
-        const nextReset = new Date(now);
-        nextReset.setHours(24, 0, 0, 0);
-        
-        if (senderUser.userMode === 'regular') {
-          current = senderUser.regularUserLimitations.messagesSentToday || 0;
-          max = LIMITS.regular.messagesPerDay;
-        } else if (senderUser.userMode === 'visitor') {
-          current = senderUser.visitorLimitations.messagesSent || 0;
-          max = LIMITS.visitor.messagesPerDay;
-        }
-        
-        const errorMsg = `Daily messages limit exceeded. You have used ${current} of ${max} messages today. Limit resets at ${nextReset.toLocaleString()}.`;
-        throw new Error(errorMsg);
-      }
-      
-      const newMessage = await Message.create({          
-        sender: socket.user.id,          
-        receiver,          
-        message: message.trim()
-      });
-      
-      // Increment message count after successful creation
-      await senderUser.incrementMessageCount();        
-      
-      const populatedMessage = await Message.findById(newMessage._id)         
-        .populate('sender', 'name imageUrls')
-        .populate('receiver', 'name imageUrls');        
-      
-      const unreadCountForReceiver = await Message.countDocuments({         
-        receiver: receiver,
-        sender: socket.user.id,
-        read: false       
-      });
-      
-      const unreadCountForSender = await Message.countDocuments({         
-        receiver: socket.user.id,
-        sender: receiver,
-        read: false       
-      });        
-      
-      const notificationDataForReceiver = {         
-        message: populatedMessage,         
-        unreadCount: unreadCountForReceiver,
-        senderId: socket.user.id,
-        type: 'newMessage'
-      };        
-      
-      const notificationDataForSender = {         
-        message: populatedMessage,         
-        unreadCount: unreadCountForSender,
-        receiverId: receiver,
-        type: 'messageSent'
-      };
-      
-      const receiverRoom = `user_${receiver}`;       
-      io.to(receiverRoom).emit('newMessage', notificationDataForReceiver);              
-      
-      if (callback) {
-        callback({           
-          status: 'success',           
-          message: populatedMessage,           
-          unreadCount: unreadCountForSender
-        });
-      }
-      
-      io.to(userRoom).emit('messageSent', notificationDataForSender);
-      console.log(`📨 Message delivered`);     
-    } catch (err) {       
-      console.error('❌ Message error:', err);              
-      
-      const errorResponse = {           
-        status: 'error',           
-        error: err.message
-      };
-      
-      if (callback) {         
-        callback(errorResponse);       
-      } else {         
-        socket.emit('messageError', errorResponse);       
-      }     
-    }   
-  });
-  
-  // Handle marking messages as read
-  socket.on('markAsRead', async (data, callback) => {
-    try {
-      // Handle both object and direct parameter formats
-      const senderId = data?.senderId || data;
-      
-      if (!senderId) {
-        throw new Error('Sender ID is required');
-      }
-      
-      const result = await Message.updateMany(
-        {
-          sender: senderId,
-          receiver: socket.user.id,
-          read: false
-        },
-        { 
-          read: true,
-          readAt: new Date()
-        }
-      );
-      
-      console.log(`📖 Marked ${result.modifiedCount} messages as read`);
-      
-      const senderRoom = `user_${senderId}`;
-      io.to(senderRoom).emit('messagesRead', {
-        readBy: socket.user.id,
-        count: result.modifiedCount
-      });
-      
-      if (callback) {
-        callback({
-          status: 'success',
-          markedCount: result.modifiedCount
-        });
-      }
-      
-    } catch (err) {
-      console.error('❌ Mark as read error:', err);
-      if (callback) {
-        callback({
-          status: 'error',
-          error: err.message
-        });
-      }
-    }
-  });    
-  
-  // Typing events
-  let typingTimeout;
-  const handleTypingEvent = (type) => {     
-    return ({ receiver }) => {       
-      if (!receiver) return;        
-      
-      if (type === 'start') {         
-        if (typingTimeout) clearTimeout(typingTimeout);
-        
-        socket.to(`user_${receiver}`).emit('userTyping', {            
-          userId: socket.user.id,           
-          isTyping: true          
-        });
-        
-        typingTimeout = setTimeout(() => {
-          socket.to(`user_${receiver}`).emit('userTyping', {            
-            userId: socket.user.id,           
-            isTyping: false          
-          });
-        }, 5000);
-      } else {         
-        if (typingTimeout) clearTimeout(typingTimeout);
-        
-        socket.to(`user_${receiver}`).emit('userTyping', {            
-          userId: socket.user.id,           
-          isTyping: false          
-        });       
-      }     
-    };   
-  };    
-  
-  socket.on('typing', handleTypingEvent('start'));   
-  socket.on('stopTyping', handleTypingEvent('stop'));    
-  
-  // Status updates
-  socket.on('updateStatus', async ({ status }) => {
-    try {
-      const validStatuses = ['online', 'away', 'busy', 'offline'];
-      if (!validStatuses.includes(status)) return;
-      
-      console.log(`📡 User ${socket.user.id} status: ${status}`);
-      
-      socket.broadcast.emit('userStatusUpdate', {
-        userId: socket.user.id,
-        status,
-        lastSeen: status === 'offline' ? new Date().toISOString() : null
-      });
-    } catch (err) {
-      console.error('❌ Status update error:', err);
-    }
-  });
-  
-  // Quick status handlers
-  ['setAway', 'setBusy', 'setOnline'].forEach(eventName => {
-    socket.on(eventName, () => {
-      const status = eventName.replace('set', '').toLowerCase();
-      socket.broadcast.emit('userStatusUpdate', {
-        userId: socket.user.id,
-        status,
-        lastSeen: null
-      });
-    });
-  });
-  
-  // Get user status
-  socket.on('getUserStatus', async ({ userId }, callback) => {
-    try {
-      if (!userId) throw new Error('User ID required');
-      
-      const connectedSockets = await io.fetchSockets();
-      const userSocket = connectedSockets.find(s => s.user?.id === userId);
-      
-      callback({
-        status: 'success',
-        data: {
-          userId,
-          status: userSocket ? 'online' : 'offline',
-          lastSeen: userSocket ? null : new Date().toISOString()
-        }
-      });
-    } catch (err) {
-      callback({
-        status: 'error',
-        error: err.message
-      });
-    }
-  });
-  
-  // Handle disconnection
-  socket.on('disconnect', (reason) => {     
-    console.log(`❌ User ${socket.user?.id} disconnected: ${reason}`);
-    
-    if (typingTimeout) clearTimeout(typingTimeout);
-    
-    socket.broadcast.emit('userStatusUpdate', {
-      userId: socket.user.id,
-      status: 'offline',
-      lastSeen: new Date().toISOString()
-    });
-  });    
-  
-  socket.on('error', (error) => {     
-    console.log(`❌ Socket error:`, error);   
-  }); 
-});
 
 // Start server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`.yellow.bold);
-  console.log(`🌐 CORS: ULTRA-PERMISSIVE MODE ENABLED`.cyan);
-  console.log(`📡 Socket.IO ready`.green.bold);
-  console.log(`⚠️ Rate limiting disabled`.magenta);
+const HOST = '0.0.0.0';
+
+server.listen(PORT, HOST, () => {
+  console.log('');
+  console.log('='.repeat(50).cyan);
+  console.log(`🚀 Server running in ${process.env.NODE_ENV} mode`.yellow.bold);
+  console.log(`📡 Socket.IO initialized and ready`.green.bold);
+  console.log(`🌐 Listening on ${HOST}:${PORT}`.blue.bold);
+  console.log(`🔒 CORS enabled for all origins`.magenta);
+  console.log('='.repeat(50).cyan);
+  console.log('');
 });
 
-// Error handling
-process.on('unhandledRejection', (err) => {
-  console.log(`❌ Unhandled Rejection: ${err.message}`.red);
-  server.close(() => process.exit(1));
+// Graceful shutdown handlers
+process.on('unhandledRejection', (err, promise) => {
+  console.log('');
+  console.log(`❌ Unhandled Rejection: ${err.message}`.red.bold);
+  console.log(err.stack);
+  
+  // Close server and exit
+  server.close(() => {
+    console.log('💀 Server closed due to unhandled rejection'.red);
+    process.exit(1);
+  });
 });
 
 process.on('uncaughtException', (err) => {
-  console.log(`❌ Uncaught Exception: ${err.message}`.red);
+  console.log('');
+  console.log(`❌ Uncaught Exception: ${err.message}`.red.bold);
+  console.log(err.stack);
+  
+  // Exit immediately for uncaught exceptions
+  console.log('💀 Server shutting down due to uncaught exception'.red);
   process.exit(1);
 });
+
+// Handle SIGTERM
+process.on('SIGTERM', () => {
+  console.log('');
+  console.log('👋 SIGTERM received. Performing graceful shutdown...'.yellow);
+  
+  server.close(() => {
+    console.log('💤 Server closed successfully'.green);
+    process.exit(0);
+  });
+});
+
+// Handle SIGINT (Ctrl+C)
+process.on('SIGINT', () => {
+  console.log('');
+  console.log('👋 SIGINT received. Performing graceful shutdown...'.yellow);
+  
+  server.close(() => {
+    console.log('💤 Server closed successfully'.green);
+    process.exit(0);
+  });
+});
+
+module.exports = { app, server, io };

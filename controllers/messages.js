@@ -271,77 +271,172 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   //@route POST /api/v1/messages
   //@access Private
 
-  exports.createMessage = asyncHandler(async (req, res, next) => {
-    const { message, receiver, replyTo, forwardedFrom, location } = req.body;
-    if (!req.user) return next(new ErrorResponse('Not authenticated', 401));
-    const sender = req.user._id;
-    if (!message && !req.file && !location) return next(new ErrorResponse('Message content, attachment, or location is required', 400));
-    if (!receiver) return next(new ErrorResponse('Receiver is required', 400));
-    const receiverExists = await User.findById(receiver);
-    if (!receiverExists) return next(new ErrorResponse('Receiver not found', 404));
-    const senderUser = req.limitationUser || await User.findById(sender);
-    if (!senderUser) return next(new ErrorResponse('Sender user not found', 404));
-    if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) return next(new ErrorResponse('Cannot send message to this user', 403));
-    const canSend = await senderUser.canSendMessage();
-    if (!canSend) {
-      const LIMITS = require('../config/limitations');
-      let current = 0, max = 0; const now = new Date(); const nextReset = new Date(now); nextReset.setHours(24, 0, 0, 0);
-      if (senderUser.userMode === 'regular') { current = senderUser.regularUserLimitations.messagesSentToday || 0; max = LIMITS.regular.messagesPerDay; }
-      else if (senderUser.userMode === 'visitor') { current = senderUser.visitorLimitations.messagesSent || 0; max = LIMITS.visitor.messagesPerDay; }
-      const { formatLimitError } = require('../utils/limitations');
-      return next(formatLimitError('messages', current, max, nextReset));
+exports.createMessage = asyncHandler(async (req, res, next) => {
+  const { message, receiver, replyTo, forwardedFrom, location } = req.body;
+  
+  if (!req.user) return next(new ErrorResponse('Not authenticated', 401));
+  
+  const sender = req.user._id;
+  
+  if (!message && !req.file && !location) {
+    return next(new ErrorResponse('Message content, attachment, or location is required', 400));
+  }
+  
+  if (!receiver) return next(new ErrorResponse('Receiver is required', 400));
+  
+  const receiverExists = await User.findById(receiver);
+  if (!receiverExists) return next(new ErrorResponse('Receiver not found', 404));
+  
+  const senderUser = req.limitationUser || await User.findById(sender);
+  if (!senderUser) return next(new ErrorResponse('Sender user not found', 404));
+  
+  if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
+    return next(new ErrorResponse('Cannot send message to this user', 403));
+  }
+  
+  const canSend = await senderUser.canSendMessage();
+  if (!canSend) {
+    const LIMITS = require('../config/limitations');
+    let current = 0, max = 0;
+    const now = new Date();
+    const nextReset = new Date(now);
+    nextReset.setHours(24, 0, 0, 0);
+    
+    if (senderUser.userMode === 'regular') {
+      current = senderUser.regularUserLimitations.messagesSentToday || 0;
+      max = LIMITS.regular.messagesPerDay;
+    } else if (senderUser.userMode === 'visitor') {
+      current = senderUser.visitorLimitations.messagesSent || 0;
+      max = LIMITS.visitor.messagesPerDay;
     }
-    const messageData = { message: message || null, sender, receiver };
-    // DigitalOcean Spaces attachment logic
-    if (req.file) {
-      messageData.media = {
-        url: req.file.location,
-        type: req.file.mimetype.startsWith('video/') ? 'video' : req.file.mimetype.startsWith('image/') ? 'image' : req.file.mimetype,
-        fileName: req.file.originalname,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype
-      };
-    }
-    if (location && location.latitude && location.longitude) {
-      messageData.media = {
-        type: 'location',
-        location: {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          address: location.address || null,
-          placeName: location.placeName || null
-        }
-      };
-    }
-    if (replyTo) {
-      const replyToMessage = await Message.findById(replyTo);
-      if (replyToMessage) messageData.replyTo = replyTo;
-    }
-    if (forwardedFrom && forwardedFrom.messageId) {
-      const originalMessage = await Message.findById(forwardedFrom.messageId).populate('sender', 'name');
-      if (originalMessage) {
-        messageData.isForwarded = true;
-        messageData.forwardedFrom = {
-          sender: originalMessage.sender._id,
-          messageId: forwardedFrom.messageId,
-          originalMessage: originalMessage.message
-        };
+    
+    const { formatLimitError } = require('../utils/limitations');
+    return next(formatLimitError('messages', current, max, nextReset));
+  }
+  
+  const messageData = { 
+    message: message || null, 
+    sender, 
+    receiver 
+  };
+  
+  // DigitalOcean Spaces attachment logic
+  if (req.file) {
+    messageData.media = {
+      url: req.file.location,
+      type: req.file.mimetype.startsWith('video/') ? 'video' : 
+            req.file.mimetype.startsWith('image/') ? 'image' : 
+            req.file.mimetype.startsWith('audio/') ? 'audio' : 'document',
+      fileName: req.file.originalname,
+      fileSize: req.file.size,
+      mimeType: req.file.mimetype
+    };
+  }
+  
+  if (location && location.latitude && location.longitude) {
+    messageData.media = {
+      type: 'location',
+      location: {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        address: location.address || null,
+        placeName: location.placeName || null
       }
+    };
+  }
+  
+  if (replyTo) {
+    const replyToMessage = await Message.findById(replyTo);
+    if (replyToMessage) messageData.replyTo = replyTo;
+  }
+  
+  if (forwardedFrom && forwardedFrom.messageId) {
+    const originalMessage = await Message.findById(forwardedFrom.messageId)
+      .populate('sender', 'name');
+    if (originalMessage) {
+      messageData.isForwarded = true;
+      messageData.forwardedFrom = {
+        sender: originalMessage.sender._id,
+        messageId: forwardedFrom.messageId,
+        originalMessage: originalMessage.message
+      };
     }
-    const newMessage = await Message.create(messageData);
-    await senderUser.incrementMessageCount();
-    const Conversation = require('../models/Conversation');
-    let conversation = await Conversation.findOne({ participants: { $all: [sender, receiver], $size: 2 }, isGroup: false });
-    if (!conversation) conversation = await Conversation.create({ participants: [sender, receiver], isGroup: false });
-    conversation.lastMessage = newMessage._id;
-    conversation.lastMessageAt = new Date();
-    await conversation.updateUnreadCount(receiver, 1);
-    await conversation.save();
-    await newMessage.populate('sender', 'name images');
-    await newMessage.populate('receiver', 'name images');
-    if (newMessage.replyTo) await newMessage.populate('replyTo', 'message sender');
-    res.status(201).json({ success: true, data: newMessage });
+  }
+  
+  const newMessage = await Message.create(messageData);
+  await senderUser.incrementMessageCount();
+  
+  const Conversation = require('../models/Conversation');
+  let conversation = await Conversation.findOne({
+    participants: { $all: [sender, receiver], $size: 2 },
+    isGroup: false
   });
+  
+  if (!conversation) {
+    conversation = await Conversation.create({
+      participants: [sender, receiver],
+      isGroup: false
+    });
+  }
+  
+  conversation.lastMessage = newMessage._id;
+  conversation.lastMessageAt = new Date();
+  await conversation.updateUnreadCount(receiver, 1);
+  await conversation.save();
+  
+  await newMessage.populate('sender', 'name images');
+  await newMessage.populate('receiver', 'name images');
+  if (newMessage.replyTo) {
+    await newMessage.populate('replyTo', 'message sender');
+  }
+  
+  // ✨ NEW: Real-time Socket.IO notification
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      // Get unread counts for both users
+      const unreadForReceiver = await Message.countDocuments({
+        receiver,
+        sender,
+        read: false
+      });
+      
+      const unreadForSender = await Message.countDocuments({
+        receiver: sender,
+        sender: receiver,
+        read: false
+      });
+      
+      const hasMedia = !!newMessage.media;
+      const mediaType = newMessage.media?.type || null;
+      
+      // Notify receiver (real-time notification)
+      io.to(`user_${receiver}`).emit('newMessage', {
+        message: newMessage,
+        unreadCount: unreadForReceiver,
+        senderId: sender.toString(),
+        hasMedia,
+        mediaType
+      });
+      
+      // Notify sender's other devices (sync across devices)
+      io.to(`user_${sender}`).emit('messageSent', {
+        message: newMessage,
+        unreadCount: unreadForSender,
+        receiverId: receiver.toString(),
+        hasMedia,
+        mediaType
+      });
+      
+      console.log(`📡 Socket notification sent: ${sender} → ${receiver}${hasMedia ? ` (${mediaType})` : ''}`);
+    }
+  } catch (socketError) {
+    console.error('❌ Socket notification error:', socketError);
+    // Don't fail the request if socket notification fails
+  }
+  
+  res.status(201).json({ success: true, data: newMessage });
+});
 // GET /api/conversations
 exports.getConversationRooms = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
