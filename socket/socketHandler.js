@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const Conversation = require('../models/Conversation');
+const Poll = require('../models/Poll');
 const { resetDailyCounters } = require('../utils/limitations');
 const LIMITS = require('../config/limitations');
 
@@ -86,6 +87,12 @@ const initializeSocket = (io) => {
     registerTypingHandlers(socket, io);
     registerStatusHandlers(socket, io);
     registerPresenceHandlers(socket, io);
+    
+    // Register advanced feature handlers
+    registerVoiceMessageHandlers(socket, io);
+    registerCorrectionHandlers(socket, io);
+    registerPollHandlers(socket, io);
+    registerDisappearingMessageHandlers(socket, io);
     
     // Handle disconnection
     socket.on('disconnect', (reason) => handleDisconnect(socket, io, reason));
@@ -664,6 +671,501 @@ const getOnlineUsersCount = () => {
  */
 const getOnlineUserIds = () => {
   return Array.from(userConnections.keys());
+};
+
+// ========== ADVANCED FEATURE HANDLERS ==========
+
+/**
+ * Register voice message handlers
+ */
+const registerVoiceMessageHandlers = (socket, io) => {
+  const userId = socket.user.id;
+  
+  // Send voice message via socket (for real-time notification)
+  socket.on('sendVoiceMessage', async (data, callback) => {
+    try {
+      const { receiver, mediaUrl, duration, waveform } = data;
+      
+      if (!receiver || !mediaUrl) {
+        throw new Error('Receiver and media URL are required');
+      }
+      
+      console.log(`🎤 Voice message: ${userId} → ${receiver}`);
+      
+      // Create voice message
+      const voiceMessage = await Message.create({
+        sender: userId,
+        receiver,
+        messageType: 'voice',
+        media: {
+          url: mediaUrl,
+          type: 'voice',
+          duration: duration || 0,
+          waveform: waveform || []
+        }
+      });
+      
+      const populatedMessage = await Message.findById(voiceMessage._id)
+        .populate('sender', 'name images')
+        .populate('receiver', 'name images');
+      
+      // Update conversation
+      await updateConversation(userId, receiver, voiceMessage._id);
+      
+      // Notify receiver
+      io.to(`user_${receiver}`).emit('newVoiceMessage', {
+        message: populatedMessage,
+        senderId: userId
+      });
+      
+      if (callback) {
+        callback({
+          status: 'success',
+          message: populatedMessage
+        });
+      }
+      
+      console.log(`✅ Voice message delivered: ${userId} → ${receiver}`);
+      
+    } catch (error) {
+      console.error('❌ Voice message error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+  
+  // Voice message played (for read receipts)
+  socket.on('voiceMessagePlayed', async (data) => {
+    try {
+      const { messageId, senderId } = data;
+      
+      if (!messageId || !senderId) return;
+      
+      // Mark as read
+      await Message.findByIdAndUpdate(messageId, {
+        read: true,
+        readAt: new Date()
+      });
+      
+      // Notify sender
+      io.to(`user_${senderId}`).emit('voiceMessageListened', {
+        messageId,
+        listenedBy: userId
+      });
+      
+    } catch (error) {
+      console.error('❌ Voice message played error:', error);
+    }
+  });
+};
+
+/**
+ * Register correction handlers (HelloTalk style)
+ */
+const registerCorrectionHandlers = (socket, io) => {
+  const userId = socket.user.id;
+  
+  // Send correction suggestion
+  socket.on('sendCorrection', async (data, callback) => {
+    try {
+      const { messageId, correctedText, explanation } = data;
+      
+      if (!messageId || !correctedText) {
+        throw new Error('Message ID and corrected text are required');
+      }
+      
+      const message = await Message.findById(messageId);
+      
+      if (!message) {
+        throw new Error('Message not found');
+      }
+      
+      // Can't correct your own message
+      if (message.sender.toString() === userId) {
+        throw new Error('Cannot correct your own message');
+      }
+      
+      console.log(`📝 Correction: ${userId} → message ${messageId}`);
+      
+      // Add correction
+      await message.addCorrection(userId, message.message, correctedText, explanation || '');
+      
+      await message.populate('corrections.corrector', 'name images');
+      
+      const newCorrection = message.corrections[message.corrections.length - 1];
+      
+      // Notify message sender
+      io.to(`user_${message.sender}`).emit('newCorrection', {
+        messageId,
+        correction: newCorrection,
+        correctorId: userId
+      });
+      
+      if (callback) {
+        callback({
+          status: 'success',
+          correction: newCorrection
+        });
+      }
+      
+      console.log(`✅ Correction sent for message ${messageId}`);
+      
+    } catch (error) {
+      console.error('❌ Send correction error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+  
+  // Accept correction
+  socket.on('acceptCorrection', async (data, callback) => {
+    try {
+      const { messageId, correctionId } = data;
+      
+      if (!messageId || !correctionId) {
+        throw new Error('Message ID and correction ID are required');
+      }
+      
+      const message = await Message.findById(messageId);
+      
+      if (!message) {
+        throw new Error('Message not found');
+      }
+      
+      // Only message sender can accept
+      if (message.sender.toString() !== userId) {
+        throw new Error('Only message sender can accept corrections');
+      }
+      
+      await message.acceptCorrection(correctionId);
+      
+      const correction = message.corrections.id(correctionId);
+      
+      // Notify corrector
+      if (correction && correction.corrector) {
+        io.to(`user_${correction.corrector}`).emit('correctionAccepted', {
+          messageId,
+          correctionId,
+          acceptedBy: userId
+        });
+      }
+      
+      if (callback) {
+        callback({ status: 'success' });
+      }
+      
+    } catch (error) {
+      console.error('❌ Accept correction error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+};
+
+/**
+ * Register poll handlers
+ */
+const registerPollHandlers = (socket, io) => {
+  const userId = socket.user.id;
+  
+  // Create poll
+  socket.on('createPoll', async (data, callback) => {
+    try {
+      const { conversationId, question, options, settings, expiresIn } = data;
+      
+      if (!conversationId || !question || !options || options.length < 2) {
+        throw new Error('Conversation ID, question, and at least 2 options are required');
+      }
+      
+      const conversation = await Conversation.findById(conversationId);
+      
+      if (!conversation) {
+        throw new Error('Conversation not found');
+      }
+      
+      if (!conversation.participants.some(p => p.toString() === userId)) {
+        throw new Error('Not a participant');
+      }
+      
+      console.log(`📊 Creating poll in conversation ${conversationId}`);
+      
+      const receiver = conversation.participants.find(p => p.toString() !== userId);
+      
+      const pollData = {
+        conversation: conversationId,
+        creator: userId,
+        question,
+        options: options.map(text => ({ text, votes: [], voteCount: 0 })),
+        settings: settings || {}
+      };
+      
+      if (expiresIn) {
+        pollData.expiresAt = new Date(Date.now() + expiresIn * 1000);
+      }
+      
+      const messageData = {
+        sender: userId,
+        receiver,
+        message: `📊 Poll: ${question}`,
+        messageType: 'poll'
+      };
+      
+      const { poll, message } = await Poll.createWithMessage(pollData, messageData);
+      
+      await poll.populate('creator', 'name images');
+      
+      // Notify participants
+      conversation.participants.forEach(participantId => {
+        if (participantId.toString() !== userId) {
+          io.to(`user_${participantId}`).emit('newPoll', {
+            poll,
+            message,
+            conversationId
+          });
+        }
+      });
+      
+      if (callback) {
+        callback({
+          status: 'success',
+          poll,
+          message
+        });
+      }
+      
+      console.log(`✅ Poll created: ${poll._id}`);
+      
+    } catch (error) {
+      console.error('❌ Create poll error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+  
+  // Vote on poll
+  socket.on('votePoll', async (data, callback) => {
+    try {
+      const { pollId, optionIndex } = data;
+      
+      if (!pollId || optionIndex === undefined) {
+        throw new Error('Poll ID and option index are required');
+      }
+      
+      const poll = await Poll.findById(pollId);
+      
+      if (!poll) {
+        throw new Error('Poll not found');
+      }
+      
+      console.log(`🗳️ Vote: ${userId} → poll ${pollId}, option ${optionIndex}`);
+      
+      await poll.vote(userId, optionIndex);
+      
+      const results = poll.getResults(userId);
+      
+      // Notify all participants
+      const conversation = await Conversation.findById(poll.conversation);
+      conversation.participants.forEach(participantId => {
+        io.to(`user_${participantId}`).emit('pollVoteUpdate', {
+          pollId,
+          results,
+          voterId: poll.settings.isAnonymous ? null : userId
+        });
+      });
+      
+      if (callback) {
+        callback({
+          status: 'success',
+          results
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Vote poll error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+  
+  // Close poll
+  socket.on('closePoll', async (data, callback) => {
+    try {
+      const { pollId } = data;
+      
+      if (!pollId) {
+        throw new Error('Poll ID is required');
+      }
+      
+      const poll = await Poll.findById(pollId);
+      
+      if (!poll) {
+        throw new Error('Poll not found');
+      }
+      
+      if (poll.creator.toString() !== userId) {
+        throw new Error('Only creator can close poll');
+      }
+      
+      await poll.close(userId);
+      
+      // Notify all participants
+      const conversation = await Conversation.findById(poll.conversation);
+      conversation.participants.forEach(participantId => {
+        io.to(`user_${participantId}`).emit('pollClosed', {
+          pollId,
+          results: poll.getResults(userId)
+        });
+      });
+      
+      if (callback) {
+        callback({ status: 'success' });
+      }
+      
+    } catch (error) {
+      console.error('❌ Close poll error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+};
+
+/**
+ * Register disappearing message handlers
+ */
+const registerDisappearingMessageHandlers = (socket, io) => {
+  const userId = socket.user.id;
+  
+  // Send disappearing message
+  socket.on('sendDisappearingMessage', async (data, callback) => {
+    try {
+      const { receiver, message, destructTimer, expiresIn } = data;
+      
+      if (!receiver || !message) {
+        throw new Error('Receiver and message are required');
+      }
+      
+      console.log(`💨 Disappearing message: ${userId} → ${receiver}`);
+      
+      const messageData = {
+        sender: userId,
+        receiver,
+        message: message.trim(),
+        selfDestruct: {
+          enabled: true,
+          destructAfterRead: destructTimer > 0,
+          destructTimer: destructTimer || 0
+        }
+      };
+      
+      if (expiresIn) {
+        messageData.selfDestruct.expiresAt = new Date(Date.now() + expiresIn * 1000);
+      }
+      
+      const newMessage = await Message.create(messageData);
+      
+      const populatedMessage = await Message.findById(newMessage._id)
+        .populate('sender', 'name images')
+        .populate('receiver', 'name images');
+      
+      // Update conversation
+      await updateConversation(userId, receiver, newMessage._id);
+      
+      // Notify receiver
+      io.to(`user_${receiver}`).emit('newDisappearingMessage', {
+        message: populatedMessage,
+        destructTimer: destructTimer || 0,
+        expiresAt: messageData.selfDestruct.expiresAt
+      });
+      
+      if (callback) {
+        callback({
+          status: 'success',
+          message: populatedMessage
+        });
+      }
+      
+      console.log(`✅ Disappearing message delivered: ${userId} → ${receiver}`);
+      
+    } catch (error) {
+      console.error('❌ Disappearing message error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+  
+  // Trigger self-destruct after reading
+  socket.on('triggerSelfDestruct', async (data) => {
+    try {
+      const { messageId } = data;
+      
+      if (!messageId) return;
+      
+      const message = await Message.findById(messageId);
+      
+      if (!message || message.receiver.toString() !== userId) return;
+      
+      if (message.selfDestruct && message.selfDestruct.enabled) {
+        await message.triggerSelfDestruct();
+        
+        // Notify sender
+        io.to(`user_${message.sender}`).emit('messageDestructTriggered', {
+          messageId,
+          destructAt: message.selfDestruct.destructAt
+        });
+        
+        // Schedule deletion
+        if (message.selfDestruct.destructTimer > 0) {
+          setTimeout(async () => {
+            await Message.findByIdAndDelete(messageId);
+            
+            // Notify both parties
+            io.to(`user_${message.sender}`).emit('messageAutoDeleted', { messageId });
+            io.to(`user_${message.receiver}`).emit('messageAutoDeleted', { messageId });
+            
+            console.log(`💥 Message ${messageId} self-destructed`);
+          }, message.selfDestruct.destructTimer * 1000);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Trigger self-destruct error:', error);
+    }
+  });
+  
+  // Manual acknowledge that message was viewed (for immediate destruction)
+  socket.on('acknowledgeDisappearingMessage', async (data) => {
+    try {
+      const { messageId, senderId } = data;
+      
+      if (!messageId || !senderId) return;
+      
+      const message = await Message.findById(messageId);
+      
+      if (!message || message.receiver.toString() !== userId) return;
+      
+      // Mark as read
+      message.read = true;
+      message.readAt = new Date();
+      await message.save();
+      
+      // Notify sender
+      io.to(`user_${senderId}`).emit('disappearingMessageRead', {
+        messageId,
+        readAt: message.readAt,
+        readBy: userId
+      });
+      
+    } catch (error) {
+      console.error('❌ Acknowledge disappearing message error:', error);
+    }
+  });
 };
 
 module.exports = {

@@ -453,6 +453,57 @@ role: {
     select: false
   },
   
+  // ========== ADVANCED CHAT FEATURES ==========
+  
+  // Bookmarked messages
+  bookmarkedMessages: [{
+    message: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Message'
+    },
+    bookmarkedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  
+  // Quick reply templates (global, not per conversation)
+  quickReplyTemplates: [{
+    text: {
+      type: String,
+      maxlength: 200
+    },
+    category: {
+      type: String,
+      default: 'general'
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  
+  // Language learning preferences (HelloTalk style)
+  languageLearningSettings: {
+    // Show correction suggestions
+    acceptCorrections: {
+      type: Boolean,
+      default: true
+    },
+    // Auto-translate messages
+    autoTranslate: {
+      type: Boolean,
+      default: false
+    },
+    // Preferred translation target
+    translateTo: String,
+    // Show original text with translation
+    showOriginal: {
+      type: Boolean,
+      default: true
+    }
+  },
+  
   createdAt: {
     type: Date,
     default: Date.now
