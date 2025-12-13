@@ -5,6 +5,7 @@ const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
 const { processUserImages, processMomentImages } = require('../utils/imageUtils');
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
+const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
 
 // Minimal user fields for population (performance optimization)
 const USER_FIELDS = 'name email bio images native_language language_to_learn';
@@ -20,6 +21,12 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
   const skip = (page - 1) * limit;
   const actualLimit = Math.min(limit, 50); // Max 50 per page
 
+  // Get blocked users if authenticated
+  let blockedUserIds = [];
+  if (req.user) {
+    blockedUserIds = await getBlockedUserIds(req.user._id);
+  }
+
   // Build query based on privacy and user
   let query = { privacy: 'public' };
 
@@ -32,6 +39,9 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
       ]
     };
   }
+
+  // Add blocking filter - exclude moments from blocked users
+  query = addBlockingFilter(query, 'user', blockedUserIds);
 
   // Optimize: Count and query in parallel
   const [totalMoments, moments] = await Promise.all([
@@ -97,6 +107,25 @@ exports.getMoment = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
   }
 
+  // Check if blocked (if user is authenticated)
+  if (req.user && moment.user._id.toString() !== req.user._id.toString()) {
+    const blockStatus = await checkBlockStatus(req.user._id, moment.user._id);
+    if (blockStatus.isBlocked) {
+      return next(new ErrorResponse('This content is not available', 403));
+    }
+  }
+
+  // Filter comments from blocked users
+  let blockedUserIds = [];
+  if (req.user) {
+    blockedUserIds = await getBlockedUserIds(req.user._id);
+  }
+  
+  const filteredComments = (moment.comments || []).filter(comment => {
+    const commentUserId = comment.user?._id?.toString() || comment.user?.toString();
+    return !blockedUserIds.includes(commentUserId);
+  });
+
   // Process images
   const userWithImages = processUserImages(moment.user, req);
   const momentWithImages = processMomentImages(moment, req);
@@ -106,7 +135,8 @@ exports.getMoment = asyncHandler(async (req, res, next) => {
     data: {
       ...momentWithImages,
       user: userWithImages,
-      commentCount: moment.comments?.length || moment.commentCount || 0
+      comments: filteredComments,
+      commentCount: filteredComments.length
     }
   });
 });
@@ -121,12 +151,37 @@ exports.getUserMoments = asyncHandler(async (req, res, next) => {
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
   const actualLimit = Math.min(limit, 50);
+  const targetUserId = req.params.userId;
+
+  // Check if blocked (if user is authenticated and viewing someone else's profile)
+  if (req.user && req.user._id.toString() !== targetUserId) {
+    const blockStatus = await checkBlockStatus(req.user._id, targetUserId);
+    if (blockStatus.isBlocked) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        totalMoments: 0,
+        data: [],
+        blocked: true,
+        message: 'Content not available',
+        pagination: {
+          currentPage: 1,
+          totalPages: 0,
+          limit: actualLimit,
+          hasNextPage: false,
+          hasPrevPage: false,
+          nextPage: null,
+          prevPage: null,
+        }
+      });
+    }
+  }
 
   // Build query - show all user moments if viewing own profile, otherwise only public
-  let query = { user: req.params.userId };
+  let query = { user: targetUserId };
   
   // If not viewing own profile, only show public moments
-  if (!req.user || req.user._id.toString() !== req.params.userId) {
+  if (!req.user || req.user._id.toString() !== targetUserId) {
     query.privacy = 'public';
   }
 
@@ -437,6 +492,15 @@ exports.likeMoment = asyncHandler(async (req, res, next) => {
   }
 
   const userId = req.user._id.toString();
+  const momentOwnerId = moment.user.toString();
+
+  // Check if blocked
+  if (userId !== momentOwnerId) {
+    const blockStatus = await checkBlockStatus(userId, momentOwnerId);
+    if (blockStatus.isBlocked) {
+      return next(new ErrorResponse('Cannot interact with this content', 403));
+    }
+  }
 
   // Check if already liked
   if (moment.likedUsers && moment.likedUsers.some(id => id.toString() === userId)) {
@@ -492,6 +556,354 @@ exports.dislikeMoment = asyncHandler(async (req, res, next) => {
       _id: moment._id,
       likeCount: moment.likeCount,
       isLiked: false
+    }
+  });
+});
+
+/**
+ * @desc    Save/bookmark a moment
+ * @route   POST /api/v1/moments/:id/save
+ * @access  Private
+ */
+exports.saveMoment = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
+
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  const userId = req.user._id.toString();
+
+  // Check if already saved
+  if (moment.savedBy && moment.savedBy.some(id => id.toString() === userId)) {
+    return res.status(200).json({
+      success: true,
+      message: 'Already saved',
+      data: {
+        _id: moment._id,
+        saveCount: moment.saveCount,
+        isSaved: true
+      }
+    });
+  }
+
+  // Add save
+  moment.savedBy = moment.savedBy || [];
+  moment.savedBy.push(userId);
+  moment.saveCount = Math.max(0, (moment.saveCount || 0) + 1);
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      saveCount: moment.saveCount,
+      isSaved: true
+    }
+  });
+});
+
+/**
+ * @desc    Unsave a moment
+ * @route   DELETE /api/v1/moments/:id/save
+ * @access  Private
+ */
+exports.unsaveMoment = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
+
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  const userId = req.user._id.toString();
+
+  // Remove save
+  moment.savedBy = (moment.savedBy || []).filter(id => id.toString() !== userId);
+  moment.saveCount = Math.max(0, (moment.saveCount || 0) - 1);
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      saveCount: moment.saveCount,
+      isSaved: false
+    }
+  });
+});
+
+/**
+ * @desc    Get user's saved moments
+ * @route   GET /api/v1/moments/saved
+ * @access  Private
+ */
+exports.getSavedMoments = asyncHandler(async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const actualLimit = Math.min(limit, 50);
+  const userId = req.user._id;
+
+  // Get blocked users
+  const blockedUserIds = await getBlockedUserIds(userId);
+
+  let query = {
+    savedBy: userId,
+    isDeleted: { $ne: true }
+  };
+
+  // Filter out blocked users
+  query = addBlockingFilter(query, 'user', blockedUserIds);
+
+  const [totalMoments, moments] = await Promise.all([
+    Moment.countDocuments(query),
+    Moment.find(query)
+      .populate('user', USER_FIELDS)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(actualLimit)
+      .lean()
+  ]);
+
+  const momentsWithImages = moments.map(moment => {
+    const userWithImages = processUserImages(moment.user, req);
+    const momentWithImages = processMomentImages(moment, req);
+    
+    return {
+      ...momentWithImages,
+      user: userWithImages,
+      commentCount: moment.comments?.length || moment.commentCount || 0,
+      isSaved: true
+    };
+  });
+
+  const totalPages = Math.ceil(totalMoments / actualLimit);
+
+  res.status(200).json({
+    success: true,
+    count: momentsWithImages.length,
+    data: momentsWithImages,
+    pagination: {
+      currentPage: page,
+      totalPages,
+      totalMoments,
+      limit: actualLimit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1
+    }
+  });
+});
+
+/**
+ * @desc    Report a moment
+ * @route   POST /api/v1/moments/:id/report
+ * @access  Private
+ */
+exports.reportMoment = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
+
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  const userId = req.user._id.toString();
+  const { reason, description } = req.body;
+
+  if (!reason) {
+    return next(new ErrorResponse('Report reason is required', 400));
+  }
+
+  // Check if already reported by this user
+  const alreadyReported = (moment.reports || []).some(
+    report => report.user.toString() === userId
+  );
+
+  if (alreadyReported) {
+    return res.status(200).json({
+      success: true,
+      message: 'You have already reported this moment'
+    });
+  }
+
+  // Add report
+  moment.reports = moment.reports || [];
+  moment.reports.push({
+    user: userId,
+    reason,
+    description: description || '',
+    reportedAt: new Date(),
+    status: 'pending'
+  });
+
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Report submitted successfully. Our team will review it.'
+  });
+});
+
+/**
+ * @desc    Share moment (increment count)
+ * @route   POST /api/v1/moments/:id/share
+ * @access  Private
+ */
+exports.shareMoment = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
+
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  moment.shareCount = (moment.shareCount || 0) + 1;
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      shareCount: moment.shareCount
+    }
+  });
+});
+
+/**
+ * @desc    Get trending moments (most liked/commented in last 7 days)
+ * @route   GET /api/v1/moments/trending
+ * @access  Public
+ */
+exports.getTrendingMoments = asyncHandler(async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const actualLimit = Math.min(limit, 50);
+
+  // Get blocked users if authenticated
+  let blockedUserIds = [];
+  if (req.user) {
+    blockedUserIds = await getBlockedUserIds(req.user._id);
+  }
+
+  // Last 7 days
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  let query = {
+    privacy: 'public',
+    isDeleted: { $ne: true },
+    createdAt: { $gte: sevenDaysAgo }
+  };
+
+  // Add blocking filter
+  query = addBlockingFilter(query, 'user', blockedUserIds);
+
+  const [totalMoments, moments] = await Promise.all([
+    Moment.countDocuments(query),
+    Moment.find(query)
+      .populate('user', USER_FIELDS)
+      .sort({ likeCount: -1, commentCount: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(actualLimit)
+      .lean()
+  ]);
+
+  const momentsWithImages = moments.map(moment => {
+    const userWithImages = processUserImages(moment.user, req);
+    const momentWithImages = processMomentImages(moment, req);
+    
+    return {
+      ...momentWithImages,
+      user: userWithImages,
+      commentCount: moment.comments?.length || moment.commentCount || 0
+    };
+  });
+
+  const totalPages = Math.ceil(totalMoments / actualLimit);
+
+  res.status(200).json({
+    success: true,
+    moments: momentsWithImages,
+    pagination: {
+      currentPage: page,
+      totalPages,
+      totalMoments,
+      limit: actualLimit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1
+    }
+  });
+});
+
+/**
+ * @desc    Get explore/discover moments (category, language filters)
+ * @route   GET /api/v1/moments/explore
+ * @access  Public
+ */
+exports.exploreMoments = asyncHandler(async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const actualLimit = Math.min(limit, 50);
+
+  const { category, language, mood, tags } = req.query;
+
+  // Get blocked users if authenticated
+  let blockedUserIds = [];
+  if (req.user) {
+    blockedUserIds = await getBlockedUserIds(req.user._id);
+  }
+
+  let query = {
+    privacy: 'public',
+    isDeleted: { $ne: true }
+  };
+
+  // Apply filters
+  if (category && category !== 'all') query.category = category;
+  if (language && language !== 'all') query.language = language;
+  if (mood && mood !== 'all') query.mood = mood;
+  if (tags) {
+    const tagArray = tags.split(',').map(t => t.trim());
+    query.tags = { $in: tagArray };
+  }
+
+  // Add blocking filter
+  query = addBlockingFilter(query, 'user', blockedUserIds);
+
+  const [totalMoments, moments] = await Promise.all([
+    Moment.countDocuments(query),
+    Moment.find(query)
+      .populate('user', USER_FIELDS)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(actualLimit)
+      .lean()
+  ]);
+
+  const momentsWithImages = moments.map(moment => {
+    const userWithImages = processUserImages(moment.user, req);
+    const momentWithImages = processMomentImages(moment, req);
+    
+    return {
+      ...momentWithImages,
+      user: userWithImages,
+      commentCount: moment.comments?.length || moment.commentCount || 0
+    };
+  });
+
+  const totalPages = Math.ceil(totalMoments / actualLimit);
+
+  res.status(200).json({
+    success: true,
+    moments: momentsWithImages,
+    filters: { category, language, mood, tags },
+    pagination: {
+      currentPage: page,
+      totalPages,
+      totalMoments,
+      limit: actualLimit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1
     }
   });
 });

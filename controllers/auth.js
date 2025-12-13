@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const sendEmail = require('../utils/sendEmail');
+const emailService = require('../services/emailService');
 const crypto = require('crypto');
 const passport = require('passport');
 const FacebookStrategy = require('passport-facebook').Strategy;
@@ -9,6 +10,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
 const { logSecurityEvent } = require('../utils/securityLogger');
 const { getDeviceInfo } = require('../validators/authValidator');
+const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
 
 // In-memory verification storage with automatic cleanup
 const usersVerification = {};
@@ -385,6 +387,11 @@ exports.register = asyncHandler(async (req, res, next) => {
 
   await user.save();
 
+  // Send welcome email (async, don't block response)
+  emailService.sendWelcomeEmail(user).catch(err => 
+    console.error('Failed to send welcome email:', err)
+  );
+
   // Send token response
   sendTokenResponse(user, 201, res);
 });
@@ -484,6 +491,25 @@ exports.login = asyncHandler(async (req, res, next) => {
     ipAddress: deviceInfo.ipAddress,
     device: deviceInfo.device
   });
+  
+  // Reset inactivity status on login
+  resetInactivityStatus(user._id).catch(err => 
+    console.error('Failed to reset inactivity status:', err)
+  );
+  
+  // Check if this is a new device (not seen in recent login history)
+  const isNewDevice = !user.loginHistory.some(login => 
+    login.device === deviceInfo.device && 
+    login.ipAddress === deviceInfo.ipAddress &&
+    login.success === true
+  );
+  
+  // Send new device login email
+  if (isNewDevice && user.privacySettings?.securityAlerts !== false) {
+    emailService.sendNewLoginEmail(user, deviceInfo).catch(err => 
+      console.error('Failed to send new login email:', err)
+    );
+  }
   
   sendTokenResponse(user, 200, res, req, deviceInfo);
 });
@@ -1058,6 +1084,16 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
   user.passwordResetCode = undefined;
   user.passwordResetExpire = undefined;
   await user.save();
+  
+  // Send password changed notification email
+  if (user.privacySettings?.securityAlerts !== false) {
+    emailService.sendPasswordChangedEmail(user, {
+      device: 'Password Reset',
+      ipAddress: req.ip || 'Unknown'
+    }).catch(err => 
+      console.error('Failed to send password reset email:', err)
+    );
+  }
 
   // Send token response (log user in automatically)
   sendTokenResponse(user, 200, res);
@@ -1193,6 +1229,14 @@ exports.updatePassword = asyncHandler(async (req, res, next) => {
     userId: user._id,
     email: user.email
   });
+  
+  // Send password changed notification email
+  const deviceInfo = getDeviceInfo(req);
+  if (user.privacySettings?.securityAlerts !== false) {
+    emailService.sendPasswordChangedEmail(user, deviceInfo).catch(err => 
+      console.error('Failed to send password changed email:', err)
+    );
+  }
   
   sendTokenResponse(user, 200, res, req);
 });

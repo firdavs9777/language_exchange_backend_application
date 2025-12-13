@@ -3,33 +3,42 @@ const Comment = require('../models/Comment');
 const User = require('../models/User');
 const Moment = require('../models/Moment')
 const ErrorResponse = require('../utils/errorResponse');
+const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
 
 //@desc Get all comments
 //@route Get /api/v1/:momentId/comments
 //@access Public
 
 exports.getComments = asyncHandler(async (req, res, next) => {
-    let comments;
-    console.log(req.params)
-    if (req.params.momentId) {
-        comments = await Comment.find({ moment: req.params.momentId })
-            .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
-    } else {
-        comments = await Comment.find()
-            .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+    // Get blocked users if authenticated
+    let blockedUserIds = [];
+    if (req.user) {
+        blockedUserIds = await getBlockedUserIds(req.user._id);
     }
+
+    let query = {};
+    if (req.params.momentId) {
+        query.moment = req.params.momentId;
+    }
+
+    // Add blocking filter to exclude comments from blocked users
+    if (blockedUserIds.length > 0) {
+        query = addBlockingFilter(query, 'user', blockedUserIds);
+    }
+
+    let comments = await Comment.find(query)
+        .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
+        .sort({ createdAt: -1 });
 
     // Extract user images and map them to URLs
     comments = comments.map(comment => {
-        const userImages = comment.user.images || [];
-        const imageUrls = userImages.map(image =>
-            image
-        );
+        const userImages = comment.user?.images || [];
+        const imageUrls = userImages.map(image => image);
 
         return {
             ...comment._doc,
             user: {
-                ...comment.user._doc,
+                ...comment.user?._doc,
                 imageUrls
             }
         };
@@ -125,6 +134,16 @@ exports.createComment = asyncHandler(async (req, res, next) => {
         if (!moment) {
             return next(new ErrorResponse(`No moment with the id of ${req.params.momentId}`))
         }
+
+        // Check if user is blocked by moment owner or vice versa
+        const momentOwnerId = moment.user.toString();
+        if (req.user.id !== momentOwnerId) {
+            const blockStatus = await checkBlockStatus(req.user.id, momentOwnerId);
+            if (blockStatus.isBlocked) {
+                return next(new ErrorResponse('Cannot comment on this content', 403));
+            }
+        }
+
         const comment = await Comment.create(req.body);
 
         // Increment comment count after successful creation

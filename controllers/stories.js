@@ -1,9 +1,12 @@
 const path = require('path');
 const asyncHandler = require('../middleware/async');
 const Story = require('../models/Story');
+const StoryHighlight = require('../models/StoryHighlight');
 const User = require('../models/User');
+const Message = require('../models/Message');
 const ErrorResponse = require('../utils/errorResponse');
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
+const { getBlockedUserIds, checkBlockStatus } = require('../utils/blockingUtils');
 
 // @desc Get stories feed (from people you follow)
 // @route GET /api/v1/stories/feed
@@ -12,18 +15,24 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
   try {
     const userId = req.user.id;
     
+    // Get blocked users
+    const blockedUserIds = await getBlockedUserIds(userId);
+    
     // Get users that current user is following
     const user = await User.findById(userId).populate('following', '_id');
-    const followingIds = user.following?.map(following => following._id) || [];
+    let followingIds = user.following?.map(following => following._id.toString()) || [];
+    
+    // Filter out blocked users from following list
+    followingIds = followingIds.filter(id => !blockedUserIds.includes(id));
     
     // Add current user to see their own stories
     followingIds.push(userId);
     
     const now = new Date();
     
-    // Get active stories from people user is following + own stories
+    // Get active stories from people user is following + own stories (excluding blocked)
     const stories = await Story.find({
-      user: { $in: followingIds },
+      user: { $in: followingIds, $nin: blockedUserIds },
       isActive: true,
       expiresAt: { $gt: now }
     })
@@ -34,11 +43,14 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
     const userStoriesMap = {};
     
     stories.forEach(story => {
-      const userId = story.user._id.toString();
+      const storyUserId = story.user._id.toString();
       
-      if (!userStoriesMap[userId]) {
-        userStoriesMap[userId] = {
-          _id: userId,
+      // Double-check not blocked (in case of race condition)
+      if (blockedUserIds.includes(storyUserId)) return;
+      
+      if (!userStoriesMap[storyUserId]) {
+        userStoriesMap[storyUserId] = {
+          _id: storyUserId,
           user: {
             ...story.user._doc,
             imageUrls: story.user.images.map(image => 
@@ -55,14 +67,14 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
         ...story._doc,
         mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
         thumbnail: story.thumbnail ? story.thumbnail : null,
-        user: userStoriesMap[userId].user
+        user: userStoriesMap[storyUserId].user
       };
       
-      userStoriesMap[userId].stories.push(storyWithUrls);
-      userStoriesMap[userId].latestStory = storyWithUrls;
+      userStoriesMap[storyUserId].stories.push(storyWithUrls);
+      userStoriesMap[storyUserId].latestStory = storyWithUrls;
       const hasViewed = story.views.some(view => view.user.toString() === req.user.id);
       if (!hasViewed && story.user._id.toString() !== req.user.id) {
-        userStoriesMap[userId].hasUnviewed += 1;
+        userStoriesMap[storyUserId].hasUnviewed += 1;
       }
     });
  
@@ -90,6 +102,20 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
     const { userId } = req.params;
     const viewerId = req.user.id;
     const now = new Date();
+    
+    // Check if blocked
+    if (viewerId !== userId) {
+      const blockStatus = await checkBlockStatus(viewerId, userId);
+      if (blockStatus.isBlocked) {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          data: [],
+          blocked: true,
+          message: 'Content not available'
+        });
+      }
+    }
     
     const stories = await Story.find({
       user: userId,
@@ -364,6 +390,15 @@ exports.getStory = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse(`Story is no longer available`, 404));
     }
     
+    // Check if blocked
+    const storyOwnerId = story.user._id.toString();
+    if (req.user.id !== storyOwnerId) {
+      const blockStatus = await checkBlockStatus(req.user.id, storyOwnerId);
+      if (blockStatus.isBlocked) {
+        return next(new ErrorResponse('This content is not available', 403));
+      }
+    }
+    
     const userWithImageUrls = {
       ...story.user._doc,
       imageUrls: story.user.images.map(image => 
@@ -381,6 +416,768 @@ exports.getStory = asyncHandler(async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: storyWithUrls
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// ========== NEW STORY FEATURES ==========
+
+// @desc React to a story
+// @route POST /api/v1/stories/:id/react
+// @access Private
+exports.reactToStory = asyncHandler(async (req, res, next) => {
+  try {
+    const { emoji } = req.body;
+    const userId = req.user.id;
+    
+    if (!emoji) {
+      return next(new ErrorResponse('Emoji is required', 400));
+    }
+    
+    const story = await Story.findById(req.params.id);
+    
+    if (!story) {
+      return next(new ErrorResponse('Story not found', 404));
+    }
+    
+    // Check if blocked
+    if (story.user.toString() !== userId) {
+      const blockStatus = await checkBlockStatus(userId, story.user.toString());
+      if (blockStatus.isBlocked) {
+        return next(new ErrorResponse('Cannot react to this story', 403));
+      }
+    }
+    
+    await story.addReaction(userId, emoji);
+    
+    // Notify story owner via socket
+    const io = req.app.get('io');
+    if (io && story.user.toString() !== userId) {
+      io.to(`user_${story.user}`).emit('storyReaction', {
+        storyId: story._id,
+        reaction: { user: userId, emoji },
+        reactionCount: story.reactionCount
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        reactionCount: story.reactionCount,
+        userReaction: emoji
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Remove reaction from story
+// @route DELETE /api/v1/stories/:id/react
+// @access Private
+exports.removeReaction = asyncHandler(async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const story = await Story.findById(req.params.id);
+    
+    if (!story) {
+      return next(new ErrorResponse('Story not found', 404));
+    }
+    
+    await story.removeReaction(userId);
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        reactionCount: story.reactionCount,
+        userReaction: null
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Get story reactions
+// @route GET /api/v1/stories/:id/reactions
+// @access Private
+exports.getStoryReactions = asyncHandler(async (req, res, next) => {
+  try {
+    const story = await Story.findById(req.params.id)
+      .populate('reactions.user', 'name images')
+      .populate('user', '_id');
+    
+    if (!story) {
+      return next(new ErrorResponse('Story not found', 404));
+    }
+    
+    // Only owner can see detailed reactions
+    if (story.user._id.toString() !== req.user.id) {
+      return next(new ErrorResponse('Not authorized', 403));
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        reactionCount: story.reactionCount,
+        reactions: story.reactions
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Reply to a story (sends DM)
+// @route POST /api/v1/stories/:id/reply
+// @access Private
+exports.replyToStory = asyncHandler(async (req, res, next) => {
+  try {
+    const { message } = req.body;
+    const userId = req.user.id;
+    
+    if (!message) {
+      return next(new ErrorResponse('Message is required', 400));
+    }
+    
+    const story = await Story.findById(req.params.id)
+      .populate('user', 'name images');
+    
+    if (!story) {
+      return next(new ErrorResponse('Story not found', 404));
+    }
+    
+    // Check if replies allowed
+    if (!story.allowReplies) {
+      return next(new ErrorResponse('Replies are disabled for this story', 403));
+    }
+    
+    // Check if blocked
+    if (story.user._id.toString() !== userId) {
+      const blockStatus = await checkBlockStatus(userId, story.user._id.toString());
+      if (blockStatus.isBlocked) {
+        return next(new ErrorResponse('Cannot reply to this story', 403));
+      }
+    }
+    
+    // Create DM message
+    const dmMessage = await Message.create({
+      sender: userId,
+      receiver: story.user._id,
+      message: message,
+      // Reference to story
+      replyTo: null, // Could add story reference here
+      messageType: 'text'
+    });
+    
+    // Add to story replies
+    story.replies.push({
+      user: userId,
+      message: dmMessage._id,
+      repliedAt: new Date()
+    });
+    story.replyCount = story.replies.length;
+    await story.save();
+    
+    // Populate for response
+    await dmMessage.populate('sender', 'name images');
+    
+    // Notify story owner via socket
+    const io = req.app.get('io');
+    if (io && story.user._id.toString() !== userId) {
+      io.to(`user_${story.user._id}`).emit('storyReply', {
+        storyId: story._id,
+        message: dmMessage,
+        replyCount: story.replyCount
+      });
+      
+      // Also send as new message
+      io.to(`user_${story.user._id}`).emit('newMessage', {
+        message: dmMessage,
+        senderId: userId,
+        isStoryReply: true,
+        storyId: story._id
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      data: {
+        message: dmMessage,
+        replyCount: story.replyCount
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Vote on story poll
+// @route POST /api/v1/stories/:id/poll/vote
+// @access Private
+exports.voteStoryPoll = asyncHandler(async (req, res, next) => {
+  try {
+    const { optionIndex } = req.body;
+    const userId = req.user.id;
+    
+    if (optionIndex === undefined) {
+      return next(new ErrorResponse('Option index is required', 400));
+    }
+    
+    const story = await Story.findById(req.params.id);
+    
+    if (!story) {
+      return next(new ErrorResponse('Story not found', 404));
+    }
+    
+    if (!story.poll) {
+      return next(new ErrorResponse('Story has no poll', 400));
+    }
+    
+    await story.votePoll(userId, optionIndex);
+    
+    // Get updated poll results
+    const pollResults = story.poll.options.map((opt, idx) => ({
+      index: idx,
+      text: opt.text,
+      voteCount: opt.voteCount,
+      percentage: story.poll.options.reduce((sum, o) => sum + o.voteCount, 0) > 0
+        ? Math.round((opt.voteCount / story.poll.options.reduce((sum, o) => sum + o.voteCount, 0)) * 100)
+        : 0,
+      voted: opt.votes.some(v => v.toString() === userId)
+    }));
+    
+    // Notify story owner
+    const io = req.app.get('io');
+    if (io && story.user.toString() !== userId) {
+      io.to(`user_${story.user}`).emit('storyPollVote', {
+        storyId: story._id,
+        pollResults
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        poll: {
+          question: story.poll.question,
+          options: pollResults
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Answer story question box
+// @route POST /api/v1/stories/:id/question/answer
+// @access Private
+exports.answerStoryQuestion = asyncHandler(async (req, res, next) => {
+  try {
+    const { text, isAnonymous } = req.body;
+    const userId = req.user.id;
+    
+    if (!text) {
+      return next(new ErrorResponse('Answer text is required', 400));
+    }
+    
+    const story = await Story.findById(req.params.id);
+    
+    if (!story) {
+      return next(new ErrorResponse('Story not found', 404));
+    }
+    
+    if (!story.questionBox) {
+      return next(new ErrorResponse('Story has no question box', 400));
+    }
+    
+    await story.answerQuestion(userId, text, isAnonymous);
+    
+    // Notify story owner
+    const io = req.app.get('io');
+    if (io && story.user.toString() !== userId) {
+      io.to(`user_${story.user}`).emit('storyQuestionAnswer', {
+        storyId: story._id,
+        answer: {
+          user: isAnonymous ? null : userId,
+          text,
+          isAnonymous
+        }
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      message: 'Answer submitted'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Get question box responses (owner only)
+// @route GET /api/v1/stories/:id/question/responses
+// @access Private
+exports.getQuestionResponses = asyncHandler(async (req, res, next) => {
+  try {
+    const story = await Story.findById(req.params.id)
+      .populate('questionBox.responses.user', 'name images')
+      .populate('user', '_id');
+    
+    if (!story) {
+      return next(new ErrorResponse('Story not found', 404));
+    }
+    
+    if (story.user._id.toString() !== req.user.id) {
+      return next(new ErrorResponse('Not authorized', 403));
+    }
+    
+    if (!story.questionBox) {
+      return next(new ErrorResponse('Story has no question box', 400));
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        prompt: story.questionBox.prompt,
+        responses: story.questionBox.responses
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Share story
+// @route POST /api/v1/stories/:id/share
+// @access Private
+exports.shareStory = asyncHandler(async (req, res, next) => {
+  try {
+    const { sharedTo, receiverId } = req.body;
+    const userId = req.user.id;
+    
+    const story = await Story.findById(req.params.id);
+    
+    if (!story) {
+      return next(new ErrorResponse('Story not found', 404));
+    }
+    
+    if (!story.allowSharing) {
+      return next(new ErrorResponse('Sharing is disabled for this story', 403));
+    }
+    
+    // Check if blocked
+    if (story.user.toString() !== userId) {
+      const blockStatus = await checkBlockStatus(userId, story.user.toString());
+      if (blockStatus.isBlocked) {
+        return next(new ErrorResponse('Cannot share this story', 403));
+      }
+    }
+    
+    story.shares.push({
+      user: userId,
+      sharedTo: sharedTo || 'external',
+      sharedAt: new Date()
+    });
+    story.shareCount = story.shares.length;
+    await story.save();
+    
+    // If sharing to DM, create message
+    if (sharedTo === 'dm' && receiverId) {
+      const dmMessage = await Message.create({
+        sender: userId,
+        receiver: receiverId,
+        message: `Shared a story`,
+        messageType: 'text',
+        // Could add story reference
+      });
+      
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user_${receiverId}`).emit('newMessage', {
+          message: dmMessage,
+          senderId: userId,
+          sharedStory: {
+            _id: story._id,
+            mediaUrl: story.mediaUrls?.[0],
+            user: story.user
+          }
+        });
+      }
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        shareCount: story.shareCount
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// ========== STORY HIGHLIGHTS ==========
+
+// @desc Create story highlight
+// @route POST /api/v1/stories/highlights
+// @access Private
+exports.createHighlight = asyncHandler(async (req, res, next) => {
+  try {
+    const { title, storyId, coverImage } = req.body;
+    const userId = req.user.id;
+    
+    if (!title) {
+      return next(new ErrorResponse('Highlight title is required', 400));
+    }
+    
+    let highlight;
+    
+    if (storyId) {
+      // Create from existing story
+      const story = await Story.findById(storyId);
+      if (!story || story.user.toString() !== userId) {
+        return next(new ErrorResponse('Story not found or not authorized', 404));
+      }
+      
+      highlight = await StoryHighlight.createFromStory(userId, storyId, title);
+    } else {
+      // Create empty highlight
+      highlight = await StoryHighlight.create({
+        user: userId,
+        title,
+        coverImage
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      data: highlight
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Get user's highlights
+// @route GET /api/v1/stories/highlights/user/:userId
+// @access Private
+exports.getUserHighlights = asyncHandler(async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const viewerId = req.user.id;
+    
+    // Check if blocked
+    if (viewerId !== userId) {
+      const blockStatus = await checkBlockStatus(viewerId, userId);
+      if (blockStatus.isBlocked) {
+        return res.status(200).json({
+          success: true,
+          count: 0,
+          data: [],
+          blocked: true
+        });
+      }
+    }
+    
+    const highlights = await StoryHighlight.getUserHighlights(userId);
+    
+    res.status(200).json({
+      success: true,
+      count: highlights.length,
+      data: highlights
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Get my highlights
+// @route GET /api/v1/stories/highlights
+// @access Private
+exports.getMyHighlights = asyncHandler(async (req, res, next) => {
+  try {
+    const highlights = await StoryHighlight.getUserHighlights(req.user.id);
+    
+    res.status(200).json({
+      success: true,
+      count: highlights.length,
+      data: highlights
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Add story to highlight
+// @route POST /api/v1/stories/highlights/:id/stories
+// @access Private
+exports.addStoryToHighlight = asyncHandler(async (req, res, next) => {
+  try {
+    const { storyId } = req.body;
+    const userId = req.user.id;
+    
+    const highlight = await StoryHighlight.findById(req.params.id);
+    
+    if (!highlight) {
+      return next(new ErrorResponse('Highlight not found', 404));
+    }
+    
+    if (highlight.user.toString() !== userId) {
+      return next(new ErrorResponse('Not authorized', 403));
+    }
+    
+    // Verify story ownership
+    const story = await Story.findById(storyId);
+    if (!story || story.user.toString() !== userId) {
+      return next(new ErrorResponse('Story not found or not authorized', 404));
+    }
+    
+    await highlight.addStory(storyId);
+    
+    res.status(200).json({
+      success: true,
+      data: highlight
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Remove story from highlight
+// @route DELETE /api/v1/stories/highlights/:id/stories/:storyId
+// @access Private
+exports.removeStoryFromHighlight = asyncHandler(async (req, res, next) => {
+  try {
+    const { storyId } = req.params;
+    const userId = req.user.id;
+    
+    const highlight = await StoryHighlight.findById(req.params.id);
+    
+    if (!highlight) {
+      return next(new ErrorResponse('Highlight not found', 404));
+    }
+    
+    if (highlight.user.toString() !== userId) {
+      return next(new ErrorResponse('Not authorized', 403));
+    }
+    
+    await highlight.removeStory(storyId);
+    
+    res.status(200).json({
+      success: true,
+      data: highlight
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Update highlight
+// @route PUT /api/v1/stories/highlights/:id
+// @access Private
+exports.updateHighlight = asyncHandler(async (req, res, next) => {
+  try {
+    const { title, coverImage } = req.body;
+    const userId = req.user.id;
+    
+    const highlight = await StoryHighlight.findById(req.params.id);
+    
+    if (!highlight) {
+      return next(new ErrorResponse('Highlight not found', 404));
+    }
+    
+    if (highlight.user.toString() !== userId) {
+      return next(new ErrorResponse('Not authorized', 403));
+    }
+    
+    if (title) highlight.title = title;
+    if (coverImage) highlight.coverImage = coverImage;
+    
+    await highlight.save();
+    
+    res.status(200).json({
+      success: true,
+      data: highlight
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Delete highlight
+// @route DELETE /api/v1/stories/highlights/:id
+// @access Private
+exports.deleteHighlight = asyncHandler(async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    const highlight = await StoryHighlight.findById(req.params.id);
+    
+    if (!highlight) {
+      return next(new ErrorResponse('Highlight not found', 404));
+    }
+    
+    if (highlight.user.toString() !== userId) {
+      return next(new ErrorResponse('Not authorized', 403));
+    }
+    
+    // Clear highlight references from stories
+    await Story.updateMany(
+      { highlight: highlight._id },
+      { $unset: { highlight: 1 } }
+    );
+    
+    await highlight.deleteOne();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Highlight deleted'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// ========== STORY ARCHIVE ==========
+
+// @desc Get archived stories
+// @route GET /api/v1/stories/archive
+// @access Private
+exports.getArchivedStories = asyncHandler(async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const userId = req.user.id;
+    
+    const stories = await Story.getArchivedStories(userId, page, limit);
+    
+    const total = await Story.countDocuments({
+      user: userId,
+      isArchived: true
+    });
+    
+    res.status(200).json({
+      success: true,
+      count: stories.length,
+      total,
+      pages: Math.ceil(total / limit),
+      data: stories
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Archive a story manually
+// @route POST /api/v1/stories/:id/archive
+// @access Private
+exports.archiveStory = asyncHandler(async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    
+    const story = await Story.findById(req.params.id);
+    
+    if (!story) {
+      return next(new ErrorResponse('Story not found', 404));
+    }
+    
+    if (story.user.toString() !== userId) {
+      return next(new ErrorResponse('Not authorized', 403));
+    }
+    
+    await story.archive();
+    
+    res.status(200).json({
+      success: true,
+      message: 'Story archived'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// ========== CLOSE FRIENDS ==========
+
+// @desc Get close friends list
+// @route GET /api/v1/stories/close-friends
+// @access Private
+exports.getCloseFriends = asyncHandler(async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .populate('closeFriends', 'name images bio');
+    
+    res.status(200).json({
+      success: true,
+      count: user.closeFriends?.length || 0,
+      data: user.closeFriends || []
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Add to close friends
+// @route POST /api/v1/stories/close-friends/:userId
+// @access Private
+exports.addCloseFriend = asyncHandler(async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user.id;
+    
+    if (userId === currentUserId) {
+      return next(new ErrorResponse('Cannot add yourself', 400));
+    }
+    
+    // Check if target user exists
+    const targetUser = await User.findById(userId);
+    if (!targetUser) {
+      return next(new ErrorResponse('User not found', 404));
+    }
+    
+    // Add to close friends
+    await User.findByIdAndUpdate(currentUserId, {
+      $addToSet: { closeFriends: userId }
+    });
+    
+    // Add to closeFriendsOf for target user
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { closeFriendsOf: currentUserId }
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Added to close friends'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
+// @desc Remove from close friends
+// @route DELETE /api/v1/stories/close-friends/:userId
+// @access Private
+exports.removeCloseFriend = asyncHandler(async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user.id;
+    
+    // Remove from close friends
+    await User.findByIdAndUpdate(currentUserId, {
+      $pull: { closeFriends: userId }
+    });
+    
+    // Remove from closeFriendsOf for target user
+    await User.findByIdAndUpdate(userId, {
+      $pull: { closeFriendsOf: currentUserId }
+    });
+    
+    res.status(200).json({
+      success: true,
+      message: 'Removed from close friends'
     });
   } catch (error) {
     res.status(500).json({ error: 'Server error', message: `Error ${error}` });

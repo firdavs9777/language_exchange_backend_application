@@ -178,6 +178,12 @@ server.listen(PORT, HOST, () => {
   console.log(`🔒 CORS enabled for all origins`.magenta);
   console.log('='.repeat(50).cyan);
   console.log('');
+  
+  // Start scheduled jobs (email notifications, story archival, etc.)
+  if (process.env.ENABLE_SCHEDULER !== 'false') {
+    const { startScheduler } = require('./jobs/scheduler');
+    startScheduler();
+  }
 });
 
 // Graceful shutdown handlers
@@ -211,9 +217,9 @@ process.on('SIGTERM', () => {
   server.close(() => {
     console.log('💤 Server closed successfully'.green);
     process.exit(0);
+    });
   });
-});
-
+  
 // Handle SIGINT (Ctrl+C)
 process.on('SIGINT', () => {
   console.log('');
@@ -222,7 +228,7 @@ process.on('SIGINT', () => {
   server.close(() => {
     console.log('💤 Server closed successfully'.green);
     process.exit(0);
-  });
+  }); 
 });
 
 module.exports = { app, server, io };

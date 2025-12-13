@@ -6,7 +6,7 @@ const Moment = require('../models/Moment');
 const Comment = require('../models/Comment');
 const Story = require('../models/Story');
 
-// Protect routes
+// Protect routes - require authentication
 exports.protect = asyncHandler(async (req, res, next) => {
   let token;
   if (
@@ -30,6 +30,37 @@ exports.protect = asyncHandler(async (req, res, next) => {
     next();
   } catch (err) {
     return next(new ErrorResponse('Not authorize to access this route', 401));
+  }
+});
+
+// Optional authentication - attach user if token exists, but don't require it
+// Useful for routes that work for both authenticated and unauthenticated users
+// but provide enhanced functionality when authenticated (e.g., blocking filter)
+exports.optionalAuth = asyncHandler(async (req, res, next) => {
+  let token;
+  
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+  
+  // If no token, continue without user (anonymous access)
+  if (!token) {
+    req.user = null;
+    return next();
+  }
+  
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = await User.findById(decoded.id);
+    next();
+  } catch (err) {
+    // Invalid token, but still allow access (as anonymous)
+    req.user = null;
+    next();
   }
 });
 

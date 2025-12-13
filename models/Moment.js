@@ -30,6 +30,49 @@ const MomentSchema = new mongoose.Schema({
     type: [mongoose.Schema.Types.ObjectId],
     ref: 'User'
   },
+  // Saved/bookmarked moments
+  savedBy: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  saveCount: {
+    type: Number,
+    default: 0
+  },
+  // Share count
+  shareCount: {
+    type: Number,
+    default: 0
+  },
+  // Report tracking
+  reports: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    reason: {
+      type: String,
+      enum: ['spam', 'inappropriate', 'harassment', 'hate_speech', 'violence', 'misinformation', 'other'],
+      required: true
+    },
+    description: String,
+    reportedAt: {
+      type: Date,
+      default: Date.now
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'reviewed', 'resolved', 'dismissed'],
+      default: 'pending'
+    }
+  }],
+  // Soft delete
+  isDeleted: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
+  deletedAt: Date,
   slug: String,
   description: {
     type: String,

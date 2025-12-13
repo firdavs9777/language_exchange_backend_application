@@ -289,6 +289,19 @@ role: {
     type: [mongoose.Schema.Types.ObjectId],
     ref: 'User'
   },
+  
+  // Close Friends list (for story privacy)
+  closeFriends: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  
+  // Users who added you to their close friends (for notifications)
+  closeFriendsOf: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  
   // User blocking
   blockedUsers: [{
     userId: {
@@ -394,8 +407,43 @@ role: {
     personalizedAds: {
       type: Boolean,
       default: true
+    },
+    // Email notification preferences
+    emailNotifications: {
+      type: Boolean,
+      default: true
+    },
+    weeklyDigest: {
+      type: Boolean,
+      default: true
+    },
+    newMessageEmails: {
+      type: Boolean,
+      default: true  // Only sent when user is inactive for 24+ hours
+    },
+    newFollowerEmails: {
+      type: Boolean,
+      default: true
+    },
+    securityAlerts: {
+      type: Boolean,
+      default: true  // Password changes, new logins
     }
   },
+  
+  // Activity tracking for inactivity emails
+  lastActivityAt: {
+    type: Date,
+    default: Date.now
+  },
+  inactivityEmailsSent: {
+    type: [String],
+    default: []  // ['first_reminder', 'second_reminder', 'warning', 'final_warning']
+  },
+  lastInactivityEmailAt: {
+    type: Date
+  },
+  
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   
