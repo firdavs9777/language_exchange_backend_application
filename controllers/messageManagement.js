@@ -52,6 +52,37 @@ exports.editMessage = asyncHandler(async (req, res, next) => {
   msg.editedAt = new Date();
   await msg.save();
 
+  // Populate for response
+  await msg.populate('sender', 'name images');
+  await msg.populate('receiver', 'name images');
+
+  // ✨ Socket.IO: Notify receiver and sender's other devices
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      // Notify receiver that message was edited
+      io.to(`user_${msg.receiver}`).emit('messageEdited', {
+        messageId: msg._id,
+        message: msg,
+        editedAt: msg.editedAt,
+        editedBy: userId
+      });
+
+      // Notify sender's other devices (sync across devices)
+      io.to(`user_${userId}`).emit('messageEdited', {
+        messageId: msg._id,
+        message: msg,
+        editedAt: msg.editedAt,
+        editedBy: userId
+      });
+
+      console.log(`📝 Socket: Message ${msg._id} edited by ${userId}`);
+    }
+  } catch (socketError) {
+    console.error('❌ Socket error on message edit:', socketError);
+    // Don't fail the request if socket fails
+  }
+
   res.status(200).json({
     success: true,
     message: 'Message edited successfully',
@@ -101,6 +132,36 @@ exports.deleteMessage = asyncHandler(async (req, res, next) => {
     }
     
     await msg.save();
+
+    // ✨ Socket.IO: Notify receiver that message was deleted for everyone
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        // Notify receiver
+        io.to(`user_${msg.receiver}`).emit('messageDeleted', {
+          messageId: msg._id,
+          deletedForEveryone: true,
+          deletedBy: userId,
+          deletedAt: msg.deletedAt,
+          message: msg // Include updated message with "This message was deleted"
+        });
+
+        // Notify sender's other devices
+        io.to(`user_${userId}`).emit('messageDeleted', {
+          messageId: msg._id,
+          deletedForEveryone: true,
+          deletedBy: userId,
+          deletedAt: msg.deletedAt,
+          message: msg
+        });
+
+        console.log(`🗑️ Socket: Message ${msg._id} deleted for everyone by ${userId}`);
+      }
+    } catch (socketError) {
+      console.error('❌ Socket error on message delete:', socketError);
+      // Don't fail the request if socket fails
+    }
+
   } else {
     // Delete for me - add to deletedFor array
     if (!msg.deletedFor) {
@@ -112,6 +173,25 @@ exports.deleteMessage = asyncHandler(async (req, res, next) => {
     }
     
     await msg.save();
+
+    // ✨ Socket.IO: Notify sender's other devices (receiver doesn't need to know)
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        // Only notify sender's other devices (sync across devices)
+        io.to(`user_${userId}`).emit('messageDeleted', {
+          messageId: msg._id,
+          deletedForEveryone: false,
+          deletedBy: userId,
+          deletedFor: 'me'
+        });
+
+        console.log(`🗑️ Socket: Message ${msg._id} deleted for me by ${userId}`);
+      }
+    } catch (socketError) {
+      console.error('❌ Socket error on message delete:', socketError);
+      // Don't fail the request if socket fails
+    }
   }
 
   res.status(200).json({
