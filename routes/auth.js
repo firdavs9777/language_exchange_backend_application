@@ -20,7 +20,8 @@ const {
   googleMobileLogin,
   appleMobileLogin,
   deleteAccount,
-  makeAdmin
+  makeAdmin,
+  acceptTerms
 } = require('../controllers/auth');
 
 const router = express.Router();
@@ -41,7 +42,8 @@ const {
   resetPasswordValidation,
   updatePasswordValidation,
   updateDetailsValidation,
-  refreshTokenValidation
+  refreshTokenValidation,
+  acceptTermsValidation
 } = require('../validators/authValidator');
 
 // Public routes - OAuth
@@ -123,6 +125,13 @@ router.get('/me', protect, getMe);
 router.delete('/me', protect, deleteAccount);
 router.post('/logout', protect, logout);
 router.post('/logout-all', protect, logoutAll);
+router.post(
+  '/accept-terms',
+  protect,
+  acceptTermsValidation,
+  validate,
+  acceptTerms
+);
 
 router.put(
   '/updatedetails',

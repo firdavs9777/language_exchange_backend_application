@@ -1487,6 +1487,38 @@ exports.deleteAccount = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    Accept Terms of Service
+ * @route   POST /api/v1/auth/accept-terms
+ * @access  Private
+ */
+exports.acceptTerms = asyncHandler(async (req, res, next) => {
+  const { termsAcceptedDate } = req.body;
+  const userId = req.user.id;
+
+  // Find user
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  // Update terms acceptance
+  user.termsAccepted = true;
+  user.termsAcceptedDate = termsAcceptedDate || new Date();
+
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Terms accepted successfully',
+    data: {
+      termsAccepted: user.termsAccepted,
+      termsAcceptedDate: user.termsAcceptedDate
+    }
+  });
+});
+
+/**
  * @desc    Make user admin (development only)
  * @route   PUT /api/v1/auth/make-admin/:userId
  * @access  Public (should be protected in production!)

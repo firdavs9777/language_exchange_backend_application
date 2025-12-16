@@ -291,6 +291,16 @@ exports.refreshTokenValidation = [
 ];
 
 /**
+ * Validation rules for accept terms
+ */
+exports.acceptTermsValidation = [
+  body('termsAcceptedDate')
+    .optional()
+    .isISO8601().withMessage('termsAcceptedDate must be a valid ISO 8601 date')
+    .toDate()
+];
+
+/**
  * Helper function to get device info from request
  */
 exports.getDeviceInfo = (req) => {

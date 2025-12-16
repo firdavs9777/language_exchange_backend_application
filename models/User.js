@@ -41,6 +41,16 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // TERMS OF SERVICE FIELDS
+  termsAccepted: {
+    type: Boolean,
+    default: false,
+    required: true
+  },
+  termsAcceptedDate: {
+    type: Date,
+    default: null
+  },
   emailVerificationCode: {
     type: String,
     select: false
