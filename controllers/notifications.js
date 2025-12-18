@@ -59,27 +59,48 @@ exports.registerToken = asyncHandler(async (req, res, next) => {
 /**
  * @desc    Remove FCM token
  * @route   DELETE /api/v1/notifications/remove-token/:deviceId
- * @access  Private
+ * @access  Public (can be called during/after logout)
  */
 exports.removeToken = asyncHandler(async (req, res, next) => {
   const { deviceId } = req.params;
-  const userId = req.user.id;
 
-  const user = await User.findByIdAndUpdate(
-    userId,
-    {
-      $pull: {
-        fcmTokens: { deviceId }
-      }
-    },
-    { new: true }
-  );
-
-  if (!user) {
-    return next(new ErrorResponse('User not found', 404));
+  // Try to find user by authenticated session first
+  let user;
+  if (req.user && req.user.id) {
+    // Authenticated request
+    user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        $pull: {
+          fcmTokens: { deviceId }
+        }
+      },
+      { new: true }
+    );
+  } else {
+    // Unauthenticated request (e.g., after logout)
+    // Find any user with this deviceId and remove it
+    user = await User.findOneAndUpdate(
+      { 'fcmTokens.deviceId': deviceId },
+      {
+        $pull: {
+          fcmTokens: { deviceId }
+        }
+      },
+      { new: true }
+    );
   }
 
-  console.log(`✅ Removed FCM token for user ${userId}, device ${deviceId}`);
+  if (!user) {
+    // Token not found, but that's okay (might have been already removed)
+    console.log(`⚠️  No token found for device ${deviceId}`);
+    return res.status(200).json({
+      success: true,
+      message: 'FCM token removal processed'
+    });
+  }
+
+  console.log(`✅ Removed FCM token for user ${user._id}, device ${deviceId}`);
 
   res.status(200).json({
     success: true,

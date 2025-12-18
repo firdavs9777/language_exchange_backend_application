@@ -29,7 +29,15 @@ const {
   sendTestNotification
 } = require('../controllers/notifications');
 
-// All routes require authentication
+// Token removal doesn't require authentication (can be called during/after logout)
+router.delete(
+  '/remove-token/:deviceId',
+  validateDeviceId,
+  validate,
+  removeToken
+);
+
+// All other routes require authentication
 router.use(protect);
 
 // Token Management
@@ -38,13 +46,6 @@ router.post(
   validateTokenRegistration,
   validate,
   registerToken
-);
-
-router.delete(
-  '/remove-token/:deviceId',
-  validateDeviceId,
-  validate,
-  removeToken
 );
 
 // Settings Management
