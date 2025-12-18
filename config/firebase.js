@@ -3,7 +3,7 @@ const path = require('path');
 
 // Initialize Firebase Admin SDK
 try {
- const serviceAccount = require('./serviceAccountKey.json');
+ const serviceAccount = require('../serviceAccountKey.json');
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
     projectId: process.env.FIREBASE_PROJECT_ID || 'bananatalk-backend'
