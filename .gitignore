@@ -48,7 +48,6 @@ Thumbs.db
 *.mov
 *.wmv
 
-
 # .gitignore additions
 
 # Environment files
@@ -59,6 +58,34 @@ config/config.env
 *.env.test
 *.env.production
 
-# Firebase service account keys
+# Firebase service account keys (CRITICAL - DO NOT COMMIT)
 *firebase-adminsdk*.json
+bananatalk-backend-firebase-adminsdk-*.json
 serviceAccountKey.json
+firebase-config.json
+
+# User uploads (optional - depends on your deployment strategy)
+uploads/*
+!uploads/.gitkeep
+public/uploads/*
+
+# Cache and temporary files
+.cache/
+*.pid
+*.seed
+*.pid.lock
+
+# Editor files
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# Testing and coverage
+coverage/
+.nyc_output/
