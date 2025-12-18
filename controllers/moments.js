@@ -329,6 +329,14 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
   // Increment moment count after successful creation
   await user.incrementMomentCount();
 
+  // Send notification to followers (async, don't wait)
+  const notificationService = require('../services/notificationService');
+  notificationService.sendFollowerMoment(
+    userId.toString(),
+    moment._id.toString(),
+    description || title || ''
+  ).catch(err => console.error('Follower moment notification failed:', err));
+
   // Populate user for response
   await moment.populate('user', USER_FIELDS);
   const userWithImages = processUserImages(moment.user, req);

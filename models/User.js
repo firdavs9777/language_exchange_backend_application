@@ -91,6 +91,10 @@ const UserSchema = new mongoose.Schema({
       type: Boolean,
       default: true
     },
+    followerMoments: {
+      type: Boolean,
+      default: true
+    },
     friendRequests: {
       type: Boolean,
       default: true
@@ -380,6 +384,22 @@ role: {
   following: {
     type: [mongoose.Schema.Types.ObjectId],
     ref: 'User'
+  },
+  
+  // Profile visitor stats
+  profileStats: {
+    totalVisits: {
+      type: Number,
+      default: 0
+    },
+    uniqueVisitors: {
+      type: Number,
+      default: 0
+    },
+    lastVisitorUpdate: {
+      type: Date,
+      default: null
+    }
   },
   
   // Close Friends list (for story privacy)

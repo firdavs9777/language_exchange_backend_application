@@ -314,6 +314,12 @@ const _shouldSendNotification = async (user, type, data = {}) => {
       }
       break;
     
+    case 'follower_moment':
+      if (!user.notificationSettings.followerMoments) {
+        return false;
+      }
+      break;
+    
     case 'system':
       if (!user.notificationSettings.marketing) {
         return false;
@@ -378,12 +384,81 @@ const _saveToHistory = async (userId, type, title, body, data = {}, imageUrl = n
   }
 };
 
+/**
+ * Send notification to followers when user posts a moment
+ * @param {String} momentAuthorId - ID of user who posted the moment
+ * @param {String} momentId - Moment ID
+ * @param {String} momentText - Moment text content
+ * @returns {Object} - Result with count of notifications sent
+ */
+const sendFollowerMoment = async (momentAuthorId, momentId, momentText) => {
+  try {
+    const author = await User.findById(momentAuthorId).populate('followers');
+    
+    if (!author || !author.followers || author.followers.length === 0) {
+      console.log(`ℹ️ No followers to notify for user ${momentAuthorId}`);
+      return { success: true, notified: 0 };
+    }
+
+    const momentPreview = momentText || '';
+    let sentCount = 0;
+    let failedCount = 0;
+
+    // Send notification to each follower
+    const notificationPromises = author.followers.map(async (follower) => {
+      try {
+        // Skip if follower is the author (shouldn't happen but just in case)
+        if (follower._id.toString() === momentAuthorId.toString()) {
+          return;
+        }
+
+        const notification = templates.getFollowerMomentTemplate(
+          author.name,
+          momentPreview,
+          {
+            userId: momentAuthorId,
+            momentId: momentId.toString()
+          }
+        );
+
+        // Add author's image if available
+        if (author.images && author.images.length > 0) {
+          notification.imageUrl = author.images[0];
+        }
+
+        const result = await send(follower._id.toString(), 'follower_moment', notification);
+
+        if (result.success && !result.skipped) {
+          sentCount++;
+        }
+      } catch (error) {
+        console.error(`❌ Error sending follower moment notification to ${follower._id}:`, error);
+        failedCount++;
+      }
+    });
+
+    await Promise.all(notificationPromises);
+
+    console.log(`✅ Sent ${sentCount} follower moment notifications (${failedCount} failed)`);
+
+    return {
+      success: true,
+      notified: sentCount,
+      failed: failedCount
+    };
+  } catch (error) {
+    console.error('❌ Error sending follower moment notifications:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   send,
   sendChatMessage,
   sendMomentLike,
   sendMomentComment,
   sendFriendRequest,
-  sendProfileVisit
+  sendProfileVisit,
+  sendFollowerMoment
 };
 

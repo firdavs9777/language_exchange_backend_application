@@ -167,6 +167,30 @@ const getSubscriptionExpiringTemplate = (daysLeft) => {
   };
 };
 
+/**
+ * Follower new moment notification template
+ * @param {String} userName - Name of the user who posted
+ * @param {String} momentPreview - Preview text of the moment
+ * @param {Object} momentData - Additional moment data
+ * @returns {Object} - { title, body, data }
+ */
+const getFollowerMomentTemplate = (userName, momentPreview, momentData = {}) => {
+  const previewText = momentPreview 
+    ? `"${momentPreview.substring(0, 60)}${momentPreview.length > 60 ? '...' : ''}"`
+    : 'Check it out!';
+  
+  return {
+    title: `${userName} posted a moment`,
+    body: previewText,
+    data: {
+      type: 'follower_moment',
+      userId: momentData.userId || '',
+      momentId: momentData.momentId || '',
+      screen: 'moment_detail'
+    }
+  };
+};
+
 module.exports = {
   getChatMessageTemplate,
   getMomentLikeTemplate,
@@ -175,6 +199,7 @@ module.exports = {
   getProfileVisitTemplate,
   getSystemTemplate,
   getReengagementTemplate,
-  getSubscriptionExpiringTemplate
+  getSubscriptionExpiringTemplate,
+  getFollowerMomentTemplate
 };
 

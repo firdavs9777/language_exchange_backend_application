@@ -23,6 +23,14 @@ const {
   changeUserMode,
   getUserLimits
 } = require('../controllers/users');
+
+const {
+  recordProfileVisit,
+  getProfileVisitors,
+  getMyVisitorStats,
+  clearVisitHistory,
+  getMyVisitedProfiles
+} = require('../controllers/profileVisits');
 const express = require('express');
 const advancedResults = require('../middleware/advancedResults');
 const { protect, authorize } = require('../middleware/auth');
@@ -100,6 +108,27 @@ router
 router
   .route('/:userId/limits')
   .get(protect, getUserLimits);
+
+// Profile visitor routes
+router
+  .route('/:userId/profile-visit')
+  .post(protect, recordProfileVisit);
+
+router
+  .route('/:userId/visitors')
+  .get(protect, getProfileVisitors);
+
+router
+  .route('/me/visitor-stats')
+  .get(protect, getMyVisitorStats);
+
+router
+  .route('/me/visitors')
+  .delete(protect, clearVisitHistory);
+
+router
+  .route('/me/visited-profiles')
+  .get(protect, getMyVisitedProfiles);
 
 // User CRUD routes (must be last to avoid conflicts)
 router.route('/:id').get(getUser).put(updateUser).delete(deleteUser);
