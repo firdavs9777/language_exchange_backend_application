@@ -44,6 +44,27 @@ const router = express.Router({ mergeParams: true });
 
 router.route('/').get(getUsers).post(createUser);
 
+// ============================================
+// /me routes - MUST BE FIRST (before /:userId routes)
+// ============================================
+
+// My profile visitor routes
+router
+  .route('/me/visitor-stats')
+  .get(protect, getMyVisitorStats);
+
+router
+  .route('/me/visitors')
+  .delete(protect, clearVisitHistory);
+
+router
+  .route('/me/visited-profiles')
+  .get(protect, getMyVisitedProfiles);
+
+// ============================================
+// /:userId routes (come after /me routes)
+// ============================================
+
 // Follow/Unfollow routes
 router.route('/:userId/follow/:targetUserId').put(followUser);
 router.route('/:userId/unfollow/:targetUserId').put(unfollowUser);
@@ -117,18 +138,6 @@ router
 router
   .route('/:userId/visitors')
   .get(protect, getProfileVisitors);
-
-router
-  .route('/me/visitor-stats')
-  .get(protect, getMyVisitorStats);
-
-router
-  .route('/me/visitors')
-  .delete(protect, clearVisitHistory);
-
-router
-  .route('/me/visited-profiles')
-  .get(protect, getMyVisitedProfiles);
 
 // User CRUD routes (must be last to avoid conflicts)
 router.route('/:id').get(getUser).put(updateUser).delete(deleteUser);
