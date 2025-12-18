@@ -62,11 +62,26 @@ const initializeSocket = (io) => {
     
     console.log(`✅ User ${userId} connected (socket: ${socket.id})`);
     
-    // Track this connection
-    if (!userConnections.has(userId)) {
-      userConnections.set(userId, new Set());
+    // Check if this user has existing connections and clean them up
+    if (userConnections.has(userId)) {
+      const existingSockets = userConnections.get(userId);
+      console.log(`⚠️ User ${userId} already has ${existingSockets.size} connection(s), cleaning up old sockets...`);
+      
+      // Force disconnect old sockets for this user
+      for (const oldSocketId of existingSockets) {
+        const oldSocket = io.sockets.sockets.get(oldSocketId);
+        if (oldSocket && oldSocket.id !== socket.id) {
+          console.log(`🔌 Disconnecting old socket ${oldSocketId} for user ${userId}`);
+          oldSocket.disconnect(true);
+        }
+      }
+      
+      // Clear old connections
+      userConnections.delete(userId);
     }
-    userConnections.get(userId).add(socket.id);
+    
+    // Track this new connection
+    userConnections.set(userId, new Set([socket.id]));
     
     // Join user's personal room
     const userRoom = `user_${userId}`;
@@ -88,6 +103,7 @@ const initializeSocket = (io) => {
     registerTypingHandlers(socket, io);
     registerStatusHandlers(socket, io);
     registerPresenceHandlers(socket, io);
+    registerLogoutHandlers(socket, io);
     
     // Register advanced feature handlers
     registerVoiceMessageHandlers(socket, io);
@@ -559,14 +575,91 @@ const registerPresenceHandlers = (socket, io) => {
 };
 
 /**
+ * Register logout-related handlers
+ */
+const registerLogoutHandlers = (socket, io) => {
+  const userId = socket.user.id;
+  
+  // Explicit logout - clean up everything
+  socket.on('logout', async (data, callback) => {
+    try {
+      console.log(`👋 User ${userId} logging out (explicit)`);
+      
+      // Clear all typing indicators
+      for (const [key, timeout] of typingTimeouts.entries()) {
+        if (key.startsWith(userId)) {
+          clearTimeout(timeout);
+          typingTimeouts.delete(key);
+        }
+      }
+      
+      // Leave all rooms
+      const rooms = Array.from(socket.rooms);
+      for (const room of rooms) {
+        if (room !== socket.id) {
+          await socket.leave(room);
+          console.log(`📤 User ${userId} left room: ${room}`);
+        }
+      }
+      
+      // Remove from user connections
+      if (userConnections.has(userId)) {
+        userConnections.get(userId).delete(socket.id);
+        
+        if (userConnections.get(userId).size === 0) {
+          userConnections.delete(userId);
+        }
+      }
+      
+      // Broadcast offline status
+      socket.broadcast.emit('userStatusUpdate', {
+        userId,
+        status: 'offline',
+        lastSeen: new Date().toISOString()
+      });
+      
+      console.log(`✅ User ${userId} logged out successfully`);
+      
+      if (callback) {
+        callback({
+          status: 'success',
+          message: 'Logged out successfully'
+        });
+      }
+      
+      // Disconnect the socket
+      socket.disconnect(true);
+      
+    } catch (error) {
+      console.error('❌ Logout error:', error);
+      
+      if (callback) {
+        callback({
+          status: 'error',
+          error: error.message
+        });
+      }
+    }
+  });
+};
+
+/**
  * Handle user disconnection
  */
-const handleDisconnect = (socket, io, reason) => {
+const handleDisconnect = async (socket, io, reason) => {
   const userId = socket.user?.id;
   
   if (!userId) return;
   
   console.log(`❌ User ${userId} disconnected (socket: ${socket.id}): ${reason}`);
+  
+  // Leave all rooms explicitly
+  const rooms = Array.from(socket.rooms);
+  for (const room of rooms) {
+    if (room !== socket.id) {
+      await socket.leave(room);
+    }
+  }
   
   // Remove this socket from user's connections
   if (userConnections.has(userId)) {
@@ -596,6 +689,9 @@ const handleDisconnect = (socket, io, reason) => {
       typingTimeouts.delete(key);
     }
   }
+  
+  // Clear socket user data
+  socket.user = null;
 };
 
 /**
