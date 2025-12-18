@@ -50,9 +50,15 @@ Thumbs.db
 
 # .gitignore additions
 
-# Environment files
+# Environment files (CRITICAL - CONTAINS MONGODB CREDENTIALS)
 .env
+env
+e.nv
+config.env
 config/config.env
+*.env
+*.env.*
+.env.*
 *.env.local
 *.env.development
 *.env.test
@@ -63,6 +69,16 @@ config/config.env
 bananatalk-backend-firebase-adminsdk-*.json
 serviceAccountKey.json
 firebase-config.json
+
+# Editor temporary files (SECURITY RISK - CAN CONTAIN SECRETS)
+**/nano.*
+nano.*
+*.save
+*.swp
+*.swo
+*~
+.*.sw?
+config/nano.*
 
 # User uploads (optional - depends on your deployment strategy)
 uploads/*
@@ -77,9 +93,7 @@ public/uploads/*
 
 # Editor files
 .vscode/
-*.swp
-*.swo
-*~
+.idea/
 .project
 .classpath
 .settings/
@@ -89,3 +103,16 @@ public/uploads/*
 # Testing and coverage
 coverage/
 .nyc_output/
+
+# Database dumps and backups
+*.sql
+*.dump
+*.backup
+_data/
+
+# Secrets and keys
+*.pem
+*.key
+*.cert
+secrets/
+credentials/
