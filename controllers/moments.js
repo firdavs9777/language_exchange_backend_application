@@ -532,6 +532,16 @@ exports.likeMoment = asyncHandler(async (req, res, next) => {
   moment.likeCount = Math.max(0, (moment.likeCount || 0) + 1);
   await moment.save();
 
+  // Send notification to moment owner (if not self-like)
+  if (userId !== momentOwnerId) {
+    const notificationService = require('../services/notificationService');
+    notificationService.sendMomentLike(
+      momentOwnerId,
+      userId,
+      moment._id
+    ).catch(err => console.error('Like notification failed:', err));
+  }
+
   res.status(200).json({
     success: true,
     data: {

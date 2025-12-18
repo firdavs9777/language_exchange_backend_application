@@ -157,6 +157,18 @@ exports.createComment = asyncHandler(async (req, res, next) => {
             moment.commentCount += 1;
             await moment.save();
         }
+
+        // Send notification to moment owner (if not commenting on own moment)
+        if (req.user.id !== momentOwnerId) {
+            const notificationService = require('../services/notificationService');
+            notificationService.sendMomentComment(
+                momentOwnerId,
+                req.user.id,
+                moment._id,
+                comment
+            ).catch(err => console.error('Comment notification failed:', err));
+        }
+
         res.status(200).json({
             success: true,
             data: comment,

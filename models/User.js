@@ -51,6 +51,88 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  
+  // FCM TOKENS
+  fcmTokens: [{
+    token: {
+      type: String,
+      required: true
+    },
+    platform: {
+      type: String,
+      enum: ['ios', 'android'],
+      required: true
+    },
+    deviceId: {
+      type: String,
+      required: true
+    },
+    lastUpdated: {
+      type: Date,
+      default: Date.now
+    },
+    active: {
+      type: Boolean,
+      default: true
+    }
+  }],
+  
+  // NOTIFICATION SETTINGS
+  notificationSettings: {
+    enabled: {
+      type: Boolean,
+      default: true
+    },
+    chatMessages: {
+      type: Boolean,
+      default: true
+    },
+    moments: {
+      type: Boolean,
+      default: true
+    },
+    friendRequests: {
+      type: Boolean,
+      default: true
+    },
+    profileVisits: {
+      type: Boolean,
+      default: true
+    },
+    marketing: {
+      type: Boolean,
+      default: false
+    },
+    sound: {
+      type: Boolean,
+      default: true
+    },
+    vibration: {
+      type: Boolean,
+      default: true
+    },
+    showPreview: {
+      type: Boolean,
+      default: true
+    },
+    mutedChats: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Conversation'
+    }]
+  },
+  
+  // BADGE COUNTS
+  badges: {
+    unreadMessages: {
+      type: Number,
+      default: 0
+    },
+    unreadNotifications: {
+      type: Number,
+      default: 0
+    }
+  },
+  
   emailVerificationCode: {
     type: String,
     select: false
@@ -1223,5 +1305,9 @@ UserSchema.methods.isBlockedBy = function(userId) {
     block => block.userId.toString() === userId.toString()
   );
 };
+
+// FCM Token indexes
+UserSchema.index({ 'fcmTokens.token': 1 });
+UserSchema.index({ 'fcmTokens.deviceId': 1 });
 
 module.exports = mongoose.model('User', UserSchema);

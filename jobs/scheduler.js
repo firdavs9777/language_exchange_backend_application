@@ -13,6 +13,12 @@
 const { runInactivityCheck } = require('./inactivityEmailJob');
 const { runWeeklyDigest } = require('./weeklyDigestJob');
 const Story = require('../models/Story');
+const {
+  cleanupInactiveTokens,
+  sendReengagementNotifications,
+  sendSubscriptionReminders,
+  cleanupOldNotifications
+} = require('./notificationJobs');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -108,6 +114,90 @@ const scheduleStoryArchival = () => {
 };
 
 /**
+ * Schedule FCM token cleanup (daily at 2:00 AM)
+ */
+const scheduleTokenCleanup = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled token cleanup...');
+    try {
+      await cleanupInactiveTokens();
+    } catch (error) {
+      console.error('Scheduled token cleanup failed:', error);
+    }
+    // Schedule next run (24 hours from now)
+    setTimeout(runJob, 24 * 60 * 60 * 1000);
+  };
+  
+  // Schedule first run at 2:00 AM
+  const msUntilNextRun = getMillisecondsUntil(2, 0);
+  console.log(`📅 Token cleanup scheduled in ${Math.round(msUntilNextRun / 1000 / 60)} minutes`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
+ * Schedule re-engagement notifications (weekly, Monday at 10:00 AM)
+ */
+const scheduleReengagement = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled re-engagement...');
+    try {
+      await sendReengagementNotifications();
+    } catch (error) {
+      console.error('Scheduled re-engagement failed:', error);
+    }
+    // Schedule next run (7 days from now)
+    setTimeout(runJob, 7 * 24 * 60 * 60 * 1000);
+  };
+  
+  // Schedule first run (next Monday at 10 AM)
+  const msUntilNextRun = getMillisecondsUntil(10, 0, 1); // 10:00 AM Monday
+  console.log(`📅 Re-engagement scheduled in ${Math.round(msUntilNextRun / 1000 / 60 / 60)} hours`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
+ * Schedule subscription reminders (daily at 9:00 AM)
+ */
+const scheduleSubscriptionReminders = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled subscription reminders...');
+    try {
+      await sendSubscriptionReminders();
+    } catch (error) {
+      console.error('Scheduled subscription reminders failed:', error);
+    }
+    // Schedule next run (24 hours from now)
+    setTimeout(runJob, 24 * 60 * 60 * 1000);
+  };
+  
+  // Schedule first run at 9:00 AM
+  const msUntilNextRun = getMillisecondsUntil(9, 0);
+  console.log(`📅 Subscription reminders scheduled in ${Math.round(msUntilNextRun / 1000 / 60)} minutes`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
+ * Schedule old notification cleanup (weekly, Sunday at 3:00 AM)
+ */
+const scheduleNotificationCleanup = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled notification cleanup...');
+    try {
+      await cleanupOldNotifications();
+    } catch (error) {
+      console.error('Scheduled notification cleanup failed:', error);
+    }
+    // Schedule next run (7 days from now)
+    setTimeout(runJob, 7 * 24 * 60 * 60 * 1000);
+  };
+  
+  // Schedule first run (next Sunday at 3 AM)
+  const msUntilNextRun = getMillisecondsUntil(3, 0, 0); // 3:00 AM Sunday
+  console.log(`📅 Notification cleanup scheduled in ${Math.round(msUntilNextRun / 1000 / 60 / 60)} hours`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
  * Start all scheduled jobs
  */
 const startScheduler = () => {
@@ -119,9 +209,16 @@ const startScheduler = () => {
   isSchedulerRunning = true;
   console.log('\n🚀 Starting job scheduler...');
   
+  // Email and content jobs
   scheduleInactivityJob();
   scheduleWeeklyDigest();
   scheduleStoryArchival();
+  
+  // Notification jobs
+  scheduleTokenCleanup();
+  scheduleReengagement();
+  scheduleSubscriptionReminders();
+  scheduleNotificationCleanup();
   
   console.log('✅ All jobs scheduled!\n');
 };
@@ -143,6 +240,18 @@ const runAllJobsNow = async () => {
     const archivedCount = await Story.archiveExpired();
     console.log(`Archived ${archivedCount} stories`);
     
+    console.log('\n4️⃣ Running token cleanup...');
+    await cleanupInactiveTokens();
+    
+    console.log('\n5️⃣ Running re-engagement...');
+    await sendReengagementNotifications();
+    
+    console.log('\n6️⃣ Running subscription reminders...');
+    await sendSubscriptionReminders();
+    
+    console.log('\n7️⃣ Running notification cleanup...');
+    await cleanupOldNotifications();
+    
     console.log('\n✅ All jobs completed!');
   } catch (error) {
     console.error('Error running jobs:', error);
@@ -154,6 +263,10 @@ module.exports = {
   runAllJobsNow,
   scheduleInactivityJob,
   scheduleWeeklyDigest,
-  scheduleStoryArchival
+  scheduleStoryArchival,
+  scheduleTokenCleanup,
+  scheduleReengagement,
+  scheduleSubscriptionReminders,
+  scheduleNotificationCleanup
 };
 

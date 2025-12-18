@@ -356,6 +356,13 @@ exports.followUser = asyncHandler(async (req, res, next) => {
 
   await Promise.all([user.save(), targetUser.save()]);
 
+  // Send friend request notification
+  const notificationService = require('../services/notificationService');
+  notificationService.sendFriendRequest(
+    targetUserId,
+    userId
+  ).catch(err => console.error('Friend request notification failed:', err));
+
   res.status(200).json({
     success: true,
     message: `Now following ${targetUser.name}`,

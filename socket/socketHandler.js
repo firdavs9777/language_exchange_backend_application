@@ -6,6 +6,7 @@ const Conversation = require('../models/Conversation');
 const Poll = require('../models/Poll');
 const { resetDailyCounters } = require('../utils/limitations');
 const LIMITS = require('../config/limitations');
+const notificationService = require('../services/notificationService');
 
 // Store user socket connections (userId -> Set of socketIds)
 const userConnections = new Map();
@@ -216,6 +217,20 @@ const registerMessageHandlers = (socket, io) => {
         unreadCount: unreadForReceiver,
         senderId: userId
       });
+      
+      // Send push notification if receiver is not online or not in this conversation
+      const isRecipientOnline = userConnections.has(receiver);
+      if (!isRecipientOnline) {
+        notificationService.sendChatMessage(
+          receiver,
+          userId,
+          {
+            _id: newMessage._id,
+            text: messageText,
+            conversation: newMessage.conversation
+          }
+        ).catch(err => console.error('Push notification failed:', err));
+      }
       
       // Send acknowledgment to sender
       const senderResponse = {

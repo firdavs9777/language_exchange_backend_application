@@ -58,3 +58,7 @@ config/config.env
 *.env.development
 *.env.test
 *.env.production
+
+# Firebase service account keys
+*firebase-adminsdk*.json
+serviceAccountKey.json
