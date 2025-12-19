@@ -21,6 +21,11 @@ const sendEmail = async (options) => {
     subject: options.subject,
   };
 
+  // Add reply-to if provided (for contact forms)
+  if (options.replyTo) {
+    messageData['h:Reply-To'] = options.replyTo;
+  }
+
   // Add HTML and text (text is fallback for email clients that don't support HTML)
   if (options.html) {
     messageData.html = options.html;

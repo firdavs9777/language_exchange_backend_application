@@ -163,6 +163,7 @@ app.use('/api/v1/users', userBlocks);
 app.use('/api/v1/conversations', conversations);
 app.use('/api/v1/reports', reports);
 app.use('/api/v1/notifications', notifications);
+app.use('/api/v1/contact', require('./routes/contact'));
 
 // Error handler middleware (must be last)
 app.use(errorHandler);

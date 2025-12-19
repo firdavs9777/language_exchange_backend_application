@@ -58,3 +58,18 @@ exports.loginLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
+/**
+ * Rate limiter for contact form submissions
+ */
+exports.contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 contact form submissions per 15 minutes
+  message: {
+    success: false,
+    error: 'Too many contact requests, please try again after 15 minutes.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false, // Count all requests
+});
+
