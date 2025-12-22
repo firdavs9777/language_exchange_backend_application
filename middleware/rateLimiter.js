@@ -1,17 +1,31 @@
 const rateLimit = require('express-rate-limit');
 
 /**
- * General rate limiter
+ * General rate limiter (more lenient for normal app usage)
+ * Increased limit to accommodate app startup sequences and normal usage
  */
 exports.generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 500, // limit each IP to 500 requests per windowMs (increased from 100)
   message: {
     success: false,
     error: 'Too many requests from this IP, please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Use custom key generator to separate authenticated vs unauthenticated users
+  keyGenerator: (req) => {
+    // Check if request has auth token
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      // For authenticated requests, use a combination of IP and token
+      // This allows higher limits for authenticated users
+      const token = authHeader.split(' ')[1];
+      return `auth:${req.ip}:${token.substring(0, 10)}`; // Use first 10 chars of token
+    }
+    // For unauthenticated requests, use IP only
+    return req.ip;
+  }
 });
 
 /**
@@ -71,5 +85,23 @@ exports.contactLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: false, // Count all requests
+});
+
+/**
+ * Rate limiter for authenticated users (more lenient)
+ */
+exports.authenticatedLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // limit authenticated users to 1000 requests per 15 minutes
+  message: {
+    success: false,
+    error: 'Too many requests, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Use user ID instead of IP for authenticated users
+    return req.user ? req.user.id : req.ip;
+  }
 });
 

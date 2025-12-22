@@ -114,6 +114,8 @@ const compression = require('compression');
 app.use(compression());
 
 // Middleware - Rate Limiting
+// Note: generalLimiter skips authenticated users automatically
+// Authenticated users have higher limits via keyGenerator
 const rateLimiter = require('./middleware/rateLimiter');
 app.use('/api/v1/', rateLimiter.generalLimiter);
 
