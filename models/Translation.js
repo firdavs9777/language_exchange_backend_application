@@ -27,8 +27,8 @@ const TranslationSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['google', 'deepl', 'microsoft'],
-    default: 'google'
+    enum: ['libretranslate', 'google', 'deepl', 'microsoft'],
+    default: 'libretranslate'
   },
   cached: {
     type: Boolean,
@@ -76,7 +76,7 @@ TranslationSchema.statics.getTranslations = async function(sourceId, sourceType)
 
 // Static method to save or update translation
 TranslationSchema.statics.saveTranslation = async function(data) {
-  const { sourceId, sourceType, sourceLanguage, targetLanguage, translatedText, provider = 'google' } = data;
+  const { sourceId, sourceType, sourceLanguage, targetLanguage, translatedText, provider = 'libretranslate' } = data;
   
   return await this.findOneAndUpdate(
     { sourceId, sourceType, targetLanguage },
