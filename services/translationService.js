@@ -20,8 +20,8 @@ const detectLanguage = async (text) => {
   try {
     const requestBody = { q: text };
     
-    // Add API key if provided
-    if (LIBRETRANSLATE_API_KEY) {
+    // Only add API key if it exists and is not empty (don't send undefined or empty string)
+    if (LIBRETRANSLATE_API_KEY && LIBRETRANSLATE_API_KEY.trim() !== '') {
       requestBody.api_key = LIBRETRANSLATE_API_KEY;
     }
 
@@ -101,8 +101,8 @@ const translateText = async (text, targetLanguage, sourceLanguage = null) => {
       format: 'text'
     };
 
-    // Add API key only if provided (for paid/unlimited instances)
-    if (LIBRETRANSLATE_API_KEY) {
+    // Only add API key if it exists and is not empty (don't send undefined or empty string)
+    if (LIBRETRANSLATE_API_KEY && LIBRETRANSLATE_API_KEY.trim() !== '') {
       requestBody.api_key = LIBRETRANSLATE_API_KEY;
     }
 
@@ -128,17 +128,24 @@ const translateText = async (text, targetLanguage, sourceLanguage = null) => {
     
     // Handle different error scenarios
     if (error.response) {
+      const statusCode = error.response.status;
       const errorData = error.response.data;
-      const errorMessage = errorData?.error || error.response.statusText;
+      const errorMessage = errorData?.error || errorData?.message || error.response.statusText;
       
-      // Check if it's an API key error
-      if (errorMessage.includes('API key') || errorMessage.includes('portal.libretranslate.com')) {
-        // If using public instance without key, this shouldn't happen
-        // But if it does, provide helpful message
-        throw new Error(`LibreTranslate requires API key for this instance. Get a free key from https://portal.libretranslate.com or use the public instance at https://libretranslate.com`);
+      // Check if it's an API key error (400 or 403 usually)
+      if (statusCode === 400 || statusCode === 403) {
+        const errorText = JSON.stringify(errorData).toLowerCase();
+        if (errorText.includes('api key') || errorText.includes('portal.libretranslate.com') || errorText.includes('api_key')) {
+          throw new Error(`LibreTranslate API key required. Get a free key from https://portal.libretranslate.com and add LIBRETRANSLATE_API_KEY to your .env file.`);
+        }
       }
       
-      throw new Error(`LibreTranslate API error: ${errorMessage}`);
+      // Rate limit error
+      if (statusCode === 429) {
+        throw new Error('Translation rate limit exceeded. Please try again later or add an API key for unlimited usage.');
+      }
+      
+      throw new Error(`LibreTranslate API error (${statusCode}): ${errorMessage || 'Unknown error'}`);
     } else if (error.request) {
       throw new Error('LibreTranslate service unavailable. Please try again later.');
     } else {
@@ -239,8 +246,8 @@ exports.getAvailableLanguages = async () => {
   try {
     const config = { timeout: 5000 };
     
-    // Add API key if provided
-    if (LIBRETRANSLATE_API_KEY) {
+    // Only add API key if it exists and is not empty (don't send undefined or empty string)
+    if (LIBRETRANSLATE_API_KEY && LIBRETRANSLATE_API_KEY.trim() !== '') {
       config.params = { api_key: LIBRETRANSLATE_API_KEY };
     }
 
