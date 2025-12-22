@@ -35,7 +35,7 @@ exports.processUserImages = (user, req) => {
   
   return {
     ...userObj,
-    imageUrls: userObj.images?.map(img => this.getImageUrl(req, img)) || []
+    imageUrls: userObj.images?.map(img => exports.getImageUrl(req, img)) || []
   };
 };
 
@@ -48,7 +48,30 @@ exports.processUserImages = (user, req) => {
 exports.processUsersImages = (users, req) => {
   if (!Array.isArray(users)) return users;
   
-  return users.map(user => this.processUserImages(user, req));
+  return users.map(user => exports.processUserImages(user, req));
+};
+
+/**
+ * Process moment images array to include full URLs
+ * @param {Object} moment - Moment object (Mongoose document or plain object)
+ * @param {Object} req - Express request object
+ * @returns {Object} Moment object with processed image URLs
+ */
+exports.processMomentImages = (moment, req) => {
+  if (!moment) return moment;
+  
+  // Convert Mongoose document to plain object if needed
+  const momentObj = moment.toObject ? moment.toObject() : moment;
+  
+  // Process images array
+  const imageUrls = momentObj.images?.map(img => exports.getImageUrl(req, img)) || [];
+  
+  return {
+    ...momentObj,
+    imageUrls: imageUrls,
+    // Keep original images array for backward compatibility
+    images: momentObj.images || []
+  };
 };
 
 /**
@@ -63,11 +86,11 @@ exports.processMessageMedia = (message, req) => {
   const messageObj = message.toObject ? message.toObject() : message;
   
   if (messageObj.media.url) {
-    messageObj.media.url = this.getImageUrl(req, messageObj.media.url);
+    messageObj.media.url = exports.getImageUrl(req, messageObj.media.url);
   }
   
   if (messageObj.media.thumbnail) {
-    messageObj.media.thumbnail = this.getImageUrl(req, messageObj.media.thumbnail);
+    messageObj.media.thumbnail = exports.getImageUrl(req, messageObj.media.thumbnail);
   }
   
   return messageObj;
