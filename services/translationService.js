@@ -9,6 +9,7 @@ const axios = require('axios');
 
 // LibreTranslate base URL
 const LIBRETRANSLATE_URL = process.env.LIBRETRANSLATE_URL || 'https://libretranslate.com';
+const LIBRETRANSLATE_API_KEY = process.env.LIBRETRANSLATE_API_KEY || null;
 
 /**
  * Detect language of text using LibreTranslate
@@ -17,9 +18,14 @@ const LIBRETRANSLATE_URL = process.env.LIBRETRANSLATE_URL || 'https://libretrans
  */
 const detectLanguage = async (text) => {
   try {
-    const response = await axios.post(`${LIBRETRANSLATE_URL}/detect`, {
-      q: text
-    }, {
+    const requestBody = { q: text };
+    
+    // Add API key if provided
+    if (LIBRETRANSLATE_API_KEY) {
+      requestBody.api_key = LIBRETRANSLATE_API_KEY;
+    }
+
+    const response = await axios.post(`${LIBRETRANSLATE_URL}/detect`, requestBody, {
       timeout: 5000
     });
 
@@ -85,14 +91,26 @@ const translateText = async (text, targetLanguage, sourceLanguage = null) => {
       sourceLanguage = await detectLanguage(text);
     }
 
-    // Use LibreTranslate API (free, no API key required)
-    const response = await axios.post(`${LIBRETRANSLATE_URL}/translate`, {
+    // Use LibreTranslate API
+    // Free public instance: https://libretranslate.com (no API key needed, rate limited)
+    // Paid instance: https://portal.libretranslate.com (API key required for unlimited usage)
+    const requestBody = {
       q: text,
       source: sourceLanguage,
       target: targetLanguage,
       format: 'text'
-    }, {
-      timeout: 10000 // 10 second timeout
+    };
+
+    // Add API key only if provided (for paid/unlimited instances)
+    if (LIBRETRANSLATE_API_KEY) {
+      requestBody.api_key = LIBRETRANSLATE_API_KEY;
+    }
+
+    const response = await axios.post(`${LIBRETRANSLATE_URL}/translate`, requestBody, {
+      timeout: 10000, // 10 second timeout
+      headers: {
+        'Content-Type': 'application/json'
+      }
     });
 
     if (response.data && response.data.translatedText) {
@@ -108,10 +126,19 @@ const translateText = async (text, targetLanguage, sourceLanguage = null) => {
   } catch (error) {
     console.error('Translation error:', error.message);
     
-    // If translation fails, return original text instead of throwing
-    // This allows the app to continue working even if translation service is down
+    // Handle different error scenarios
     if (error.response) {
-      throw new Error(`LibreTranslate API error: ${error.response.data?.error || error.response.statusText}`);
+      const errorData = error.response.data;
+      const errorMessage = errorData?.error || error.response.statusText;
+      
+      // Check if it's an API key error
+      if (errorMessage.includes('API key') || errorMessage.includes('portal.libretranslate.com')) {
+        // If using public instance without key, this shouldn't happen
+        // But if it does, provide helpful message
+        throw new Error(`LibreTranslate requires API key for this instance. Get a free key from https://portal.libretranslate.com or use the public instance at https://libretranslate.com`);
+      }
+      
+      throw new Error(`LibreTranslate API error: ${errorMessage}`);
     } else if (error.request) {
       throw new Error('LibreTranslate service unavailable. Please try again later.');
     } else {
@@ -210,9 +237,14 @@ exports.SUPPORTED_LANGUAGES = [
  */
 exports.getAvailableLanguages = async () => {
   try {
-    const response = await axios.get(`${LIBRETRANSLATE_URL}/languages`, {
-      timeout: 5000
-    });
+    const config = { timeout: 5000 };
+    
+    // Add API key if provided
+    if (LIBRETRANSLATE_API_KEY) {
+      config.params = { api_key: LIBRETRANSLATE_API_KEY };
+    }
+
+    const response = await axios.get(`${LIBRETRANSLATE_URL}/languages`, config);
     return response.data;
   } catch (error) {
     console.error('Error fetching languages from LibreTranslate:', error.message);

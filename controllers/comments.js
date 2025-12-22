@@ -210,7 +210,7 @@ exports.deleteComment = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.translateComment = asyncHandler(async (req, res, next) => {
-    const { commentId } = req.params;
+    const commentId = req.params.id || req.params.commentId; // Support both :id and :commentId
     const { targetLanguage } = req.body;
 
     if (!targetLanguage) {
@@ -269,7 +269,7 @@ exports.translateComment = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.getCommentTranslations = asyncHandler(async (req, res, next) => {
-    const { commentId } = req.params;
+    const commentId = req.params.id || req.params.commentId; // Support both :id and :commentId
 
     // Get comment
     const comment = await Comment.findById(commentId);
