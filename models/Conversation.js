@@ -245,6 +245,17 @@ ConversationSchema.index({ 'mutedBy.user': 1 });
 ConversationSchema.index({ 'archivedBy': 1 });
 ConversationSchema.index({ 'pinnedBy.user': 1 });
 
+// ========== PERFORMANCE INDEXES ==========
+
+// Compound index for better conversation list queries
+ConversationSchema.index({ participants: 1, lastMessageAt: -1, isGroup: 1 });
+
+// Index for unread count queries
+ConversationSchema.index({ 'unreadCount.user': 1, 'unreadCount.count': 1 });
+
+// Index for participant lookups
+ConversationSchema.index({ participants: 1 });
+
 // Pre-save hook
 ConversationSchema.pre('save', function(next) {
   this.updatedAt = Date.now();

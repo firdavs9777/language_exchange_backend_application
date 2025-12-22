@@ -41,8 +41,8 @@ const notifications = require('./routes/notifications');
 // Initialize Express app
 const app = express();
 
-// Disable trust proxy (prevents rate limiter conflicts)
-app.set('trust proxy', false);
+// Trust proxy (for rate limiting behind reverse proxy)
+app.set('trust proxy', 1);
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -108,6 +108,14 @@ app.use((req, res, next) => {
 // Middleware - Body Parser
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: false }));
+
+// Middleware - Compression (reduce response sizes)
+const compression = require('compression');
+app.use(compression());
+
+// Middleware - Rate Limiting
+const rateLimiter = require('./middleware/rateLimiter');
+app.use('/api/v1/', rateLimiter.generalLimiter);
 
 // Middleware - Morgan (Development logging)
 if (process.env.NODE_ENV === 'development') {

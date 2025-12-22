@@ -5,6 +5,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const { timeStamp } = require('console');
 const User = require("../models/User")
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
+const mongoose = require('mongoose');
 
 /**
  * @desc    Create a new conversation room between users
@@ -110,6 +111,12 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
     const userId = req.user?._id;
     let query = { isDeleted: { $ne: true } };
     
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    const actualLimit = Math.min(limit, 100); // Max 100 per page
+    
     // If user is authenticated, filter out blocked users
     if (userId) {
       const user = await User.findById(userId).select('blockedUsers blockedBy');
@@ -125,11 +132,30 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       }
     }
     
-    const messages = await Message.find(query)
-      .populate('sender', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls image language_to_learn createdAt __v')
-      .populate('receiver', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt __v');
+    const [total, messages] = await Promise.all([
+      Message.countDocuments(query),
+      Message.find(query)
+        .populate('sender', 'name images')
+        .populate('receiver', 'name images')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(actualLimit)
+        .lean()
+    ]);
+
+    const totalPages = Math.ceil(total / actualLimit);
+
     res.status(200).json({
       success: true,
+      count: messages.length,
+      total,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        limit: actualLimit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      },
       data: messages
     });
   });
@@ -155,40 +181,61 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   exports.getUserMessages = asyncHandler(async (req, res, next) => {
     const { userId } = req.params;
   
-    const messages = await Message.find({
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    const actualLimit = Math.min(limit, 100); // Max 100 per page
+
+    const query = {
       $or: [{ sender: userId }, { receiver: userId }],
-    })
-      .populate('sender', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt __v')
-      .populate('receiver', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt');
+      isDeleted: { $ne: true }
+    };
+
+    const [total, messages] = await Promise.all([
+      Message.countDocuments(query),
+      Message.find(query)
+        .populate('sender', 'name images')
+        .populate('receiver', 'name images')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(actualLimit)
+        .lean()
+    ]);
   
     // Transform the messages to include image URLs
     const messagesWithImageUrls = messages.map(message => {
       // Ensure sender and receiver are not null
       const sender = message.sender ? {
-        ...message.sender._doc,
-        imageUrls: message.sender.images ?
-          message.sender.images.map(image =>
-            image
-          ) : []
+        ...message.sender,
+        imageUrls: message.sender.images || []
       } : { imageUrls: [] };
     
       const receiver = message.receiver ? {
-        ...message.receiver._doc,
-        imageUrls: message.receiver.images ?
-          message.receiver.images.map(image =>
-            image
-          ) : []
+        ...message.receiver,
+        imageUrls: message.receiver.images || []
       } : { imageUrls: [] };
     
       return {
-        ...message._doc,
+        ...message,
         sender,
         receiver
       };
     });
 
+    const totalPages = Math.ceil(total / actualLimit);
+
     res.status(200).json({
       success: true,
+      count: messagesWithImageUrls.length,
+      total,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        limit: actualLimit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      },
       data: messagesWithImageUrls,
     });
   });
@@ -199,39 +246,120 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   exports.getUserSenders = asyncHandler(async (req, res, next) => {
     const { userId } = req.params;
 
-    // Find messages where the user is either the sender or receiver
-    const messages = await Message.find({
-      $or: [{ sender: userId }, { receiver: userId }],
-    }).populate('sender', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt __v') // Populate sender details
-      .populate('receiver', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt __v'); // Populate sender details
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    const actualLimit = Math.min(limit, 100); // Max 100 per page
 
-    // Create a Set to hold unique sender IDs
-    const senderSet = new Set();
-  
-    // Extract unique sender details and other data
-    const uniqueSenders = messages.reduce((senders, message) => {
-      if (message.sender && !senderSet.has(message.sender._id.toString())) {
-        senderSet.add(message.sender._id.toString());
-      
-        // Include message content and timestamps if needed
-        const senderData = {
-          ...message.sender._doc,
-          imageUrls: message.sender.images.map(image => image),
-          recentMessage: {
-            content: message.message,  // Assuming `content` is a field in Message
-            sentAt: message.createdAt   // Assuming `createdAt` is a field in Message
+    // Use aggregation pipeline for efficient querying
+    const userIdObj = new mongoose.Types.ObjectId(userId);
+    const uniqueSenders = await Message.aggregate([
+      {
+        $match: {
+          $or: [
+            { sender: userIdObj },
+            { receiver: userIdObj }
+          ],
+          isDeleted: { $ne: true }
+        }
+      },
+      {
+        $sort: { createdAt: -1 }
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: ['$sender', userIdObj] },
+              '$receiver',
+              '$sender'
+            ]
+          },
+          lastMessage: { $first: '$$ROOT' },
+          unreadCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ['$receiver', userIdObj] },
+                    { $ne: ['$read', true] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
           }
-        };
-      
-        senders.push(senderData);
-      }
-      return senders;
-    }, []);
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: '$user' },
+      {
+        $project: {
+          _id: '$user._id',
+          name: '$user.name',
+          images: '$user.images',
+          imageUrls: '$user.images',
+          lastMessage: {
+            message: '$lastMessage.message',
+            createdAt: '$lastMessage.createdAt',
+            _id: '$lastMessage._id'
+          },
+          unreadCount: 1
+        }
+      },
+      { $sort: { 'lastMessage.createdAt': -1 } },
+      { $skip: skip },
+      { $limit: actualLimit }
+    ]);
 
+    // Get total count for pagination
+    const totalResult = await Message.aggregate([
+      {
+        $match: {
+          $or: [
+            { sender: userIdObj },
+            { receiver: userIdObj }
+          ],
+          isDeleted: { $ne: true }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $cond: [
+              { $eq: ['$sender', userIdObj] },
+              '$receiver',
+              '$sender'
+            ]
+          }
+        }
+      },
+      { $count: 'total' }
+    ]);
 
+    const total = totalResult.length > 0 ? totalResult[0].total : 0;
+    const totalPages = Math.ceil(total / actualLimit);
 
     res.status(200).json({
       success: true,
+      count: uniqueSenders.length,
+      total,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        limit: actualLimit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      },
       data: uniqueSenders,
     });
   });
@@ -242,28 +370,54 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   exports.getMessagesFromUser = asyncHandler(async (req, res, next) => {
     const { userId } = req.params;
 
-    // Find messages where the sender is the specified user
-    const messages = await Message.find({ sender: userId })
-      .populate('sender', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt __v')
-      .populate('receiver', 'name email bio image birth_day birth_month gender birth_year native_language images imageUrls language_to_learn createdAt __v')
-      .sort({ createdAt: -1 }); // Sort messages by creation date in descending order
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    const actualLimit = Math.min(limit, 100); // Max 100 per page
+
+    const query = {
+      sender: userId,
+      isDeleted: { $ne: true }
+    };
+
+    const [total, messages] = await Promise.all([
+      Message.countDocuments(query),
+      Message.find(query)
+        .populate('sender', 'name images')
+        .populate('receiver', 'name images')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(actualLimit)
+        .lean()
+    ]);
 
     // Format messages to include image URLs
     const messagesWithImageUrls = messages.map(message => ({
-      ...message._doc,
+      ...message,
       sender: {
-        ...message.sender._doc,
-        imageUrls: message.sender.images.map(image => image)
+        ...message.sender,
+        imageUrls: message.sender?.images || []
       },
       receiver: {
-        ...message.receiver._doc,
-        imageUrls: message.receiver.images.map(image => image)
+        ...message.receiver,
+        imageUrls: message.receiver?.images || []
       }
     }));
 
+    const totalPages = Math.ceil(total / actualLimit);
 
     res.status(200).json({
       success: true,
+      count: messagesWithImageUrls.length,
+      total,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        limit: actualLimit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      },
       data: messagesWithImageUrls,
     });
   });
@@ -485,37 +639,74 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Sender ID and Receiver ID are required', 400));
     }
 
-    // Find messages where sender and receiver match the provided IDs
-    const messages = await Message.find({
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    const actualLimit = Math.min(limit, 100); // Max 100 per page
+
+    const query = {
       $or: [
         { sender: senderId, receiver: receiverId },
         { sender: receiverId, receiver: senderId }
-      ]
-    })
-      .populate('sender', 'name email bio birth_day birth_month gender birth_year native_language images language_to_learn createdAt')
-      .populate('receiver', 'name email bio birth_day birth_month gender birth_year native_language images language_to_learn createdAt')
-      .sort({ createdAt: 1 })// Sort messages by creation date in ascending order
+      ],
+      isDeleted: { $ne: true }
+    };
+
+    const [total, messages] = await Promise.all([
+      Message.countDocuments(query),
+      Message.find(query)
+        .populate('sender', 'name images')
+        .populate('receiver', 'name images')
+        .sort({ createdAt: 1 }) // Sort messages by creation date in ascending order
+        .skip(skip)
+        .limit(actualLimit)
+        .lean()
+    ]);
 
     // Check if messages exist
-    if (messages.length === 0) {
-      return next(new ErrorResponse('No messages found for the given conversation', 404));
+    if (total === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        total: 0,
+        pagination: {
+          currentPage: page,
+          totalPages: 0,
+          limit: actualLimit,
+          hasNextPage: false,
+          hasPrevPage: false
+        },
+        data: [],
+      });
     }
 
     // Transform the messages to include image URLs
     const messagesWithImageUrls = messages.map(message => ({
-      ...message._doc,
+      ...message,
       sender: {
-        ...message.sender._doc,
-        imageUrls: message.sender.images.map(image => image)
+        ...message.sender,
+        imageUrls: message.sender?.images || []
       },
       receiver: {
-        ...message.receiver._doc,
-        imageUrls: message.receiver.images.map(image => image)
+        ...message.receiver,
+        imageUrls: message.receiver?.images || []
       }
     }));
 
+    const totalPages = Math.ceil(total / actualLimit);
+
     res.status(200).json({
       success: true,
+      count: messagesWithImageUrls.length,
+      total,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        limit: actualLimit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      },
       data: messagesWithImageUrls,
     });
   });

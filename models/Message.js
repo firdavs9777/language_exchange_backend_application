@@ -513,4 +513,23 @@ MessageSchema.index({ 'selfDestruct.destructAt': 1 }, { sparse: true });
 // Index for mentions
 MessageSchema.index({ 'mentions.user': 1 }, { sparse: true });
 
+// ========== PERFORMANCE INDEXES ==========
+
+// Compound index for conversation queries (most common query pattern)
+MessageSchema.index({ sender: 1, receiver: 1, createdAt: -1 });
+MessageSchema.index({ receiver: 1, sender: 1, createdAt: -1 });
+
+// Index for participants array (group messages)
+MessageSchema.index({ participants: 1, createdAt: -1 });
+
+// Index for unread messages
+MessageSchema.index({ receiver: 1, read: 1, createdAt: -1 });
+
+// Index for user's all messages (for getUserMessages)
+MessageSchema.index({ sender: 1, createdAt: -1 });
+MessageSchema.index({ receiver: 1, createdAt: -1 });
+
+// Index for deleted messages filtering
+MessageSchema.index({ isDeleted: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Message', MessageSchema);

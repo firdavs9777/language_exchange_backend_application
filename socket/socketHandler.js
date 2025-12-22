@@ -14,6 +14,9 @@ const userConnections = new Map();
 // Store typing timeouts
 const typingTimeouts = new Map();
 
+// Cache online users list (userId -> { status, lastSeen })
+const onlineUsersCache = new Map();
+
 /**
  * Socket.IO Authentication Middleware
  */
@@ -83,13 +86,20 @@ const initializeSocket = (io) => {
     // Track this new connection
     userConnections.set(userId, new Set([socket.id]));
     
+    // Update online users cache
+    onlineUsersCache.set(userId, {
+      userId,
+      status: 'online',
+      lastSeen: null
+    });
+    
     // Join user's personal room
     const userRoom = `user_${userId}`;
     await socket.join(userRoom);
     console.log(`👤 User ${userId} joined room: ${userRoom}`);
     
-    // Send online users list
-    await sendOnlineUsers(socket, io);
+    // Send online users list (from cache)
+    sendOnlineUsers(socket);
     
     // Broadcast that this user is now online
     socket.broadcast.emit('userStatusUpdate', {
@@ -124,26 +134,15 @@ const initializeSocket = (io) => {
 };
 
 /**
- * Send list of currently online users
+ * Send list of currently online users (from cache)
  */
-const sendOnlineUsers = async (socket, io) => {
+const sendOnlineUsers = (socket) => {
   try {
-    const connectedSockets = await io.fetchSockets();
-    const onlineUsers = connectedSockets
-      .filter(s => s.user?.id && s.user.id !== socket.user.id)
-      .map(s => ({
-        userId: s.user.id,
-        status: 'online',
-        lastSeen: null
-      }));
+    const onlineUsers = Array.from(onlineUsersCache.values())
+      .filter(u => u.userId !== socket.user.id);
     
-    // Remove duplicates (same user with multiple connections)
-    const uniqueUsers = Array.from(
-      new Map(onlineUsers.map(u => [u.userId, u])).values()
-    );
-    
-    socket.emit('onlineUsers', uniqueUsers);
-    console.log(`📋 Sent ${uniqueUsers.length} online users to ${socket.user.id}`);
+    socket.emit('onlineUsers', onlineUsers);
+    console.log(`📋 Sent ${onlineUsers.length} online users to ${socket.user.id}`);
   } catch (error) {
     console.error('❌ Error sending online users:', error);
   }
@@ -608,6 +607,8 @@ const registerLogoutHandlers = (socket, io) => {
         
         if (userConnections.get(userId).size === 0) {
           userConnections.delete(userId);
+          // Remove from online users cache
+          onlineUsersCache.delete(userId);
         }
       }
       
@@ -668,6 +669,9 @@ const handleDisconnect = async (socket, io, reason) => {
     // If user has no more connections, they're offline
     if (userConnections.get(userId).size === 0) {
       userConnections.delete(userId);
+      
+      // Remove from online users cache
+      onlineUsersCache.delete(userId);
       
       console.log(`📴 User ${userId} is now offline`);
       

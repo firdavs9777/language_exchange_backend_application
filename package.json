@@ -7,7 +7,8 @@
     "start": "NODE_ENV=production node server",
     "dev": "nodemon server",
     "migrate:notifications": "node migrations/addNotificationFields.js",
-    "migrate:profile-visitors": "node migrations/addProfileVisitorFields.js"
+    "migrate:profile-visitors": "node migrations/addProfileVisitorFields.js",
+    "migrate:chat-indexes": "node migrations/addChatIndexes.js"
   },
   "author": "Firdavs Mutalipov",
   "license": "ISC",

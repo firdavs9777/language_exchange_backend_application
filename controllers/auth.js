@@ -1341,8 +1341,9 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
     const ticket = await client.verifyIdToken({
       idToken: idToken,
       audience: [
-        process.env.GOOGLE_CLIENT_ID,
-        '810869785173-6jl1i1b32lghpsdq6lp92a7b1vuedoh4.apps.googleusercontent.com'
+        process.env.GOOGLE_CLIENT_ID, // Current client ID from env
+        '810869785173-6jl1i1b32lghpsdq6lp92a7b1vuedoh4.apps.googleusercontent.com', // iOS client ID
+        '28446912403-2ba6tssqm95r6iu6cov7c6riv00gposo.apps.googleusercontent.com' // Android Web client ID
       ]
     });
     
@@ -1411,6 +1412,15 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
     
   } catch (error) {
     console.error('❌ Google mobile auth error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    logSecurityEvent('GOOGLE_MOBILE_AUTH_FAILED', {
+      error: error.message,
+      code: error.code
+    });
     return next(new ErrorResponse('Invalid Google token', 401));
   }
 });
