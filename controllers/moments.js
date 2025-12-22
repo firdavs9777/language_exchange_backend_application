@@ -940,3 +940,100 @@ exports.exploreMoments = asyncHandler(async (req, res, next) => {
     }
   });
 });
+
+/**
+ * @desc    Translate a moment
+ * @route   POST /api/v1/moments/:momentId/translate
+ * @access  Private
+ */
+exports.translateMoment = asyncHandler(async (req, res, next) => {
+  const { momentId } = req.params;
+  const { targetLanguage } = req.body;
+
+  if (!targetLanguage) {
+    return next(new ErrorResponse('Target language is required', 400));
+  }
+
+  // Validate language code
+  const translationService = require('../services/translationService');
+  if (!translationService.isValidLanguageCode(targetLanguage)) {
+    return next(new ErrorResponse(`Unsupported language code: ${targetLanguage}`, 400));
+  }
+
+  // Get moment
+  const moment = await Moment.findById(momentId);
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${momentId}`, 404));
+  }
+
+  // Check if user can view this moment
+  if (moment.privacy === 'private' && moment.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized to view this moment', 403));
+  }
+
+  // Get source text (description or title)
+  const sourceText = moment.description || moment.title || '';
+  if (!sourceText.trim()) {
+    return next(new ErrorResponse('Moment has no text to translate', 400));
+  }
+
+  // Get source language from moment or auto-detect
+  const sourceLanguage = moment.language || null;
+
+  try {
+    // Get or create translation
+    const translation = await translationService.getOrCreateTranslation(
+      momentId,
+      'moment',
+      sourceText,
+      targetLanguage,
+      sourceLanguage
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        language: translation.language,
+        translatedText: translation.translatedText,
+        translatedAt: translation.translatedAt
+      },
+      cached: translation.cached
+    });
+  } catch (error) {
+    console.error('Translation error:', error);
+    return next(new ErrorResponse(`Translation failed: ${error.message}`, 500));
+  }
+});
+
+/**
+ * @desc    Get all translations for a moment
+ * @route   GET /api/v1/moments/:momentId/translations
+ * @access  Private
+ */
+exports.getMomentTranslations = asyncHandler(async (req, res, next) => {
+  const { momentId } = req.params;
+
+  // Get moment
+  const moment = await Moment.findById(momentId);
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${momentId}`, 404));
+  }
+
+  // Check if user can view this moment
+  if (moment.privacy === 'private' && moment.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized to view this moment', 403));
+  }
+
+  try {
+    const translationService = require('../services/translationService');
+    const translations = await translationService.getTranslations(momentId, 'moment');
+
+    res.status(200).json({
+      success: true,
+      data: translations
+    });
+  } catch (error) {
+    console.error('Get translations error:', error);
+    return next(new ErrorResponse(`Failed to get translations: ${error.message}`, 500));
+  }
+});

@@ -2,7 +2,9 @@ const express = require('express');
 const Comment = require('../models/Comment');
 const {
   getComments, getComment, createComment,
-  deleteComment
+  deleteComment,
+  translateComment,
+  getCommentTranslations
 } = require('../controllers/comments');
 const advancedResults = require('../middleware/advancedResults');
 const { protect, authorize, authorizeComment} = require('../middleware/auth');
@@ -17,5 +19,12 @@ router
   .get(advancedResults(Comment, { path: 'moment', select:'name description'}), getComments)
   .post(protect, checkCommentLimit, uploadSingle('image', 'bananatalk/comments'), createComment);
 router.route('/:id').get(getComment).delete(protect,authorizeComment('user'),deleteComment);
+
+// Translation
+const { translateValidation } = require('../validators/translationValidator');
+const { validate } = require('../middleware/validation');
+router.route('/:id/translate').post(protect, translateValidation, validate, translateComment);
+router.route('/:id/translations').get(protect, getCommentTranslations);
+
 // .put(updateMoment).delete(deleteMoment);
 module.exports = router;

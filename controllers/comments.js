@@ -203,3 +203,90 @@ exports.deleteComment = asyncHandler(async (req, res, next) => {
         data: comment
     });
 });
+
+/**
+ * @desc    Translate a comment
+ * @route   POST /api/v1/comments/:commentId/translate
+ * @access  Private
+ */
+exports.translateComment = asyncHandler(async (req, res, next) => {
+    const { commentId } = req.params;
+    const { targetLanguage } = req.body;
+
+    if (!targetLanguage) {
+        return next(new ErrorResponse('Target language is required', 400));
+    }
+
+    // Validate language code
+    const translationService = require('../services/translationService');
+    if (!translationService.isValidLanguageCode(targetLanguage)) {
+        return next(new ErrorResponse(`Unsupported language code: ${targetLanguage}`, 400));
+    }
+
+    // Get comment
+    const comment = await Comment.findById(commentId).populate('user', 'native_language');
+    if (!comment) {
+        return next(new ErrorResponse(`Comment not found with id of ${commentId}`, 404));
+    }
+
+    // Get source text
+    const sourceText = comment.text || '';
+    if (!sourceText.trim()) {
+        return next(new ErrorResponse('Comment has no text to translate', 400));
+    }
+
+    // Get source language from comment author's native language or auto-detect
+    const sourceLanguage = comment.user?.native_language || null;
+
+    try {
+        // Get or create translation
+        const translation = await translationService.getOrCreateTranslation(
+            commentId,
+            'comment',
+            sourceText,
+            targetLanguage,
+            sourceLanguage
+        );
+
+        res.status(200).json({
+            success: true,
+            data: {
+                language: translation.language,
+                translatedText: translation.translatedText,
+                translatedAt: translation.translatedAt
+            },
+            cached: translation.cached
+        });
+    } catch (error) {
+        console.error('Translation error:', error);
+        return next(new ErrorResponse(`Translation failed: ${error.message}`, 500));
+    }
+});
+
+/**
+ * @desc    Get all translations for a comment
+ * @route   GET /api/v1/comments/:commentId/translations
+ * @access  Private
+ */
+exports.getCommentTranslations = asyncHandler(async (req, res, next) => {
+    const { commentId } = req.params;
+
+    // Get comment
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+        return next(new ErrorResponse(`Comment not found with id of ${commentId}`, 404));
+    }
+
+    try {
+        const translationService = require('../services/translationService');
+        const translations = await translationService.getTranslations(commentId, 'comment');
+
+        res.status(200).json({
+            success: true,
+            data: translations
+        });
+    } catch (error) {
+        console.error('Get translations error:', error);
+        return next(new ErrorResponse(`Failed to get translations: ${error.message}`, 500));
+    }
+});

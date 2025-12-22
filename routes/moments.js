@@ -16,7 +16,9 @@ const {
   reportMoment,
   shareMoment,
   getTrendingMoments,
-  exploreMoments
+  exploreMoments,
+  translateMoment,
+  getMomentTranslations
 } = require('../controllers/moments');
 const { validate } = require('../middleware/validation');
 const { createMomentValidation, updateMomentValidation } = require('../validators/momentValidator');
@@ -62,5 +64,10 @@ router.route('/:id/dislike').post(protect, dislikeMoment);
 router.route('/:id/save').post(protect, saveMoment).delete(protect, unsaveMoment);
 router.route('/:id/share').post(protect, shareMoment);
 router.route('/:id/report').post(protect, reportMoment);
+
+// Translation
+const { translateValidation } = require('../validators/translationValidator');
+router.route('/:momentId/translate').post(protect, translateValidation, validate, translateMoment);
+router.route('/:momentId/translations').get(protect, getMomentTranslations);
 
 module.exports = router;

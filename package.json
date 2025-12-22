@@ -15,6 +15,7 @@
   "dependencies": {
     "apple-signin-auth": "^2.0.0",
     "aws-sdk": "^2.1693.0",
+    "axios": "^1.13.2",
     "bcryptjs": "^2.4.3",
     "colors": "^1.4.0",
     "compression": "^1.8.0",
