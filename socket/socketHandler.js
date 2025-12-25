@@ -1,4 +1,3 @@
-// socket/socketHandler.js
 const jwt = require('jsonwebtoken');
 const Message = require('../models/Message');
 const User = require('../models/User');
@@ -8,14 +7,39 @@ const { resetDailyCounters } = require('../utils/limitations');
 const LIMITS = require('../config/limitations');
 const notificationService = require('../services/notificationService');
 
+// ========== CONNECTION MANAGEMENT ==========
+
 // Store user socket connections (userId -> Set of socketIds)
+// Allow multiple connections per user (different devices/tabs)
 const userConnections = new Map();
 
-// Store typing timeouts
+// Store socket metadata (socketId -> { userId, deviceId, connectedAt })
+const socketMetadata = new Map();
+
+// Store typing timeouts with auto-cleanup
 const typingTimeouts = new Map();
 
-// Cache online users list (userId -> { status, lastSeen })
+// Cache online users (userId -> { status, lastSeen, deviceCount })
 const onlineUsersCache = new Map();
+
+// Message queue for offline users (userId -> [messages])
+const offlineMessageQueue = new Map();
+
+// Connection state tracking
+const connectionStates = new Map(); // socketId -> 'connecting' | 'connected' | 'disconnecting'
+
+// ========== CONFIGURATION ==========
+
+const SOCKET_CONFIG = {
+  MAX_CONNECTIONS_PER_USER: 5,
+  TYPING_TIMEOUT: 5000,
+  MESSAGE_RETRY_ATTEMPTS: 3,
+  MESSAGE_RETRY_DELAY: 1000,
+  HEARTBEAT_INTERVAL: 25000,
+  HEARTBEAT_TIMEOUT: 30000,
+  OFFLINE_MESSAGE_QUEUE_MAX: 50,
+  CLEANUP_INTERVAL: 60000, // Clean up stale data every minute
+};
 
 /**
  * Socket.IO Authentication Middleware
@@ -26,7 +50,7 @@ const socketAuth = (socket, next) => {
                   socket.handshake.headers.authorization ||
                   socket.handshake.query.token;
     
-    console.log('🔑 Socket auth attempt from:', socket.handshake.headers.origin);
+    console.log('🔑 Socket auth attempt:', socket.id);
     
     if (!token) {
       console.log('❌ No token provided');
@@ -36,8 +60,13 @@ const socketAuth = (socket, next) => {
     const cleanToken = token.replace(/^Bearer\s+/i, '');
     const decoded = jwt.verify(cleanToken, process.env.JWT_SECRET);
     
+    // Extract device ID for multi-device support
+    const deviceId = socket.handshake.query.deviceId || socket.handshake.auth.deviceId || 'default';
+    
     socket.user = decoded;
-    console.log(`✅ User ${decoded.id} authenticated`);
+    socket.deviceId = deviceId;
+    
+    console.log(`✅ User ${decoded.id} authenticated (device: ${deviceId})`);
     next();
   } catch (err) {
     console.log('❌ Auth error:', err.message);
@@ -53,9 +82,13 @@ const initializeSocket = (io) => {
   // Apply authentication middleware
   io.use(socketAuth);
   
+  // Start periodic cleanup
+  startPeriodicCleanup();
+  
   // Handle new connections
   io.on('connection', async (socket) => {
     const userId = socket.user?.id;
+    const deviceId = socket.deviceId;
     
     if (!userId) {
       console.log('❌ No user ID - disconnecting socket');
@@ -63,50 +96,49 @@ const initializeSocket = (io) => {
       return;
     }
     
-    console.log(`✅ User ${userId} connected (socket: ${socket.id})`);
+    // Set connection state
+    connectionStates.set(socket.id, 'connecting');
     
-    // Check if this user has existing connections and clean them up
-    if (userConnections.has(userId)) {
-      const existingSockets = userConnections.get(userId);
-      console.log(`⚠️ User ${userId} already has ${existingSockets.size} connection(s), cleaning up old sockets...`);
-      
-      // Force disconnect old sockets for this user
-      for (const oldSocketId of existingSockets) {
-        const oldSocket = io.sockets.sockets.get(oldSocketId);
-        if (oldSocket && oldSocket.id !== socket.id) {
-          console.log(`🔌 Disconnecting old socket ${oldSocketId} for user ${userId}`);
-          oldSocket.disconnect(true);
-        }
-      }
-      
-      // Clear old connections
-      userConnections.delete(userId);
+    console.log(`✅ User ${userId} connecting (socket: ${socket.id}, device: ${deviceId})`);
+    
+    // Handle multiple connections intelligently
+    await handleMultipleConnections(socket, io, userId, deviceId);
+    
+    // Store socket metadata
+    socketMetadata.set(socket.id, {
+      userId,
+      deviceId,
+      connectedAt: new Date(),
+    });
+    
+    // Track this connection
+    if (!userConnections.has(userId)) {
+      userConnections.set(userId, new Set());
     }
+    userConnections.get(userId).add(socket.id);
     
-    // Track this new connection
-    userConnections.set(userId, new Set([socket.id]));
+    // Update connection state
+    connectionStates.set(socket.id, 'connected');
     
     // Update online users cache
-    onlineUsersCache.set(userId, {
-      userId,
-      status: 'online',
-      lastSeen: null
-    });
+    updateOnlineCache(userId);
     
     // Join user's personal room
     const userRoom = `user_${userId}`;
     await socket.join(userRoom);
     console.log(`👤 User ${userId} joined room: ${userRoom}`);
     
-    // Send online users list (from cache)
+    // Setup heartbeat
+    setupHeartbeat(socket, io);
+    
+    // Send queued offline messages
+    await sendQueuedMessages(socket, userId);
+    
+    // Send online users list
     sendOnlineUsers(socket);
     
-    // Broadcast that this user is now online
-    socket.broadcast.emit('userStatusUpdate', {
-      userId,
-      status: 'online',
-      lastSeen: null
-    });
+    // Broadcast online status
+    broadcastUserStatus(socket, io, userId, 'online');
     
     // Register event handlers
     registerMessageHandlers(socket, io);
@@ -115,7 +147,7 @@ const initializeSocket = (io) => {
     registerPresenceHandlers(socket, io);
     registerLogoutHandlers(socket, io);
     
-    // Register advanced feature handlers
+    // Advanced features
     registerVoiceMessageHandlers(socket, io);
     registerCorrectionHandlers(socket, io);
     registerPollHandlers(socket, io);
@@ -125,21 +157,165 @@ const initializeSocket = (io) => {
     socket.on('disconnect', (reason) => handleDisconnect(socket, io, reason));
     
     // Handle errors
-    socket.on('error', (error) => {
-      console.error(`❌ Socket error for user ${userId}:`, error);
-    });
+    socket.on('error', (error) => handleSocketError(socket, error));
+    
+    console.log(`🎉 User ${userId} fully connected (total connections: ${userConnections.get(userId).size})`);
   });
   
   return io;
 };
 
 /**
- * Send list of currently online users (from cache)
+ * Handle multiple connections from same user
+ */
+const handleMultipleConnections = async (socket, io, userId, deviceId) => {
+  if (!userConnections.has(userId)) {
+    return; // First connection
+  }
+  
+  const existingConnections = userConnections.get(userId);
+  
+  console.log(`📱 User ${userId} has ${existingConnections.size} existing connection(s)`);
+  
+  // Check max connections limit
+  if (existingConnections.size >= SOCKET_CONFIG.MAX_CONNECTIONS_PER_USER) {
+    console.log(`⚠️ Max connections reached for user ${userId}, removing oldest`);
+    
+    // Find oldest connection and disconnect it
+    let oldestSocket = null;
+    let oldestTime = Date.now();
+    
+    for (const socketId of existingConnections) {
+      const metadata = socketMetadata.get(socketId);
+      if (metadata && metadata.connectedAt < oldestTime) {
+        oldestTime = metadata.connectedAt;
+        oldestSocket = io.sockets.sockets.get(socketId);
+      }
+    }
+    
+    if (oldestSocket) {
+      oldestSocket.emit('forceDisconnect', {
+        reason: 'max_connections',
+        message: 'New connection established from another device'
+      });
+      oldestSocket.disconnect(true);
+    }
+  }
+  
+  // Clean up any stale connections
+  const staleConnections = [];
+  for (const socketId of existingConnections) {
+    const existingSocket = io.sockets.sockets.get(socketId);
+    if (!existingSocket || !existingSocket.connected) {
+      staleConnections.push(socketId);
+    }
+  }
+  
+  // Remove stale connections
+  staleConnections.forEach(socketId => {
+    existingConnections.delete(socketId);
+    socketMetadata.delete(socketId);
+    connectionStates.delete(socketId);
+  });
+  
+  if (staleConnections.length > 0) {
+    console.log(`🧹 Cleaned up ${staleConnections.length} stale connection(s) for user ${userId}`);
+  }
+};
+
+/**
+ * Setup heartbeat to detect dead connections
+ */
+const setupHeartbeat = (socket, io) => {
+  let heartbeatTimeout;
+  
+  // Send ping every 25 seconds
+  const pingInterval = setInterval(() => {
+    if (socket.connected) {
+      socket.emit('ping');
+      
+      // Expect pong within 5 seconds
+      heartbeatTimeout = setTimeout(() => {
+        console.log(`💔 Heartbeat timeout for socket ${socket.id}`);
+        socket.disconnect(true);
+      }, SOCKET_CONFIG.HEARTBEAT_TIMEOUT - SOCKET_CONFIG.HEARTBEAT_INTERVAL);
+    } else {
+      clearInterval(pingInterval);
+      clearTimeout(heartbeatTimeout);
+    }
+  }, SOCKET_CONFIG.HEARTBEAT_INTERVAL);
+  
+  // Handle pong response
+  socket.on('pong', () => {
+    clearTimeout(heartbeatTimeout);
+  });
+  
+  // Cleanup on disconnect
+  socket.on('disconnect', () => {
+    clearInterval(pingInterval);
+    clearTimeout(heartbeatTimeout);
+  });
+};
+
+/**
+ * Update online users cache
+ */
+const updateOnlineCache = (userId) => {
+  const connections = userConnections.get(userId);
+  const deviceCount = connections ? connections.size : 0;
+  
+  onlineUsersCache.set(userId, {
+    userId,
+    status: 'online',
+    lastSeen: null,
+    deviceCount,
+    updatedAt: new Date()
+  });
+};
+
+/**
+ * Send queued offline messages
+ */
+const sendQueuedMessages = async (socket, userId) => {
+  try {
+    if (!offlineMessageQueue.has(userId)) {
+      return;
+    }
+    
+    const queuedMessages = offlineMessageQueue.get(userId) || [];
+    
+    if (queuedMessages.length === 0) {
+      return;
+    }
+    
+    console.log(`📬 Sending ${queuedMessages.length} queued message(s) to user ${userId}`);
+    
+    for (const msgData of queuedMessages) {
+      socket.emit('newMessage', msgData);
+      await new Promise(resolve => setTimeout(resolve, 100)); // Throttle
+    }
+    
+    // Clear queue
+    offlineMessageQueue.delete(userId);
+    
+  } catch (error) {
+    console.error('❌ Error sending queued messages:', error);
+  }
+};
+
+/**
+ * Send list of currently online users
  */
 const sendOnlineUsers = (socket) => {
   try {
     const onlineUsers = Array.from(onlineUsersCache.values())
-      .filter(u => u.userId !== socket.user.id);
+      .filter(u => u.userId !== socket.user.id)
+      .map(u => ({
+        userId: u.userId,
+        status: u.status,
+        lastSeen: u.lastSeen,
+        deviceCount: u.deviceCount
+      }));
     
     socket.emit('onlineUsers', onlineUsers);
     console.log(`📋 Sent ${onlineUsers.length} online users to ${socket.user.id}`);
@@ -149,12 +325,39 @@ const sendOnlineUsers = (socket) => {
 };
 
 /**
+ * Broadcast user status change
+ */
+const broadcastUserStatus = (socket, io, userId, status) => {
+  const statusData = {
+    userId,
+    status,
+    lastSeen: status === 'offline' ? new Date().toISOString() : null,
+    deviceCount: userConnections.get(userId)?.size || 0
+  };
+  
+  // Update cache
+  if (status === 'online') {
+    updateOnlineCache(userId);
+  } else {
+    onlineUsersCache.set(userId, {
+      userId,
+      status,
+      lastSeen: new Date(),
+      deviceCount: 0,
+      updatedAt: new Date()
+    });
+  }
+  
+  socket.broadcast.emit('userStatusUpdate', statusData);
+};
+
+/**
  * Register message-related event handlers
  */
 const registerMessageHandlers = (socket, io) => {
   const userId = socket.user.id;
   
-  // Send message
+  // Send message with retry logic
   socket.on('sendMessage', async (data, callback) => {
     try {
       const receiver = data?.receiver || data?.receiverId;
@@ -226,16 +429,20 @@ const registerMessageHandlers = (socket, io) => {
         read: false
       });
       
-      // Send to receiver
-      io.to(`user_${receiver}`).emit('newMessage', {
+      const messagePayload = {
         message: populatedMessage,
         unreadCount: unreadForReceiver,
         senderId: userId
-      });
+      };
       
-      // Send push notification if receiver is not online or not in this conversation
-      const isRecipientOnline = userConnections.has(receiver);
-      if (!isRecipientOnline) {
+      // Try to send to receiver with retry
+      const sent = await sendMessageWithRetry(io, receiver, 'newMessage', messagePayload);
+      
+      // If receiver is offline, queue the message
+      if (!sent) {
+        queueOfflineMessage(receiver, messagePayload);
+        
+        // Send push notification
         notificationService.sendChatMessage(
           receiver,
           userId,
@@ -251,21 +458,22 @@ const registerMessageHandlers = (socket, io) => {
       const senderResponse = {
         status: 'success',
         message: populatedMessage,
-        unreadCount: unreadForSender
+        unreadCount: unreadForSender,
+        delivered: sent
       };
       
       if (callback) {
         callback(senderResponse);
       }
       
-      // Also emit to sender's other devices
+      // Emit to sender's other devices
       socket.to(`user_${userId}`).emit('messageSent', {
         message: populatedMessage,
         unreadCount: unreadForSender,
         receiverId: receiver
       });
       
-      console.log(`✅ Message delivered: ${userId} → ${receiver}`);
+      console.log(`✅ Message ${sent ? 'delivered' : 'queued'}: ${userId} → ${receiver}`);
       
     } catch (error) {
       console.error('❌ Send message error:', error.message);
@@ -312,8 +520,8 @@ const registerMessageHandlers = (socket, io) => {
       // Update conversation unread count
       await updateConversationUnreadCount(userId, senderId, 0);
       
-      // Notify sender that messages were read
-      io.to(`user_${senderId}`).emit('messagesRead', {
+      // Notify sender reliably
+      await sendMessageWithRetry(io, senderId, 'messagesRead', {
         readBy: userId,
         count: result.modifiedCount
       });
@@ -356,10 +564,12 @@ const registerMessageHandlers = (socket, io) => {
         throw new Error('Not authorized to delete this message');
       }
       
+      const receiverId = message.receiver.toString();
+      
       await message.deleteOne();
       
-      // Notify receiver
-      io.to(`user_${message.receiver}`).emit('messageDeleted', {
+      // Notify receiver reliably
+      await sendMessageWithRetry(io, receiverId, 'messageDeleted', {
         messageId,
         senderId: userId
       });
@@ -387,12 +597,72 @@ const registerMessageHandlers = (socket, io) => {
 };
 
 /**
- * Register typing indicator handlers
+ * Send message with retry logic
+ */
+const sendMessageWithRetry = async (io, userId, event, data, attempts = SOCKET_CONFIG.MESSAGE_RETRY_ATTEMPTS) => {
+  const userRoom = `user_${userId}`;
+  
+  for (let i = 0; i < attempts; i++) {
+    try {
+      // Check if user is online
+      if (!userConnections.has(userId)) {
+        console.log(`📴 User ${userId} offline - cannot send ${event}`);
+        return false;
+      }
+      
+      // Get all sockets for this user
+      const sockets = await io.in(userRoom).fetchSockets();
+      
+      if (sockets.length === 0) {
+        console.log(`📴 No sockets found for user ${userId}`);
+        return false;
+      }
+      
+      // Send to all user's devices
+      io.to(userRoom).emit(event, data);
+      
+      console.log(`📨 Sent ${event} to ${sockets.length} device(s) of user ${userId}`);
+      return true;
+      
+    } catch (error) {
+      console.error(`❌ Retry ${i + 1}/${attempts} failed for ${event}:`, error.message);
+      
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, SOCKET_CONFIG.MESSAGE_RETRY_DELAY * (i + 1)));
+      }
+    }
+  }
+  
+  return false;
+};
+
+/**
+ * Queue message for offline user
+ */
+const queueOfflineMessage = (userId, messageData) => {
+  if (!offlineMessageQueue.has(userId)) {
+    offlineMessageQueue.set(userId, []);
+  }
+  
+  const queue = offlineMessageQueue.get(userId);
+  
+  // Add to queue
+  queue.push(messageData);
+  
+  // Limit queue size
+  if (queue.length > SOCKET_CONFIG.OFFLINE_MESSAGE_QUEUE_MAX) {
+    queue.shift(); // Remove oldest
+  }
+  
+  console.log(`📬 Queued message for offline user ${userId} (queue: ${queue.length})`);
+};
+
+/**
+ * Register typing indicator handlers with auto-cleanup
  */
 const registerTypingHandlers = (socket, io) => {
   const userId = socket.user.id;
   
-  // User started typing
   socket.on('typing', (data) => {
     try {
       const receiver = data?.receiver || data?.receiverId;
@@ -401,26 +671,27 @@ const registerTypingHandlers = (socket, io) => {
       
       console.log(`⌨️ ${userId} typing to ${receiver}`);
       
-      // Clear existing timeout
       const timeoutKey = `${userId}-${receiver}`;
+      
+      // Clear existing timeout
       if (typingTimeouts.has(timeoutKey)) {
         clearTimeout(typingTimeouts.get(timeoutKey));
       }
       
-      // Emit typing event
+      // Send typing event
       io.to(`user_${receiver}`).emit('userTyping', {
         userId,
         isTyping: true
       });
       
-      // Auto-stop typing after 5 seconds
+      // Auto-stop after 5 seconds
       const timeout = setTimeout(() => {
         io.to(`user_${receiver}`).emit('userStoppedTyping', {
           userId,
           isTyping: false
         });
         typingTimeouts.delete(timeoutKey);
-      }, 5000);
+      }, SOCKET_CONFIG.TYPING_TIMEOUT);
       
       typingTimeouts.set(timeoutKey, timeout);
       
@@ -429,23 +700,20 @@ const registerTypingHandlers = (socket, io) => {
     }
   });
   
-  // User stopped typing
   socket.on('stopTyping', (data) => {
     try {
       const receiver = data?.receiver || data?.receiverId;
       
       if (!receiver) return;
       
-      console.log(`⌨️ ${userId} stopped typing to ${receiver}`);
+      const timeoutKey = `${userId}-${receiver}`;
       
       // Clear timeout
-      const timeoutKey = `${userId}-${receiver}`;
       if (typingTimeouts.has(timeoutKey)) {
         clearTimeout(typingTimeouts.get(timeoutKey));
         typingTimeouts.delete(timeoutKey);
       }
       
-      // Emit stopped typing event
       io.to(`user_${receiver}`).emit('userStoppedTyping', {
         userId,
         isTyping: false
@@ -463,7 +731,6 @@ const registerTypingHandlers = (socket, io) => {
 const registerStatusHandlers = (socket, io) => {
   const userId = socket.user.id;
   
-  // Update user status
   socket.on('updateStatus', (data) => {
     try {
       const status = data?.status;
@@ -475,40 +742,11 @@ const registerStatusHandlers = (socket, io) => {
       
       console.log(`📡 User ${userId} status: ${status}`);
       
-      socket.broadcast.emit('userStatusUpdate', {
-        userId,
-        status,
-        lastSeen: status === 'offline' ? new Date().toISOString() : null
-      });
+      broadcastUserStatus(socket, io, userId, status);
       
     } catch (error) {
       console.error('❌ Status update error:', error);
     }
-  });
-  
-  // Quick status shortcuts
-  socket.on('setOnline', () => {
-    socket.broadcast.emit('userStatusUpdate', {
-      userId,
-      status: 'online',
-      lastSeen: null
-    });
-  });
-  
-  socket.on('setAway', () => {
-    socket.broadcast.emit('userStatusUpdate', {
-      userId,
-      status: 'away',
-      lastSeen: null
-    });
-  });
-  
-  socket.on('setBusy', () => {
-    socket.broadcast.emit('userStatusUpdate', {
-      userId,
-      status: 'busy',
-      lastSeen: null
-    });
   });
 };
 
@@ -518,7 +756,6 @@ const registerStatusHandlers = (socket, io) => {
 const registerPresenceHandlers = (socket, io) => {
   const userId = socket.user.id;
   
-  // Get specific user's status
   socket.on('getUserStatus', async (data, callback) => {
     try {
       const targetUserId = data?.userId;
@@ -527,16 +764,29 @@ const registerPresenceHandlers = (socket, io) => {
         throw new Error('User ID is required');
       }
       
-      const isOnline = userConnections.has(targetUserId);
+      const cachedStatus = onlineUsersCache.get(targetUserId);
       
-      callback({
-        status: 'success',
-        data: {
-          userId: targetUserId,
-          status: isOnline ? 'online' : 'offline',
-          lastSeen: isOnline ? null : new Date().toISOString()
-        }
-      });
+      if (cachedStatus) {
+        callback({
+          status: 'success',
+          data: {
+            userId: targetUserId,
+            status: cachedStatus.status,
+            lastSeen: cachedStatus.lastSeen,
+            deviceCount: cachedStatus.deviceCount
+          }
+        });
+      } else {
+        callback({
+          status: 'success',
+          data: {
+            userId: targetUserId,
+            status: 'offline',
+            lastSeen: new Date().toISOString(),
+            deviceCount: 0
+          }
+        });
+      }
       
     } catch (error) {
       callback({
@@ -546,7 +796,6 @@ const registerPresenceHandlers = (socket, io) => {
     }
   });
   
-  // Request status updates for multiple users
   socket.on('requestStatusUpdates', async (data) => {
     try {
       const userIds = data?.userIds || [];
@@ -558,11 +807,21 @@ const registerPresenceHandlers = (socket, io) => {
       const statusUpdates = {};
       
       for (const targetId of userIds) {
-        const isOnline = userConnections.has(targetId);
-        statusUpdates[targetId] = {
-          status: isOnline ? 'online' : 'offline',
-          lastSeen: isOnline ? null : new Date().toISOString()
-        };
+        const cachedStatus = onlineUsersCache.get(targetId);
+        
+        if (cachedStatus) {
+          statusUpdates[targetId] = {
+            status: cachedStatus.status,
+            lastSeen: cachedStatus.lastSeen,
+            deviceCount: cachedStatus.deviceCount
+          };
+        } else {
+          statusUpdates[targetId] = {
+            status: 'offline',
+            lastSeen: new Date().toISOString(),
+            deviceCount: 0
+          };
+        }
       }
       
       socket.emit('bulkStatusUpdate', statusUpdates);
@@ -574,50 +833,52 @@ const registerPresenceHandlers = (socket, io) => {
 };
 
 /**
- * Register logout-related handlers
+ * Register logout handlers
  */
 const registerLogoutHandlers = (socket, io) => {
   const userId = socket.user.id;
   
-  // Explicit logout - clean up everything
   socket.on('logout', async (data, callback) => {
     try {
-      console.log(`👋 User ${userId} logging out (explicit)`);
+      console.log(`👋 User ${userId} logging out (socket: ${socket.id})`);
       
-      // Clear all typing indicators
-      for (const [key, timeout] of typingTimeouts.entries()) {
-        if (key.startsWith(userId)) {
-          clearTimeout(timeout);
-          typingTimeouts.delete(key);
-        }
-      }
+      // Clean up typing indicators
+      cleanupTypingIndicators(userId);
       
-      // Leave all rooms
-      const rooms = Array.from(socket.rooms);
-      for (const room of rooms) {
-        if (room !== socket.id) {
-          await socket.leave(room);
-          console.log(`📤 User ${userId} left room: ${room}`);
-        }
-      }
+      // Mark as disconnecting
+      connectionStates.set(socket.id, 'disconnecting');
       
-      // Remove from user connections
+      // Remove from connections
       if (userConnections.has(userId)) {
         userConnections.get(userId).delete(socket.id);
         
         if (userConnections.get(userId).size === 0) {
           userConnections.delete(userId);
-          // Remove from online users cache
           onlineUsersCache.delete(userId);
+          
+          // Broadcast offline status
+          socket.broadcast.emit('userStatusUpdate', {
+            userId,
+            status: 'offline',
+            lastSeen: new Date().toISOString(),
+            deviceCount: 0
+          });
+        } else {
+          // Update device count
+          updateOnlineCache(userId);
+          
+          socket.broadcast.emit('userStatusUpdate', {
+            userId,
+            status: 'online',
+            lastSeen: null,
+            deviceCount: userConnections.get(userId).size
+          });
         }
       }
       
-      // Broadcast offline status
-      socket.broadcast.emit('userStatusUpdate', {
-        userId,
-        status: 'offline',
-        lastSeen: new Date().toISOString()
-      });
+      // Remove metadata
+      socketMetadata.delete(socket.id);
+      connectionStates.delete(socket.id);
       
       console.log(`✅ User ${userId} logged out successfully`);
       
@@ -628,7 +889,6 @@ const registerLogoutHandlers = (socket, io) => {
         });
       }
       
-      // Disconnect the socket
       socket.disconnect(true);
       
     } catch (error) {
@@ -645,6 +905,21 @@ const registerLogoutHandlers = (socket, io) => {
 };
 
 /**
+ * Handle socket errors
+ */
+const handleSocketError = (socket, error) => {
+  const userId = socket.user?.id;
+  
+  console.error(`❌ Socket error for user ${userId} (socket: ${socket.id}):`, error);
+  
+  // Try to recover or disconnect cleanly
+  if (error.message.includes('Authentication')) {
+    socket.emit('authError', { message: 'Please login again' });
+    socket.disconnect(true);
+  }
+};
+
+/**
  * Handle user disconnection
  */
 const handleDisconnect = async (socket, io, reason) => {
@@ -654,48 +929,116 @@ const handleDisconnect = async (socket, io, reason) => {
   
   console.log(`❌ User ${userId} disconnected (socket: ${socket.id}): ${reason}`);
   
-  // Leave all rooms explicitly
-  const rooms = Array.from(socket.rooms);
-  for (const room of rooms) {
-    if (room !== socket.id) {
-      await socket.leave(room);
-    }
-  }
+  // Mark as disconnecting
+  connectionStates.set(socket.id, 'disconnecting');
   
-  // Remove this socket from user's connections
+  // Clean up typing indicators
+  cleanupTypingIndicators(userId);
+  
+  // Remove from connections
   if (userConnections.has(userId)) {
     userConnections.get(userId).delete(socket.id);
     
-    // If user has no more connections, they're offline
     if (userConnections.get(userId).size === 0) {
+      // Last connection - user is now offline
       userConnections.delete(userId);
-      
-      // Remove from online users cache
       onlineUsersCache.delete(userId);
       
       console.log(`📴 User ${userId} is now offline`);
       
-      // Broadcast offline status
       socket.broadcast.emit('userStatusUpdate', {
         userId,
         status: 'offline',
-        lastSeen: new Date().toISOString()
+        lastSeen: new Date().toISOString(),
+        deviceCount: 0
       });
     } else {
-      console.log(`📱 User ${userId} still has ${userConnections.get(userId).size} active connection(s)`);
+      // Still has other connections
+      updateOnlineCache(userId);
+      
+      console.log(`📱 User ${userId} still has ${userConnections.get(userId).size} connection(s)`);
+      
+      socket.broadcast.emit('userStatusUpdate', {
+        userId,
+        status: 'online',
+        lastSeen: null,
+        deviceCount: userConnections.get(userId).size
+      });
     }
   }
   
-  // Clear any typing timeouts for this user
-  for (const [key, timeout] of typingTimeouts.entries()) {
-    if (key.startsWith(userId)) {
-      clearTimeout(timeout);
-      typingTimeouts.delete(key);
-    }
-  }
+  // Remove metadata
+  socketMetadata.delete(socket.id);
+  connectionStates.delete(socket.id);
   
   // Clear socket user data
   socket.user = null;
+};
+
+/**
+ * Clean up typing indicators for user
+ */
+const cleanupTypingIndicators = (userId) => {
+  const keysToDelete = [];
+  
+  for (const [key, timeout] of typingTimeouts.entries()) {
+    if (key.startsWith(userId)) {
+      clearTimeout(timeout);
+      keysToDelete.push(key);
+    }
+  }
+  
+  keysToDelete.forEach(key => typingTimeouts.delete(key));
+  
+  if (keysToDelete.length > 0) {
+    console.log(`🧹 Cleaned up ${keysToDelete.length} typing indicator(s) for user ${userId}`);
+  }
+};
+
+/**
+ * Periodic cleanup of stale data
+ */
+const startPeriodicCleanup = () => {
+  setInterval(() => {
+    try {
+      // Clean up stale online cache entries (older than 5 minutes)
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      
+      for (const [userId, data] of onlineUsersCache.entries()) {
+        if (data.status === 'offline' && data.updatedAt < fiveMinutesAgo) {
+          onlineUsersCache.delete(userId);
+        }
+      }
+      
+      // Clean up stale connection states
+      for (const [socketId, state] of connectionStates.entries()) {
+        if (state === 'disconnecting' && !socketMetadata.has(socketId)) {
+          connectionStates.delete(socketId);
+        }
+      }
+      
+      // Clean up old queued messages (older than 24 hours)
+      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+      
+      for (const [userId, messages] of offlineMessageQueue.entries()) {
+        const filtered = messages.filter(msg => {
+          const msgTime = new Date(msg.message?.createdAt).getTime();
+          return msgTime > oneDayAgo;
+        });
+        
+        if (filtered.length === 0) {
+          offlineMessageQueue.delete(userId);
+        } else if (filtered.length < messages.length) {
+          offlineMessageQueue.set(userId, filtered);
+        }
+      }
+      
+      console.log('🧹 Periodic cleanup completed');
+      
+    } catch (error) {
+      console.error('❌ Periodic cleanup error:', error);
+    }
+  }, SOCKET_CONFIG.CLEANUP_INTERVAL);
 };
 
 /**
@@ -718,9 +1061,7 @@ const updateConversation = async (senderId, receiverId, messageId) => {
     conversation.lastMessage = messageId;
     conversation.lastMessageAt = new Date();
     
-    // Increment unread count for receiver
     await conversation.updateUnreadCount(receiverId, 1);
-    
     await conversation.save();
     
   } catch (error) {
@@ -775,17 +1116,30 @@ const getMessageLimitInfo = (user) => {
 };
 
 /**
- * Get online users count (for debugging)
+ * Get online users count
  */
 const getOnlineUsersCount = () => {
   return userConnections.size;
 };
 
 /**
- * Get all online user IDs (for debugging)
+ * Get all online user IDs
  */
 const getOnlineUserIds = () => {
   return Array.from(userConnections.keys());
+};
+
+/**
+ * Get connection info for debugging
+ */
+const getConnectionInfo = () => {
+  return {
+    totalUsers: userConnections.size,
+    totalSockets: Array.from(userConnections.values()).reduce((sum, set) => sum + set.size, 0),
+    onlineCacheSize: onlineUsersCache.size,
+    queuedMessagesCount: offlineMessageQueue.size,
+    typingIndicators: typingTimeouts.size
+  };
 };
 
 // ========== ADVANCED FEATURE HANDLERS ==========
@@ -1286,5 +1640,7 @@ const registerDisappearingMessageHandlers = (socket, io) => {
 module.exports = {
   initializeSocket,
   getOnlineUsersCount,
-  getOnlineUserIds
+  getOnlineUserIds,
+    getConnectionInfo
 };
+
