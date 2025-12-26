@@ -36,4 +36,4 @@ const callSchema = new mongoose.Schema({
 
 callSchema.index({participants: 1, createdAt: -1});
 
-module.exports = mongoose.Model("Call", callSchema);
+module.exports = mongoose.model("Call", callSchema);
