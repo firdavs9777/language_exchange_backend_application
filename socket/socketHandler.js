@@ -6,10 +6,10 @@ const Poll = require('../models/Poll');
 const { resetDailyCounters } = require('../utils/limitations');
 const LIMITS = require('../config/limitations');
 const notificationService = require('../services/notificationService');
+const { registerCallHandlers } = require('./callHandler');
 
-// ========== CONNECTION MANAGEMENT ==========
 
-// Store user socket connections (userId -> Set of socketIds)
+
 // Allow multiple connections per user (different devices/tabs)
 const userConnections = new Map();
 
@@ -152,6 +152,8 @@ const initializeSocket = (io) => {
     registerCorrectionHandlers(socket, io);
     registerPollHandlers(socket, io);
     registerDisappearingMessageHandlers(socket, io);
+    registerCallHandlers(socket, io);
+
     
     // Handle disconnection
     socket.on('disconnect', (reason) => handleDisconnect(socket, io, reason));
@@ -164,6 +166,8 @@ const initializeSocket = (io) => {
   
   return io;
 };
+
+
 
 /**
  * Handle multiple connections from same user
