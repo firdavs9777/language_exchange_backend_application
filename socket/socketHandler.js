@@ -664,6 +664,7 @@ const queueOfflineMessage = (userId, messageData) => {
 /**
  * Register typing indicator handlers with auto-cleanup
  */
+// Around line 600 in socketHandler.js
 const registerTypingHandlers = (socket, io) => {
   const userId = socket.user.id;
   
@@ -671,7 +672,10 @@ const registerTypingHandlers = (socket, io) => {
     try {
       const receiver = data?.receiver || data?.receiverId;
       
-      if (!receiver) return;
+      if (!receiver) {
+        console.log('⚠️ Typing event missing receiver');
+        return;
+      }
       
       console.log(`⌨️ ${userId} typing to ${receiver}`);
       
@@ -682,9 +686,10 @@ const registerTypingHandlers = (socket, io) => {
         clearTimeout(typingTimeouts.get(timeoutKey));
       }
       
-      // Send typing event
+      // Send typing event with userId field
       io.to(`user_${receiver}`).emit('userTyping', {
         userId,
+        user: userId, // Add fallback field
         isTyping: true
       });
       
@@ -692,6 +697,7 @@ const registerTypingHandlers = (socket, io) => {
       const timeout = setTimeout(() => {
         io.to(`user_${receiver}`).emit('userStoppedTyping', {
           userId,
+          user: userId, // Add fallback field
           isTyping: false
         });
         typingTimeouts.delete(timeoutKey);
@@ -708,7 +714,10 @@ const registerTypingHandlers = (socket, io) => {
     try {
       const receiver = data?.receiver || data?.receiverId;
       
-      if (!receiver) return;
+      if (!receiver) {
+        console.log('⚠️ Stop typing event missing receiver');
+        return;
+      }
       
       const timeoutKey = `${userId}-${receiver}`;
       
@@ -720,8 +729,11 @@ const registerTypingHandlers = (socket, io) => {
       
       io.to(`user_${receiver}`).emit('userStoppedTyping', {
         userId,
+        user: userId, // Add fallback field
         isTyping: false
       });
+      
+      console.log(`⌨️ ${userId} stopped typing to ${receiver}`);
       
     } catch (error) {
       console.error('❌ Stop typing error:', error);
@@ -757,6 +769,7 @@ const registerStatusHandlers = (socket, io) => {
 /**
  * Register presence-related handlers
  */
+// Register presence-related handlers
 const registerPresenceHandlers = (socket, io) => {
   const userId = socket.user.id;
   
@@ -770,33 +783,41 @@ const registerPresenceHandlers = (socket, io) => {
       
       const cachedStatus = onlineUsersCache.get(targetUserId);
       
-      if (cachedStatus) {
-        callback({
-          status: 'success',
-          data: {
-            userId: targetUserId,
-            status: cachedStatus.status,
-            lastSeen: cachedStatus.lastSeen,
-            deviceCount: cachedStatus.deviceCount
-          }
-        });
+      const response = cachedStatus ? {
+        status: 'success',
+        data: {
+          userId: targetUserId,
+          status: cachedStatus.status,
+          lastSeen: cachedStatus.lastSeen,
+          deviceCount: cachedStatus.deviceCount
+        }
+      } : {
+        status: 'success',
+        data: {
+          userId: targetUserId,
+          status: 'offline',
+          lastSeen: new Date().toISOString(),
+          deviceCount: 0
+        }
+      };
+      
+      // FIX: Check if callback exists before calling
+      if (callback && typeof callback === 'function') {
+        callback(response);
       } else {
-        callback({
-          status: 'success',
-          data: {
-            userId: targetUserId,
-            status: 'offline',
-            lastSeen: new Date().toISOString(),
-            deviceCount: 0
-          }
-        });
+        // If no callback, emit response directly
+        socket.emit('userStatusUpdate', response.data);
       }
       
     } catch (error) {
-      callback({
-        status: 'error',
-        error: error.message
-      });
+      console.error('❌ Get user status error:', error.message);
+      
+      if (callback && typeof callback === 'function') {
+        callback({
+          status: 'error',
+          error: error.message
+        });
+      }
     }
   });
   
@@ -807,6 +828,8 @@ const registerPresenceHandlers = (socket, io) => {
       if (!Array.isArray(userIds) || userIds.length === 0) {
         return;
       }
+      
+      console.log(`📊 Requesting status for ${userIds.length} users`);
       
       const statusUpdates = {};
       
