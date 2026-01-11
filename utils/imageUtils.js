@@ -59,18 +59,31 @@ exports.processUsersImages = (users, req) => {
  */
 exports.processMomentImages = (moment, req) => {
   if (!moment) return moment;
-  
+
   // Convert Mongoose document to plain object if needed
   const momentObj = moment.toObject ? moment.toObject() : moment;
-  
+
   // Process images array
   const imageUrls = momentObj.images?.map(img => exports.getImageUrl(req, img)) || [];
-  
+
+  // Process video URLs if present
+  let video = momentObj.video || null;
+  if (video && video.url) {
+    video = {
+      ...video,
+      url: exports.getImageUrl(req, video.url),
+      thumbnail: video.thumbnail ? exports.getImageUrl(req, video.thumbnail) : null
+    };
+  }
+
   return {
     ...momentObj,
     imageUrls: imageUrls,
     // Keep original images array for backward compatibility
-    images: momentObj.images || []
+    images: momentObj.images || [],
+    // Include processed video data
+    video: video,
+    mediaType: momentObj.mediaType || 'text'
   };
 };
 

@@ -8,6 +8,7 @@ const {
   getStoryViewers,
   getUserStories,
   createStory,
+  createVideoStory,
   deleteStory,
   markStoryViewed,
   
@@ -47,6 +48,7 @@ const {
 } = require('../controllers/stories');
 const { checkStoryLimit } = require('../middleware/checkLimitations');
 const { uploadMultiple } = require('../middleware/uploadToSpaces');
+const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVideoToSpaces');
 
 const advancedResults = require('../middleware/advancedResults');
 const router = express.Router();
@@ -85,6 +87,16 @@ router.route('/highlights/:id/stories/:storyId')
 // ========== CREATE STORY ==========
 router.route('/')
   .post(protect, checkStoryLimit, uploadMultiple('media', 5, 'bananatalk/stories'), createStory);
+
+// ========== CREATE VIDEO STORY (Instagram-style, max 3 minutes) ==========
+router.route('/video')
+  .post(
+    protect,
+    checkStoryLimit,
+    uploadSingleVideo('video', 'bananatalk/stories/videos'),
+    generateThumbnail,
+    createVideoStory
+  );
 
 // ========== USER STORIES ==========
 router.route('/user/:userId')

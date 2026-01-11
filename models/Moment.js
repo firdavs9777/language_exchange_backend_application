@@ -134,6 +134,46 @@ const MomentSchema = new mongoose.Schema({
     type: [String]
   },
 
+  // Video field for video moments (Instagram-style)
+  video: {
+    url: {
+      type: String,
+      default: null
+    },
+    thumbnail: {
+      type: String,
+      default: null
+    },
+    duration: {
+      type: Number, // Duration in seconds
+      default: null,
+      max: [180, 'Video duration cannot exceed 3 minutes (180 seconds)']
+    },
+    width: {
+      type: Number,
+      default: null
+    },
+    height: {
+      type: Number,
+      default: null
+    },
+    mimeType: {
+      type: String,
+      default: null
+    },
+    fileSize: {
+      type: Number, // Size in bytes
+      default: null
+    }
+  },
+
+  // Media type to distinguish between image and video moments
+  mediaType: {
+    type: String,
+    enum: ['image', 'video', 'text'],
+    default: 'text'
+  },
+
   // NEW FIELD - Phase 1
   scheduledFor: {
     type: Date,

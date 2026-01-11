@@ -7,6 +7,8 @@ const {
   updateMoment,
   deleteMoment,
   momentPhotoUpload,
+  momentVideoUpload,
+  deleteVideo,
   getUserMoments,
   likeMoment,
   dislikeMoment,
@@ -24,6 +26,7 @@ const { validate } = require('../middleware/validation');
 const { createMomentValidation, updateMomentValidation } = require('../validators/momentValidator');
 const { checkMomentLimit } = require('../middleware/checkLimitations');
 const { uploadMultiple } = require('../middleware/uploadToSpaces');
+const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVideoToSpaces');
 const commentRouter = require('./comment');
 const router = express.Router();
 const { protect, optionalAuth } = require('../middleware/auth');
@@ -53,10 +56,21 @@ router.route('/:id').delete(protect, deleteMoment);
 
 // Photo upload
 router.route('/:id/photo').put(
-  protect, 
+  protect,
   uploadMultiple('file', 10, 'bananatalk/moments'),
   momentPhotoUpload
 );
+
+// Video upload (Instagram-style, max 3 minutes)
+// Streams video to S3, validates duration, generates thumbnail
+router.route('/:id/video')
+  .put(
+    protect,
+    uploadSingleVideo('video', 'bananatalk/moments/videos'),
+    generateThumbnail,
+    momentVideoUpload
+  )
+  .delete(protect, deleteVideo);
 
 // Interactions
 router.route('/:id/like').post(protect, likeMoment);

@@ -75,7 +75,8 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
       const storyWithUrls = {
         ...story._doc,
         mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
-        thumbnail: story.thumbnail ? story.thumbnail : null,
+        thumbnail: story.videoMetadata?.thumbnail || story.thumbnail || null,
+        videoMetadata: story.videoMetadata || null,
         user: userStoriesMap[storyUserId].user
       };
       
@@ -184,19 +185,18 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
     const storiesWithUrls = stories.map(story => {
       const userWithImageUrls = {
         ...story.user._doc,
-        imageUrls: story.user.images.map(image => 
-          image
-        )
+        imageUrls: story.user.images.map(image => image)
       };
-      
+
       return {
         ...story._doc,
         user: userWithImageUrls,
         mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
-        thumbnail: story.thumbnail ? story.thumbnail : null
+        thumbnail: story.videoMetadata?.thumbnail || story.thumbnail || null,
+        videoMetadata: story.videoMetadata || null
       };
     });
-    
+
     console.log(`📚 [Get User Stories] Returning ${storiesWithUrls.length} stories for user ${userId}`);
     
     res.status(200).json({
@@ -265,16 +265,106 @@ exports.createStory = asyncHandler(async (req, res, next) => {
   }
 });
 
+// @desc Create video story (Instagram-style, max 3 minutes)
+// @route POST /api/v1/stories/video
+// @access Private
+exports.createVideoStory = asyncHandler(async (req, res, next) => {
+  try {
+    const { text, backgroundColor, textColor, privacy } = req.body;
+    const userId = req.user.id;
+    const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
+    const LIMITS = require('../config/limitations');
+
+    const user = req.limitationUser || await User.findById(userId);
+    if (!user) return next(new ErrorResponse('User not found', 404));
+    if (user.userMode === 'visitor') {
+      return next(new ErrorResponse('Visitors cannot create stories. Please upgrade to regular user.', 403));
+    }
+
+    await resetDailyCounters(user);
+    await user.save();
+
+    const canCreate = await user.canCreateStory();
+    if (!canCreate) {
+      const current = user.regularUserLimitations.storiesCreatedToday || 0;
+      const max = LIMITS.regular.storiesPerDay;
+      const now = new Date();
+      const nextReset = new Date(now);
+      nextReset.setHours(24, 0, 0, 0);
+      return next(formatLimitError('stories', current, max, nextReset));
+    }
+
+    // Video should be validated by middleware (uploadSingleVideo)
+    if (!req.videoMetadata) {
+      return next(new ErrorResponse('Please upload a video file', 400));
+    }
+
+    // Create story with video
+    const storyData = {
+      user: userId,
+      mediaUrls: [req.videoMetadata.url],
+      mediaType: 'video',
+      videoMetadata: {
+        duration: req.videoMetadata.duration,
+        thumbnail: req.videoMetadata.thumbnail,
+        width: req.videoMetadata.width,
+        height: req.videoMetadata.height,
+        mimeType: req.videoMetadata.mimeType,
+        fileSize: req.videoMetadata.fileSize
+      },
+      text: text || null,
+      backgroundColor: backgroundColor || '#000000',
+      textColor: textColor || '#ffffff',
+      privacy: privacy || 'friends'
+    };
+
+    const story = await Story.create(storyData);
+    await user.incrementStoryCount();
+
+    await story.populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+
+    const userWithImageUrls = { ...story.user._doc, imageUrls: story.user.images };
+    const storyWithUrls = {
+      ...story._doc,
+      user: userWithImageUrls,
+      mediaUrl: story.mediaUrls[0],
+      thumbnail: story.videoMetadata?.thumbnail || null
+    };
+
+    console.log(`📹 Video story created: ${story._id}, duration: ${req.videoMetadata.duration}s`);
+
+    res.status(201).json({
+      success: true,
+      data: storyWithUrls
+    });
+  } catch (error) {
+    console.error('Create video story error:', error);
+    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+  }
+});
+
 // Delete story and clean up Spaces media
 exports.deleteStory = asyncHandler(async (req, res, next) => {
   try {
     const story = await Story.findById(req.params.id);
     if (!story) return next(new ErrorResponse(`Story not found with id of ${req.params.id}`, 404));
     if (story.user.toString() !== req.user.id) return next(new ErrorResponse('Not authorized to delete this story', 403));
+
     // Delete all media from Spaces
     if (Array.isArray(story.mediaUrls)) {
       await Promise.all(story.mediaUrls.map(url => deleteFromSpaces(url)));
     }
+
+    // Delete video thumbnail if exists
+    if (story.videoMetadata && story.videoMetadata.thumbnail) {
+      try {
+        await deleteFromSpaces(story.videoMetadata.thumbnail);
+        console.log(`🗑️ Video thumbnail deleted from Spaces`);
+      } catch (err) {
+        console.error('Failed to delete video thumbnail:', err.message);
+      }
+    }
+
     story.isActive = false;
     await story.save();
     res.status(200).json({ success: true, data: {}, message: 'Story deleted successfully' });
@@ -415,7 +505,8 @@ exports.getMyStories = asyncHandler(async (req, res, next) => {
         user: userWithImageUrls,
         mediaUrl: story.mediaUrls && story.mediaUrls.length > 0 ? story.mediaUrls[0] : (story.mediaUrl || null),
         mediaUrls: story.mediaUrls || [],
-        thumbnail: story.thumbnail || null,
+        thumbnail: story.videoMetadata?.thumbnail || story.thumbnail || null,
+        videoMetadata: story.videoMetadata || null,
         text: story.text || null,
         backgroundColor: story.backgroundColor || '#000000',
         textColor: story.textColor || '#ffffff',
@@ -483,18 +574,17 @@ exports.getStory = asyncHandler(async (req, res, next) => {
     
     const userWithImageUrls = {
       ...story.user._doc,
-      imageUrls: story.user.images.map(image => 
-        image
-      )
+      imageUrls: story.user.images.map(image => image)
     };
-    
+
     const storyWithUrls = {
       ...story._doc,
       user: userWithImageUrls,
       mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
-      thumbnail: story.thumbnail ? story.thumbnail : null
+      thumbnail: story.videoMetadata?.thumbnail || story.thumbnail || null,
+      videoMetadata: story.videoMetadata || null
     };
-    
+
     res.status(200).json({
       success: true,
       data: storyWithUrls

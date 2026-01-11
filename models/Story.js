@@ -8,8 +8,37 @@ const StorySchema = new mongoose.Schema({
   mediaUrls: [String], // Multiple uploads per story (to Spaces)
   mediaType: {
     type: String,
-    enum: ['image', 'video', 'text'], 
+    enum: ['image', 'video', 'text'],
     required: false
+  },
+
+  // Video metadata (Instagram-style video stories)
+  videoMetadata: {
+    duration: {
+      type: Number, // Duration in seconds
+      default: null,
+      max: [180, 'Video duration cannot exceed 3 minutes (180 seconds)']
+    },
+    thumbnail: {
+      type: String, // Thumbnail URL
+      default: null
+    },
+    width: {
+      type: Number,
+      default: null
+    },
+    height: {
+      type: Number,
+      default: null
+    },
+    mimeType: {
+      type: String,
+      default: null
+    },
+    fileSize: {
+      type: Number, // Size in bytes
+      default: null
+    }
   },
   text: { type: String, maxLength: 5000 },
   backgroundColor: { type: String, default: '#000000' },

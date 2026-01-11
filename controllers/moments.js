@@ -308,6 +308,7 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
   // If images were uploaded via multer-s3, add their CDN URLs
   if (req.files && req.files.length > 0) {
     momentData.images = req.files.map(file => file.location);
+    momentData.mediaType = 'image';
   }
 
   // Handle location if provided
@@ -438,6 +439,22 @@ exports.deleteMoment = asyncHandler(async (req, res, next) => {
     });
   }
 
+  // Delete associated video from Spaces
+  if (moment.video && moment.video.url) {
+    console.log(`🗑️ Deleting video from Spaces`);
+    // Delete video asynchronously (don't block response)
+    (async () => {
+      try {
+        await deleteFromSpaces(moment.video.url);
+        if (moment.video.thumbnail) {
+          await deleteFromSpaces(moment.video.thumbnail);
+        }
+      } catch (err) {
+        console.error(`Failed to delete video:`, err.message);
+      }
+    })();
+  }
+
   await moment.deleteOne();
 
   res.status(200).json({
@@ -485,6 +502,12 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
 
   // Update moment with new images (now full CDN URLs)
   moment.images = [...moment.images, ...newImageUrls];
+
+  // Update mediaType if not already video
+  if (moment.mediaType !== 'video') {
+    moment.mediaType = 'image';
+  }
+
   await moment.save();
 
   // KEEP EXACT RESPONSE FORMAT
@@ -495,6 +518,131 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
       images: moment.images,
       imageUrls: moment.images // Same as images now (already full URLs)
     }
+  });
+});
+
+/**
+ * @desc    Upload video to moment (Instagram-style video moments)
+ * @route   PUT /api/v1/moments/:id/video
+ * @access  Private
+ * @note    Video must be under 3 minutes (180 seconds) and max 100MB
+ *          Uses streaming upload for memory efficiency
+ */
+exports.momentVideoUpload = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
+
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  // Check ownership
+  if (moment.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized to upload video to this moment', 403));
+  }
+
+  // Check if moment already has a video
+  if (moment.video && moment.video.url) {
+    // Delete old video from Spaces before replacing
+    try {
+      await deleteFromSpaces(moment.video.url);
+      if (moment.video.thumbnail) {
+        await deleteFromSpaces(moment.video.thumbnail);
+      }
+    } catch (err) {
+      console.error('Failed to delete old video:', err.message);
+    }
+  }
+
+  // Video should be validated by middleware (uploadSingleVideo)
+  if (!req.videoMetadata) {
+    return next(new ErrorResponse('Please upload a video file', 400));
+  }
+
+  // Update moment with video data
+  moment.video = {
+    url: req.videoMetadata.url,
+    thumbnail: req.videoMetadata.thumbnail || null,
+    duration: req.videoMetadata.duration,
+    width: req.videoMetadata.width,
+    height: req.videoMetadata.height,
+    mimeType: req.videoMetadata.mimeType,
+    fileSize: req.videoMetadata.fileSize
+  };
+  moment.mediaType = 'video';
+
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      video: moment.video,
+      mediaType: moment.mediaType
+    },
+    message: 'Video uploaded successfully'
+  });
+});
+
+/**
+ * @desc    Delete video from moment
+ * @route   DELETE /api/v1/moments/:id/video
+ * @access  Private
+ */
+exports.deleteVideo = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
+
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  // Check ownership
+  if (moment.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized to delete video from this moment', 403));
+  }
+
+  // Check if moment has a video
+  if (!moment.video || !moment.video.url) {
+    return next(new ErrorResponse('This moment does not have a video', 400));
+  }
+
+  // Delete video from Spaces
+  try {
+    await deleteFromSpaces(moment.video.url);
+    if (moment.video.thumbnail) {
+      await deleteFromSpaces(moment.video.thumbnail);
+    }
+    console.log(`🗑️ Video deleted from Spaces`);
+  } catch (err) {
+    console.error('Failed to delete video from Spaces:', err.message);
+  }
+
+  // Clear video data from moment
+  moment.video = {
+    url: null,
+    thumbnail: null,
+    duration: null,
+    width: null,
+    height: null,
+    mimeType: null,
+    fileSize: null
+  };
+
+  // Update mediaType based on remaining content
+  if (moment.images && moment.images.length > 0) {
+    moment.mediaType = 'image';
+  } else {
+    moment.mediaType = 'text';
+  }
+
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      mediaType: moment.mediaType
+    },
+    message: 'Video deleted successfully'
   });
 });
 
