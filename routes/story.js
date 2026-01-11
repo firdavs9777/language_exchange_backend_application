@@ -9,6 +9,7 @@ const {
   getUserStories,
   createStory,
   createVideoStory,
+  getVideoConfig,
   deleteStory,
   markStoryViewed,
   
@@ -53,6 +54,9 @@ const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVi
 const advancedResults = require('../middleware/advancedResults');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
+
+// ========== CONFIG ==========
+router.route('/video-config').get(getVideoConfig); // Get video upload constraints (public)
 
 // ========== FEED & MY STORIES ==========
 router.route('/feed').get(protect, getStoriesFeed);

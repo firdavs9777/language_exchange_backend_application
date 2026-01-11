@@ -7,6 +7,35 @@ const Message = require('../models/Message');
 const ErrorResponse = require('../utils/errorResponse');
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds, checkBlockStatus } = require('../utils/blockingUtils');
+const { getVideoConstraints } = require('../utils/videoUtils');
+
+/**
+ * @desc    Get video upload configuration/constraints for stories
+ * @route   GET /api/v1/stories/video-config
+ * @access  Public
+ */
+exports.getVideoConfig = asyncHandler(async (req, res, next) => {
+  const constraints = getVideoConstraints();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      video: constraints,
+      image: {
+        maxSize: 10 * 1024 * 1024, // 10MB
+        maxSizeMB: 10,
+        maxMediaPerStory: 5,
+        allowedTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
+        allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+      },
+      story: {
+        expiresIn: 24 * 60 * 60 * 1000, // 24 hours in ms
+        expiresInHours: 24,
+        maxTextLength: 5000
+      }
+    }
+  });
+});
 
 // @desc Get stories feed (from people you follow)
 // @route GET /api/v1/stories/feed

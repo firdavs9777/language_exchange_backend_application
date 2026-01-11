@@ -6,9 +6,33 @@ const ErrorResponse = require('../utils/errorResponse');
 const { processUserImages, processMomentImages } = require('../utils/imageUtils');
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
+const { getVideoConstraints } = require('../utils/videoUtils');
 
 // Minimal user fields for population (performance optimization)
 const USER_FIELDS = 'name email bio images native_language language_to_learn';
+
+/**
+ * @desc    Get video upload configuration/constraints
+ * @route   GET /api/v1/moments/video-config
+ * @access  Public
+ */
+exports.getVideoConfig = asyncHandler(async (req, res, next) => {
+  const constraints = getVideoConstraints();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      video: constraints,
+      image: {
+        maxSize: 10 * 1024 * 1024, // 10MB
+        maxSizeMB: 10,
+        maxImagesPerMoment: 10,
+        allowedTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
+        allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+      }
+    }
+  });
+});
 
 /**
  * @desc    Get all moments (feed)

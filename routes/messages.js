@@ -17,6 +17,7 @@ const { searchMessages } = require('../controllers/messageSearch');
 const advancedResults = require('../middleware/advancedResults');
 const { checkMessageLimit } = require('../middleware/checkLimitations');
 const { uploadSingle } = require('../middleware/uploadToSpaces');
+const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVideoToSpaces');
 
 // Advanced message features controller
 const advancedMessages = require('../controllers/advancedMessages');
@@ -35,6 +36,18 @@ router.route('/search').get(protect, searchMessages);
 router.route('/conversations').post(protect, createConversationRoom).get(protect, getConversationRooms);
 
 // ========== ADVANCED FEATURES (HelloTalk/KakaoTalk Style) ==========
+
+// Video/Voice config (public endpoint for frontend validation)
+router.route('/video-config').get(advancedMessages.getVideoMessageConfig);
+
+// Video messages (Instagram-style, max 3 minutes with thumbnail)
+router.route('/video').post(
+  protect,
+  checkMessageLimit,
+  uploadSingleVideo('video', 'bananatalk/messages/videos'),
+  generateThumbnail,
+  advancedMessages.sendVideoMessage
+);
 
 // Voice messages
 router.route('/voice').post(

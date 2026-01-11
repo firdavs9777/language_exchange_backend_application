@@ -4,6 +4,8 @@ const Poll = require('../models/Poll');
 const User = require('../models/User');
 const Conversation = require('../models/Conversation');
 const ErrorResponse = require('../utils/errorResponse');
+const deleteFromSpaces = require('../utils/deleteFromSpaces');
+const { getVideoMetadata, isValidDuration, MAX_VIDEO_DURATION } = require('../utils/videoUtils');
 
 // ========== MESSAGE CORRECTIONS (HelloTalk Style) ==========
 
@@ -465,19 +467,209 @@ exports.closePoll = asyncHandler(async (req, res, next) => {
   });
 });
 
+// ========== VIDEO MESSAGES ==========
+
+/**
+ * @desc    Send video message with thumbnail (max 3 minutes)
+ * @route   POST /api/v1/messages/video
+ * @access  Private
+ */
+exports.sendVideoMessage = asyncHandler(async (req, res, next) => {
+  const { receiver } = req.body;
+  const senderId = req.user._id;
+
+  if (!receiver) {
+    return next(new ErrorResponse('Receiver is required', 400));
+  }
+
+  // Video should be validated by middleware (uploadSingleVideo)
+  if (!req.videoMetadata) {
+    return next(new ErrorResponse('Please upload a video file', 400));
+  }
+
+  // Check if receiver exists
+  const receiverUser = await User.findById(receiver);
+  if (!receiverUser) {
+    return next(new ErrorResponse('Receiver not found', 404));
+  }
+
+  // Check blocking status
+  const senderUser = await User.findById(senderId);
+  if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
+    // Delete the uploaded video since we can't send
+    await deleteFromSpaces(req.videoMetadata.url);
+    if (req.videoMetadata.thumbnail) {
+      await deleteFromSpaces(req.videoMetadata.thumbnail);
+    }
+    return next(new ErrorResponse('Cannot send message to this user', 403));
+  }
+
+  // Check message limit
+  const canSend = await senderUser.canSendMessage();
+  if (!canSend) {
+    // Delete the uploaded video since we can't send
+    await deleteFromSpaces(req.videoMetadata.url);
+    if (req.videoMetadata.thumbnail) {
+      await deleteFromSpaces(req.videoMetadata.thumbnail);
+    }
+    const LIMITS = require('../config/limitations');
+    const { formatLimitError } = require('../utils/limitations');
+    const current = senderUser.regularUserLimitations?.messagesSentToday || 0;
+    const max = LIMITS.regular.messagesPerDay;
+    const now = new Date();
+    const nextReset = new Date(now);
+    nextReset.setHours(24, 0, 0, 0);
+    return next(formatLimitError('messages', current, max, nextReset));
+  }
+
+  const messageData = {
+    sender: senderId,
+    receiver,
+    messageType: 'media',
+    media: {
+      url: req.videoMetadata.url,
+      type: 'video',
+      thumbnail: req.videoMetadata.thumbnail,
+      mimeType: req.videoMetadata.mimeType,
+      fileSize: req.videoMetadata.fileSize,
+      duration: req.videoMetadata.duration,
+      dimensions: {
+        width: req.videoMetadata.width,
+        height: req.videoMetadata.height
+      }
+    }
+  };
+
+  const message = await Message.create(messageData);
+  await senderUser.incrementMessageCount();
+
+  // Update conversation
+  const Conversation = require('../models/Conversation');
+  let conversation = await Conversation.findOne({
+    participants: { $all: [senderId, receiver], $size: 2 },
+    isGroup: false
+  });
+
+  if (!conversation) {
+    conversation = await Conversation.create({
+      participants: [senderId, receiver],
+      isGroup: false
+    });
+  }
+
+  conversation.lastMessage = message._id;
+  conversation.lastMessageAt = new Date();
+  await conversation.updateUnreadCount(receiver, 1);
+  await conversation.save();
+
+  await message.populate('sender', 'name images');
+  await message.populate('receiver', 'name images');
+
+  // Notify receiver via socket
+  const io = req.app.get('io');
+  if (io) {
+    io.to(`user_${receiver}`).emit('newVideoMessage', {
+      message,
+      duration: req.videoMetadata.duration,
+      thumbnail: req.videoMetadata.thumbnail
+    });
+  }
+
+  console.log(`📹 Video message sent: ${senderId} → ${receiver}, duration: ${req.videoMetadata.duration}s`);
+
+  res.status(201).json({
+    success: true,
+    data: message
+  });
+});
+
+/**
+ * @desc    Get video message config/constraints
+ * @route   GET /api/v1/messages/video-config
+ * @access  Public
+ */
+exports.getVideoMessageConfig = asyncHandler(async (req, res, next) => {
+  const { getVideoConstraints } = require('../utils/videoUtils');
+  const constraints = getVideoConstraints();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      video: constraints,
+      voice: {
+        maxDuration: 300, // 5 minutes for voice
+        maxSize: 25 * 1024 * 1024, // 25MB
+        allowedTypes: ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/webm', 'audio/wav', 'audio/m4a'],
+        allowedExtensions: ['.mp3', '.m4a', '.ogg', '.webm', '.wav']
+      }
+    }
+  });
+});
+
 // ========== VOICE MESSAGES ==========
 
 /**
  * @desc    Send voice message with waveform data
  * @route   POST /api/v1/messages/voice
  * @access  Private
+ * @note    Duration is extracted server-side if not provided
  */
 exports.sendVoiceMessage = asyncHandler(async (req, res, next) => {
-  const { receiver, duration, waveform } = req.body;
+  const { receiver, waveform } = req.body;
+  let { duration } = req.body;
   const senderId = req.user._id;
 
   if (!receiver || !req.file) {
     return next(new ErrorResponse('Receiver and voice file are required', 400));
+  }
+
+  // Check if receiver exists
+  const receiverUser = await User.findById(receiver);
+  if (!receiverUser) {
+    return next(new ErrorResponse('Receiver not found', 404));
+  }
+
+  // Check blocking status
+  const senderUser = await User.findById(senderId);
+  if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
+    await deleteFromSpaces(req.file.location);
+    return next(new ErrorResponse('Cannot send message to this user', 403));
+  }
+
+  // Check message limit
+  const canSend = await senderUser.canSendMessage();
+  if (!canSend) {
+    await deleteFromSpaces(req.file.location);
+    const LIMITS = require('../config/limitations');
+    const { formatLimitError } = require('../utils/limitations');
+    const current = senderUser.regularUserLimitations?.messagesSentToday || 0;
+    const max = LIMITS.regular.messagesPerDay;
+    const now = new Date();
+    const nextReset = new Date(now);
+    nextReset.setHours(24, 0, 0, 0);
+    return next(formatLimitError('messages', current, max, nextReset));
+  }
+
+  // Extract duration from audio file if not provided
+  if (!duration || duration === 0) {
+    try {
+      const metadata = await getVideoMetadata(req.file.location);
+      duration = Math.round(metadata.duration * 10) / 10; // Round to 1 decimal
+      console.log(`🎤 Voice duration extracted: ${duration}s`);
+    } catch (err) {
+      console.error('Failed to extract voice duration:', err.message);
+      duration = 0; // Fallback if ffprobe fails
+    }
+  }
+
+  // Parse waveform if it's a string
+  let parsedWaveform = waveform || [];
+  if (typeof waveform === 'string') {
+    try {
+      parsedWaveform = JSON.parse(waveform);
+    } catch (e) {
+      parsedWaveform = [];
+    }
   }
 
   const messageData = {
@@ -490,11 +682,30 @@ exports.sendVoiceMessage = asyncHandler(async (req, res, next) => {
       mimeType: req.file.mimetype,
       fileSize: req.file.size,
       duration: duration || 0,
-      waveform: waveform || []
+      waveform: parsedWaveform
     }
   };
 
   const message = await Message.create(messageData);
+  await senderUser.incrementMessageCount();
+
+  // Update conversation
+  let conversation = await Conversation.findOne({
+    participants: { $all: [senderId, receiver], $size: 2 },
+    isGroup: false
+  });
+
+  if (!conversation) {
+    conversation = await Conversation.create({
+      participants: [senderId, receiver],
+      isGroup: false
+    });
+  }
+
+  conversation.lastMessage = message._id;
+  conversation.lastMessageAt = new Date();
+  await conversation.updateUnreadCount(receiver, 1);
+  await conversation.save();
 
   await message.populate('sender', 'name images');
   await message.populate('receiver', 'name images');
@@ -503,9 +714,12 @@ exports.sendVoiceMessage = asyncHandler(async (req, res, next) => {
   const io = req.app.get('io');
   if (io) {
     io.to(`user_${receiver}`).emit('newVoiceMessage', {
-      message
+      message,
+      duration: messageData.media.duration
     });
   }
+
+  console.log(`🎤 Voice message sent: ${senderId} → ${receiver}, duration: ${duration}s`);
 
   res.status(201).json({
     success: true,

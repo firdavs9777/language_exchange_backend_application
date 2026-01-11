@@ -9,6 +9,7 @@ const {
   momentPhotoUpload,
   momentVideoUpload,
   deleteVideo,
+  getVideoConfig,
   getUserMoments,
   likeMoment,
   dislikeMoment,
@@ -37,6 +38,7 @@ router.use('/:momentId/comments', commentRouter);
 // ========== PUBLIC ROUTES (with optional auth for blocking) ==========
 // Note: optionalAuth middleware attaches user if token exists but doesn't require it
 router.route('/').get(optionalAuth, getMoments);
+router.route('/video-config').get(getVideoConfig); // Get video upload constraints
 router.route('/trending').get(optionalAuth, getTrendingMoments);
 router.route('/explore').get(optionalAuth, exploreMoments);
 router.route('/user/:userId').get(optionalAuth, getUserMoments);

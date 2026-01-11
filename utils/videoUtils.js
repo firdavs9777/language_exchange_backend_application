@@ -169,6 +169,28 @@ exports.formatDuration = (seconds) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+/**
+ * Get video upload constraints for frontend validation
+ * @returns {Object} Video constraints
+ */
+exports.getVideoConstraints = () => {
+  return {
+    maxDuration: MAX_VIDEO_DURATION,
+    maxDurationFormatted: '3:00',
+    maxSize: MAX_VIDEO_SIZE,
+    maxSizeMB: MAX_VIDEO_SIZE / (1024 * 1024),
+    allowedTypes: ALLOWED_VIDEO_TYPES,
+    allowedExtensions: ['.mp4', '.mov', '.avi', '.webm', '.3gp', '.m4v'],
+    recommendedFormat: 'video/mp4',
+    recommendedCodec: 'H.264',
+    recommendedResolution: {
+      maxWidth: 1080,
+      maxHeight: 1920,
+      aspectRatios: ['9:16', '16:9', '1:1', '4:5']
+    }
+  };
+};
+
 // Export constants
 exports.MAX_VIDEO_DURATION = MAX_VIDEO_DURATION;
 exports.MAX_VIDEO_SIZE = MAX_VIDEO_SIZE;
