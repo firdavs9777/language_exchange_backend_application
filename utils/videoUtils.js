@@ -1,10 +1,10 @@
 // utils/videoUtils.js
 const path = require('path');
-const { spawn } = require('child_process');
+const ffmpeg = require('fluent-ffmpeg');
 
-// FFMPEG/FFPROBE paths - explicitly set to avoid PATH issues
-const FFPROBE_PATH = process.env.FFPROBE_PATH || '/usr/bin/ffprobe';
-const FFMPEG_PATH = process.env.FFMPEG_PATH || '/usr/bin/ffmpeg';
+// Set ffmpeg/ffprobe paths explicitly for PM2 compatibility
+ffmpeg.setFfmpegPath('/usr/bin/ffmpeg');
+ffmpeg.setFfprobePath('/usr/bin/ffprobe');
 
 // Maximum video duration in seconds (10 minutes)
 const MAX_VIDEO_DURATION = 600;
@@ -30,7 +30,7 @@ exports.isValidVideoType = (mimeType) => {
 };
 
 /**
- * Get video metadata using ffprobe
+ * Get video metadata using ffprobe (via fluent-ffmpeg)
  * Memory-efficient - only reads metadata, not full video
  *
  * @param {string} filePath - Path to video file or URL
@@ -38,68 +38,32 @@ exports.isValidVideoType = (mimeType) => {
  */
 exports.getVideoMetadata = (filePath) => {
   return new Promise((resolve, reject) => {
-    // Debug logging
-    console.log('🎬 Using ffprobe:', FFPROBE_PATH);
-    console.log('🎬 Video URL:', filePath);
+    console.log('🎬 Getting video metadata for:', filePath);
 
-    // Use ffprobe to get video metadata (comes with ffmpeg)
-    // Use absolute path and explicit env to work with PM2
-    const ffprobe = spawn(FFPROBE_PATH, [
-      '-v', 'quiet',
-      '-print_format', 'json',
-      '-show_format',
-      '-show_streams',
-      filePath
-    ], {
-      shell: false,
-      env: {
-        ...process.env,
-        PATH: '/usr/bin:/bin:/usr/local/bin'
-      }
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    ffprobe.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    ffprobe.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    ffprobe.on('close', (code) => {
-      if (code !== 0) {
-        console.error('ffprobe error:', stderr);
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err) {
+        console.error('❌ ffprobe error:', err.message);
         return reject(new Error('Failed to get video metadata. Ensure ffmpeg is installed.'));
       }
 
       try {
-        const metadata = JSON.parse(stdout);
         const videoStream = metadata.streams?.find(s => s.codec_type === 'video');
         const format = metadata.format || {};
 
-        resolve({
+        const result = {
           duration: parseFloat(format.duration) || 0,
           width: videoStream?.width || null,
           height: videoStream?.height || null,
           bitrate: parseInt(format.bit_rate) || null,
           codec: videoStream?.codec_name || null,
           size: parseInt(format.size) || null
-        });
-      } catch (parseError) {
-        reject(new Error('Failed to parse video metadata'));
-      }
-    });
+        };
 
-    ffprobe.on('error', (err) => {
-      // ffprobe not found - provide helpful message
-      console.error('ffprobe spawn error:', err);
-      if (err.code === 'ENOENT') {
-        reject(new Error(`ffmpeg/ffprobe not found at ${FFPROBE_PATH}. Please install ffmpeg or set FFPROBE_PATH environment variable.`));
-      } else {
-        reject(err);
+        console.log('✅ Video metadata:', result);
+        resolve(result);
+      } catch (parseError) {
+        console.error('❌ Failed to parse metadata:', parseError);
+        reject(new Error('Failed to parse video metadata'));
       }
     });
   });
@@ -116,58 +80,35 @@ exports.isValidDuration = (duration) => {
 };
 
 /**
- * Generate video thumbnail using ffmpeg
+ * Generate video thumbnail using ffmpeg (via fluent-ffmpeg)
  * Extracts a frame at 1 second mark
  *
- * @param {string} videoPath - Path to video file
+ * @param {string} videoPath - Path to video file or URL
  * @param {string} outputPath - Path for output thumbnail
  * @returns {Promise<string>} Path to generated thumbnail
  */
 exports.generateVideoThumbnail = (videoPath, outputPath) => {
   return new Promise((resolve, reject) => {
-    // Debug logging
-    console.log('🖼️ Using ffmpeg:', FFMPEG_PATH);
     console.log('🖼️ Generating thumbnail for:', videoPath);
 
-    // Use absolute path and explicit env to work with PM2
-    const ffmpeg = spawn(FFMPEG_PATH, [
-      '-i', videoPath,
-      '-ss', '00:00:01',     // Seek to 1 second
-      '-vframes', '1',        // Extract 1 frame
-      '-vf', 'scale=480:-1',  // Scale to 480px width, maintain aspect ratio
-      '-q:v', '2',            // Quality (2-5 is good for thumbnails)
-      '-y',                   // Overwrite output file
-      outputPath
-    ], {
-      shell: false,
-      env: {
-        ...process.env,
-        PATH: '/usr/bin:/bin:/usr/local/bin'
-      }
-    });
+    const outputDir = path.dirname(outputPath);
+    const outputFilename = path.basename(outputPath);
 
-    let stderr = '';
-
-    ffmpeg.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code !== 0) {
-        console.error('ffmpeg thumbnail error:', stderr);
-        return reject(new Error('Failed to generate thumbnail'));
-      }
-      resolve(outputPath);
-    });
-
-    ffmpeg.on('error', (err) => {
-      console.error('ffmpeg spawn error:', err);
-      if (err.code === 'ENOENT') {
-        reject(new Error(`ffmpeg not found at ${FFMPEG_PATH}. Please install ffmpeg or set FFMPEG_PATH environment variable.`));
-      } else {
-        reject(err);
-      }
-    });
+    ffmpeg(videoPath)
+      .screenshots({
+        timestamps: ['00:00:01'],
+        filename: outputFilename,
+        folder: outputDir,
+        size: '480x?'
+      })
+      .on('end', () => {
+        console.log('✅ Thumbnail generated:', outputPath);
+        resolve(outputPath);
+      })
+      .on('error', (err) => {
+        console.error('❌ Thumbnail error:', err.message);
+        reject(new Error('Failed to generate thumbnail'));
+      });
   });
 };
 
