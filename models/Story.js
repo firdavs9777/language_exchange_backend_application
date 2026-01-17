@@ -12,12 +12,12 @@ const StorySchema = new mongoose.Schema({
     required: false
   },
 
-  // Video metadata (Instagram-style video stories)
+  // Video metadata (YouTube-style video stories)
   videoMetadata: {
     duration: {
       type: Number, // Duration in seconds
       default: null,
-      max: [180, 'Video duration cannot exceed 3 minutes (180 seconds)']
+      max: [600, 'Video duration cannot exceed 10 minutes (600 seconds)']
     },
     thumbnail: {
       type: String, // Thumbnail URL

@@ -1,7 +1,20 @@
 const multer = require('multer');
 const multerS3 = require('multer-s3');
 const s3 = require('../config/spaces');
-const path = require('path');
+
+// File size limits
+const VIDEO_MAX_SIZE = 1024 * 1024 * 1024; // 1GB for videos
+
+// Allowed file types
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+const ALLOWED_VIDEO_TYPES = [
+  'video/mp4',
+  'video/quicktime',  // .mov
+  'video/x-msvideo',  // .avi
+  'video/webm',
+  'video/3gpp',       // .3gp
+  'video/x-m4v'       // .m4v
+];
 
 // Upload to Spaces
 const uploadToSpaces = multer({
@@ -16,18 +29,16 @@ const uploadToSpaces = multer({
     },
     contentType: multerS3.AUTO_CONTENT_TYPE
   }),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  limits: { fileSize: VIDEO_MAX_SIZE }, // 1GB max (for videos), images validated in fileFilter
   fileFilter: (req, file, cb) => {
-    // Accept images and videos
-    const allowedTypes = /jpeg|jpg|png|gif|webp|mp4|mov|avi/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error('Only images and videos are allowed!'));
+    const isImage = ALLOWED_IMAGE_TYPES.includes(file.mimetype);
+    const isVideo = ALLOWED_VIDEO_TYPES.includes(file.mimetype);
+
+    if (!isImage && !isVideo) {
+      return cb(new Error('Only images and videos are allowed! Supported formats: JPG, PNG, GIF, WebP, MP4, MOV, AVI, WebM, 3GP, M4V'));
     }
+
+    cb(null, true);
   }
 });
 

@@ -2,11 +2,11 @@
 const path = require('path');
 const { spawn } = require('child_process');
 
-// Maximum video duration in seconds (3 minutes)
-const MAX_VIDEO_DURATION = 180;
+// Maximum video duration in seconds (10 minutes)
+const MAX_VIDEO_DURATION = 600;
 
-// Maximum file size for videos (100MB - reasonable for 3 min video)
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
+// Maximum file size for videos (1GB - YouTube-style uploads)
+const MAX_VIDEO_SIZE = 1024 * 1024 * 1024;
 
 // Allowed video MIME types
 const ALLOWED_VIDEO_TYPES = [
@@ -176,9 +176,10 @@ exports.formatDuration = (seconds) => {
 exports.getVideoConstraints = () => {
   return {
     maxDuration: MAX_VIDEO_DURATION,
-    maxDurationFormatted: '3:00',
+    maxDurationFormatted: '10:00',
     maxSize: MAX_VIDEO_SIZE,
     maxSizeMB: MAX_VIDEO_SIZE / (1024 * 1024),
+    maxSizeGB: MAX_VIDEO_SIZE / (1024 * 1024 * 1024),
     allowedTypes: ALLOWED_VIDEO_TYPES,
     allowedExtensions: ['.mp4', '.mov', '.avi', '.webm', '.3gp', '.m4v'],
     recommendedFormat: 'video/mp4',

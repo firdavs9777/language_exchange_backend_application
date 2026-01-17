@@ -294,7 +294,7 @@ exports.createStory = asyncHandler(async (req, res, next) => {
   }
 });
 
-// @desc Create video story (Instagram-style, max 3 minutes)
+// @desc Create video story (YouTube-style, max 10 minutes)
 // @route POST /api/v1/stories/video
 // @access Private
 exports.createVideoStory = asyncHandler(async (req, res, next) => {

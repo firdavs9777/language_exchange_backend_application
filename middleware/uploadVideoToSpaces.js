@@ -34,7 +34,7 @@ const videoUploader = multer({
     }
   }),
   limits: {
-    fileSize: MAX_VIDEO_SIZE, // 100MB max - sufficient for 3 min video
+    fileSize: MAX_VIDEO_SIZE, // 1GB max - YouTube-style video uploads
     files: 1 // Only 1 video per upload
   },
   fileFilter: (req, file, cb) => {
@@ -97,7 +97,7 @@ const uploadSingleVideo = (fieldName, folder = 'bananatalk/moments/videos') => {
 
         console.log(`📏 Video duration: ${metadata.duration}s (max: ${MAX_VIDEO_DURATION}s)`);
 
-        // Check duration limit (3 minutes = 180 seconds)
+        // Check duration limit (10 minutes = 600 seconds)
         if (!isValidDuration(metadata.duration)) {
           // Duration exceeds limit - delete the uploaded video
           console.log(`❌ Video duration ${metadata.duration}s exceeds ${MAX_VIDEO_DURATION}s limit. Deleting...`);
@@ -105,7 +105,7 @@ const uploadSingleVideo = (fieldName, folder = 'bananatalk/moments/videos') => {
 
           return res.status(400).json({
             success: false,
-            error: `Video duration (${Math.ceil(metadata.duration)}s) exceeds maximum of ${MAX_VIDEO_DURATION} seconds (3 minutes)`,
+            error: `Video duration (${Math.ceil(metadata.duration)}s) exceeds maximum of ${MAX_VIDEO_DURATION} seconds (10 minutes)`,
             maxDuration: MAX_VIDEO_DURATION
           });
         }

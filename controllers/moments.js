@@ -549,7 +549,7 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
  * @desc    Upload video to moment (Instagram-style video moments)
  * @route   PUT /api/v1/moments/:id/video
  * @access  Private
- * @note    Video must be under 3 minutes (180 seconds) and max 100MB
+ * @note    Video must be under 10 minutes (600 seconds) and max 1GB
  *          Uses streaming upload for memory efficiency
  */
 exports.momentVideoUpload = asyncHandler(async (req, res, next) => {

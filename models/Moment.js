@@ -147,7 +147,7 @@ const MomentSchema = new mongoose.Schema({
     duration: {
       type: Number, // Duration in seconds
       default: null,
-      max: [180, 'Video duration cannot exceed 3 minutes (180 seconds)']
+      max: [600, 'Video duration cannot exceed 10 minutes (600 seconds)']
     },
     width: {
       type: Number,

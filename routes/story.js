@@ -92,7 +92,7 @@ router.route('/highlights/:id/stories/:storyId')
 router.route('/')
   .post(protect, checkStoryLimit, uploadMultiple('media', 5, 'bananatalk/stories'), createStory);
 
-// ========== CREATE VIDEO STORY (Instagram-style, max 3 minutes) ==========
+// ========== CREATE VIDEO STORY (YouTube-style, max 10 minutes) ==========
 router.route('/video')
   .post(
     protect,

@@ -2,14 +2,89 @@
 
 ## Overview
 
-This document provides comprehensive guidance for frontend developers implementing video upload functionality for **Moments** and **Stories** (Instagram-style).
+This document provides comprehensive guidance for frontend developers implementing video upload functionality for **Moments** and **Stories** (YouTube-style).
 
 ### Key Features
-- **Max Duration**: 3 minutes (180 seconds)
-- **Max File Size**: 100MB
+- **Max Duration**: 10 minutes (600 seconds)
+- **Max File Size**: 1GB (1024MB)
 - **Supported Formats**: MP4, MOV, AVI, WebM, 3GP, M4V
 - **Auto Thumbnails**: Generated server-side
 - **Streaming Upload**: Memory-efficient, no client-side chunking required
+
+---
+
+## How Video Upload Works
+
+### Simple Flow Diagram
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           VIDEO UPLOAD PROCESS                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   FRONTEND (Your App)                         BACKEND (Our Server)           │
+│   ═══════════════════                         ════════════════════           │
+│                                                                              │
+│   1. User picks video                                                        │
+│          │                                                                   │
+│          ▼                                                                   │
+│   2. Validate locally ◄─── Check: size < 1GB, duration < 10 min             │
+│          │                                                                   │
+│          ▼                                                                   │
+│   3. Send FormData ─────────────────────────► 4. Receive & stream to cloud  │
+│      (multipart/form-data)                           │                       │
+│                                                      ▼                       │
+│                                               5. Validate duration           │
+│                                                  (using ffprobe)             │
+│                                                      │                       │
+│                                                      ▼                       │
+│                                               6. Generate thumbnail          │
+│                                                  (using ffmpeg)              │
+│                                                      │                       │
+│                                                      ▼                       │
+│   8. Display video ◄──────────────────────── 7. Return video URL + metadata │
+│      in your app                                                             │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Step-by-Step Explanation
+
+| Step | Where | What Happens |
+|------|-------|--------------|
+| **1** | Frontend | User selects a video from their device (camera roll, gallery, or records new) |
+| **2** | Frontend | Your app validates the video BEFORE uploading (check file size & duration) |
+| **3** | Frontend | Send the video as `FormData` with `multipart/form-data` content type |
+| **4** | Backend | Server receives the video and streams it directly to cloud storage (DigitalOcean Spaces) |
+| **5** | Backend | Server validates video duration using `ffprobe` (if too long, video is deleted and error returned) |
+| **6** | Backend | Server generates a thumbnail image from the video at 1-second mark using `ffmpeg` |
+| **7** | Backend | Server returns the video URL, thumbnail URL, and metadata (duration, dimensions, size) |
+| **8** | Frontend | Your app displays the video using the returned URLs |
+
+### For Moments vs Stories
+
+| Feature | Moments | Stories |
+|---------|---------|---------|
+| **Create** | First create moment (text), then add video | Create with video in one request |
+| **Endpoint** | `PUT /api/v1/moments/:id/video` | `POST /api/v1/stories/video` |
+| **Flow** | Two-step process | One-step process |
+| **Video Limit** | 1 video per moment | 1 video per story |
+
+### What You Get Back
+
+When upload succeeds, you receive:
+```javascript
+{
+  video: {
+    url: "https://cdn.../video.mp4",      // Use this to play the video
+    thumbnail: "https://cdn.../thumb.jpg", // Use this as preview image
+    duration: 45.5,                        // Duration in seconds
+    width: 1080,                           // Video width in pixels
+    height: 1920,                          // Video height in pixels
+    mimeType: "video/mp4",                 // File type
+    fileSize: 15728640                     // Size in bytes
+  }
+}
+```
 
 ---
 
@@ -43,10 +118,11 @@ GET /api/v1/stories/video-config
   "success": true,
   "data": {
     "video": {
-      "maxDuration": 180,
-      "maxDurationFormatted": "3:00",
-      "maxSize": 104857600,
-      "maxSizeMB": 100,
+      "maxDuration": 600,
+      "maxDurationFormatted": "10:00",
+      "maxSize": 1073741824,
+      "maxSizeMB": 1024,
+      "maxSizeGB": 1,
       "allowedTypes": [
         "video/mp4",
         "video/quicktime",
@@ -92,7 +168,7 @@ Content-Type: multipart/form-data
 #### Request Body (FormData)
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `video` | File | Yes | Video file (max 100MB, max 3 min) |
+| `video` | File | Yes | Video file (max 1GB, max 10 min) |
 
 #### cURL Example
 ```bash
@@ -198,7 +274,7 @@ Content-Type: multipart/form-data
 #### Request Body (FormData)
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `video` | File | Yes | Video file (max 100MB, max 3 min) |
+| `video` | File | Yes | Video file (max 1GB, max 10 min) |
 | `text` | String | No | Optional text overlay |
 | `backgroundColor` | String | No | Background color (default: #000000) |
 | `textColor` | String | No | Text color (default: #ffffff) |
@@ -303,20 +379,20 @@ const pickVideo = async () => {
   const result = await launchImageLibrary({
     mediaType: 'video',
     videoQuality: 'high',
-    durationLimit: 180, // 3 minutes max
+    durationLimit: 600, // 10 minutes max
   });
 
   if (result.assets?.[0]) {
     const video = result.assets[0];
 
     // Validate before upload
-    if (video.duration > 180) {
-      alert('Video must be under 3 minutes');
+    if (video.duration > 600) {
+      alert('Video must be under 10 minutes');
       return;
     }
 
-    if (video.fileSize > 100 * 1024 * 1024) {
-      alert('Video must be under 100MB');
+    if (video.fileSize > 1024 * 1024 * 1024) {
+      alert('Video must be under 1GB');
       return;
     }
 
@@ -410,8 +486,8 @@ import { getVideoMetaData } from 'react-native-compressor';
 const validateVideoDuration = async (videoUri) => {
   const metadata = await getVideoMetaData(videoUri);
 
-  if (metadata.duration > 180) {
-    throw new Error(`Video is ${Math.ceil(metadata.duration)}s. Maximum is 180s (3 minutes).`);
+  if (metadata.duration > 600) {
+    throw new Error(`Video is ${Math.ceil(metadata.duration)}s. Maximum is 600s (10 minutes).`);
   }
 
   return metadata;
@@ -516,8 +592,8 @@ const formatDuration = (seconds) => {
 
 | Status | Error | Description | Client Action |
 |--------|-------|-------------|---------------|
-| 400 | `Video duration (X seconds) exceeds maximum of 180 seconds (3 minutes)` | Video too long | Trim video or show duration limit |
-| 400 | `Video size exceeds maximum limit of 100MB` | File too large | Compress video |
+| 400 | `Video duration (X seconds) exceeds maximum of 600 seconds (10 minutes)` | Video too long | Trim video or show duration limit |
+| 400 | `Video size exceeds maximum limit of 1024MB` | File too large | Compress video |
 | 400 | `Invalid video format. Allowed: MP4, MOV, AVI, WebM, 3GP, M4V` | Wrong format | Convert to MP4 |
 | 400 | `Please upload a video file` | No file sent | Check FormData |
 | 403 | `Not authorized to upload video to this moment` | Not owner | Check ownership |
@@ -534,8 +610,8 @@ const handleVideoUpload = async (momentId, video) => {
     const message = error.message || 'Upload failed';
 
     if (message.includes('duration')) {
-      Alert.alert('Video Too Long', 'Please select a video under 3 minutes.');
-    } else if (message.includes('size') || message.includes('100MB')) {
+      Alert.alert('Video Too Long', 'Please select a video under 10 minutes.');
+    } else if (message.includes('size') || message.includes('1024MB') || message.includes('1GB')) {
       Alert.alert('File Too Large', 'Please compress your video or select a smaller file.');
     } else if (message.includes('format')) {
       Alert.alert('Invalid Format', 'Please use MP4, MOV, or WebM format.');
@@ -562,13 +638,13 @@ const validateVideo = async (video) => {
   const errors = [];
 
   // Check duration
-  if (video.duration > 180) {
-    errors.push(`Video is ${Math.ceil(video.duration)}s (max 180s)`);
+  if (video.duration > 600) {
+    errors.push(`Video is ${Math.ceil(video.duration)}s (max 600s / 10 minutes)`);
   }
 
   // Check file size
-  if (video.fileSize > 100 * 1024 * 1024) {
-    errors.push(`Video is ${(video.fileSize / 1024 / 1024).toFixed(1)}MB (max 100MB)`);
+  if (video.fileSize > 1024 * 1024 * 1024) {
+    errors.push(`Video is ${(video.fileSize / 1024 / 1024).toFixed(1)}MB (max 1GB)`);
   }
 
   // Check format
@@ -690,8 +766,8 @@ const getVideoConfig = async () => {
 ### Video Constraints
 | Constraint | Value |
 |------------|-------|
-| Max Duration | 180 seconds (3 minutes) |
-| Max File Size | 100 MB |
+| Max Duration | 600 seconds (10 minutes) |
+| Max File Size | 1 GB (1024 MB) |
 | Allowed Formats | MP4, MOV, AVI, WebM, 3GP, M4V |
 | Recommended Format | MP4 (H.264) |
 | Max Resolution | 1080 x 1920 |
@@ -699,6 +775,11 @@ const getVideoConfig = async () => {
 ---
 
 ## Changelog
+
+- **v1.1.0** - YouTube-style video upload limits
+  - Increased duration limit to 10 minutes (600 seconds)
+  - Increased file size limit to 1GB (1024MB)
+  - Updated file type validation for all video formats
 
 - **v1.0.0** - Initial video upload support for Moments and Stories
   - Streaming upload to S3/Spaces

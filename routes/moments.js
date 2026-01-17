@@ -63,7 +63,7 @@ router.route('/:id/photo').put(
   momentPhotoUpload
 );
 
-// Video upload (Instagram-style, max 3 minutes)
+// Video upload (YouTube-style, max 10 minutes)
 // Streams video to S3, validates duration, generates thumbnail
 router.route('/:id/video')
   .put(
