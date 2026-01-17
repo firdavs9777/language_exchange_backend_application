@@ -42,7 +42,7 @@ exports.getVideoMetadata = async (filePath) => {
     // Use shell execution - handles PATH properly
     const cmd = `/usr/bin/ffprobe -v quiet -print_format json -show_format -show_streams "${filePath}"`;
 
-    const { stdout, stderr } = await execAsync(cmd, {
+    const { stdout } = await execAsync(cmd, {
       timeout: 60000, // 60 second timeout
       maxBuffer: 10 * 1024 * 1024 // 10MB buffer
     });
@@ -164,5 +164,5 @@ exports.getVideoConstraints = () => {
 exports.MAX_VIDEO_DURATION = MAX_VIDEO_DURATION;
 exports.MAX_VIDEO_SIZE = MAX_VIDEO_SIZE;
 exports.ALLOWED_VIDEO_TYPES = ALLOWED_VIDEO_TYPES;
-exports.FFPROBE_PATH = FFPROBE_PATH;
-exports.FFMPEG_PATH = FFMPEG_PATH;
+exports.FFPROBE_PATH = '/usr/bin/ffprobe';
+exports.FFMPEG_PATH = '/usr/bin/ffmpeg';
