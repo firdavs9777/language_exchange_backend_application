@@ -1,10 +1,9 @@
 // utils/videoUtils.js
 const path = require('path');
-const ffmpeg = require('fluent-ffmpeg');
+const { exec } = require('child_process');
+const { promisify } = require('util');
 
-// Set ffmpeg/ffprobe paths explicitly for PM2 compatibility
-ffmpeg.setFfmpegPath('/usr/bin/ffmpeg');
-ffmpeg.setFfprobePath('/usr/bin/ffprobe');
+const execAsync = promisify(exec);
 
 // Maximum video duration in seconds (10 minutes)
 const MAX_VIDEO_DURATION = 600;
@@ -30,43 +29,48 @@ exports.isValidVideoType = (mimeType) => {
 };
 
 /**
- * Get video metadata using ffprobe (via fluent-ffmpeg)
- * Memory-efficient - only reads metadata, not full video
+ * Get video metadata using ffprobe via shell exec
+ * Works reliably with PM2 by using shell execution
  *
  * @param {string} filePath - Path to video file or URL
  * @returns {Promise<Object>} Video metadata including duration, width, height
  */
-exports.getVideoMetadata = (filePath) => {
-  return new Promise((resolve, reject) => {
-    console.log('🎬 Getting video metadata for:', filePath);
+exports.getVideoMetadata = async (filePath) => {
+  console.log('🎬 Getting video metadata for:', filePath);
 
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) {
-        console.error('❌ ffprobe error:', err.message);
-        return reject(new Error('Failed to get video metadata. Ensure ffmpeg is installed.'));
-      }
+  try {
+    // Use shell execution - handles PATH properly
+    const cmd = `/usr/bin/ffprobe -v quiet -print_format json -show_format -show_streams "${filePath}"`;
 
-      try {
-        const videoStream = metadata.streams?.find(s => s.codec_type === 'video');
-        const format = metadata.format || {};
-
-        const result = {
-          duration: parseFloat(format.duration) || 0,
-          width: videoStream?.width || null,
-          height: videoStream?.height || null,
-          bitrate: parseInt(format.bit_rate) || null,
-          codec: videoStream?.codec_name || null,
-          size: parseInt(format.size) || null
-        };
-
-        console.log('✅ Video metadata:', result);
-        resolve(result);
-      } catch (parseError) {
-        console.error('❌ Failed to parse metadata:', parseError);
-        reject(new Error('Failed to parse video metadata'));
-      }
+    const { stdout, stderr } = await execAsync(cmd, {
+      timeout: 60000, // 60 second timeout
+      maxBuffer: 10 * 1024 * 1024 // 10MB buffer
     });
-  });
+
+    if (!stdout) {
+      throw new Error('No output from ffprobe');
+    }
+
+    const metadata = JSON.parse(stdout);
+    const videoStream = metadata.streams?.find(s => s.codec_type === 'video');
+    const format = metadata.format || {};
+
+    const result = {
+      duration: parseFloat(format.duration) || 0,
+      width: videoStream?.width || null,
+      height: videoStream?.height || null,
+      bitrate: parseInt(format.bit_rate) || null,
+      codec: videoStream?.codec_name || null,
+      size: parseInt(format.size) || null
+    };
+
+    console.log('✅ Video metadata:', result);
+    return result;
+
+  } catch (error) {
+    console.error('❌ ffprobe error:', error.message);
+    throw new Error('Failed to get video metadata. Ensure ffmpeg is installed.');
+  }
 };
 
 /**
@@ -80,36 +84,31 @@ exports.isValidDuration = (duration) => {
 };
 
 /**
- * Generate video thumbnail using ffmpeg (via fluent-ffmpeg)
+ * Generate video thumbnail using ffmpeg via shell exec
  * Extracts a frame at 1 second mark
  *
  * @param {string} videoPath - Path to video file or URL
  * @param {string} outputPath - Path for output thumbnail
  * @returns {Promise<string>} Path to generated thumbnail
  */
-exports.generateVideoThumbnail = (videoPath, outputPath) => {
-  return new Promise((resolve, reject) => {
-    console.log('🖼️ Generating thumbnail for:', videoPath);
+exports.generateVideoThumbnail = async (videoPath, outputPath) => {
+  console.log('🖼️ Generating thumbnail for:', videoPath);
 
-    const outputDir = path.dirname(outputPath);
-    const outputFilename = path.basename(outputPath);
+  try {
+    // Use shell execution - handles PATH properly
+    const cmd = `/usr/bin/ffmpeg -i "${videoPath}" -ss 00:00:01 -vframes 1 -vf "scale=480:-1" -q:v 2 -y "${outputPath}"`;
 
-    ffmpeg(videoPath)
-      .screenshots({
-        timestamps: ['00:00:01'],
-        filename: outputFilename,
-        folder: outputDir,
-        size: '480x?'
-      })
-      .on('end', () => {
-        console.log('✅ Thumbnail generated:', outputPath);
-        resolve(outputPath);
-      })
-      .on('error', (err) => {
-        console.error('❌ Thumbnail error:', err.message);
-        reject(new Error('Failed to generate thumbnail'));
-      });
-  });
+    await execAsync(cmd, {
+      timeout: 60000 // 60 second timeout
+    });
+
+    console.log('✅ Thumbnail generated:', outputPath);
+    return outputPath;
+
+  } catch (error) {
+    console.error('❌ Thumbnail error:', error.message);
+    throw new Error('Failed to generate thumbnail');
+  }
 };
 
 /**
