@@ -2,6 +2,10 @@
 const path = require('path');
 const { spawn } = require('child_process');
 
+// FFMPEG/FFPROBE paths - explicitly set to avoid PATH issues
+const FFPROBE_PATH = process.env.FFPROBE_PATH || '/usr/bin/ffprobe';
+const FFMPEG_PATH = process.env.FFMPEG_PATH || '/usr/bin/ffmpeg';
+
 // Maximum video duration in seconds (10 minutes)
 const MAX_VIDEO_DURATION = 600;
 
@@ -35,7 +39,8 @@ exports.isValidVideoType = (mimeType) => {
 exports.getVideoMetadata = (filePath) => {
   return new Promise((resolve, reject) => {
     // Use ffprobe to get video metadata (comes with ffmpeg)
-    const ffprobe = spawn('ffprobe', [
+    // Use absolute path to avoid PATH issues
+    const ffprobe = spawn(FFPROBE_PATH, [
       '-v', 'quiet',
       '-print_format', 'json',
       '-show_format',
@@ -80,8 +85,9 @@ exports.getVideoMetadata = (filePath) => {
 
     ffprobe.on('error', (err) => {
       // ffprobe not found - provide helpful message
+      console.error('ffprobe spawn error:', err);
       if (err.code === 'ENOENT') {
-        reject(new Error('ffmpeg/ffprobe not installed. Please install ffmpeg on your system.'));
+        reject(new Error(`ffmpeg/ffprobe not found at ${FFPROBE_PATH}. Please install ffmpeg or set FFPROBE_PATH environment variable.`));
       } else {
         reject(err);
       }
@@ -109,7 +115,8 @@ exports.isValidDuration = (duration) => {
  */
 exports.generateVideoThumbnail = (videoPath, outputPath) => {
   return new Promise((resolve, reject) => {
-    const ffmpeg = spawn('ffmpeg', [
+    // Use absolute path to avoid PATH issues
+    const ffmpeg = spawn(FFMPEG_PATH, [
       '-i', videoPath,
       '-ss', '00:00:01',     // Seek to 1 second
       '-vframes', '1',        // Extract 1 frame
@@ -134,8 +141,9 @@ exports.generateVideoThumbnail = (videoPath, outputPath) => {
     });
 
     ffmpeg.on('error', (err) => {
+      console.error('ffmpeg spawn error:', err);
       if (err.code === 'ENOENT') {
-        reject(new Error('ffmpeg not installed'));
+        reject(new Error(`ffmpeg not found at ${FFMPEG_PATH}. Please install ffmpeg or set FFMPEG_PATH environment variable.`));
       } else {
         reject(err);
       }
@@ -196,3 +204,5 @@ exports.getVideoConstraints = () => {
 exports.MAX_VIDEO_DURATION = MAX_VIDEO_DURATION;
 exports.MAX_VIDEO_SIZE = MAX_VIDEO_SIZE;
 exports.ALLOWED_VIDEO_TYPES = ALLOWED_VIDEO_TYPES;
+exports.FFPROBE_PATH = FFPROBE_PATH;
+exports.FFMPEG_PATH = FFMPEG_PATH;
