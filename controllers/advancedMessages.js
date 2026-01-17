@@ -470,7 +470,7 @@ exports.closePoll = asyncHandler(async (req, res, next) => {
 // ========== VIDEO MESSAGES ==========
 
 /**
- * @desc    Send video message with thumbnail (max 3 minutes)
+ * @desc    Send video message with thumbnail (max 10 minutes, 1GB)
  * @route   POST /api/v1/messages/video
  * @access  Private
  */

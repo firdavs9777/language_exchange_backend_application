@@ -5,10 +5,84 @@
 This document provides comprehensive guidance for frontend developers implementing media messaging features including **video messages**, **voice messages**, **image attachments**, and **location sharing**.
 
 ### Key Features
-- **Video Messages**: Max 3 minutes, auto-thumbnail generation
+- **Video Messages**: Max 10 minutes, 1GB, auto-thumbnail generation
 - **Voice Messages**: Server-side duration extraction, waveform support
-- **Image Attachments**: Standard image uploads
+- **Image Attachments**: Standard image uploads (max 10MB)
 - **Location Sharing**: Coordinates with address lookup
+
+---
+
+## How Video Messaging Works
+
+### Simple Flow Diagram
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       VIDEO MESSAGE UPLOAD PROCESS                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   FRONTEND (Your App)                         BACKEND (Our Server)           │
+│   ═══════════════════                         ════════════════════           │
+│                                                                              │
+│   1. User records/picks video                                                │
+│          │                                                                   │
+│          ▼                                                                   │
+│   2. Validate locally ◄─── Check: size < 1GB, duration < 10 min             │
+│          │                                                                   │
+│          ▼                                                                   │
+│   3. Send FormData ─────────────────────────► 4. Stream to cloud storage    │
+│      + receiver ID                                   │                       │
+│                                                      ▼                       │
+│                                               5. Validate duration           │
+│                                                      │                       │
+│                                                      ▼                       │
+│                                               6. Generate thumbnail          │
+│                                                      │                       │
+│                                                      ▼                       │
+│                                               7. Save message to DB          │
+│                                                      │                       │
+│                                                      ▼                       │
+│   9. Add to chat UI ◄───────────────────────  8. Emit Socket.IO event       │
+│                      ◄────────────────────── Return message object           │
+│                                                                              │
+│   RECEIVER gets real-time notification via Socket.IO 'newVideoMessage'      │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Step-by-Step Explanation
+
+| Step | Where | What Happens |
+|------|-------|--------------|
+| **1** | Frontend | User picks video from gallery or records new one |
+| **2** | Frontend | Validate video size (<1GB) and duration (<10 min) before uploading |
+| **3** | Frontend | Send video as `FormData` with receiver's user ID |
+| **4** | Backend | Stream video directly to cloud storage (DigitalOcean Spaces) |
+| **5** | Backend | Validate duration using ffprobe (delete if too long) |
+| **6** | Backend | Generate thumbnail at 1-second mark using ffmpeg |
+| **7** | Backend | Save message to database with video metadata |
+| **8** | Backend | Emit `newVideoMessage` event to receiver via Socket.IO |
+| **9** | Frontend | Display message in chat with thumbnail preview |
+
+### What You Get Back
+
+```javascript
+{
+  _id: "64msg789xyz",
+  sender: { _id: "...", name: "John", images: [...] },
+  receiver: { _id: "...", name: "Jane", images: [...] },
+  messageType: "media",
+  media: {
+    url: "https://cdn.../video.mp4",      // Play this URL
+    type: "video",
+    thumbnail: "https://cdn.../thumb.jpg", // Show as preview
+    duration: 45.5,                        // Show duration badge
+    mimeType: "video/mp4",
+    fileSize: 15728640,
+    dimensions: { width: 1080, height: 1920 }
+  },
+  createdAt: "2024-01-15T10:30:00.000Z"
+}
+```
 
 ---
 
@@ -38,14 +112,20 @@ GET /api/v1/messages/video-config
   "success": true,
   "data": {
     "video": {
-      "maxDuration": 180,
-      "maxDurationFormatted": "3:00",
-      "maxSize": 104857600,
-      "maxSizeMB": 100,
-      "allowedTypes": ["video/mp4", "video/quicktime", "video/webm"],
-      "allowedExtensions": [".mp4", ".mov", ".webm"],
+      "maxDuration": 600,
+      "maxDurationFormatted": "10:00",
+      "maxSize": 1073741824,
+      "maxSizeMB": 1024,
+      "maxSizeGB": 1,
+      "allowedTypes": ["video/mp4", "video/quicktime", "video/x-msvideo", "video/webm", "video/3gpp", "video/x-m4v"],
+      "allowedExtensions": [".mp4", ".mov", ".avi", ".webm", ".3gp", ".m4v"],
       "recommendedFormat": "video/mp4",
-      "recommendedCodec": "H.264"
+      "recommendedCodec": "H.264",
+      "recommendedResolution": {
+        "maxWidth": 1080,
+        "maxHeight": 1920,
+        "aspectRatios": ["9:16", "16:9", "1:1", "4:5"]
+      }
     },
     "voice": {
       "maxDuration": 300,
@@ -74,7 +154,7 @@ Content-Type: multipart/form-data
 #### Request Body (FormData)
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `video` | File | Yes | Video file (max 100MB, max 3 min) |
+| `video` | File | Yes | Video file (max 1GB, max 10 min) |
 | `receiver` | String | Yes | Receiver's user ID |
 
 #### cURL Example
@@ -288,15 +368,20 @@ const sendVideoMessage = async (receiverId) => {
   const result = await launchImageLibrary({
     mediaType: 'video',
     videoQuality: 'high',
-    durationLimit: 180, // 3 minutes max
+    durationLimit: 600, // 10 minutes max
   });
 
   if (!result.assets?.[0]) return;
   const video = result.assets[0];
 
   // Validate
-  if (video.duration > 180) {
-    Alert.alert('Error', 'Video must be under 3 minutes');
+  if (video.duration > 600) {
+    Alert.alert('Error', 'Video must be under 10 minutes');
+    return;
+  }
+
+  if (video.fileSize > 1024 * 1024 * 1024) {
+    Alert.alert('Error', 'Video must be under 1GB');
     return;
   }
 
@@ -485,8 +570,9 @@ const VoiceMessage = ({ message, isOwn }) => {
 
 | Status | Error | Description | Client Action |
 |--------|-------|-------------|---------------|
-| 400 | `Video duration exceeds maximum of 180 seconds` | Video too long | Trim video |
-| 400 | `Video size exceeds maximum limit of 100MB` | File too large | Compress video |
+| 400 | `Video duration exceeds maximum of 600 seconds (10 minutes)` | Video too long | Trim video |
+| 400 | `Video size exceeds maximum limit of 1024MB` | File too large | Compress video |
+| 400 | `Invalid video format` | Unsupported format | Use MP4, MOV, WebM |
 | 400 | `Receiver and voice file are required` | Missing fields | Check FormData |
 | 403 | `Cannot send message to this user` | User blocked | Show blocked message |
 | 403 | `Message limit reached` | Daily limit exceeded | Show limit info |
@@ -499,9 +585,11 @@ const handleMediaSendError = (error) => {
   const message = error.message || error.error || 'Send failed';
 
   if (message.includes('duration')) {
-    Alert.alert('Video Too Long', 'Videos must be under 3 minutes');
-  } else if (message.includes('size') || message.includes('100MB')) {
-    Alert.alert('File Too Large', 'Please compress your video');
+    Alert.alert('Video Too Long', 'Videos must be under 10 minutes');
+  } else if (message.includes('size') || message.includes('1024MB') || message.includes('1GB')) {
+    Alert.alert('File Too Large', 'Please compress your video (max 1GB)');
+  } else if (message.includes('format')) {
+    Alert.alert('Invalid Format', 'Please use MP4, MOV, or WebM format');
   } else if (message.includes('blocked')) {
     Alert.alert('Cannot Send', 'You cannot message this user');
   } else if (message.includes('limit')) {
@@ -576,7 +664,7 @@ socket.on('newMessage', (data) => {
 
 | Type | Max Size | Max Duration | Formats |
 |------|----------|--------------|---------|
-| Video | 100 MB | 3 minutes | MP4, MOV, WebM |
+| Video | 1 GB | 10 minutes | MP4, MOV, AVI, WebM, 3GP, M4V |
 | Voice | 25 MB | 5 minutes | MP3, M4A, OGG, WAV |
 | Image | 10 MB | - | JPG, PNG, GIF, WebP |
 | Document | 50 MB | - | PDF, DOC, etc. |
@@ -606,6 +694,12 @@ socket.on('newMessage', (data) => {
 ---
 
 ## Changelog
+
+- **v1.2.0** - YouTube-style video limits
+  - Increased video duration limit to 10 minutes (600 seconds)
+  - Increased video size limit to 1GB (1024MB)
+  - Added support for more video formats (AVI, 3GP, M4V)
+  - Added process flow diagram for frontend developers
 
 - **v1.1.0** - Added video message support with thumbnails and duration validation
 - **v1.0.1** - Improved voice messages with server-side duration extraction
