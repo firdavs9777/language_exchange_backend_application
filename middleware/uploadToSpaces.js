@@ -2,6 +2,24 @@ const multer = require('multer');
 const multerS3 = require('multer-s3');
 const s3 = require('../config/spaces');
 
+// Bucket configuration
+const BUCKET_NAME = 'my-projects-media';
+const BUCKET_REGION = 'sfo3';
+const BUCKET_URL = `https://${BUCKET_NAME}.${BUCKET_REGION}.digitaloceanspaces.com`;
+
+/**
+ * Fix malformed S3 URLs from multer-s3
+ * multer-s3 sometimes returns URLs like: sfo3.digitaloceanspaces.com/bucket/key
+ * Should be: https://bucket.sfo3.digitaloceanspaces.com/key
+ */
+const fixS3Url = (file) => {
+  if (!file || !file.location) return;
+
+  if (!file.location.startsWith('https://')) {
+    file.location = `${BUCKET_URL}/${file.key}`;
+  }
+};
+
 // File size limits
 const VIDEO_MAX_SIZE = 1024 * 1024 * 1024; // 1GB for videos
 
@@ -47,21 +65,44 @@ module.exports = {
   uploadSingle: (fieldName, folder = 'bananatalk') => {
     return (req, res, next) => {
       req.uploadFolder = folder;
-      uploadToSpaces.single(fieldName)(req, res, next);
+      uploadToSpaces.single(fieldName)(req, res, (err) => {
+        if (err) return next(err);
+        // Fix malformed URL
+        fixS3Url(req.file);
+        next();
+      });
     };
   },
-  
+
   uploadMultiple: (fieldName, maxCount = 5, folder = 'bananatalk') => {
     return (req, res, next) => {
       req.uploadFolder = folder;
-      uploadToSpaces.array(fieldName, maxCount)(req, res, next);
+      uploadToSpaces.array(fieldName, maxCount)(req, res, (err) => {
+        if (err) return next(err);
+        // Fix malformed URLs for all files
+        if (req.files && Array.isArray(req.files)) {
+          req.files.forEach(fixS3Url);
+        }
+        next();
+      });
     };
   },
-  
+
   uploadFields: (fields, folder = 'bananatalk') => {
     return (req, res, next) => {
       req.uploadFolder = folder;
-      uploadToSpaces.fields(fields)(req, res, next);
+      uploadToSpaces.fields(fields)(req, res, (err) => {
+        if (err) return next(err);
+        // Fix malformed URLs for all field files
+        if (req.files) {
+          Object.values(req.files).flat().forEach(fixS3Url);
+        }
+        next();
+      });
     };
-  }
+  },
+
+  // Export utilities for external use
+  fixS3Url,
+  BUCKET_URL
 };
