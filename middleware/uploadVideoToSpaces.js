@@ -89,11 +89,18 @@ const uploadSingleVideo = (fieldName, folder = 'bananatalk/moments/videos') => {
 
       // Video uploaded to S3, now validate duration
       try {
-        console.log(`📹 Video uploaded to S3: ${req.file.location}`);
+        // Ensure URL has correct format (https://bucket.region.digitaloceanspaces.com/key)
+        let videoUrl = req.file.location;
+        if (!videoUrl.startsWith('https://')) {
+          // Fix malformed URL from multer-s3
+          videoUrl = `https://my-projects-media.sfo3.digitaloceanspaces.com/${req.file.key}`;
+        }
+
+        console.log(`📹 Video uploaded to S3: ${videoUrl}`);
         console.log(`📊 Validating video duration...`);
 
         // Get video metadata from the S3 URL (ffprobe can read URLs)
-        const metadata = await getVideoMetadata(req.file.location);
+        const metadata = await getVideoMetadata(videoUrl);
 
         console.log(`📏 Video duration: ${metadata.duration}s (max: ${MAX_VIDEO_DURATION}s)`);
 
@@ -112,7 +119,7 @@ const uploadSingleVideo = (fieldName, folder = 'bananatalk/moments/videos') => {
 
         // Attach video metadata to request for controller use
         req.videoMetadata = {
-          url: req.file.location,
+          url: videoUrl,  // Use corrected URL
           duration: Math.round(metadata.duration * 10) / 10, // Round to 1 decimal
           width: metadata.width,
           height: metadata.height,
