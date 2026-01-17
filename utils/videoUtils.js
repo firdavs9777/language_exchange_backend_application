@@ -38,15 +38,25 @@ exports.isValidVideoType = (mimeType) => {
  */
 exports.getVideoMetadata = (filePath) => {
   return new Promise((resolve, reject) => {
+    // Debug logging
+    console.log('🎬 Using ffprobe:', FFPROBE_PATH);
+    console.log('🎬 Video URL:', filePath);
+
     // Use ffprobe to get video metadata (comes with ffmpeg)
-    // Use absolute path to avoid PATH issues
+    // Use absolute path and explicit env to work with PM2
     const ffprobe = spawn(FFPROBE_PATH, [
       '-v', 'quiet',
       '-print_format', 'json',
       '-show_format',
       '-show_streams',
       filePath
-    ]);
+    ], {
+      shell: false,
+      env: {
+        ...process.env,
+        PATH: '/usr/bin:/bin:/usr/local/bin'
+      }
+    });
 
     let stdout = '';
     let stderr = '';
@@ -115,7 +125,11 @@ exports.isValidDuration = (duration) => {
  */
 exports.generateVideoThumbnail = (videoPath, outputPath) => {
   return new Promise((resolve, reject) => {
-    // Use absolute path to avoid PATH issues
+    // Debug logging
+    console.log('🖼️ Using ffmpeg:', FFMPEG_PATH);
+    console.log('🖼️ Generating thumbnail for:', videoPath);
+
+    // Use absolute path and explicit env to work with PM2
     const ffmpeg = spawn(FFMPEG_PATH, [
       '-i', videoPath,
       '-ss', '00:00:01',     // Seek to 1 second
@@ -124,7 +138,13 @@ exports.generateVideoThumbnail = (videoPath, outputPath) => {
       '-q:v', '2',            // Quality (2-5 is good for thumbnails)
       '-y',                   // Overwrite output file
       outputPath
-    ]);
+    ], {
+      shell: false,
+      env: {
+        ...process.env,
+        PATH: '/usr/bin:/bin:/usr/local/bin'
+      }
+    });
 
     let stderr = '';
 
