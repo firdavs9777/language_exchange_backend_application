@@ -192,7 +192,14 @@ MomentSchema.index({ user: 1, createdAt: -1 }); // For user moments queries
 MomentSchema.index({ privacy: 1, createdAt: -1 }); // For public feed queries
 MomentSchema.index({ category: 1, createdAt: -1 }); // For category filtering
 MomentSchema.index({ language: 1, createdAt: -1 }); // For language filtering
-MomentSchema.index({ 'location.coordinates': '2dsphere' }); // For geospatial queries (already exists but explicit)
+MomentSchema.index({ 'location.coordinates': '2dsphere' }); // For geospatial queries
+
+// Additional indexes for video/media filtering and interactions
+MomentSchema.index({ mediaType: 1, privacy: 1, createdAt: -1 }); // For video-specific feed queries
+MomentSchema.index({ likedUsers: 1 }); // For checking if user liked moment
+MomentSchema.index({ savedBy: 1 }); // For checking if user saved moment
+MomentSchema.index({ privacy: 1, user: 1, createdAt: -1 }); // For feed with $or query optimization
+MomentSchema.index({ likeCount: -1, createdAt: -1 }); // For trending moments
 
 // Validation function for tags array
 function arrayLimit(val) {

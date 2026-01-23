@@ -19,6 +19,7 @@ const {
   sendSubscriptionReminders,
   cleanupOldNotifications
 } = require('./notificationJobs');
+const { startLearningJobs } = require('./learningJobs');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -219,7 +220,10 @@ const startScheduler = () => {
   scheduleReengagement();
   scheduleSubscriptionReminders();
   scheduleNotificationCleanup();
-  
+
+  // Learning/gamification jobs
+  startLearningJobs();
+
   console.log('✅ All jobs scheduled!\n');
 };
 

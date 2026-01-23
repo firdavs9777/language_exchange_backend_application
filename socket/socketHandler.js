@@ -7,6 +7,8 @@ const { resetDailyCounters } = require('../utils/limitations');
 const LIMITS = require('../config/limitations');
 const notificationService = require('../services/notificationService');
 const { registerCallHandlers } = require('./callHandler');
+const learningTrackingService = require('../services/learningTrackingService');
+const { detectLanguage } = require('../services/translationService');
 
 
 
@@ -478,7 +480,21 @@ const registerMessageHandlers = (socket, io) => {
       });
       
       console.log(`✅ Message ${sent ? 'delivered' : 'queued'}: ${userId} → ${receiver}`);
-      
+
+      // Track message for learning progress (async, don't block)
+      if (messageText && messageText.length > 0) {
+        detectLanguage(messageText).then(detectedLang => {
+          learningTrackingService.trackMessage({
+            userId,
+            conversationId: newMessage.conversation,
+            messageId: newMessage._id,
+            partnerId: receiver,
+            messageText,
+            detectedLanguage: detectedLang
+          }).catch(err => console.error('Learning tracking error:', err.message));
+        }).catch(err => console.error('Language detection error:', err.message));
+      }
+
     } catch (error) {
       console.error('❌ Send message error:', error.message);
       
@@ -1306,7 +1322,29 @@ const registerCorrectionHandlers = (socket, io) => {
       }
       
       console.log(`✅ Correction sent for message ${messageId}`);
-      
+
+      // Track correction for learning progress (async)
+      learningTrackingService.trackCorrectionGiven({
+        userId,
+        conversationId: message.conversation,
+        messageId,
+        partnerId: message.sender,
+        originalText: message.message,
+        correctedText,
+        explanation
+      }).catch(err => console.error('Correction tracking error:', err.message));
+
+      // Also track that the message sender received a correction
+      learningTrackingService.trackCorrectionReceived({
+        userId: message.sender,
+        conversationId: message.conversation,
+        messageId,
+        partnerId: userId,
+        originalText: message.message,
+        correctedText,
+        explanation
+      }).catch(err => console.error('Correction received tracking error:', err.message));
+
     } catch (error) {
       console.error('❌ Send correction error:', error.message);
       if (callback) {
@@ -1351,7 +1389,17 @@ const registerCorrectionHandlers = (socket, io) => {
       if (callback) {
         callback({ status: 'success' });
       }
-      
+
+      // Track correction acceptance for learning progress (async)
+      if (correction && correction.corrector) {
+        learningTrackingService.trackCorrectionAccepted({
+          userId,
+          conversationId: message.conversation,
+          messageId,
+          partnerId: correction.corrector
+        }).catch(err => console.error('Correction accepted tracking error:', err.message));
+      }
+
     } catch (error) {
       console.error('❌ Accept correction error:', error.message);
       if (callback) {

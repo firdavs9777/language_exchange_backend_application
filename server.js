@@ -37,6 +37,7 @@ const userBlocks = require('./routes/userBlocks');
 const conversations = require('./routes/conversations');
 const reports = require('./routes/report');
 const notifications = require('./routes/notifications');
+const learning = require('./routes/learning');
 
 // Initialize Express app
 const app = express();
@@ -174,6 +175,7 @@ app.use('/api/v1/conversations', conversations);
 app.use('/api/v1/reports', reports);
 app.use('/api/v1/notifications', notifications);
 app.use('/api/v1/contact', require('./routes/contact'));
+app.use('/api/v1/learning', learning);
 
 // Error handler middleware (must be last)
 app.use(errorHandler);

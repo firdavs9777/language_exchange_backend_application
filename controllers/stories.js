@@ -8,6 +8,20 @@ const ErrorResponse = require('../utils/errorResponse');
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds, checkBlockStatus } = require('../utils/blockingUtils');
 const { getVideoConstraints } = require('../utils/videoUtils');
+const {
+  processStoryUser,
+  processStory,
+  processStories,
+  groupStoriesByUser,
+  processStoryViews
+} = require('../utils/storyUtils');
+
+// Debug logging helper - only logs in development
+const debug = (...args) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log(...args);
+  }
+};
 
 /**
  * @desc    Get video upload configuration/constraints for stories
@@ -43,30 +57,23 @@ exports.getVideoConfig = asyncHandler(async (req, res, next) => {
 exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
   try {
     const userId = req.user.id;
-    
+
     // Get blocked users
     const blockedUserIds = Array.from(await getBlockedUserIds(userId));
-    console.log(`📚 [Stories Feed] User ${userId} - Blocked users: ${blockedUserIds.length}`, blockedUserIds);
-    
+
     // Get users that current user is following
     const user = await User.findById(userId).populate('following', '_id');
     let followingIds = user.following?.map(following => following._id.toString()) || [];
-    console.log(`📚 [Stories Feed] User ${userId} - Following count (before filter): ${followingIds.length}`);
-    
+
     // Filter out blocked users from following list
-    const beforeFilter = followingIds.length;
     followingIds = followingIds.filter(id => !blockedUserIds.includes(id));
-    const afterFilter = followingIds.length;
-    if (beforeFilter !== afterFilter) {
-      console.log(`📚 [Stories Feed] User ${userId} - Filtered out ${beforeFilter - afterFilter} blocked users from following list`);
-    }
-    
+
     // Add current user to see their own stories
     followingIds.push(userId);
-    
+
     const now = new Date();
-    
-    // Get active stories from people user is following + own stories (excluding blocked)
+
+    // Get active stories from people user is following + own stories
     const stories = await Story.find({
       user: { $in: followingIds, $nin: blockedUserIds },
       isActive: true,
@@ -74,76 +81,17 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
     })
     .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
     .sort({ user: 1, createdAt: 1 });
-    
-    console.log(`📚 [Stories Feed] User ${userId} - Found ${stories.length} stories (after blocking filter)`);
 
-    // Group stories by user
-    const userStoriesMap = {};
-    
-    stories.forEach(story => {
-      const storyUserId = story.user._id.toString();
-      
-      // Double-check not blocked (in case of race condition)
-      if (blockedUserIds.includes(storyUserId)) return;
-      
-      if (!userStoriesMap[storyUserId]) {
-        userStoriesMap[storyUserId] = {
-          _id: storyUserId,
-          user: {
-            ...story.user._doc,
-            imageUrls: story.user.images.map(image => 
-              image
-            )
-          },
-          stories: [],
-          hasUnviewed: 0,
-          latestStory: null
-        };
-      }
-      
-      const storyWithUrls = {
-        ...story._doc,
-        mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
-        thumbnail: story.videoMetadata?.thumbnail || story.thumbnail || null,
-        videoMetadata: story.videoMetadata || null,
-        user: userStoriesMap[storyUserId].user
-      };
-      
-      userStoriesMap[storyUserId].stories.push(storyWithUrls);
-      userStoriesMap[storyUserId].latestStory = storyWithUrls;
-      const hasViewed = story.views.some(view => view.user.toString() === req.user.id);
-      if (!hasViewed && story.user._id.toString() !== req.user.id) {
-        userStoriesMap[storyUserId].hasUnviewed += 1;
-      }
-    });
- 
-   const storiesFeed = Object.values(userStoriesMap).sort((a, b) => {
-      if (a.hasUnviewed > 0 && b.hasUnviewed === 0) return -1;
-      if (a.hasUnviewed === 0 && b.hasUnviewed > 0) return 1;
-      return new Date(b.latestStory.createdAt) - new Date(a.latestStory.createdAt);
-    });
-
-    console.log(`📚 [Stories Feed] User ${userId} - Returning ${storiesFeed.length} user story groups`);
-    console.log(`📚 [Stories Feed] User ${userId} - Story groups:`, storiesFeed.map(s => ({
-      userId: s._id,
-      userName: s.user.name,
-      storyCount: s.stories.length,
-      hasUnviewed: s.hasUnviewed
-    })));
+    // Group stories by user using helper
+    const storiesFeed = groupStoriesByUser(stories, userId, blockedUserIds);
 
     res.status(200).json({
       success: true,
       count: storiesFeed.length,
-      data: storiesFeed,
-      debug: {
-        blockedUsersCount: blockedUserIds.length,
-        followingCount: afterFilter,
-        totalStoriesFound: stories.length,
-        userStoryGroups: storiesFeed.length
-      }
+      data: storiesFeed
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Failed to fetch stories feed', 500));
   }
 });
 
@@ -155,20 +103,11 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
     const { userId } = req.params;
     const viewerId = req.user.id;
     const now = new Date();
-    
-    console.log(`📚 [Get User Stories] Viewer: ${viewerId}, Target User: ${userId}`);
-    
+
     // Check if blocked
     if (viewerId !== userId) {
       const blockStatus = await checkBlockStatus(viewerId, userId);
-      console.log(`📚 [Get User Stories] Block status:`, {
-        isBlocked: blockStatus.isBlocked,
-        iBlockedThem: blockStatus.iBlockedThem,
-        theyBlockedMe: blockStatus.theyBlockedMe
-      });
-      
       if (blockStatus.isBlocked) {
-        console.log(`📚 [Get User Stories] BLOCKED - Returning empty result`);
         return res.status(200).json({
           success: true,
           count: 0,
@@ -178,7 +117,7 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
         });
       }
     }
-    
+
     const stories = await Story.find({
       user: userId,
       isActive: true,
@@ -186,13 +125,13 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
     })
     .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
     .sort({ createdAt: 1 });
-    
+
     // Mark stories as viewed by current user (if not owner)
     if (userId !== viewerId) {
       const storyIds = stories
         .filter(story => !story.views.some(view => view.user.toString() === viewerId))
         .map(story => story._id);
-      
+
       if (storyIds.length > 0) {
         await Story.updateMany(
           { _id: { $in: storyIds } },
@@ -208,34 +147,17 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
         );
       }
     }
-    
-    console.log(`📚 [Get User Stories] Found ${stories.length} active stories for user ${userId}`);
-    
-    const storiesWithUrls = stories.map(story => {
-      const userWithImageUrls = {
-        ...story.user._doc,
-        imageUrls: story.user.images.map(image => image)
-      };
 
-      return {
-        ...story._doc,
-        user: userWithImageUrls,
-        mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
-        thumbnail: story.videoMetadata?.thumbnail || story.thumbnail || null,
-        videoMetadata: story.videoMetadata || null
-      };
-    });
+    // Process stories using helper
+    const storiesWithUrls = processStories(stories);
 
-    console.log(`📚 [Get User Stories] Returning ${storiesWithUrls.length} stories for user ${userId}`);
-    
     res.status(200).json({
       success: true,
       count: storiesWithUrls.length,
       data: storiesWithUrls
     });
   } catch (error) {
-    console.error(`📚 [Get User Stories] Error:`, error);
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Failed to fetch user stories', 500));
   }
 });
 
@@ -248,49 +170,58 @@ exports.createStory = asyncHandler(async (req, res, next) => {
     const userId = req.user.id;
     const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
     const LIMITS = require('../config/limitations');
+
     const user = req.limitationUser || await User.findById(userId);
     if (!user) return next(new ErrorResponse('User not found', 404));
-    if (user.userMode === 'visitor') return next(new ErrorResponse('Visitors cannot create stories. Please upgrade to regular user.', 403));
-    await resetDailyCounters(user); await user.save();
+    if (user.userMode === 'visitor') {
+      return next(new ErrorResponse('Visitors cannot create stories. Please upgrade to regular user.', 403));
+    }
+
+    await resetDailyCounters(user);
+    await user.save();
+
     const canCreate = await user.canCreateStory();
     if (!canCreate) {
       const current = user.regularUserLimitations.storiesCreatedToday || 0;
       const max = LIMITS.regular.storiesPerDay;
       const now = new Date();
-      const nextReset = new Date(now); nextReset.setHours(24, 0, 0, 0);
+      const nextReset = new Date(now);
+      nextReset.setHours(24, 0, 0, 0);
       return next(formatLimitError('stories', current, max, nextReset));
     }
-    // --- NEW for Spaces ---
+
+    // Process uploaded files
     let mediaUrls = [];
-    let mediaType = '';
+    let mediaType = 'text';
     if (req.files && req.files.length > 0) {
       mediaUrls = req.files.map(f => f.location);
-      // Check mimetype of first file (all should be same type ideally)
       mediaType = req.files[0].mimetype.startsWith('video/') ? 'video' : 'image';
     }
+
     if (mediaUrls.length === 0 && !text) {
       return next(new ErrorResponse('Either media or text required', 400));
     }
+
     const storyData = {
       user: userId,
       mediaUrls,
-      mediaType: mediaUrls.length ? mediaType : 'text',
+      mediaType,
       text,
       backgroundColor: backgroundColor || '#000000',
       textColor: textColor || '#ffffff',
       privacy: privacy || 'friends'
     };
+
     const story = await Story.create(storyData);
     await user.incrementStoryCount();
     await story.populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
-    const userWithImageUrls = { ...story.user._doc, imageUrls: story.user.images };
-    const storyWithUrls = { ...story._doc, user: userWithImageUrls };
+
     res.status(201).json({
       success: true,
-      data: storyWithUrls
+      data: processStory(story)
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Failed to create story', 500));
   }
 });
 
@@ -352,23 +283,14 @@ exports.createVideoStory = asyncHandler(async (req, res, next) => {
 
     await story.populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
 
-    const userWithImageUrls = { ...story.user._doc, imageUrls: story.user.images };
-    const storyWithUrls = {
-      ...story._doc,
-      user: userWithImageUrls,
-      mediaUrl: story.mediaUrls[0],
-      thumbnail: story.videoMetadata?.thumbnail || null
-    };
-
-    console.log(`📹 Video story created: ${story._id}, duration: ${req.videoMetadata.duration}s`);
+    debug(`Video story created: ${story._id}, duration: ${req.videoMetadata.duration}s`);
 
     res.status(201).json({
       success: true,
-      data: storyWithUrls
+      data: processStory(story)
     });
   } catch (error) {
-    console.error('Create video story error:', error);
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Failed to create video story', 500));
   }
 });
 
@@ -386,19 +308,16 @@ exports.deleteStory = asyncHandler(async (req, res, next) => {
 
     // Delete video thumbnail if exists
     if (story.videoMetadata && story.videoMetadata.thumbnail) {
-      try {
-        await deleteFromSpaces(story.videoMetadata.thumbnail);
-        console.log(`🗑️ Video thumbnail deleted from Spaces`);
-      } catch (err) {
-        console.error('Failed to delete video thumbnail:', err.message);
-      }
+      await deleteFromSpaces(story.videoMetadata.thumbnail).catch(err =>
+        debug('Failed to delete video thumbnail:', err.message)
+      );
     }
 
     story.isActive = false;
     await story.save();
     res.status(200).json({ success: true, data: {}, message: 'Story deleted successfully' });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -410,27 +329,19 @@ exports.getStoryViewers = asyncHandler(async (req, res, next) => {
     const story = await Story.findById(req.params.id)
       .populate('views.user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
       .populate('user', '_id');
-    
+
     if (!story) {
       return next(new ErrorResponse(`Story not found with id of ${req.params.id}`, 404));
     }
-    
+
     // Check if user owns the story
     if (story.user._id.toString() !== req.user.id) {
       return next(new ErrorResponse('Not authorized to view story analytics', 403));
     }
-    
-    // Format viewers with image URLs
-    const viewsWithUrls = story.views.map(view => ({
-      ...view._doc,
-      user: {
-        ...view.user._doc,
-        imageUrls: view.user.images.map(image => 
-          image
-        )
-      }
-    })).sort((a, b) => new Date(b.viewedAt) - new Date(a.viewedAt));
-    
+
+    // Format viewers with image URLs using helper
+    const viewsWithUrls = processStoryViews(story.views);
+
     res.status(200).json({
       success: true,
       data: {
@@ -439,7 +350,7 @@ exports.getStoryViewers = asyncHandler(async (req, res, next) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Failed to fetch story viewers', 500));
   }
 });
 
@@ -483,7 +394,7 @@ exports.markStoryViewed = asyncHandler(async (req, res, next) => {
       message: 'Story view recorded'
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -494,9 +405,7 @@ exports.getMyStories = asyncHandler(async (req, res, next) => {
   try {
     const userId = req.user.id;
     const now = new Date();
-    
-    console.log(`📚 [Get My Stories] User: ${userId}`);
-    
+
     const stories = await Story.find({
       user: userId,
       isActive: true,
@@ -504,56 +413,9 @@ exports.getMyStories = asyncHandler(async (req, res, next) => {
     })
     .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
     .sort({ createdAt: -1 });
-    
-    console.log(`📚 [Get My Stories] Found ${stories.length} active stories`);
-    
-    const storiesWithUrls = stories.map(story => {
-      // Handle both populated and non-populated user
-      let userWithImageUrls;
-      if (story.user && story.user._doc) {
-        userWithImageUrls = {
-          ...story.user._doc,
-          imageUrls: story.user.images ? story.user.images.map(image => image) : []
-        };
-      } else if (story.user) {
-        userWithImageUrls = {
-          ...story.user.toObject ? story.user.toObject() : story.user,
-          imageUrls: story.user.images ? story.user.images.map(image => image) : []
-        };
-      } else {
-        // Fallback if user is not populated
-        userWithImageUrls = {
-          _id: story.user,
-          imageUrls: []
-        };
-      }
-      
-      return {
-        ...story.toObject ? story.toObject() : story._doc,
-        _id: story._id,
-        user: userWithImageUrls,
-        mediaUrl: story.mediaUrls && story.mediaUrls.length > 0 ? story.mediaUrls[0] : (story.mediaUrl || null),
-        mediaUrls: story.mediaUrls || [],
-        thumbnail: story.videoMetadata?.thumbnail || story.thumbnail || null,
-        videoMetadata: story.videoMetadata || null,
-        text: story.text || null,
-        backgroundColor: story.backgroundColor || '#000000',
-        textColor: story.textColor || '#ffffff',
-        privacy: story.privacy || 'friends',
-        viewCount: story.viewCount || 0,
-        createdAt: story.createdAt,
-        updatedAt: story.updatedAt
-      };
-    });
-    
-    console.log(`📚 [Get My Stories] Returning ${storiesWithUrls.length} stories`);
-    console.log(`📚 [Get My Stories] Sample story:`, storiesWithUrls.length > 0 ? {
-      _id: storiesWithUrls[0]._id,
-      mediaUrl: storiesWithUrls[0].mediaUrl,
-      hasUser: !!storiesWithUrls[0].user,
-      userId: storiesWithUrls[0].user?._id
-    } : 'No stories');
-    
+
+    const storiesWithUrls = processStories(stories);
+
     res.status(200).json({
       success: true,
       count: storiesWithUrls.length,
@@ -561,8 +423,7 @@ exports.getMyStories = asyncHandler(async (req, res, next) => {
       message: storiesWithUrls.length === 0 ? 'No active stories found' : 'Stories retrieved successfully'
     });
   } catch (error) {
-    console.error(`📚 [Get My Stories] Error:`, error);
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Failed to fetch stories', 500));
   }
 });
 
@@ -573,53 +434,31 @@ exports.getStory = asyncHandler(async (req, res, next) => {
   try {
     const story = await Story.findById(req.params.id)
       .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
-    
+
     if (!story) {
       return next(new ErrorResponse(`Story not found with id of ${req.params.id}`, 404));
     }
-    
+
     // Check if story is expired or inactive
     if (!story.isActive || story.expiresAt < new Date()) {
-      return next(new ErrorResponse(`Story is no longer available`, 404));
+      return next(new ErrorResponse('Story is no longer available', 404));
     }
-    
+
     // Check if blocked
     const storyOwnerId = story.user._id.toString();
-    console.log(`📚 [Get Story] Story ID: ${req.params.id}, Owner: ${storyOwnerId}, Viewer: ${req.user.id}`);
-    
     if (req.user.id !== storyOwnerId) {
       const blockStatus = await checkBlockStatus(req.user.id, storyOwnerId);
-      console.log(`📚 [Get Story] Block status:`, {
-        isBlocked: blockStatus.isBlocked,
-        iBlockedThem: blockStatus.iBlockedThem,
-        theyBlockedMe: blockStatus.theyBlockedMe
-      });
-      
       if (blockStatus.isBlocked) {
-        console.log(`📚 [Get Story] BLOCKED - Returning 403`);
         return next(new ErrorResponse('This content is not available', 403));
       }
     }
-    
-    const userWithImageUrls = {
-      ...story.user._doc,
-      imageUrls: story.user.images.map(image => image)
-    };
-
-    const storyWithUrls = {
-      ...story._doc,
-      user: userWithImageUrls,
-      mediaUrl: story.mediaUrls ? story.mediaUrls[0] : null,
-      thumbnail: story.videoMetadata?.thumbnail || story.thumbnail || null,
-      videoMetadata: story.videoMetadata || null
-    };
 
     res.status(200).json({
       success: true,
-      data: storyWithUrls
+      data: processStory(story)
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Failed to fetch story', 500));
   }
 });
 
@@ -671,7 +510,7 @@ exports.reactToStory = asyncHandler(async (req, res, next) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -697,7 +536,7 @@ exports.removeReaction = asyncHandler(async (req, res, next) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -727,7 +566,7 @@ exports.getStoryReactions = asyncHandler(async (req, res, next) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -811,7 +650,7 @@ exports.replyToStory = asyncHandler(async (req, res, next) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -869,7 +708,7 @@ exports.voteStoryPoll = asyncHandler(async (req, res, next) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -915,7 +754,7 @@ exports.answerStoryQuestion = asyncHandler(async (req, res, next) => {
       message: 'Answer submitted'
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -948,7 +787,7 @@ exports.getQuestionResponses = asyncHandler(async (req, res, next) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1017,7 +856,7 @@ exports.shareStory = asyncHandler(async (req, res, next) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1059,7 +898,7 @@ exports.createHighlight = asyncHandler(async (req, res, next) => {
       data: highlight
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1092,7 +931,7 @@ exports.getUserHighlights = asyncHandler(async (req, res, next) => {
       data: highlights
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1109,7 +948,7 @@ exports.getMyHighlights = asyncHandler(async (req, res, next) => {
       data: highlights
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1144,7 +983,7 @@ exports.addStoryToHighlight = asyncHandler(async (req, res, next) => {
       data: highlight
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1173,7 +1012,7 @@ exports.removeStoryFromHighlight = asyncHandler(async (req, res, next) => {
       data: highlight
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1205,7 +1044,7 @@ exports.updateHighlight = asyncHandler(async (req, res, next) => {
       data: highlight
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1239,7 +1078,7 @@ exports.deleteHighlight = asyncHandler(async (req, res, next) => {
       message: 'Highlight deleted'
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1269,7 +1108,7 @@ exports.getArchivedStories = asyncHandler(async (req, res, next) => {
       data: stories
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1297,7 +1136,7 @@ exports.archiveStory = asyncHandler(async (req, res, next) => {
       message: 'Story archived'
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1317,7 +1156,7 @@ exports.getCloseFriends = asyncHandler(async (req, res, next) => {
       data: user.closeFriends || []
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1354,7 +1193,7 @@ exports.addCloseFriend = asyncHandler(async (req, res, next) => {
       message: 'Added to close friends'
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });
 
@@ -1381,6 +1220,6 @@ exports.removeCloseFriend = asyncHandler(async (req, res, next) => {
       message: 'Removed from close friends'
     });
   } catch (error) {
-    res.status(500).json({ error: 'Server error', message: `Error ${error}` });
+    return next(new ErrorResponse('Server error', 500));
   }
 });

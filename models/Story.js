@@ -182,6 +182,13 @@ StorySchema.index({ isActive: 1, expiresAt: 1 });
 StorySchema.index({ 'location.coordinates': '2dsphere' });
 StorySchema.index({ hashtags: 1 });
 
+// Additional indexes for feed performance
+StorySchema.index({ user: 1, isActive: 1, expiresAt: 1 }); // For user stories feed
+StorySchema.index({ privacy: 1, isActive: 1, expiresAt: 1 }); // For privacy-filtered feeds
+StorySchema.index({ mediaType: 1, isActive: 1, createdAt: -1 }); // For video stories filtering
+StorySchema.index({ isArchived: 1, user: 1, archivedAt: -1 }); // For archived stories queries
+StorySchema.index({ 'views.user': 1 }); // For checking if user viewed story
+
 // Virtual for checking if expired
 StorySchema.virtual('isExpired').get(function() {
   return new Date() > this.expiresAt;

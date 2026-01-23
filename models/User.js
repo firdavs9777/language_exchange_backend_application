@@ -122,9 +122,30 @@ const UserSchema = new mongoose.Schema({
     mutedChats: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Conversation'
-    }]
+    }],
+    // Learning notifications
+    learningReminders: {
+      type: Boolean,
+      default: true
+    },
+    streakReminders: {
+      type: Boolean,
+      default: true
+    },
+    vocabularyReviewReminders: {
+      type: Boolean,
+      default: true
+    },
+    achievementNotifications: {
+      type: Boolean,
+      default: true
+    },
+    leaderboardNotifications: {
+      type: Boolean,
+      default: true
+    }
   },
-  
+
   // BADGE COUNTS
   badges: {
     unreadMessages: {
@@ -663,7 +684,91 @@ role: {
       default: true
     }
   },
-  
+
+  // ========== LEARNING STATS (Cached summary for quick profile display) ==========
+  learningStats: {
+    // Streak info
+    currentStreak: {
+      type: Number,
+      default: 0
+    },
+    longestStreak: {
+      type: Number,
+      default: 0
+    },
+    // XP and Level
+    totalXP: {
+      type: Number,
+      default: 0
+    },
+    level: {
+      type: Number,
+      default: 1
+    },
+    // Proficiency
+    proficiencyLevel: {
+      type: String,
+      enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'],
+      default: 'A1'
+    },
+    // Progress counts
+    lessonsCompleted: {
+      type: Number,
+      default: 0
+    },
+    vocabularyCount: {
+      type: Number,
+      default: 0
+    },
+    vocabularyMastered: {
+      type: Number,
+      default: 0
+    },
+    achievementsUnlocked: {
+      type: Number,
+      default: 0
+    },
+    // Rankings
+    weeklyRank: {
+      type: Number,
+      default: null
+    },
+    // Last synced from LearningProgress
+    lastSyncedAt: {
+      type: Date,
+      default: null
+    }
+  },
+
+  // Learning preferences (separate from languageLearningSettings for backwards compat)
+  learningPreferences: {
+    dailyGoal: {
+      type: String,
+      enum: ['casual', 'regular', 'serious', 'intense'],
+      default: 'regular'
+    },
+    reminderEnabled: {
+      type: Boolean,
+      default: true
+    },
+    reminderTime: {
+      type: String,
+      default: '09:00' // HH:mm format
+    },
+    soundEffects: {
+      type: Boolean,
+      default: true
+    },
+    showStreakReminders: {
+      type: Boolean,
+      default: true
+    },
+    weeklyReportEnabled: {
+      type: Boolean,
+      default: true
+    }
+  },
+
   createdAt: {
     type: Date,
     default: Date.now

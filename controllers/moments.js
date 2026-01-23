@@ -450,33 +450,32 @@ exports.deleteMoment = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not authorized to delete this moment', 403));
   }
 
-  // Delete associated images from Spaces
+  // Delete associated images from Spaces (fire and forget, don't block response)
   if (moment.images && moment.images.length > 0) {
     console.log(`🗑️ Deleting ${moment.images.length} images from Spaces`);
-    // Delete images asynchronously (don't block response)
-    moment.images.forEach(async (imageUrl) => {
-      try {
-        await deleteFromSpaces(imageUrl);
-      } catch (err) {
-        console.error(`Failed to delete image ${imageUrl}:`, err.message);
-      }
-    });
+    Promise.all(
+      moment.images.map(imageUrl =>
+        deleteFromSpaces(imageUrl).catch(err =>
+          console.error(`Failed to delete image ${imageUrl}:`, err.message)
+        )
+      )
+    ).catch(err => console.error('Bulk image deletion error:', err.message));
   }
 
-  // Delete associated video from Spaces
+  // Delete associated video from Spaces (fire and forget, don't block response)
   if (moment.video && moment.video.url) {
     console.log(`🗑️ Deleting video from Spaces`);
-    // Delete video asynchronously (don't block response)
-    (async () => {
-      try {
-        await deleteFromSpaces(moment.video.url);
-        if (moment.video.thumbnail) {
-          await deleteFromSpaces(moment.video.thumbnail);
-        }
-      } catch (err) {
-        console.error(`Failed to delete video:`, err.message);
-      }
-    })();
+    const videoUrls = [moment.video.url];
+    if (moment.video.thumbnail) {
+      videoUrls.push(moment.video.thumbnail);
+    }
+    Promise.all(
+      videoUrls.map(url =>
+        deleteFromSpaces(url).catch(err =>
+          console.error(`Failed to delete video asset ${url}:`, err.message)
+        )
+      )
+    ).catch(err => console.error('Bulk video deletion error:', err.message));
   }
 
   await moment.deleteOne();
