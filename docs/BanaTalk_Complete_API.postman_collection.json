@@ -1,0 +1,1119 @@
+{
+  "info": {
+    "_postman_id": "bananatalk-complete-api-2024",
+    "name": "BanaTalk Complete API",
+    "description": "Complete API collection for BanaTalk language learning platform.\n\n## Categories:\n1. Authentication\n2. Users & Profiles\n3. Moments (Posts)\n4. Stories\n5. Messages & Chat\n6. Conversations\n7. Comments\n8. Notifications\n9. Learning System\n10. AI Features\n11. Reports & Blocks\n12. Purchases\n\n## Setup:\n1. Set `baseUrl` to your API server\n2. Set `token` after login\n3. Import and start testing!",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000/api/v1" },
+    { "key": "token", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "targetUserId", "value": "" },
+    { "key": "momentId", "value": "" },
+    { "key": "storyId", "value": "" },
+    { "key": "messageId", "value": "" },
+    { "key": "conversationId", "value": "" },
+    { "key": "commentId", "value": "" },
+    { "key": "notificationId", "value": "" },
+    { "key": "lessonId", "value": "" },
+    { "key": "quizId", "value": "" },
+    { "key": "vocabularyId", "value": "" },
+    { "key": "aiConversationId", "value": "" },
+    { "key": "feedbackId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "01. Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===200||pm.response.code===201){var j=pm.response.json();if(j.token)pm.collectionVariables.set('token',j.token);if(j.data&&j.data._id)pm.collectionVariables.set('userId',j.data._id);}"], "type": "text/javascript" }}],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"native_language\": \"en\",\n  \"language_to_learn\": \"es\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===200){var j=pm.response.json();if(j.token)pm.collectionVariables.set('token',j.token);if(j.data&&j.data._id)pm.collectionVariables.set('userId',j.data._id);}"], "type": "text/javascript" }}],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Get Me",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] } }
+        },
+        {
+          "name": "Update Details",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"John Updated\",\n  \"bio\": \"Learning Spanish!\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/updatedetails", "host": ["{{baseUrl}}"], "path": ["auth", "updatedetails"] }
+          }
+        },
+        {
+          "name": "Update Password",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"currentPassword\": \"password123\",\n  \"newPassword\": \"newpassword123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/updatepassword", "host": ["{{baseUrl}}"], "path": ["auth", "updatepassword"] }
+          }
+        },
+        {
+          "name": "Send Verification Code",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"john@example.com\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/send-verification-code", "host": ["{{baseUrl}}"], "path": ["auth", "send-verification-code"] }
+          }
+        },
+        {
+          "name": "Verify Code",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"john@example.com\",\n  \"code\": \"123456\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/verify-code", "host": ["{{baseUrl}}"], "path": ["auth", "verify-code"] }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"john@example.com\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["auth", "forgot-password"] }
+          }
+        },
+        {
+          "name": "Verify Reset Code",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"john@example.com\",\n  \"code\": \"123456\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/verify-reset-code", "host": ["{{baseUrl}}"], "path": ["auth", "verify-reset-code"] }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"john@example.com\",\n  \"code\": \"123456\",\n  \"password\": \"newpassword123\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["auth", "reset-password"] }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"your-refresh-token\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/refresh-token", "host": ["{{baseUrl}}"], "path": ["auth", "refresh-token"] }
+          }
+        },
+        {
+          "name": "Google Mobile Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"idToken\": \"google-id-token\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/google/mobile", "host": ["{{baseUrl}}"], "path": ["auth", "google", "mobile"] }
+          }
+        },
+        {
+          "name": "Apple Mobile Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"identityToken\": \"apple-identity-token\",\n  \"user\": \"apple-user-id\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/apple/mobile", "host": ["{{baseUrl}}"], "path": ["auth", "apple", "mobile"] }
+          }
+        },
+        {
+          "name": "Accept Terms",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"acceptedTerms\": true,\n  \"acceptedPrivacy\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/accept-terms", "host": ["{{baseUrl}}"], "path": ["auth", "accept-terms"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/auth/logout", "host": ["{{baseUrl}}"], "path": ["auth", "logout"] } }
+        },
+        {
+          "name": "Logout All Devices",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/auth/logout-all", "host": ["{{baseUrl}}"], "path": ["auth", "logout-all"] } }
+        },
+        {
+          "name": "Delete Account",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] } }
+        }
+      ]
+    },
+    {
+      "name": "02. Users & Profiles",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/users", "host": ["{{baseUrl}}"], "path": ["auth", "users"] } }
+        },
+        {
+          "name": "Get User by ID",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/users/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{targetUserId}}"] } }
+        },
+        {
+          "name": "Update Profile Picture",
+          "request": {
+            "method": "PUT",
+            "body": { "mode": "formdata", "formdata": [{ "key": "photo", "type": "file", "src": "" }] },
+            "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/profile-picture", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "profile-picture"] }
+          }
+        },
+        {
+          "name": "Remove Profile Picture",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/profile-picture", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "profile-picture"] } }
+        },
+        {
+          "name": "Upload Multiple Photos",
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [{ "key": "photos", "type": "file", "src": "" }] },
+            "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/photos", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "photos"] }
+          }
+        },
+        {
+          "name": "Delete Photo",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/photo/0", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "photo", "0"] } }
+        },
+        {
+          "name": "Follow User",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/follow/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "follow", "{{targetUserId}}"] } }
+        },
+        {
+          "name": "Unfollow User",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/unfollow/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "unfollow", "{{targetUserId}}"] } }
+        },
+        {
+          "name": "Get Followers",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/followers", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "followers"] } }
+        },
+        {
+          "name": "Get Following",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/following", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "following"] } }
+        },
+        {
+          "name": "Get Privacy Settings",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/privacy", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "privacy"] } }
+        },
+        {
+          "name": "Update Privacy Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"profileVisibility\": \"public\",\n  \"showOnlineStatus\": true,\n  \"allowMessages\": \"everyone\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/privacy", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "privacy"] }
+          }
+        },
+        {
+          "name": "Get User Limits",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/limits", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "limits"] } }
+        },
+        {
+          "name": "Get VIP Status",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/vip/status", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "vip", "status"] } }
+        },
+        {
+          "name": "Record Profile Visit",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/auth/users/{{targetUserId}}/profile-visit", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{targetUserId}}", "profile-visit"] } }
+        },
+        {
+          "name": "Get Profile Visitors",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/users/{{userId}}/visitors", "host": ["{{baseUrl}}"], "path": ["auth", "users", "{{userId}}", "visitors"] } }
+        },
+        {
+          "name": "Get My Visitor Stats",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/auth/users/me/visitor-stats", "host": ["{{baseUrl}}"], "path": ["auth", "users", "me", "visitor-stats"] } }
+        }
+      ]
+    },
+    {
+      "name": "03. Moments (Posts)",
+      "item": [
+        {
+          "name": "Get All Moments",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/moments?limit=20&page=1", "host": ["{{baseUrl}}"], "path": ["moments"], "query": [{ "key": "limit", "value": "20" }, { "key": "page", "value": "1" }] } }
+        },
+        {
+          "name": "Get Trending Moments",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/moments/trending", "host": ["{{baseUrl}}"], "path": ["moments", "trending"] } }
+        },
+        {
+          "name": "Explore Moments",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/moments/explore", "host": ["{{baseUrl}}"], "path": ["moments", "explore"] } }
+        },
+        {
+          "name": "Get User Moments",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/moments/user/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["moments", "user", "{{targetUserId}}"] } }
+        },
+        {
+          "name": "Get Saved Moments",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/moments/saved", "host": ["{{baseUrl}}"], "path": ["moments", "saved"] } }
+        },
+        {
+          "name": "Get Moment by ID",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/moments/{{momentId}}", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}"] } }
+        },
+        {
+          "name": "Create Moment",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===201){var j=pm.response.json();if(j.data&&j.data._id)pm.collectionVariables.set('momentId',j.data._id);}"], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Learning Spanish is fun! 🇪🇸\",\n  \"language\": \"en\"\n}" },
+            "url": { "raw": "{{baseUrl}}/moments", "host": ["{{baseUrl}}"], "path": ["moments"] }
+          }
+        },
+        {
+          "name": "Update Moment",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Updated moment text\"\n}" },
+            "url": { "raw": "{{baseUrl}}/moments/{{momentId}}", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}"] }
+          }
+        },
+        {
+          "name": "Delete Moment",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/moments/{{momentId}}", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}"] } }
+        },
+        {
+          "name": "Upload Moment Photos",
+          "request": {
+            "method": "PUT",
+            "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": "" }] },
+            "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/photo", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "photo"] }
+          }
+        },
+        {
+          "name": "Upload Moment Video",
+          "request": {
+            "method": "PUT",
+            "body": { "mode": "formdata", "formdata": [{ "key": "video", "type": "file", "src": "" }] },
+            "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/video", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "video"] }
+          }
+        },
+        {
+          "name": "Like Moment",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/like", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "like"] } }
+        },
+        {
+          "name": "Dislike Moment",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/dislike", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "dislike"] } }
+        },
+        {
+          "name": "Save Moment",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/save", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "save"] } }
+        },
+        {
+          "name": "Unsave Moment",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/save", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "save"] } }
+        },
+        {
+          "name": "Share Moment",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/share", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "share"] } }
+        },
+        {
+          "name": "Report Moment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"spam\"\n}" },
+            "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/report", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "report"] }
+          }
+        },
+        {
+          "name": "Translate Moment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"targetLanguage\": \"es\"\n}" },
+            "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/translate", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "translate"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Stories",
+      "item": [
+        {
+          "name": "Get Stories Feed",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stories/feed", "host": ["{{baseUrl}}"], "path": ["stories", "feed"] } }
+        },
+        {
+          "name": "Get My Stories",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stories/my-stories", "host": ["{{baseUrl}}"], "path": ["stories", "my-stories"] } }
+        },
+        {
+          "name": "Get User Stories",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stories/user/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["stories", "user", "{{targetUserId}}"] } }
+        },
+        {
+          "name": "Create Story",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===201){var j=pm.response.json();if(j.data&&j.data._id)pm.collectionVariables.set('storyId',j.data._id);}"], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [{ "key": "media", "type": "file", "src": "" }, { "key": "caption", "value": "My story!", "type": "text" }] },
+            "url": { "raw": "{{baseUrl}}/stories", "host": ["{{baseUrl}}"], "path": ["stories"] }
+          }
+        },
+        {
+          "name": "Create Video Story",
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [{ "key": "video", "type": "file", "src": "" }, { "key": "caption", "value": "Video story!", "type": "text" }] },
+            "url": { "raw": "{{baseUrl}}/stories/video", "host": ["{{baseUrl}}"], "path": ["stories", "video"] }
+          }
+        },
+        {
+          "name": "Get Story by ID",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stories/{{storyId}}", "host": ["{{baseUrl}}"], "path": ["stories", "{{storyId}}"] } }
+        },
+        {
+          "name": "Delete Story",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/stories/{{storyId}}", "host": ["{{baseUrl}}"], "path": ["stories", "{{storyId}}"] } }
+        },
+        {
+          "name": "Mark Story Viewed",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/stories/{{storyId}}/view", "host": ["{{baseUrl}}"], "path": ["stories", "{{storyId}}", "view"] } }
+        },
+        {
+          "name": "Get Story Viewers",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stories/{{storyId}}/views", "host": ["{{baseUrl}}"], "path": ["stories", "{{storyId}}", "views"] } }
+        },
+        {
+          "name": "React to Story",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"emoji\": \"❤️\"\n}" },
+            "url": { "raw": "{{baseUrl}}/stories/{{storyId}}/react", "host": ["{{baseUrl}}"], "path": ["stories", "{{storyId}}", "react"] }
+          }
+        },
+        {
+          "name": "Reply to Story",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"Great story!\"\n}" },
+            "url": { "raw": "{{baseUrl}}/stories/{{storyId}}/reply", "host": ["{{baseUrl}}"], "path": ["stories", "{{storyId}}", "reply"] }
+          }
+        },
+        {
+          "name": "Get My Highlights",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stories/highlights", "host": ["{{baseUrl}}"], "path": ["stories", "highlights"] } }
+        },
+        {
+          "name": "Create Highlight",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Travel\",\n  \"storyIds\": []\n}" },
+            "url": { "raw": "{{baseUrl}}/stories/highlights", "host": ["{{baseUrl}}"], "path": ["stories", "highlights"] }
+          }
+        },
+        {
+          "name": "Get Close Friends",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stories/close-friends", "host": ["{{baseUrl}}"], "path": ["stories", "close-friends"] } }
+        },
+        {
+          "name": "Add Close Friend",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/stories/close-friends/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["stories", "close-friends", "{{targetUserId}}"] } }
+        },
+        {
+          "name": "Get Archived Stories",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/stories/archive", "host": ["{{baseUrl}}"], "path": ["stories", "archive"] } }
+        }
+      ]
+    },
+    {
+      "name": "05. Messages & Chat",
+      "item": [
+        {
+          "name": "Get Messages",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/messages", "host": ["{{baseUrl}}"], "path": ["messages"] } }
+        },
+        {
+          "name": "Search Messages",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/messages/search?q=hello", "host": ["{{baseUrl}}"], "path": ["messages", "search"], "query": [{ "key": "q", "value": "hello" }] } }
+        },
+        {
+          "name": "Get Conversation",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/messages/conversation/{{userId}}/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["messages", "conversation", "{{userId}}", "{{targetUserId}}"] } }
+        },
+        {
+          "name": "Send Message",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===201){var j=pm.response.json();if(j.data&&j.data._id)pm.collectionVariables.set('messageId',j.data._id);}"], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [{ "key": "receiver", "value": "{{targetUserId}}", "type": "text" }, { "key": "text", "value": "Hello!", "type": "text" }] },
+            "url": { "raw": "{{baseUrl}}/messages", "host": ["{{baseUrl}}"], "path": ["messages"] }
+          }
+        },
+        {
+          "name": "Send Voice Message",
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [{ "key": "voice", "type": "file", "src": "" }, { "key": "receiver", "value": "{{targetUserId}}", "type": "text" }] },
+            "url": { "raw": "{{baseUrl}}/messages/voice", "host": ["{{baseUrl}}"], "path": ["messages", "voice"] }
+          }
+        },
+        {
+          "name": "Send Video Message",
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [{ "key": "video", "type": "file", "src": "" }, { "key": "receiver", "value": "{{targetUserId}}", "type": "text" }] },
+            "url": { "raw": "{{baseUrl}}/messages/video", "host": ["{{baseUrl}}"], "path": ["messages", "video"] }
+          }
+        },
+        {
+          "name": "Edit Message",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Edited message\"\n}" },
+            "url": { "raw": "{{baseUrl}}/messages/{{messageId}}", "host": ["{{baseUrl}}"], "path": ["messages", "{{messageId}}"] }
+          }
+        },
+        {
+          "name": "Delete Message",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/messages/{{messageId}}", "host": ["{{baseUrl}}"], "path": ["messages", "{{messageId}}"] } }
+        },
+        {
+          "name": "Reply to Message",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"This is a reply\"\n}" },
+            "url": { "raw": "{{baseUrl}}/messages/{{messageId}}/reply", "host": ["{{baseUrl}}"], "path": ["messages", "{{messageId}}", "reply"] }
+          }
+        },
+        {
+          "name": "Forward Message",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"receiverId\": \"{{targetUserId}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/messages/{{messageId}}/forward", "host": ["{{baseUrl}}"], "path": ["messages", "{{messageId}}", "forward"] }
+          }
+        },
+        {
+          "name": "Add Reaction",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"emoji\": \"👍\"\n}" },
+            "url": { "raw": "{{baseUrl}}/messages/{{messageId}}/reactions", "host": ["{{baseUrl}}"], "path": ["messages", "{{messageId}}", "reactions"] }
+          }
+        },
+        {
+          "name": "Translate Message",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"targetLanguage\": \"es\"\n}" },
+            "url": { "raw": "{{baseUrl}}/messages/{{messageId}}/translate", "host": ["{{baseUrl}}"], "path": ["messages", "{{messageId}}", "translate"] }
+          }
+        },
+        {
+          "name": "Add Correction",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"correctedText\": \"Corrected text here\",\n  \"explanation\": \"Grammar fix\"\n}" },
+            "url": { "raw": "{{baseUrl}}/messages/{{messageId}}/correct", "host": ["{{baseUrl}}"], "path": ["messages", "{{messageId}}", "correct"] }
+          }
+        },
+        {
+          "name": "Create Poll",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"receiver\": \"{{targetUserId}}\",\n  \"question\": \"What should we learn today?\",\n  \"options\": [\"Vocabulary\", \"Grammar\", \"Pronunciation\"]\n}" },
+            "url": { "raw": "{{baseUrl}}/messages/poll", "host": ["{{baseUrl}}"], "path": ["messages", "poll"] }
+          }
+        },
+        {
+          "name": "Get Bookmarks",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/messages/bookmarks", "host": ["{{baseUrl}}"], "path": ["messages", "bookmarks"] } }
+        },
+        {
+          "name": "Get Mentions",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/messages/mentions", "host": ["{{baseUrl}}"], "path": ["messages", "mentions"] } }
+        }
+      ]
+    },
+    {
+      "name": "06. Conversations",
+      "item": [
+        {
+          "name": "Get Conversations",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/conversations", "host": ["{{baseUrl}}"], "path": ["conversations"] } }
+        },
+        {
+          "name": "Get Conversation",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/conversations/{{conversationId}}", "host": ["{{baseUrl}}"], "path": ["conversations", "{{conversationId}}"] } }
+        },
+        {
+          "name": "Mute Conversation",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/conversations/{{conversationId}}/mute", "host": ["{{baseUrl}}"], "path": ["conversations", "{{conversationId}}", "mute"] } }
+        },
+        {
+          "name": "Unmute Conversation",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/conversations/{{conversationId}}/unmute", "host": ["{{baseUrl}}"], "path": ["conversations", "{{conversationId}}", "unmute"] } }
+        },
+        {
+          "name": "Archive Conversation",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/conversations/{{conversationId}}/archive", "host": ["{{baseUrl}}"], "path": ["conversations", "{{conversationId}}", "archive"] } }
+        },
+        {
+          "name": "Pin Conversation",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/conversations/{{conversationId}}/pin", "host": ["{{baseUrl}}"], "path": ["conversations", "{{conversationId}}", "pin"] } }
+        },
+        {
+          "name": "Mark as Read",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/conversations/{{conversationId}}/read", "host": ["{{baseUrl}}"], "path": ["conversations", "{{conversationId}}", "read"] } }
+        },
+        {
+          "name": "Set Theme",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"theme\": \"ocean\"\n}" },
+            "url": { "raw": "{{baseUrl}}/conversations/{{conversationId}}/theme", "host": ["{{baseUrl}}"], "path": ["conversations", "{{conversationId}}", "theme"] }
+          }
+        },
+        {
+          "name": "Enable Secret Chat",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/conversations/{{conversationId}}/secret", "host": ["{{baseUrl}}"], "path": ["conversations", "{{conversationId}}", "secret"] } }
+        }
+      ]
+    },
+    {
+      "name": "07. Comments",
+      "item": [
+        {
+          "name": "Get Moment Comments",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/comments", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "comments"] } }
+        },
+        {
+          "name": "Create Comment",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===201){var j=pm.response.json();if(j.data&&j.data._id)pm.collectionVariables.set('commentId',j.data._id);}"], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [{ "key": "text", "value": "Great post!", "type": "text" }] },
+            "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/comments", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "comments"] }
+          }
+        },
+        {
+          "name": "Delete Comment",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/comments/{{commentId}}", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "comments", "{{commentId}}"] } }
+        },
+        {
+          "name": "Translate Comment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"targetLanguage\": \"es\"\n}" },
+            "url": { "raw": "{{baseUrl}}/moments/{{momentId}}/comments/{{commentId}}/translate", "host": ["{{baseUrl}}"], "path": ["moments", "{{momentId}}", "comments", "{{commentId}}", "translate"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Notifications",
+      "item": [
+        {
+          "name": "Register FCM Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"fcm-token-here\",\n  \"deviceId\": \"device-uuid\",\n  \"platform\": \"ios\"\n}" },
+            "url": { "raw": "{{baseUrl}}/notifications/register-token", "host": ["{{baseUrl}}"], "path": ["notifications", "register-token"] }
+          }
+        },
+        {
+          "name": "Remove Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/notifications/remove-token/device-uuid", "host": ["{{baseUrl}}"], "path": ["notifications", "remove-token", "device-uuid"] }
+          }
+        },
+        {
+          "name": "Get Settings",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/notifications/settings", "host": ["{{baseUrl}}"], "path": ["notifications", "settings"] } }
+        },
+        {
+          "name": "Update Settings",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"messages\": true,\n  \"likes\": true,\n  \"comments\": true,\n  \"follows\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/notifications/settings", "host": ["{{baseUrl}}"], "path": ["notifications", "settings"] }
+          }
+        },
+        {
+          "name": "Get History",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/notifications/history?limit=20&page=1", "host": ["{{baseUrl}}"], "path": ["notifications", "history"], "query": [{ "key": "limit", "value": "20" }, { "key": "page", "value": "1" }] } }
+        },
+        {
+          "name": "Mark as Read",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/notifications/mark-read/{{notificationId}}", "host": ["{{baseUrl}}"], "path": ["notifications", "mark-read", "{{notificationId}}"] } }
+        },
+        {
+          "name": "Mark All as Read",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/notifications/mark-all-read", "host": ["{{baseUrl}}"], "path": ["notifications", "mark-all-read"] } }
+        },
+        {
+          "name": "Get Badge Count",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/notifications/badge-count", "host": ["{{baseUrl}}"], "path": ["notifications", "badge-count"] } }
+        },
+        {
+          "name": "Clear All",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/notifications/clear-all", "host": ["{{baseUrl}}"], "path": ["notifications", "clear-all"] } }
+        }
+      ]
+    },
+    {
+      "name": "09. Learning System",
+      "item": [
+        {
+          "name": "Get Progress",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/progress", "host": ["{{baseUrl}}"], "path": ["learning", "progress"] } }
+        },
+        {
+          "name": "Get Leaderboard",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/progress/leaderboard", "host": ["{{baseUrl}}"], "path": ["learning", "progress", "leaderboard"] } }
+        },
+        {
+          "name": "Update Daily Goal",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"dailyGoalMinutes\": 30\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/progress/daily-goal", "host": ["{{baseUrl}}"], "path": ["learning", "progress", "daily-goal"] }
+          }
+        },
+        {
+          "name": "Get Vocabulary",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/vocabulary?limit=20", "host": ["{{baseUrl}}"], "path": ["learning", "vocabulary"], "query": [{ "key": "limit", "value": "20" }] } }
+        },
+        {
+          "name": "Add Vocabulary",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"word\": \"hola\",\n  \"translation\": \"hello\",\n  \"language\": \"es\",\n  \"example\": \"¡Hola, cómo estás?\"\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/vocabulary", "host": ["{{baseUrl}}"], "path": ["learning", "vocabulary"] }
+          }
+        },
+        {
+          "name": "Get Vocabulary Review",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/vocabulary/review", "host": ["{{baseUrl}}"], "path": ["learning", "vocabulary", "review"] } }
+        },
+        {
+          "name": "Submit Vocabulary Review",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"correct\": true,\n  \"responseTime\": 2500\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/vocabulary/{{vocabularyId}}/review", "host": ["{{baseUrl}}"], "path": ["learning", "vocabulary", "{{vocabularyId}}", "review"] }
+          }
+        },
+        {
+          "name": "Get Lessons",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/lessons", "host": ["{{baseUrl}}"], "path": ["learning", "lessons"] } }
+        },
+        {
+          "name": "Get Recommended Lessons",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/lessons/recommended", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "recommended"] } }
+        },
+        {
+          "name": "Start Lesson",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/start", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "start"] } }
+        },
+        {
+          "name": "Submit Lesson Answer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"exerciseIndex\": 0,\n  \"answer\": \"hola\"\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/answer", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "answer"] }
+          }
+        },
+        {
+          "name": "Complete Lesson",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/complete", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "complete"] } }
+        },
+        {
+          "name": "Get Quizzes",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/quizzes", "host": ["{{baseUrl}}"], "path": ["learning", "quizzes"] } }
+        },
+        {
+          "name": "Get Achievements",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/achievements", "host": ["{{baseUrl}}"], "path": ["learning", "achievements"] } }
+        },
+        {
+          "name": "Get Challenges",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/challenges", "host": ["{{baseUrl}}"], "path": ["learning", "challenges"] } }
+        },
+        {
+          "name": "Get Activity Summary",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/activity", "host": ["{{baseUrl}}"], "path": ["learning", "activity"] } }
+        },
+        {
+          "name": "Get Adaptive Recommendations",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/recommendations/adaptive", "host": ["{{baseUrl}}"], "path": ["learning", "recommendations", "adaptive"] } }
+        },
+        {
+          "name": "Refresh Recommendations",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/learning/recommendations/refresh", "host": ["{{baseUrl}}"], "path": ["learning", "recommendations", "refresh"] } }
+        },
+        {
+          "name": "Get Weak Areas",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/progress/weak-areas", "host": ["{{baseUrl}}"], "path": ["learning", "progress", "weak-areas"] } }
+        },
+        {
+          "name": "Generate AI Quiz",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===200||pm.response.code===201){var j=pm.response.json();if(j.data&&j.data.quiz&&j.data.quiz._id)pm.collectionVariables.set('quizId',j.data.quiz._id);}"], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"type\": \"weak_areas\",\n  \"questionCount\": 10,\n  \"difficulty\": \"adaptive\"\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/quizzes/generate", "host": ["{{baseUrl}}"], "path": ["learning", "quizzes", "generate"] }
+          }
+        },
+        {
+          "name": "Get AI Quizzes",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/quizzes/ai", "host": ["{{baseUrl}}"], "path": ["learning", "quizzes", "ai"] } }
+        },
+        {
+          "name": "Start AI Quiz",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/learning/quizzes/ai/{{quizId}}/start", "host": ["{{baseUrl}}"], "path": ["learning", "quizzes", "ai", "{{quizId}}", "start"] } }
+        },
+        {
+          "name": "Submit AI Quiz Answer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"questionIndex\": 0,\n  \"answer\": \"fui\"\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/quizzes/ai/{{quizId}}/answer", "host": ["{{baseUrl}}"], "path": ["learning", "quizzes", "ai", "{{quizId}}", "answer"] }
+          }
+        },
+        {
+          "name": "Complete AI Quiz",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"answers\": [\"answer1\", \"answer2\"],\n  \"timeSpent\": 180\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/quizzes/ai/{{quizId}}/complete", "host": ["{{baseUrl}}"], "path": ["learning", "quizzes", "ai", "{{quizId}}", "complete"] }
+          }
+        },
+        {
+          "name": "Get AI Quiz Stats",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/learning/quizzes/ai/stats", "host": ["{{baseUrl}}"], "path": ["learning", "quizzes", "ai", "stats"] } }
+        }
+      ]
+    },
+    {
+      "name": "10. AI Conversation",
+      "item": [
+        {
+          "name": "Start Conversation",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===201){var j=pm.response.json();if(j.data&&j.data.conversationId)pm.collectionVariables.set('aiConversationId',j.data.conversationId);}"], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"targetLanguage\": \"es\",\n  \"cefrLevel\": \"B1\",\n  \"nativeLanguage\": \"en\",\n  \"topicId\": \"travel\",\n  \"scenarioId\": \"hotel_checkin\"\n}" },
+            "url": { "raw": "{{baseUrl}}/ai-conversation/start", "host": ["{{baseUrl}}"], "path": ["ai-conversation", "start"] }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"content\": \"Hola, tengo una reservación.\",\n  \"responseTime\": 3000\n}" },
+            "url": { "raw": "{{baseUrl}}/ai-conversation/{{aiConversationId}}/message", "host": ["{{baseUrl}}"], "path": ["ai-conversation", "{{aiConversationId}}", "message"] }
+          }
+        },
+        {
+          "name": "End Conversation",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/ai-conversation/{{aiConversationId}}/end", "host": ["{{baseUrl}}"], "path": ["ai-conversation", "{{aiConversationId}}", "end"] } }
+        },
+        {
+          "name": "Get Conversation History",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/ai-conversation?limit=10", "host": ["{{baseUrl}}"], "path": ["ai-conversation"], "query": [{ "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get Conversation by ID",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/ai-conversation/{{aiConversationId}}", "host": ["{{baseUrl}}"], "path": ["ai-conversation", "{{aiConversationId}}"] } }
+        },
+        {
+          "name": "Get Topics",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/ai-conversation/topics?level=B1", "host": ["{{baseUrl}}"], "path": ["ai-conversation", "topics"], "query": [{ "key": "level", "value": "B1" }] } }
+        },
+        {
+          "name": "Get Scenarios",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/ai-conversation/scenarios?level=B1", "host": ["{{baseUrl}}"], "path": ["ai-conversation", "scenarios"], "query": [{ "key": "level", "value": "B1" }] } }
+        }
+      ]
+    },
+    {
+      "name": "11. Grammar Feedback",
+      "item": [
+        {
+          "name": "Analyze Text",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===200){var j=pm.response.json();if(j.data&&j.data.feedbackId)pm.collectionVariables.set('feedbackId',j.data.feedbackId);}"], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Yo soy ir al mercado ayer.\",\n  \"targetLanguage\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"cefrLevel\": \"A2\"\n}" },
+            "url": { "raw": "{{baseUrl}}/grammar-feedback", "host": ["{{baseUrl}}"], "path": ["grammar-feedback"] }
+          }
+        },
+        {
+          "name": "Get Feedback Details",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/grammar-feedback/{{feedbackId}}", "host": ["{{baseUrl}}"], "path": ["grammar-feedback", "{{feedbackId}}"] } }
+        },
+        {
+          "name": "Get Feedback History",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/grammar-feedback/history?limit=20", "host": ["{{baseUrl}}"], "path": ["grammar-feedback", "history"], "query": [{ "key": "limit", "value": "20" }] } }
+        },
+        {
+          "name": "Mark Feedback Viewed",
+          "request": { "method": "PUT", "url": { "raw": "{{baseUrl}}/grammar-feedback/{{feedbackId}}/viewed", "host": ["{{baseUrl}}"], "path": ["grammar-feedback", "{{feedbackId}}", "viewed"] } }
+        },
+        {
+          "name": "Explain Grammar Rule",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"rule\": \"subjunctive mood\",\n  \"targetLanguage\": \"es\",\n  \"nativeLanguage\": \"en\"\n}" },
+            "url": { "raw": "{{baseUrl}}/grammar-feedback/explain-rule", "host": ["{{baseUrl}}"], "path": ["grammar-feedback", "explain-rule"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Speech Features",
+      "item": [
+        {
+          "name": "Generate TTS",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Hola, ¿cómo estás?\",\n  \"language\": \"es\",\n  \"voice\": \"nova\",\n  \"speed\": 1.0\n}" },
+            "url": { "raw": "{{baseUrl}}/speech/tts", "host": ["{{baseUrl}}"], "path": ["speech", "tts"] }
+          }
+        },
+        {
+          "name": "Transcribe Audio (STT)",
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [{ "key": "audio", "type": "file", "src": "" }, { "key": "language", "value": "es", "type": "text" }] },
+            "url": { "raw": "{{baseUrl}}/speech/stt", "host": ["{{baseUrl}}"], "path": ["speech", "stt"] }
+          }
+        },
+        {
+          "name": "Evaluate Pronunciation",
+          "request": {
+            "method": "POST",
+            "body": { "mode": "formdata", "formdata": [{ "key": "audio", "type": "file", "src": "" }, { "key": "targetText", "value": "Hola, ¿cómo estás?", "type": "text" }, { "key": "language", "value": "es", "type": "text" }] },
+            "url": { "raw": "{{baseUrl}}/speech/pronunciation/evaluate", "host": ["{{baseUrl}}"], "path": ["speech", "pronunciation", "evaluate"] }
+          }
+        },
+        {
+          "name": "Get Pronunciation History",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/speech/pronunciation/history?language=es&limit=20", "host": ["{{baseUrl}}"], "path": ["speech", "pronunciation", "history"], "query": [{ "key": "language", "value": "es" }, { "key": "limit", "value": "20" }] } }
+        },
+        {
+          "name": "Get Pronunciation Stats",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/speech/pronunciation/stats?language=es", "host": ["{{baseUrl}}"], "path": ["speech", "pronunciation", "stats"], "query": [{ "key": "language", "value": "es" }] } }
+        },
+        {
+          "name": "Get Available Voices",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/speech/voices?language=es", "host": ["{{baseUrl}}"], "path": ["speech", "voices"], "query": [{ "key": "language", "value": "es" }] } }
+        }
+      ]
+    },
+    {
+      "name": "13. Enhanced Translation",
+      "item": [
+        {
+          "name": "Enhanced Translation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"It's raining cats and dogs\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\",\n  \"includeBreakdown\": true,\n  \"includeGrammar\": true,\n  \"includeIdioms\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/translate/enhanced", "host": ["{{baseUrl}}"], "path": ["translate", "enhanced"] }
+          }
+        },
+        {
+          "name": "Detect Idioms",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"He kicked the bucket\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\"\n}" },
+            "url": { "raw": "{{baseUrl}}/translate/idioms", "host": ["{{baseUrl}}"], "path": ["translate", "idioms"] }
+          }
+        },
+        {
+          "name": "Explain Grammar Differences",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"I have been studying Spanish\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\"\n}" },
+            "url": { "raw": "{{baseUrl}}/translate/grammar", "host": ["{{baseUrl}}"], "path": ["translate", "grammar"] }
+          }
+        },
+        {
+          "name": "Get Alternative Translations",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Hello\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\",\n  \"context\": \"greeting a friend\"\n}" },
+            "url": { "raw": "{{baseUrl}}/translate/alternatives", "host": ["{{baseUrl}}"], "path": ["translate", "alternatives"] }
+          }
+        },
+        {
+          "name": "Contextual Translation",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"Can you help me?\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\",\n  \"context\": \"asking stranger for directions\",\n  \"tone\": \"polite\"\n}" },
+            "url": { "raw": "{{baseUrl}}/translate/contextual", "host": ["{{baseUrl}}"], "path": ["translate", "contextual"] }
+          }
+        },
+        {
+          "name": "Get Popular Translations",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/translate/popular?language=es&limit=10", "host": ["{{baseUrl}}"], "path": ["translate", "popular"], "query": [{ "key": "language", "value": "es" }, { "key": "limit", "value": "10" }] } }
+        }
+      ]
+    },
+    {
+      "name": "14. Reports & Blocks",
+      "item": [
+        {
+          "name": "Block User",
+          "request": { "method": "POST", "url": { "raw": "{{baseUrl}}/users/{{userId}}/block", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}", "block"] } }
+        },
+        {
+          "name": "Unblock User",
+          "request": { "method": "DELETE", "url": { "raw": "{{baseUrl}}/users/{{targetUserId}}/block", "host": ["{{baseUrl}}"], "path": ["users", "{{targetUserId}}", "block"] } }
+        },
+        {
+          "name": "Get Blocked Users",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/users/{{userId}}/blocked", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}", "blocked"] } }
+        },
+        {
+          "name": "Check Block Status",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/users/{{userId}}/block-status/{{targetUserId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}", "block-status", "{{targetUserId}}"] } }
+        },
+        {
+          "name": "Create Report",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"contentType\": \"moment\",\n  \"contentId\": \"{{momentId}}\",\n  \"reason\": \"spam\",\n  \"description\": \"This is spam content\"\n}" },
+            "url": { "raw": "{{baseUrl}}/reports", "host": ["{{baseUrl}}"], "path": ["reports"] }
+          }
+        },
+        {
+          "name": "Get My Reports",
+          "request": { "method": "GET", "url": { "raw": "{{baseUrl}}/reports/my-reports", "host": ["{{baseUrl}}"], "path": ["reports", "my-reports"] } }
+        }
+      ]
+    },
+    {
+      "name": "15. Purchases & Subscriptions",
+      "item": [
+        {
+          "name": "Verify iOS Purchase",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"receiptData\": \"base64-receipt-data\",\n  \"productId\": \"com.bananatalk.vip.monthly\"\n}" },
+            "url": { "raw": "{{baseUrl}}/purchases/ios/verify", "host": ["{{baseUrl}}"], "path": ["purchases", "ios", "verify"] }
+          }
+        },
+        {
+          "name": "Verify Subscription Status",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"receiptData\": \"base64-receipt-data\"\n}" },
+            "url": { "raw": "{{baseUrl}}/purchases/ios/subscription-status", "host": ["{{baseUrl}}"], "path": ["purchases", "ios", "subscription-status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "16. Utilities",
+      "item": [
+        {
+          "name": "Get Languages",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/languages", "host": ["{{baseUrl}}"], "path": ["languages"] }
+          }
+        },
+        {
+          "name": "Send Contact Email",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"subject\": \"Question\",\n  \"message\": \"I have a question about...\"\n}" },
+            "url": { "raw": "{{baseUrl}}/contact/send", "host": ["{{baseUrl}}"], "path": ["contact", "send"] }
+          }
+        },
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "http://localhost:5000/health", "protocol": "http", "host": ["localhost"], "port": "5000", "path": ["health"] }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -35,7 +35,18 @@ const {
   markAchievementsSeen,
   setFeaturedAchievements,
   // Activity
-  getActivitySummary
+  getActivitySummary,
+  // AI Recommendations
+  getAdaptiveRecommendations,
+  refreshRecommendations,
+  getWeakAreas,
+  // AI Quizzes
+  generateAIQuiz,
+  getAIQuizzes,
+  startAIQuiz,
+  submitAIQuizAnswer,
+  completeAIQuiz,
+  getAIQuizStats
 } = require('../controllers/learning');
 
 const { protect } = require('../middleware/auth');
@@ -89,5 +100,18 @@ router.put('/achievements/featured', setFeaturedAchievements);
 
 // ===================== ACTIVITY ROUTES =====================
 router.get('/activity', getActivitySummary);
+
+// ===================== AI RECOMMENDATION ROUTES =====================
+router.get('/recommendations/adaptive', getAdaptiveRecommendations);
+router.post('/recommendations/refresh', refreshRecommendations);
+router.get('/progress/weak-areas', getWeakAreas);
+
+// ===================== AI QUIZ ROUTES =====================
+router.post('/quizzes/generate', generateAIQuiz);
+router.get('/quizzes/ai', getAIQuizzes);
+router.get('/quizzes/ai/stats', getAIQuizStats);
+router.post('/quizzes/ai/:id/start', startAIQuiz);
+router.post('/quizzes/ai/:id/answer', submitAIQuizAnswer);
+router.post('/quizzes/ai/:id/complete', completeAIQuiz);
 
 module.exports = router;

@@ -43,6 +43,34 @@ const XP_REWARDS = {
   FIRST_CONVERSATION: 20,            // Starting first conversation
   CONVERSATION_MILESTONE_10: 50,     // 10th conversation milestone
   HELP_NEW_USER: 10,                 // Helping someone in their first week
+
+  // AI Conversation activities
+  AI_CONVERSATION_MESSAGE: 3,        // Per message in AI conversation
+  AI_CONVERSATION_COMPLETE: 20,      // Completing an AI conversation (10+ messages)
+  AI_CONVERSATION_FIRST: 50,         // First AI conversation bonus
+  AI_CONVERSATION_STREAK_3: 15,      // 3-day AI conversation streak
+  AI_CONVERSATION_STREAK_7: 50,      // 7-day AI conversation streak
+
+  // Grammar Feedback activities
+  GRAMMAR_FEEDBACK_REQUEST: 1,       // Requesting grammar feedback
+  GRAMMAR_FEEDBACK_APPLY: 5,         // Applying a suggested correction
+  GRAMMAR_PERFECT_MESSAGE: 10,       // Message with no errors
+
+  // AI Quiz activities
+  COMPLETE_AI_QUIZ: 25,              // Completing AI-generated quiz
+  PERFECT_AI_QUIZ_BONUS: 10,         // Perfect score on AI quiz
+  IMPROVE_WEAK_AREA: 15,             // Improving a previously weak area
+
+  // Pronunciation activities
+  PRONUNCIATION_EXCELLENT: 15,       // Score >= 90
+  PRONUNCIATION_GOOD: 10,            // Score >= 70
+  PRONUNCIATION_ATTEMPT: 3,          // Any pronunciation attempt
+  TTS_LISTEN: 1,                     // Listening to TTS audio
+
+  // AI Translation activities
+  ENHANCED_TRANSLATION_USE: 2,       // Using enhanced translation
+  IDIOM_LEARNED: 5,                  // Learning an idiom through translation
+  GRAMMAR_EXPLORED: 3,               // Exploring grammar explanations
 };
 
 /**

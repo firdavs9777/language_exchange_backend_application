@@ -14,6 +14,8 @@ const ConversationActivity = require('../models/ConversationActivity');
 const User = require('../models/User');
 const { DAILY_GOALS, calculateLevel, levelProgress, xpForLevel } = require('../config/xpRewards');
 const learningTrackingService = require('../services/learningTrackingService');
+const recommendationService = require('../services/recommendationService');
+const aiQuizService = require('../services/aiQuizService');
 
 // ===================== PROGRESS =====================
 
@@ -827,5 +829,185 @@ exports.getActivitySummary = asyncHandler(async (req, res, next) => {
       topPartners: partnerStats,
       languageUsage
     }
+  });
+});
+
+// ===================== AI RECOMMENDATIONS =====================
+
+/**
+ * @desc    Get AI-powered adaptive lesson recommendations
+ * @route   GET /api/v1/learning/recommendations/adaptive
+ * @access  Private
+ */
+exports.getAdaptiveRecommendations = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const { language, limit = 10, refresh = 'false' } = req.query;
+
+  const result = await recommendationService.getAdaptiveRecommendations(userId, {
+    language,
+    limit: parseInt(limit),
+    forceRefresh: refresh === 'true'
+  });
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Refresh recommendations
+ * @route   POST /api/v1/learning/recommendations/refresh
+ * @access  Private
+ */
+exports.refreshRecommendations = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const { language } = req.body;
+
+  await recommendationService.invalidateRecommendations(userId);
+
+  const result = await recommendationService.getAdaptiveRecommendations(userId, {
+    language,
+    forceRefresh: true
+  });
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Get user's weak areas
+ * @route   GET /api/v1/learning/progress/weak-areas
+ * @access  Private
+ */
+exports.getWeakAreas = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+
+  const weakAreas = await recommendationService.getWeakAreas(userId);
+
+  res.status(200).json({
+    success: true,
+    data: { weakAreas }
+  });
+});
+
+// ===================== AI QUIZZES =====================
+
+/**
+ * @desc    Generate AI practice quiz
+ * @route   POST /api/v1/learning/quizzes/generate
+ * @access  Private
+ */
+exports.generateAIQuiz = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const {
+    type = 'weak_areas',
+    questionCount = 10,
+    difficulty = 'adaptive',
+    focusAreas,
+    vocabularyIds,
+    language
+  } = req.body;
+
+  const result = await aiQuizService.generatePracticeQuiz(userId, {
+    type,
+    questionCount,
+    difficulty,
+    focusAreas,
+    vocabularyIds,
+    language
+  });
+
+  res.status(201).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Get user's AI-generated quizzes
+ * @route   GET /api/v1/learning/quizzes/ai
+ * @access  Private
+ */
+exports.getAIQuizzes = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const { limit = 5 } = req.query;
+
+  const quizzes = await aiQuizService.getPendingQuizzes(userId, parseInt(limit));
+
+  res.status(200).json({
+    success: true,
+    data: quizzes
+  });
+});
+
+/**
+ * @desc    Start AI quiz
+ * @route   POST /api/v1/learning/quizzes/ai/:id/start
+ * @access  Private
+ */
+exports.startAIQuiz = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const quizId = req.params.id;
+
+  const result = await aiQuizService.startQuiz(quizId, userId);
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Submit answer for AI quiz
+ * @route   POST /api/v1/learning/quizzes/ai/:id/answer
+ * @access  Private
+ */
+exports.submitAIQuizAnswer = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const quizId = req.params.id;
+  const { questionIndex, answer } = req.body;
+
+  const result = await aiQuizService.submitAnswer(quizId, userId, questionIndex, answer);
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Complete AI quiz
+ * @route   POST /api/v1/learning/quizzes/ai/:id/complete
+ * @access  Private
+ */
+exports.completeAIQuiz = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const quizId = req.params.id;
+  const { answers, timeSpent } = req.body;
+
+  const result = await aiQuizService.completeQuiz(quizId, userId, answers, timeSpent);
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Get AI quiz stats
+ * @route   GET /api/v1/learning/quizzes/ai/stats
+ * @access  Private
+ */
+exports.getAIQuizStats = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+
+  const stats = await aiQuizService.getUserStats(userId);
+
+  res.status(200).json({
+    success: true,
+    data: stats
   });
 });

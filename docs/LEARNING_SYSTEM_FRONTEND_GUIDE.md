@@ -26,6 +26,7 @@ This document provides frontend developers with all the necessary information to
 ## API Base URL
 
 All endpoints are prefixed with:
+
 ```
 /api/v1/learning
 ```
@@ -35,6 +36,7 @@ All endpoints are prefixed with:
 ## Authentication
 
 All endpoints require authentication. Include the JWT token in the Authorization header:
+
 ```
 Authorization: Bearer <token>
 ```
@@ -44,11 +46,13 @@ Authorization: Bearer <token>
 ## Learning Progress
 
 ### Get User Progress
+
 ```http
 GET /api/v1/learning/progress
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -94,6 +98,7 @@ GET /api/v1/learning/progress
 ```
 
 ### Get Leaderboard
+
 ```http
 GET /api/v1/learning/progress/leaderboard?type=weekly&language=es&limit=50
 ```
@@ -106,6 +111,7 @@ GET /api/v1/learning/progress/leaderboard?type=weekly&language=es&limit=50
 | limit | number | 50 | Max results (max 100) |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -134,12 +140,14 @@ GET /api/v1/learning/progress/leaderboard?type=weekly&language=es&limit=50
 ```
 
 ### Get/Update Daily Goals
+
 ```http
 GET /api/v1/learning/progress/daily-goals
 PUT /api/v1/learning/progress/daily-goals
 ```
 
 **PUT Body:**
+
 ```json
 {
   "dailyGoal": 100,
@@ -162,6 +170,7 @@ PUT /api/v1/learning/progress/daily-goals
 The vocabulary system uses Spaced Repetition (SRS) for optimal learning.
 
 ### Get Vocabulary List
+
 ```http
 GET /api/v1/learning/vocabulary?language=es&srsLevel=0-5&limit=50&offset=0
 ```
@@ -177,6 +186,7 @@ GET /api/v1/learning/vocabulary?language=es&srsLevel=0-5&limit=50&offset=0
 | offset | number | Pagination offset |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -213,11 +223,13 @@ GET /api/v1/learning/vocabulary?language=es&srsLevel=0-5&limit=50&offset=0
 ```
 
 ### Add Vocabulary Word
+
 ```http
 POST /api/v1/learning/vocabulary
 ```
 
 **Body:**
+
 ```json
 {
   "word": "hola",
@@ -238,11 +250,13 @@ POST /api/v1/learning/vocabulary
 ```
 
 ### Get Words Due for Review
+
 ```http
 GET /api/v1/learning/vocabulary/review?language=es&limit=20
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -258,11 +272,13 @@ GET /api/v1/learning/vocabulary/review?language=es&limit=20
 ```
 
 ### Submit Review Result
+
 ```http
 POST /api/v1/learning/vocabulary/:id/review
 ```
 
 **Body:**
+
 ```json
 {
   "correct": true,
@@ -271,6 +287,7 @@ POST /api/v1/learning/vocabulary/:id/review
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -288,11 +305,13 @@ POST /api/v1/learning/vocabulary/:id/review
 ```
 
 ### Get Vocabulary Statistics
+
 ```http
 GET /api/v1/learning/vocabulary/stats?language=es
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -320,24 +339,26 @@ GET /api/v1/learning/vocabulary/stats?language=es
 ```
 
 ### SRS Level Reference
-| Level | Interval | Status |
-|-------|----------|--------|
-| 0 | Same day | New |
-| 1 | 1 day | Learning |
-| 2 | 2 days | Learning |
-| 3 | 4 days | Learning |
-| 4 | 1 week | Known |
-| 5 | 2 weeks | Known |
-| 6 | 1 month | Known |
-| 7 | 2 months | Known |
-| 8 | 4 months | Known |
-| 9 | 1 year | Mastered |
+
+| Level | Interval | Status   |
+| ----- | -------- | -------- |
+| 0     | Same day | New      |
+| 1     | 1 day    | Learning |
+| 2     | 2 days   | Learning |
+| 3     | 4 days   | Learning |
+| 4     | 1 week   | Known    |
+| 5     | 2 weeks  | Known    |
+| 6     | 1 month  | Known    |
+| 7     | 2 months | Known    |
+| 8     | 4 months | Known    |
+| 9     | 1 year   | Mastered |
 
 ---
 
 ## Lessons
 
 ### Get Lessons Curriculum
+
 ```http
 GET /api/v1/learning/lessons?language=es&level=A1&category=grammar
 ```
@@ -351,6 +372,7 @@ GET /api/v1/learning/lessons?language=es&level=A1&category=grammar
 | unit | number | Unit number |
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -399,6 +421,7 @@ GET /api/v1/learning/lessons?language=es&level=A1&category=grammar
 ```
 
 ### Get Recommended Lessons
+
 ```http
 GET /api/v1/learning/lessons/recommended?language=es&limit=5
 ```
@@ -406,11 +429,13 @@ GET /api/v1/learning/lessons/recommended?language=es&limit=5
 Returns personalized lesson recommendations based on user progress.
 
 ### Get Single Lesson
+
 ```http
 GET /api/v1/learning/lessons/:id
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -507,6 +532,7 @@ GET /api/v1/learning/lessons/:id
 ```
 
 ### Start Lesson
+
 ```http
 POST /api/v1/learning/lessons/:id/start
 ```
@@ -514,18 +540,26 @@ POST /api/v1/learning/lessons/:id/start
 Creates a lesson progress record and returns the lesson content.
 
 ### Submit Lesson
+
 ```http
 POST /api/v1/learning/lessons/:id/submit
 ```
 
 **Body:**
+
 ```json
 {
   "answers": [
     { "exerciseIndex": 0, "answer": "Hello" },
     { "exerciseIndex": 1, "answer": "dias" },
     { "exerciseIndex": 2, "answer": "Me llamo Maria" },
-    { "exerciseIndex": 3, "answer": [["Good morning", "Buenos dias"], ["Good night", "Buenas noches"]] },
+    {
+      "exerciseIndex": 3,
+      "answer": [
+        ["Good morning", "Buenos dias"],
+        ["Good night", "Buenas noches"]
+      ]
+    },
     { "exerciseIndex": 4, "answer": ["Me", "llamo", "Juan"] }
   ],
   "timeSpent": 480
@@ -533,6 +567,7 @@ POST /api/v1/learning/lessons/:id/submit
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -547,7 +582,12 @@ POST /api/v1/learning/lessons/:id/submit
       { "exerciseIndex": 1, "correct": true, "points": 10 },
       { "exerciseIndex": 2, "correct": true, "points": 15 },
       { "exerciseIndex": 3, "correct": true, "points": 20 },
-      { "exerciseIndex": 4, "correct": false, "points": 0, "correctAnswer": ["Me", "llamo", "Juan"] }
+      {
+        "exerciseIndex": 4,
+        "correct": false,
+        "points": 0,
+        "correctAnswer": ["Me", "llamo", "Juan"]
+      }
     ],
     "newLevel": null,
     "achievementsUnlocked": []
@@ -560,6 +600,7 @@ POST /api/v1/learning/lessons/:id/submit
 ## Quizzes
 
 ### Get Available Quizzes
+
 ```http
 GET /api/v1/learning/quizzes?language=es&type=placement
 ```
@@ -572,11 +613,13 @@ GET /api/v1/learning/quizzes?language=es&type=placement
 | level | string | CEFR level for practice quizzes |
 
 ### Submit Quiz
+
 ```http
 POST /api/v1/learning/quizzes/:id/submit
 ```
 
 **Body:**
+
 ```json
 {
   "answers": [
@@ -588,6 +631,7 @@ POST /api/v1/learning/quizzes/:id/submit
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -609,11 +653,13 @@ POST /api/v1/learning/quizzes/:id/submit
 ## Achievements
 
 ### Get All Achievements
+
 ```http
 GET /api/v1/learning/achievements
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -675,25 +721,28 @@ GET /api/v1/learning/achievements
 ```
 
 ### Achievement Categories
-| Category | Description |
-|----------|-------------|
-| beginner | First-time accomplishments |
-| vocabulary | Vocabulary milestones |
-| lessons | Lesson completion milestones |
-| streaks | Streak achievements |
-| social | Conversation/correction related |
-| milestones | XP and level milestones |
+
+| Category   | Description                     |
+| ---------- | ------------------------------- |
+| beginner   | First-time accomplishments      |
+| vocabulary | Vocabulary milestones           |
+| lessons    | Lesson completion milestones    |
+| streaks    | Streak achievements             |
+| social     | Conversation/correction related |
+| milestones | XP and level milestones         |
 
 ---
 
 ## Challenges
 
 ### Get Active Challenges
+
 ```http
 GET /api/v1/learning/challenges
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -752,13 +801,15 @@ GET /api/v1/learning/challenges
 ```
 
 ### Challenge Types
-| Type | Duration | XP Range |
-|------|----------|----------|
-| daily | 24 hours | 30-100 |
-| weekly | 7 days | 150-300 |
-| special | Varies | 200-500 |
+
+| Type    | Duration | XP Range |
+| ------- | -------- | -------- |
+| daily   | 24 hours | 30-100   |
+| weekly  | 7 days   | 150-300  |
+| special | Varies   | 200-500  |
 
 ### Challenge Categories
+
 - `messaging` - Send messages
 - `vocabulary` - Add/review vocabulary
 - `lessons` - Complete lessons
@@ -772,13 +823,14 @@ GET /api/v1/learning/challenges
 ## Data Models
 
 ### User.learningStats (embedded in User model)
+
 ```typescript
 interface LearningStats {
   currentStreak: number;
   longestStreak: number;
   totalXP: number;
   level: number;
-  proficiencyLevel: 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+  proficiencyLevel: "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
   lessonsCompleted: number;
   vocabularyCount: number;
   vocabularyMastered: number;
@@ -789,6 +841,7 @@ interface LearningStats {
 ```
 
 ### User.learningPreferences (embedded in User model)
+
 ```typescript
 interface LearningPreferences {
   dailyGoal: 20 | 50 | 100 | 150;
@@ -800,6 +853,7 @@ interface LearningPreferences {
 ```
 
 ### Level Calculation
+
 ```javascript
 // XP to Level
 const level = Math.floor(Math.sqrt(totalXP / 25)) + 1;
@@ -820,36 +874,41 @@ const progress = (totalXP - xpForCurrent) / (xpForNext - xpForCurrent);
 The following socket events are emitted for real-time updates:
 
 ### XP Earned
+
 ```javascript
-socket.on('xp_earned', (data) => {
+socket.on("xp_earned", (data) => {
   // data: { xp: 5, reason: 'message_target_language', newTotal: 1255, newLevel: null }
 });
 ```
 
 ### Level Up
+
 ```javascript
-socket.on('level_up', (data) => {
+socket.on("level_up", (data) => {
   // data: { newLevel: 9, previousLevel: 8, totalXP: 1650 }
 });
 ```
 
 ### Achievement Unlocked
+
 ```javascript
-socket.on('achievement_unlocked', (data) => {
+socket.on("achievement_unlocked", (data) => {
   // data: { achievement: { name, icon, description, xpReward }, xpEarned: 50 }
 });
 ```
 
 ### Streak Update
+
 ```javascript
-socket.on('streak_update', (data) => {
+socket.on("streak_update", (data) => {
   // data: { currentStreak: 6, longestStreak: 12, streakIncreased: true }
 });
 ```
 
 ### Challenge Progress
+
 ```javascript
-socket.on('challenge_progress', (data) => {
+socket.on("challenge_progress", (data) => {
   // data: { challengeId, title, currentProgress, required, completed, xpEarned }
 });
 ```
@@ -859,12 +918,14 @@ socket.on('challenge_progress', (data) => {
 ## UI Components Needed
 
 ### Progress Dashboard
+
 - XP progress bar with level indicator
 - Daily/weekly goal progress rings
 - Streak counter with flame icon
 - Quick stats grid (messages, lessons, vocabulary)
 
 ### Vocabulary Screen
+
 - Word cards with flip animation for review
 - SRS level indicator (color-coded)
 - Search and filter options
@@ -872,6 +933,7 @@ socket.on('challenge_progress', (data) => {
 - Review session mode with progress bar
 
 ### Lessons Browser
+
 - Unit/lesson tree view
 - Lesson cards with completion status
 - Progress indicators per unit
@@ -879,6 +941,7 @@ socket.on('challenge_progress', (data) => {
 - Lock icons for premium content
 
 ### Lesson Player
+
 - Content sections (text, examples, tips)
 - Exercise components:
   - Multiple choice (radio buttons)
@@ -891,6 +954,7 @@ socket.on('challenge_progress', (data) => {
 - Results screen with animations
 
 ### Achievements Gallery
+
 - Grid view with achievement cards
 - Locked/unlocked states
 - Progress indicators for locked
@@ -898,6 +962,7 @@ socket.on('challenge_progress', (data) => {
 - Unlock animation
 
 ### Challenges Screen
+
 - Daily challenges section
 - Weekly challenge card
 - Progress bars
@@ -905,12 +970,14 @@ socket.on('challenge_progress', (data) => {
 - Reward previews
 
 ### Leaderboard
+
 - User ranking list
 - Weekly/All-time tabs
 - User's position highlight
 - Avatar, name, XP display
 
 ### Notifications (In-App)
+
 - XP earned toast
 - Level up celebration modal
 - Achievement unlocked modal
@@ -921,37 +988,39 @@ socket.on('challenge_progress', (data) => {
 
 ## XP Rewards Reference
 
-| Activity | XP |
-|----------|-----|
-| Message in target language | 2 |
-| Message in any language | 1 |
-| Give correction | 5 |
-| Accept correction | 3 |
-| Complete lesson | 20 |
-| Perfect lesson bonus | +5 |
-| Complete quiz | 30 |
-| Review vocabulary | 1 |
-| Master vocabulary word | 10 |
-| Daily goal complete | 20 |
-| Weekly goal complete | 50 |
-| Daily challenge | 30-100 |
-| Weekly challenge | 150-300 |
+| Activity                   | XP      |
+| -------------------------- | ------- |
+| Message in target language | 2       |
+| Message in any language    | 1       |
+| Give correction            | 5       |
+| Accept correction          | 3       |
+| Complete lesson            | 20      |
+| Perfect lesson bonus       | +5      |
+| Complete quiz              | 30      |
+| Review vocabulary          | 1       |
+| Master vocabulary word     | 10      |
+| Daily goal complete        | 20      |
+| Weekly goal complete       | 50      |
+| Daily challenge            | 30-100  |
+| Weekly challenge           | 150-300 |
 
 ### Streak Multiplier
+
 | Streak Days | Multiplier |
-|-------------|------------|
-| 1-6 | 1.0x |
-| 7-13 | 1.1x |
-| 14-29 | 1.2x |
-| 30-59 | 1.3x |
-| 60-89 | 1.4x |
-| 90+ | 1.5x |
+| ----------- | ---------- |
+| 1-6         | 1.0x       |
+| 7-13        | 1.1x       |
+| 14-29       | 1.2x       |
+| 30-59       | 1.3x       |
+| 60-89       | 1.4x       |
+| 90+         | 1.5x       |
 
 ---
 
 ## Error Responses
 
 All endpoints return errors in this format:
+
 ```json
 {
   "success": false,
@@ -960,6 +1029,7 @@ All endpoints return errors in this format:
 ```
 
 Common HTTP status codes:
+
 - 400: Bad request (validation error)
 - 401: Unauthorized
 - 403: Forbidden (premium content)

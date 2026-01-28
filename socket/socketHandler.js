@@ -7,6 +7,7 @@ const { resetDailyCounters } = require('../utils/limitations');
 const LIMITS = require('../config/limitations');
 const notificationService = require('../services/notificationService');
 const { registerCallHandlers } = require('./callHandler');
+const { registerAIConversationHandlers, registerGrammarFeedbackHandlers } = require('./aiConversationHandler');
 const learningTrackingService = require('../services/learningTrackingService');
 const { detectLanguage } = require('../services/translationService');
 
@@ -155,8 +156,9 @@ const initializeSocket = (io) => {
     registerPollHandlers(socket, io);
     registerDisappearingMessageHandlers(socket, io);
     registerCallHandlers(socket, io);
+    registerAIConversationHandlers(socket, io);
+    registerGrammarFeedbackHandlers(socket, io);
 
-    
     // Handle disconnection
     socket.on('disconnect', (reason) => handleDisconnect(socket, io, reason));
     

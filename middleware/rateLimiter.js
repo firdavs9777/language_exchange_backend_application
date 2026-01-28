@@ -105,3 +105,77 @@ exports.authenticatedLimiter = rateLimit({
   }
 });
 
+/**
+ * AI Rate Limiter Configuration
+ * Different limits based on feature and user tier
+ */
+const AI_RATE_LIMITS = {
+  conversation: {
+    free: { windowMs: 60 * 60 * 1000, max: 20 },      // 20 per hour
+    regular: { windowMs: 60 * 60 * 1000, max: 50 },   // 50 per hour
+    vip: { windowMs: 60 * 60 * 1000, max: 200 }       // 200 per hour
+  },
+  grammar: {
+    free: { windowMs: 60 * 60 * 1000, max: 30 },
+    regular: { windowMs: 60 * 60 * 1000, max: 100 },
+    vip: { windowMs: 60 * 60 * 1000, max: 500 }
+  },
+  tts: {
+    free: { windowMs: 60 * 60 * 1000, max: 50 },
+    regular: { windowMs: 60 * 60 * 1000, max: 200 },
+    vip: { windowMs: 60 * 60 * 1000, max: 1000 }
+  },
+  stt: {
+    free: { windowMs: 60 * 60 * 1000, max: 20 },
+    regular: { windowMs: 60 * 60 * 1000, max: 100 },
+    vip: { windowMs: 60 * 60 * 1000, max: 500 }
+  },
+  pronunciation: {
+    free: { windowMs: 60 * 60 * 1000, max: 30 },
+    regular: { windowMs: 60 * 60 * 1000, max: 150 },
+    vip: { windowMs: 60 * 60 * 1000, max: 500 }
+  },
+  translation: {
+    free: { windowMs: 60 * 60 * 1000, max: 50 },
+    regular: { windowMs: 60 * 60 * 1000, max: 200 },
+    vip: { windowMs: 60 * 60 * 1000, max: 1000 }
+  },
+  quiz: {
+    free: { windowMs: 60 * 60 * 1000, max: 10 },
+    regular: { windowMs: 60 * 60 * 1000, max: 30 },
+    vip: { windowMs: 60 * 60 * 1000, max: 100 }
+  }
+};
+
+/**
+ * Create AI rate limiter for a specific feature
+ * @param {String} feature - Feature name (conversation, grammar, tts, stt, pronunciation, translation, quiz)
+ * @returns {Function} Express middleware
+ */
+exports.aiRateLimiter = (feature) => {
+  const limits = AI_RATE_LIMITS[feature] || AI_RATE_LIMITS.conversation;
+
+  return rateLimit({
+    windowMs: limits.free.windowMs,
+    max: (req) => {
+      // Get user tier from request
+      const tier = req.user?.subscription?.tier || 'free';
+      return limits[tier]?.max || limits.free.max;
+    },
+    message: {
+      success: false,
+      error: `Too many ${feature} requests. Please try again later or upgrade your plan for higher limits.`
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+      // Use user ID for authenticated users
+      return req.user ? `ai:${feature}:${req.user.id}` : `ai:${feature}:${req.ip}`;
+    },
+    skip: (req) => {
+      // Skip for admin users
+      return req.user?.role === 'admin';
+    }
+  });
+};
+

@@ -1,0 +1,935 @@
+{
+  "info": {
+    "_postman_id": "bananatalk-ai-apis-2024",
+    "name": "BanaTalk AI APIs",
+    "description": "Complete collection of AI-powered endpoints for the BanaTalk language learning platform.\n\n## Features Included:\n1. AI Conversation Partner\n2. Grammar Feedback\n3. Adaptive Recommendations\n4. AI-Generated Quizzes\n5. Speech Features (TTS/STT/Pronunciation)\n6. Enhanced Translation\n\n## Setup:\n1. Set the `baseUrl` variable to your API server\n2. Set the `token` variable with your JWT token\n3. Import and start testing!",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "your-jwt-token-here",
+      "type": "string"
+    },
+    {
+      "key": "conversationId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "feedbackId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "quizId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "1. AI Conversation Partner",
+      "description": "Practice conversations with an AI tutor that adapts to your CEFR level.",
+      "item": [
+        {
+          "name": "Start Conversation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.conversationId) {",
+                  "        pm.collectionVariables.set('conversationId', jsonData.data.conversationId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetLanguage\": \"es\",\n  \"cefrLevel\": \"B1\",\n  \"nativeLanguage\": \"en\",\n  \"topicId\": \"travel\",\n  \"scenarioId\": \"hotel_checkin\",\n  \"settings\": {\n    \"correctionStyle\": \"gentle\",\n    \"responseLength\": \"medium\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai-conversation/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-conversation", "start"]
+            },
+            "description": "Start a new AI conversation session with specified language and topic."
+          },
+          "response": []
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Hola, tengo una reservación para dos noches.\",\n  \"responseTime\": 5200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai-conversation/{{conversationId}}/message",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-conversation", "{{conversationId}}", "message"]
+            },
+            "description": "Send a message in an active AI conversation and receive AI response with feedback."
+          },
+          "response": []
+        },
+        {
+          "name": "Send Message (Streaming)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"¿Cuánto cuesta la habitación?\",\n  \"stream\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/ai-conversation/{{conversationId}}/message",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-conversation", "{{conversationId}}", "message"]
+            },
+            "description": "Send a message with streaming response (better for real-time UI)."
+          },
+          "response": []
+        },
+        {
+          "name": "End Conversation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai-conversation/{{conversationId}}/end",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-conversation", "{{conversationId}}", "end"]
+            },
+            "description": "End the conversation and receive a summary with XP rewards."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Conversation History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai-conversation?limit=10&offset=0&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-conversation"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                },
+                {
+                  "key": "status",
+                  "value": "all",
+                  "description": "active, completed, or all"
+                }
+              ]
+            },
+            "description": "Get user's conversation history with pagination."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Conversation by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai-conversation/{{conversationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-conversation", "{{conversationId}}"]
+            },
+            "description": "Get a specific conversation with all messages."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Topics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai-conversation/topics?level=B1",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-conversation", "topics"],
+              "query": [
+                {
+                  "key": "level",
+                  "value": "B1",
+                  "description": "CEFR level: A1, A2, B1, B2, C1, C2"
+                }
+              ]
+            },
+            "description": "Get available conversation topics for a CEFR level."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Practice Scenarios",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/ai-conversation/scenarios?level=B1",
+              "host": ["{{baseUrl}}"],
+              "path": ["ai-conversation", "scenarios"],
+              "query": [
+                {
+                  "key": "level",
+                  "value": "B1"
+                }
+              ]
+            },
+            "description": "Get roleplay scenarios for conversation practice."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Grammar Feedback",
+      "description": "Get detailed grammar analysis and corrections for your writing.",
+      "item": [
+        {
+          "name": "Analyze Text",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.feedbackId) {",
+                  "        pm.collectionVariables.set('feedbackId', jsonData.data.feedbackId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Yo soy ir al mercado ayer.\",\n  \"targetLanguage\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"cefrLevel\": \"A2\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/grammar-feedback",
+              "host": ["{{baseUrl}}"],
+              "path": ["grammar-feedback"]
+            },
+            "description": "Analyze text for grammar errors with detailed explanations."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Feedback Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/grammar-feedback/{{feedbackId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["grammar-feedback", "{{feedbackId}}"]
+            },
+            "description": "Get detailed feedback by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Feedback History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/grammar-feedback/history?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["grammar-feedback", "history"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Get user's grammar feedback history."
+          },
+          "response": []
+        },
+        {
+          "name": "Mark Feedback Viewed",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/grammar-feedback/{{feedbackId}}/viewed",
+              "host": ["{{baseUrl}}"],
+              "path": ["grammar-feedback", "{{feedbackId}}", "viewed"]
+            },
+            "description": "Mark feedback as viewed by user."
+          },
+          "response": []
+        },
+        {
+          "name": "Explain Grammar Rule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rule\": \"subjunctive mood\",\n  \"targetLanguage\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"cefrLevel\": \"B1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/grammar-feedback/explain-rule",
+              "host": ["{{baseUrl}}"],
+              "path": ["grammar-feedback", "explain-rule"]
+            },
+            "description": "Get detailed explanation of a grammar rule."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Adaptive Recommendations",
+      "description": "Get personalized lesson recommendations based on your learning patterns.",
+      "item": [
+        {
+          "name": "Get Adaptive Recommendations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/learning/recommendations/adaptive",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "recommendations", "adaptive"]
+            },
+            "description": "Get AI-powered lesson recommendations based on weak areas and learning history."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Recommendations",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/learning/recommendations/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "recommendations", "refresh"]
+            },
+            "description": "Force refresh recommendations (bypasses cache)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Weak Areas",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/learning/progress/weak-areas",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "progress", "weak-areas"]
+            },
+            "description": "Get user's identified weak areas for targeted practice."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. AI-Generated Quizzes",
+      "description": "Get custom quizzes targeting your weak areas.",
+      "item": [
+        {
+          "name": "Generate Quiz",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200 || pm.response.code === 201) {",
+                  "    var jsonData = pm.response.json();",
+                  "    if (jsonData.data && jsonData.data.quiz && jsonData.data.quiz._id) {",
+                  "        pm.collectionVariables.set('quizId', jsonData.data.quiz._id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"weak_areas\",\n  \"questionCount\": 10,\n  \"difficulty\": \"adaptive\",\n  \"focusAreas\": [\"past_tense\", \"vocabulary\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/learning/quizzes/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "quizzes", "generate"]
+            },
+            "description": "Generate a custom quiz based on weak areas.\n\nTypes: weak_areas, vocabulary, recent_content, mixed"
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Vocabulary Quiz",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"vocabulary\",\n  \"questionCount\": 10,\n  \"difficulty\": \"medium\",\n  \"vocabularyIds\": [\"vocab_id_1\", \"vocab_id_2\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/learning/quizzes/generate",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "quizzes", "generate"]
+            },
+            "description": "Generate quiz from specific vocabulary items."
+          },
+          "response": []
+        },
+        {
+          "name": "Get AI Quizzes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/learning/quizzes/ai?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "quizzes", "ai"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get list of pending AI-generated quizzes."
+          },
+          "response": []
+        },
+        {
+          "name": "Start Quiz",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/learning/quizzes/ai/{{quizId}}/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "quizzes", "ai", "{{quizId}}", "start"]
+            },
+            "description": "Start a quiz attempt and get questions (without answers)."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit Answer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionIndex\": 0,\n  \"answer\": \"fui\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/learning/quizzes/ai/{{quizId}}/answer",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "quizzes", "ai", "{{quizId}}", "answer"]
+            },
+            "description": "Submit answer for a single question and get immediate feedback."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete Quiz",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"answers\": [\"fui\", \"comió\", \"hablaron\", \"escribí\", \"leímos\"],\n  \"timeSpent\": 245\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/learning/quizzes/ai/{{quizId}}/complete",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "quizzes", "ai", "{{quizId}}", "complete"]
+            },
+            "description": "Complete quiz with all answers and get final results."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Quiz Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/learning/quizzes/ai/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["learning", "quizzes", "ai", "stats"]
+            },
+            "description": "Get user's AI quiz statistics."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Speech Features",
+      "description": "Text-to-speech, speech-to-text, and pronunciation evaluation.",
+      "item": [
+        {
+          "name": "Generate TTS Audio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hola, ¿cómo estás?\",\n  \"language\": \"es\",\n  \"voice\": \"nova\",\n  \"speed\": 1.0,\n  \"format\": \"mp3\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/speech/tts",
+              "host": ["{{baseUrl}}"],
+              "path": ["speech", "tts"]
+            },
+            "description": "Generate text-to-speech audio.\n\nVoices: alloy, echo, fable, onyx, nova, shimmer\nSpeed: 0.25 to 4.0\nFormat: mp3, opus, aac, flac"
+          },
+          "response": []
+        },
+        {
+          "name": "Transcribe Audio (STT)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "audio",
+                  "type": "file",
+                  "src": "/path/to/your/audio.mp3",
+                  "description": "Audio file (mp3, wav, webm, m4a, ogg, flac)"
+                },
+                {
+                  "key": "language",
+                  "value": "es",
+                  "type": "text",
+                  "description": "Language code (optional, auto-detected)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/speech/stt",
+              "host": ["{{baseUrl}}"],
+              "path": ["speech", "stt"]
+            },
+            "description": "Transcribe speech to text using Whisper."
+          },
+          "response": []
+        },
+        {
+          "name": "Evaluate Pronunciation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "audio",
+                  "type": "file",
+                  "src": "/path/to/pronunciation.mp3",
+                  "description": "User's pronunciation recording"
+                },
+                {
+                  "key": "targetText",
+                  "value": "Hola, ¿cómo estás?",
+                  "type": "text",
+                  "description": "Text that should be pronounced"
+                },
+                {
+                  "key": "language",
+                  "value": "es",
+                  "type": "text"
+                },
+                {
+                  "key": "source",
+                  "value": "practice",
+                  "type": "text",
+                  "description": "vocabulary, lesson, practice, challenge"
+                },
+                {
+                  "key": "vocabularyId",
+                  "value": "",
+                  "type": "text",
+                  "description": "Optional vocabulary ID for tracking"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/speech/pronunciation/evaluate",
+              "host": ["{{baseUrl}}"],
+              "path": ["speech", "pronunciation", "evaluate"]
+            },
+            "description": "Evaluate pronunciation and get detailed scoring with AI feedback."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pronunciation History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/speech/pronunciation/history?language=es&limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["speech", "pronunciation", "history"],
+              "query": [
+                {
+                  "key": "language",
+                  "value": "es"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Get user's pronunciation practice history."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pronunciation Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/speech/pronunciation/stats?language=es",
+              "host": ["{{baseUrl}}"],
+              "path": ["speech", "pronunciation", "stats"],
+              "query": [
+                {
+                  "key": "language",
+                  "value": "es"
+                }
+              ]
+            },
+            "description": "Get user's pronunciation statistics."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Best Attempt",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/speech/pronunciation/best?targetText=Hola",
+              "host": ["{{baseUrl}}"],
+              "path": ["speech", "pronunciation", "best"],
+              "query": [
+                {
+                  "key": "targetText",
+                  "value": "Hola"
+                }
+              ]
+            },
+            "description": "Get best pronunciation attempt for a specific text."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Available Voices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/speech/voices?language=es",
+              "host": ["{{baseUrl}}"],
+              "path": ["speech", "voices"],
+              "query": [
+                {
+                  "key": "language",
+                  "value": "es"
+                }
+              ]
+            },
+            "description": "Get available TTS voices for a language."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Cache Stats (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/speech/cache/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["speech", "cache", "stats"]
+            },
+            "description": "Get audio cache statistics (admin only)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "6. Enhanced Translation",
+      "description": "Context-aware translations with educational explanations.",
+      "item": [
+        {
+          "name": "Enhanced Translation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"It's raining cats and dogs\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"includeBreakdown\": true,\n  \"includeGrammar\": true,\n  \"includeIdioms\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate/enhanced",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate", "enhanced"]
+            },
+            "description": "Get full translation with alternatives, breakdown, grammar explanations, and idiom detection."
+          },
+          "response": []
+        },
+        {
+          "name": "Detect Idioms",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"He kicked the bucket last year\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate/idioms",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate", "idioms"]
+            },
+            "description": "Detect and explain idioms, expressions, and figures of speech."
+          },
+          "response": []
+        },
+        {
+          "name": "Explain Grammar Differences",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"I have been studying Spanish for two years\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\",\n  \"nativeLanguage\": \"en\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate/grammar",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate", "grammar"]
+            },
+            "description": "Get detailed grammar explanations comparing source and target languages."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Alternative Translations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hello\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\",\n  \"context\": \"greeting a friend\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate/alternatives",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate", "alternatives"]
+            },
+            "description": "Get multiple translation options with formality and context information."
+          },
+          "response": []
+        },
+        {
+          "name": "Contextual Translation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Can you help me?\",\n  \"sourceLanguage\": \"en\",\n  \"targetLanguage\": \"es\",\n  \"context\": \"asking a stranger for directions\",\n  \"tone\": \"polite\",\n  \"audience\": \"elderly person\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/translate/contextual",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate", "contextual"]
+            },
+            "description": "Get context-aware translation adapted for specific situation, tone, and audience."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Popular Translations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/translate/popular?language=es&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate", "popular"],
+              "query": [
+                {
+                  "key": "language",
+                  "value": "es"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Get most frequently translated phrases for a language."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Translation Cache Stats (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/translate/cache/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["translate", "cache", "stats"]
+            },
+            "description": "Get translation cache statistics (admin only)."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

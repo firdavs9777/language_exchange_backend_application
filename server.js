@@ -38,6 +38,10 @@ const conversations = require('./routes/conversations');
 const reports = require('./routes/report');
 const notifications = require('./routes/notifications');
 const learning = require('./routes/learning');
+const aiConversation = require('./routes/aiConversation');
+const grammarFeedback = require('./routes/grammarFeedback');
+const speech = require('./routes/speech');
+const aiTranslation = require('./routes/aiTranslation');
 
 // Initialize Express app
 const app = express();
@@ -176,6 +180,10 @@ app.use('/api/v1/reports', reports);
 app.use('/api/v1/notifications', notifications);
 app.use('/api/v1/contact', require('./routes/contact'));
 app.use('/api/v1/learning', learning);
+app.use('/api/v1/ai-conversation', aiConversation);
+app.use('/api/v1/grammar-feedback', grammarFeedback);
+app.use('/api/v1/speech', speech);
+app.use('/api/v1/translate', aiTranslation);
 
 // Error handler middleware (must be last)
 app.use(errorHandler);

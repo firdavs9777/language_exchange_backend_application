@@ -142,12 +142,19 @@ const QuizSchema = new mongoose.Schema({
 
   // For placement tests - level thresholds
   levelThresholds: {
-    A1: { min: 0, max: 20 },
-    A2: { min: 21, max: 40 },
-    B1: { min: 41, max: 60 },
-    B2: { min: 61, max: 75 },
-    C1: { min: 76, max: 90 },
-    C2: { min: 91, max: 100 }
+    type: Map,
+    of: {
+      min: { type: Number },
+      max: { type: Number }
+    },
+    default: {
+      A1: { min: 0, max: 20 },
+      A2: { min: 21, max: 40 },
+      B1: { min: 41, max: 60 },
+      B2: { min: 61, max: 75 },
+      C1: { min: 76, max: 90 },
+      C2: { min: 91, max: 100 }
+    }
   },
 
   // XP reward
@@ -239,10 +246,14 @@ QuizSchema.statics.getPlacementTest = async function(language) {
  * Determine level from placement test score
  */
 QuizSchema.methods.determineLevel = function(scorePercent) {
-  const thresholds = this.levelThresholds;
+  const thresholds = this.levelThresholds instanceof Map
+    ? Object.fromEntries(this.levelThresholds)
+    : this.levelThresholds;
 
-  for (const [level, range] of Object.entries(thresholds).reverse()) {
-    if (scorePercent >= range.min && scorePercent <= range.max) {
+  const levels = ['C2', 'C1', 'B2', 'B1', 'A2', 'A1'];
+  for (const level of levels) {
+    const range = thresholds[level] || thresholds.get?.(level);
+    if (range && scorePercent >= range.min && scorePercent <= range.max) {
       return level;
     }
   }
