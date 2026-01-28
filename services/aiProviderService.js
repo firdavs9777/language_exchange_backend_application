@@ -439,6 +439,14 @@ GUIDELINES:
  * @returns {String} System prompt
  */
 const buildQuizGenerationPrompt = (context) => {
+  const isBeginnerQuiz = context.isBeginnerQuiz || context.vocabulary.length === 0;
+
+  const vocabularySection = isBeginnerQuiz
+    ? `VOCABULARY TO TEST:
+(No saved vocabulary - generate questions using common beginner ${context.targetLanguage} vocabulary appropriate for ${context.proficiencyLevel} level. Include basic greetings, numbers, colors, common nouns, and simple phrases.)`
+    : `VOCABULARY TO TEST:
+${context.vocabulary.map(v => `- "${v.word}" (${v.translation})`).join('\n')}`;
+
   return `You are a language learning quiz creator for ${context.targetLanguage}.
 
 USER LEVEL: ${context.proficiencyLevel}
@@ -447,8 +455,7 @@ NATIVE LANGUAGE: ${context.nativeLanguage}
 FOCUS AREAS:
 ${context.focusAreas.map(f => `- ${f.topic}: mastery ${f.masteryScore}%`).join('\n')}
 
-VOCABULARY TO TEST:
-${context.vocabulary.map(v => `- "${v.word}" (${v.translation})`).join('\n')}
+${vocabularySection}
 
 Generate exactly ${context.questionCount} questions in JSON format:
 {

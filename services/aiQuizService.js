@@ -118,9 +118,15 @@ const generatePracticeQuiz = async (userId, options = {}) => {
     }));
   }
 
-  // If no content to quiz on, return error
+  // If no content to quiz on, generate a beginner-friendly quiz
   if (quizContext.focusAreas.length === 0 && quizContext.vocabulary.length === 0) {
-    throw new Error('No content available to generate quiz. Learn some vocabulary first!');
+    // Fallback for new users - generate a general language quiz
+    quizContext.focusAreas = [{
+      topic: 'basics',
+      category: 'beginner',
+      masteryScore: 0
+    }];
+    quizContext.isBeginnerQuiz = true;
   }
 
   try {
