@@ -230,6 +230,24 @@ const LessonSchema = new mongoose.Schema({
   version: {
     type: Number,
     default: 1
+  },
+
+  // AI Generation Metadata
+  aiGenerated: {
+    isAIGenerated: {
+      type: Boolean,
+      default: false
+    },
+    generatedAt: Date,
+    model: String,
+    tokensUsed: Number,
+    generationTimeMs: Number,
+    prompt: String,
+    enhancedAt: Date,
+    enhancementCount: {
+      type: Number,
+      default: 0
+    }
   }
 
 }, { timestamps: true });
@@ -238,6 +256,7 @@ const LessonSchema = new mongoose.Schema({
 LessonSchema.index({ language: 1, level: 1, category: 1, isPublished: 1 });
 LessonSchema.index({ language: 1, 'unit.number': 1, orderInUnit: 1 });
 LessonSchema.index({ tags: 1 });
+LessonSchema.index({ 'aiGenerated.isAIGenerated': 1, createdAt: -1 });
 
 // Pre-save hook for slug generation
 LessonSchema.pre('save', function(next) {

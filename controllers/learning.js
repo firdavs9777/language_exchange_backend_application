@@ -16,6 +16,7 @@ const { DAILY_GOALS, calculateLevel, levelProgress, xpForLevel } = require('../c
 const learningTrackingService = require('../services/learningTrackingService');
 const recommendationService = require('../services/recommendationService');
 const aiQuizService = require('../services/aiQuizService');
+const aiLessonAssistantService = require('../services/aiLessonAssistantService');
 
 // ===================== PROGRESS =====================
 
@@ -1009,5 +1010,185 @@ exports.getAIQuizStats = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     data: stats
+  });
+});
+
+// ===================== AI LESSON ASSISTANT =====================
+
+/**
+ * @desc    Get AI hint for an exercise
+ * @route   POST /api/v1/learning/lessons/:id/assistant/hint
+ * @access  Private
+ */
+exports.getExerciseHint = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const lessonId = req.params.id;
+  const { exerciseIndex, hintLevel = 1 } = req.body;
+
+  if (exerciseIndex === undefined) {
+    return next(new ErrorResponse('Exercise index is required', 400));
+  }
+
+  const result = await aiLessonAssistantService.getExerciseHint(
+    userId,
+    lessonId,
+    exerciseIndex,
+    Math.min(Math.max(hintLevel, 1), 3)
+  );
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Explain a concept from the lesson
+ * @route   POST /api/v1/learning/lessons/:id/assistant/explain
+ * @access  Private
+ */
+exports.explainConcept = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const lessonId = req.params.id;
+  const { concept, context } = req.body;
+
+  if (!concept) {
+    return next(new ErrorResponse('Concept is required', 400));
+  }
+
+  const result = await aiLessonAssistantService.explainConcept(
+    userId,
+    lessonId,
+    concept,
+    context
+  );
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Get feedback on wrong answer
+ * @route   POST /api/v1/learning/lessons/:id/assistant/feedback
+ * @access  Private
+ */
+exports.getAnswerFeedback = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const lessonId = req.params.id;
+  const { exerciseIndex, userAnswer } = req.body;
+
+  if (exerciseIndex === undefined || userAnswer === undefined) {
+    return next(new ErrorResponse('Exercise index and user answer are required', 400));
+  }
+
+  const result = await aiLessonAssistantService.getAnswerFeedback(
+    userId,
+    lessonId,
+    exerciseIndex,
+    userAnswer
+  );
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Get translation help
+ * @route   POST /api/v1/learning/assistant/translate
+ * @access  Private
+ */
+exports.getTranslationHelp = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const { text, sourceLanguage, targetLanguage, context } = req.body;
+
+  if (!text || !sourceLanguage || !targetLanguage) {
+    return next(new ErrorResponse('Text, source language, and target language are required', 400));
+  }
+
+  const result = await aiLessonAssistantService.getTranslationHelp(
+    userId,
+    text,
+    sourceLanguage,
+    targetLanguage,
+    context
+  );
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Ask AI assistant a question about the lesson
+ * @route   POST /api/v1/learning/lessons/:id/assistant/ask
+ * @access  Private
+ */
+exports.askAssistant = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const lessonId = req.params.id;
+  const { question } = req.body;
+
+  if (!question) {
+    return next(new ErrorResponse('Question is required', 400));
+  }
+
+  const result = await aiLessonAssistantService.askQuestion(
+    userId,
+    lessonId,
+    question
+  );
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Generate practice variations for an exercise
+ * @route   POST /api/v1/learning/lessons/:id/assistant/practice
+ * @access  Private
+ */
+exports.generatePractice = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const lessonId = req.params.id;
+  const { exerciseIndex, count = 3 } = req.body;
+
+  if (exerciseIndex === undefined) {
+    return next(new ErrorResponse('Exercise index is required', 400));
+  }
+
+  const result = await aiLessonAssistantService.generatePracticeVariations(
+    userId,
+    lessonId,
+    exerciseIndex,
+    Math.min(count, 5)
+  );
+
+  res.status(200).json({
+    success: true,
+    data: result
+  });
+});
+
+/**
+ * @desc    Get AI-generated lesson summary
+ * @route   GET /api/v1/learning/lessons/:id/assistant/summary
+ * @access  Private
+ */
+exports.getLessonSummary = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const lessonId = req.params.id;
+
+  const result = await aiLessonAssistantService.getLessonSummary(userId, lessonId);
+
+  res.status(200).json({
+    success: true,
+    data: result
   });
 });

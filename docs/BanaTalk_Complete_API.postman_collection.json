@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "bananatalk-complete-api-2024",
     "name": "BanaTalk Complete API",
-    "description": "Complete API collection for BanaTalk language learning platform.\n\n## Categories:\n1. Authentication\n2. Users & Profiles\n3. Moments (Posts)\n4. Stories\n5. Messages & Chat\n6. Conversations\n7. Comments\n8. Notifications\n9. Learning System\n10. AI Features\n11. Reports & Blocks\n12. Purchases\n\n## Setup:\n1. Set `baseUrl` to your API server\n2. Set `token` after login\n3. Import and start testing!",
+    "description": "Complete API collection for BanaTalk language learning platform.\n\n## Categories:\n1. Authentication\n2. Users & Profiles\n3. Moments (Posts)\n4. Stories\n5. Messages & Chat\n6. Conversations\n7. Comments\n8. Notifications\n9. Learning System\n10. AI Conversation\n11. Grammar Feedback\n12. Speech Features\n13. Enhanced Translation\n14. Reports & Blocks\n15. Purchases & Subscriptions\n16. AI Lesson Builder (NEW)\n17. AI Lesson Assistant (NEW)\n18. Utilities\n\n## Setup:\n1. Set `baseUrl` to your API server (default: http://localhost:5000/api/v1)\n2. Login to get token\n3. Import and start testing!\n\n## New AI Features:\n- AI Lesson Builder: Generate complete lessons, exercises, vocabulary, and curricula using GPT-4\n- AI Lesson Assistant: Get hints, explanations, feedback, and practice variations during lessons",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -1085,7 +1085,190 @@
       ]
     },
     {
-      "name": "16. Utilities",
+      "name": "16. AI Lesson Builder",
+      "description": "AI-powered lesson generation endpoints. Generate complete lessons, exercises, vocabulary, and curricula automatically using GPT-4.",
+      "item": [
+        {
+          "name": "Generate Lesson",
+          "event": [{ "listen": "test", "script": { "exec": ["if(pm.response.code===201){var j=pm.response.json();if(j.data&&j.data.lesson&&j.data.lesson._id)pm.collectionVariables.set('lessonId',j.data.lesson._id);}"], "type": "text/javascript" }}],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"language\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"topic\": \"Ordering Food at a Restaurant\",\n  \"level\": \"A2\",\n  \"category\": \"vocabulary\",\n  \"exerciseCount\": 10,\n  \"unitNumber\": 1,\n  \"unitName\": \"Food & Dining\"\n}" },
+            "url": { "raw": "{{baseUrl}}/lessons/generate", "host": ["{{baseUrl}}"], "path": ["lessons", "generate"] },
+            "description": "Generate a complete AI lesson with vocabulary, content, and exercises.\n\nCategories: vocabulary, grammar, conversation, listening, reading, writing, culture, pronunciation\nLevels: A1, A2, B1, B2, C1, C2"
+          }
+        },
+        {
+          "name": "Generate Exercises Only",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"language\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"topic\": \"Past Tense Verbs\",\n  \"level\": \"A2\",\n  \"category\": \"grammar\",\n  \"exerciseTypes\": [\"multiple_choice\", \"fill_blank\", \"translation\"],\n  \"count\": 10,\n  \"vocabulary\": [\"hablar\", \"comer\", \"vivir\"],\n  \"context\": \"Focus on regular verb conjugations\"\n}" },
+            "url": { "raw": "{{baseUrl}}/lessons/generate/exercises", "host": ["{{baseUrl}}"], "path": ["lessons", "generate", "exercises"] },
+            "description": "Generate exercises for a specific topic.\n\nExercise types: multiple_choice, fill_blank, translation, matching, ordering, listening, speaking, typing"
+          }
+        },
+        {
+          "name": "Generate Vocabulary List",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"language\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"topic\": \"Travel and Transportation\",\n  \"level\": \"B1\",\n  \"count\": 20\n}" },
+            "url": { "raw": "{{baseUrl}}/lessons/generate/vocabulary", "host": ["{{baseUrl}}"], "path": ["lessons", "generate", "vocabulary"] },
+            "description": "Generate a vocabulary list for a topic with translations, examples, and pronunciation."
+          }
+        },
+        {
+          "name": "Generate Curriculum (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"language\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"level\": \"A1\",\n  \"lessonsPerUnit\": 5,\n  \"unitsCount\": 3,\n  \"categories\": [\"vocabulary\", \"grammar\", \"conversation\"]\n}" },
+            "url": { "raw": "{{baseUrl}}/lessons/generate/curriculum", "host": ["{{baseUrl}}"], "path": ["lessons", "generate", "curriculum"] },
+            "description": "Generate a complete curriculum with multiple units and lessons. Admin only. This is a long-running operation."
+          }
+        },
+        {
+          "name": "Batch Generate Lessons (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"lessons\": [\n    {\n      \"language\": \"es\",\n      \"topic\": \"Greetings\",\n      \"level\": \"A1\",\n      \"category\": \"vocabulary\"\n    },\n    {\n      \"language\": \"es\",\n      \"topic\": \"Numbers 1-20\",\n      \"level\": \"A1\",\n      \"category\": \"vocabulary\"\n    },\n    {\n      \"language\": \"es\",\n      \"topic\": \"Present Tense\",\n      \"level\": \"A1\",\n      \"category\": \"grammar\"\n    }\n  ],\n  \"delayMs\": 500\n}" },
+            "url": { "raw": "{{baseUrl}}/lessons/generate/batch", "host": ["{{baseUrl}}"], "path": ["lessons", "generate", "batch"] },
+            "description": "Batch generate multiple lessons at once. Admin only. Maximum 20 lessons per batch."
+          }
+        },
+        {
+          "name": "Enhance Lesson",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"addExercises\": 5,\n  \"addContent\": true,\n  \"addTips\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/lessons/{{lessonId}}/enhance", "host": ["{{baseUrl}}"], "path": ["lessons", "{{lessonId}}", "enhance"] },
+            "description": "Enhance an existing lesson with additional exercises, content, and tips using AI."
+          }
+        },
+        {
+          "name": "Get AI-Generated Lessons",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/lessons/ai-generated?language=es&level=A1&category=vocabulary&page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["lessons", "ai-generated"], "query": [{ "key": "language", "value": "es" }, { "key": "level", "value": "A1" }, { "key": "category", "value": "vocabulary" }, { "key": "page", "value": "1" }, { "key": "limit", "value": "20" }] },
+            "description": "Get all AI-generated lessons with optional filters."
+          }
+        },
+        {
+          "name": "Get Lesson Templates",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/lessons/templates", "host": ["{{baseUrl}}"], "path": ["lessons", "templates"] },
+            "description": "Get available lesson templates, categories, supported languages, and CEFR levels."
+          }
+        },
+        {
+          "name": "Get Generation Stats (Admin)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/lessons/stats", "host": ["{{baseUrl}}"], "path": ["lessons", "stats"] },
+            "description": "Get AI lesson generation statistics including token usage and costs. Admin only."
+          }
+        },
+        {
+          "name": "Update Publish Status (Admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"isPublished\": true\n}" },
+            "url": { "raw": "{{baseUrl}}/lessons/{{lessonId}}/publish", "host": ["{{baseUrl}}"], "path": ["lessons", "{{lessonId}}", "publish"] },
+            "description": "Publish or unpublish an AI-generated lesson. Admin only."
+          }
+        },
+        {
+          "name": "Delete Lesson (Admin)",
+          "request": {
+            "method": "DELETE",
+            "url": { "raw": "{{baseUrl}}/lessons/{{lessonId}}", "host": ["{{baseUrl}}"], "path": ["lessons", "{{lessonId}}"] },
+            "description": "Delete an AI-generated lesson. Admin only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "17. AI Lesson Assistant",
+      "description": "AI-powered assistance during lessons - hints, explanations, feedback, and practice variations.",
+      "item": [
+        {
+          "name": "Get Exercise Hint",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"exercise\": {\n    \"type\": \"fill_blank\",\n    \"question\": \"Yo ___ al mercado ayer.\",\n    \"correctAnswer\": \"fui\"\n  },\n  \"language\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"level\": \"A2\",\n  \"hintLevel\": 1\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/hint", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "hint"] },
+            "description": "Get a progressive hint for an exercise. hintLevel: 1 (subtle), 2 (more direct), 3 (very direct)"
+          }
+        },
+        {
+          "name": "Explain Concept",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"concept\": \"Preterite tense conjugation for irregular verbs\",\n  \"language\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"level\": \"A2\",\n  \"context\": \"Learning past tense verbs\"\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/explain", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "explain"] },
+            "description": "Get an AI explanation of a grammar or vocabulary concept."
+          }
+        },
+        {
+          "name": "Get Answer Feedback",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"exercise\": {\n    \"type\": \"translation\",\n    \"question\": \"I went to the market yesterday\",\n    \"correctAnswer\": \"Fui al mercado ayer\"\n  },\n  \"userAnswer\": \"Yo iba al mercado ayer\",\n  \"language\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"level\": \"A2\"\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/feedback", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "feedback"] },
+            "description": "Get detailed feedback on user's answer explaining why it's correct/incorrect."
+          }
+        },
+        {
+          "name": "Get Translation Help",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"text\": \"I would like to order the special of the day\",\n  \"fromLanguage\": \"en\",\n  \"toLanguage\": \"es\",\n  \"level\": \"B1\",\n  \"context\": \"At a restaurant\"\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/translate", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "translate"] },
+            "description": "Get translation help with word-by-word breakdown."
+          }
+        },
+        {
+          "name": "Ask Question",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"question\": \"What's the difference between ser and estar?\",\n  \"language\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"level\": \"A2\",\n  \"lessonContext\": \"Learning to be verbs\"\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/ask", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "ask"] },
+            "description": "Ask a free-form question about the lesson content."
+          }
+        },
+        {
+          "name": "Generate Practice Variations",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"exercise\": {\n    \"type\": \"fill_blank\",\n    \"question\": \"Yo ___ al mercado.\",\n    \"correctAnswer\": \"voy\"\n  },\n  \"language\": \"es\",\n  \"nativeLanguage\": \"en\",\n  \"level\": \"A2\",\n  \"count\": 3\n}" },
+            "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/practice", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "practice"] },
+            "description": "Generate similar practice exercises for more practice on a concept."
+          }
+        },
+        {
+          "name": "Get Lesson Summary",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/learning/lessons/{{lessonId}}/summary", "host": ["{{baseUrl}}"], "path": ["learning", "lessons", "{{lessonId}}", "summary"] },
+            "description": "Get an AI-generated summary of the lesson with key points and tips."
+          }
+        }
+      ]
+    },
+    {
+      "name": "18. Utilities",
       "item": [
         {
           "name": "Get Languages",

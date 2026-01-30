@@ -46,7 +46,15 @@ const {
   startAIQuiz,
   submitAIQuizAnswer,
   completeAIQuiz,
-  getAIQuizStats
+  getAIQuizStats,
+  // AI Lesson Assistant
+  getExerciseHint,
+  explainConcept,
+  getAnswerFeedback,
+  getTranslationHelp,
+  askAssistant,
+  generatePractice,
+  getLessonSummary
 } = require('../controllers/learning');
 
 const { protect } = require('../middleware/auth');
@@ -113,5 +121,14 @@ router.get('/quizzes/ai/stats', getAIQuizStats);
 router.post('/quizzes/ai/:id/start', startAIQuiz);
 router.post('/quizzes/ai/:id/answer', submitAIQuizAnswer);
 router.post('/quizzes/ai/:id/complete', completeAIQuiz);
+
+// ===================== AI LESSON ASSISTANT ROUTES =====================
+router.post('/lessons/:id/assistant/hint', getExerciseHint);
+router.post('/lessons/:id/assistant/explain', explainConcept);
+router.post('/lessons/:id/assistant/feedback', getAnswerFeedback);
+router.post('/lessons/:id/assistant/ask', askAssistant);
+router.post('/lessons/:id/assistant/practice', generatePractice);
+router.get('/lessons/:id/assistant/summary', getLessonSummary);
+router.post('/assistant/translate', getTranslationHelp);
 
 module.exports = router;

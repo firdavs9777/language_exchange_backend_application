@@ -17,7 +17,9 @@ const AI_PROVIDERS = {
       recommendation: 2000,
       quizGeneration: 2500,
       translation: 1500,
-      pronunciationFeedback: 1000
+      pronunciationFeedback: 1000,
+      lessonAssistant: 1500,
+      lessonBuilder: 4000
     },
     temperature: {
       conversation: 0.7,
@@ -25,7 +27,9 @@ const AI_PROVIDERS = {
       recommendation: 0.4,
       quizGeneration: 0.5,
       translation: 0.3,
-      pronunciationFeedback: 0.3
+      pronunciationFeedback: 0.3,
+      lessonAssistant: 0.4,
+      lessonBuilder: 0.6
     }
   }
 };
@@ -41,7 +45,9 @@ const AI_RATE_LIMITS = {
     quizGeneration: { perDay: 5, perMonth: 50 },
     tts: { perDay: 50, perMonth: 500 },
     stt: { perDay: 20, perMonth: 200 },
-    translation: { perDay: 30, perMonth: 300 }
+    translation: { perDay: 30, perMonth: 300 },
+    lessonAssistant: { perDay: 30, perMonth: 300 },
+    lessonBuilder: { perDay: 5, perMonth: 50 }
   },
   regular: {
     conversation: { perDay: 50, perMonth: 500 },
@@ -50,7 +56,9 @@ const AI_RATE_LIMITS = {
     quizGeneration: { perDay: 15, perMonth: 150 },
     tts: { perDay: 100, perMonth: 1000 },
     stt: { perDay: 50, perMonth: 500 },
-    translation: { perDay: 50, perMonth: 500 }
+    translation: { perDay: 50, perMonth: 500 },
+    lessonAssistant: { perDay: 100, perMonth: 1000 },
+    lessonBuilder: { perDay: 20, perMonth: 200 }
   },
   vip: {
     conversation: { perDay: -1, perMonth: -1 },
@@ -59,7 +67,9 @@ const AI_RATE_LIMITS = {
     quizGeneration: { perDay: -1, perMonth: -1 },
     tts: { perDay: -1, perMonth: -1 },
     stt: { perDay: -1, perMonth: -1 },
-    translation: { perDay: -1, perMonth: -1 }
+    translation: { perDay: -1, perMonth: -1 },
+    lessonAssistant: { perDay: -1, perMonth: -1 },
+    lessonBuilder: { perDay: -1, perMonth: -1 }
   }
 };
 
@@ -220,7 +230,9 @@ const AI_FEATURES = {
   speechSTT: process.env.SPEECH_STT_ENABLED !== 'false',
   speechFeatures: process.env.SPEECH_FEATURES_ENABLED !== 'false',
   enhancedTranslation: process.env.AI_TRANSLATION_ENABLED !== 'false',
-  aiTranslation: process.env.AI_TRANSLATION_ENABLED !== 'false'
+  aiTranslation: process.env.AI_TRANSLATION_ENABLED !== 'false',
+  lessonAssistant: process.env.AI_LESSON_ASSISTANT_ENABLED !== 'false',
+  lessonBuilder: process.env.AI_LESSON_BUILDER_ENABLED !== 'false'
 };
 
 /**

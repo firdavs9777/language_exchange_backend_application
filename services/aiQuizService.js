@@ -29,7 +29,8 @@ const generatePracticeQuiz = async (userId, options = {}) => {
     difficulty = 'adaptive',
     focusAreas = [],
     vocabularyIds = [],
-    language
+    language,
+    nativeLanguage: userNativeLanguage
   } = options;
 
   if (!AI_FEATURES.quizGeneration) {
@@ -38,11 +39,16 @@ const generatePracticeQuiz = async (userId, options = {}) => {
 
   const startTime = Date.now();
 
-  // Get user's learning context
-  const learningProgress = await LearningProgress.findOne({ user: userId });
-  const targetLanguage = language || learningProgress?.targetLanguage || 'es';
+  // Get user's learning context and profile
+  const User = require('../models/User');
+  const [learningProgress, user] = await Promise.all([
+    LearningProgress.findOne({ user: userId }),
+    User.findById(userId).select('native_language language_to_learn')
+  ]);
+
+  const targetLanguage = language || learningProgress?.targetLanguage || user?.language_to_learn || 'es';
   const proficiencyLevel = learningProgress?.proficiencyLevel || 'A1';
-  const nativeLanguage = 'en'; // Could be fetched from user profile
+  const nativeLanguage = userNativeLanguage || user?.native_language || 'en';
 
   // Gather content for quiz generation
   let quizContext = {
@@ -75,8 +81,11 @@ const generatePracticeQuiz = async (userId, options = {}) => {
     }));
     quizContext.focusAreas = [{ topic: 'vocabulary', category: 'vocabulary', masteryScore: 50 }];
   } else if (type === 'recent_content') {
-    // Get recently learned vocabulary
-    const recentVocab = await Vocabulary.find({ user: userId })
+    // Get recently learned vocabulary (filtered by language)
+    const recentVocab = await Vocabulary.find({
+      user: userId,
+      language: targetLanguage
+    })
       .sort({ createdAt: -1 })
       .limit(20)
       .lean();
@@ -87,9 +96,10 @@ const generatePracticeQuiz = async (userId, options = {}) => {
     }));
     quizContext.focusAreas = [{ topic: 'recent', category: 'mixed', masteryScore: 60 }];
   } else {
-    // Mixed - get weak vocabulary
+    // Mixed - get weak vocabulary (filtered by language)
     const weakVocab = await Vocabulary.find({
       user: userId,
+      language: targetLanguage,
       srsLevel: { $lt: 4 }
     })
       .sort({ srsLevel: 1 })
