@@ -224,6 +224,24 @@ exports.batchGenerateLessons = asyncHandler(async (req, res, next) => {
 // ============================================================
 
 /**
+ * @desc    Get a single lesson by ID
+ * @route   GET /api/v1/lessons/:id
+ * @access  Private
+ */
+exports.getLessonById = asyncHandler(async (req, res, next) => {
+  const lesson = await Lesson.findById(req.params.id).lean();
+
+  if (!lesson) {
+    return next(new ErrorResponse('Lesson not found', 404));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: lesson
+  });
+});
+
+/**
  * @desc    Get all AI-generated lessons
  * @route   GET /api/v1/lessons/ai-generated
  * @access  Private

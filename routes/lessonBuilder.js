@@ -15,6 +15,7 @@ const {
   enhanceLesson,
   batchGenerateLessons,
   // Management
+  getLessonById,
   getAIGeneratedLessons,
   getLessonTemplates,
   deleteLesson,
@@ -61,6 +62,9 @@ router.get('/templates', getLessonTemplates);
 
 // Get generation statistics (Admin only)
 router.get('/stats', authorize('admin'), getGenerationStats);
+
+// Get a single lesson by ID (must be after specific routes)
+router.get('/:id', getLessonById);
 
 // Delete a lesson (Admin only)
 router.delete('/:id', authorize('admin'), deleteLesson);
