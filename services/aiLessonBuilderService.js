@@ -970,7 +970,7 @@ const validateExercises = (exercises, allowedTypes) => {
         }
       }
 
-      // Validate matching options
+      // Validate matching options and add pairs field
       if (ex.type === 'matching') {
         exercise.options = (ex.options || [])
           .filter(o => o && o.text && o.matchWith)
@@ -978,6 +978,51 @@ const validateExercises = (exercises, allowedTypes) => {
             text: o.text?.trim() || '',
             matchWith: o.matchWith?.trim() || ''
           }));
+
+        // Add pairs array in the format Flutter expects
+        exercise.pairs = exercise.options.map(o => ({
+          left: o.text,
+          right: o.matchWith
+        }));
+
+        // Also add matchingPairs as alias
+        exercise.matchingPairs = exercise.pairs;
+      }
+
+      // Validate ordering exercises - add scrambledItems and correctOrder
+      if (ex.type === 'ordering') {
+        // Parse correctAnswer to array if it's a string
+        let correctOrderArray = [];
+        if (Array.isArray(ex.correctAnswer)) {
+          correctOrderArray = ex.correctAnswer.map(item =>
+            typeof item === 'string' ? item.trim() : String(item)
+          );
+        } else if (typeof ex.correctAnswer === 'string') {
+          // Parse string like "[word1, word2, word3]" or "word1, word2, word3"
+          const cleaned = ex.correctAnswer.replace(/^\[|\]$/g, '');
+          correctOrderArray = cleaned.split(',').map(item => item.trim());
+        }
+
+        // Set correctOrder array
+        exercise.correctOrder = correctOrderArray;
+
+        // Create scrambled items (shuffled version of correctOrder)
+        exercise.scrambledItems = [...correctOrderArray].sort(() => Math.random() - 0.5);
+
+        // Ensure scrambled is actually different from correct (if more than 1 item)
+        if (correctOrderArray.length > 1) {
+          let attempts = 0;
+          while (
+            exercise.scrambledItems.join(',') === exercise.correctOrder.join(',') &&
+            attempts < 10
+          ) {
+            exercise.scrambledItems = [...correctOrderArray].sort(() => Math.random() - 0.5);
+            attempts++;
+          }
+        }
+
+        // Keep correctAnswer as array for consistency
+        exercise.correctAnswer = correctOrderArray;
       }
 
       return exercise;

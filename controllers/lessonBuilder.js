@@ -6,6 +6,7 @@
 const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 const Lesson = require('../models/Lesson');
+const LearningProgress = require('../models/LearningProgress');
 const aiLessonBuilderService = require('../services/aiLessonBuilderService');
 
 // ============================================================
@@ -238,6 +239,138 @@ exports.getLessonById = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     data: lesson
+  });
+});
+
+/**
+ * @desc    Complete/submit a lesson
+ * @route   POST /api/v1/lessons/:id/complete
+ * @access  Private
+ */
+exports.completeLesson = asyncHandler(async (req, res, next) => {
+  const lessonId = req.params.id;
+  const userId = req.user.id;
+  const {
+    score = 0,
+    correctAnswers = 0,
+    totalQuestions = 0,
+    timeSpentMs = 0,
+    answers = []
+  } = req.body;
+
+  // Find the lesson
+  const lesson = await Lesson.findById(lessonId);
+  if (!lesson) {
+    return next(new ErrorResponse('Lesson not found', 404));
+  }
+
+  // Get or create learning progress
+  let progress = await LearningProgress.findOne({ user: userId });
+  if (!progress) {
+    progress = await LearningProgress.create({
+      user: userId,
+      language: lesson.language || req.user.language_to_learn,
+      totalXp: 0,
+      level: 1,
+      streakDays: 0,
+      lessonsCompleted: 0,
+      exercisesCompleted: 0
+    });
+  }
+
+  // Calculate XP earned
+  const isPerfect = score >= 100 || (totalQuestions > 0 && correctAnswers === totalQuestions);
+  const baseXP = lesson.xpReward || 15;
+  const perfectBonus = isPerfect ? (lesson.perfectBonus || 5) : 0;
+  const xpEarned = baseXP + perfectBonus;
+
+  // Check if lesson was already completed
+  const existingCompletion = progress.completedLessons?.find(
+    cl => cl.lesson?.toString() === lessonId
+  );
+
+  let isFirstCompletion = !existingCompletion;
+
+  if (existingCompletion) {
+    // Update existing completion if score improved
+    if (score > existingCompletion.score) {
+      existingCompletion.score = score;
+      existingCompletion.completedAt = new Date();
+      existingCompletion.isPerfect = isPerfect;
+      existingCompletion.attempts = (existingCompletion.attempts || 1) + 1;
+    }
+  } else {
+    // Add new completion
+    if (!progress.completedLessons) {
+      progress.completedLessons = [];
+    }
+    progress.completedLessons.push({
+      lesson: lessonId,
+      score,
+      completedAt: new Date(),
+      isPerfect,
+      attempts: 1,
+      timeSpentMs
+    });
+  }
+
+  // Only award XP on first completion or improvement
+  if (isFirstCompletion) {
+    progress.totalXp = (progress.totalXp || 0) + xpEarned;
+    progress.lessonsCompleted = (progress.lessonsCompleted || 0) + 1;
+    progress.exercisesCompleted = (progress.exercisesCompleted || 0) + totalQuestions;
+
+    // Update level based on XP
+    const newLevel = Math.floor(progress.totalXp / 100) + 1;
+    if (newLevel > progress.level) {
+      progress.level = newLevel;
+    }
+  }
+
+  // Update daily activity
+  const today = new Date().toISOString().split('T')[0];
+  if (!progress.dailyActivity) {
+    progress.dailyActivity = [];
+  }
+
+  const todayActivity = progress.dailyActivity.find(
+    d => d.date?.toISOString().split('T')[0] === today
+  );
+
+  if (todayActivity) {
+    todayActivity.lessonsCompleted = (todayActivity.lessonsCompleted || 0) + 1;
+    todayActivity.xpEarned = (todayActivity.xpEarned || 0) + (isFirstCompletion ? xpEarned : 0);
+    todayActivity.minutesLearned = (todayActivity.minutesLearned || 0) + Math.round(timeSpentMs / 60000);
+  } else {
+    progress.dailyActivity.push({
+      date: new Date(),
+      lessonsCompleted: 1,
+      xpEarned: isFirstCompletion ? xpEarned : 0,
+      minutesLearned: Math.round(timeSpentMs / 60000)
+    });
+  }
+
+  // Update last activity timestamp
+  progress.lastActivityAt = new Date();
+
+  await progress.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      lessonId,
+      score,
+      correctAnswers,
+      totalQuestions,
+      isPerfect,
+      xpEarned: isFirstCompletion ? xpEarned : 0,
+      isFirstCompletion,
+      progress: {
+        totalXp: progress.totalXp,
+        level: progress.level,
+        lessonsCompleted: progress.lessonsCompleted
+      }
+    }
   });
 });
 

@@ -16,6 +16,7 @@ const {
   batchGenerateLessons,
   // Management
   getLessonById,
+  completeLesson,
   getAIGeneratedLessons,
   getLessonTemplates,
   deleteLesson,
@@ -49,6 +50,9 @@ router.post('/generate/batch', authorize('admin'), batchGenerateLessons);
 
 // Enhance existing lesson
 router.post('/:id/enhance', enhanceLesson);
+
+// Complete/submit a lesson
+router.post('/:id/complete', completeLesson);
 
 // ============================================================
 // MANAGEMENT ROUTES
