@@ -54,6 +54,7 @@ const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVi
 const advancedResults = require('../middleware/advancedResults');
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
+const { interactionLimiter } = require('../middleware/rateLimiter');
 
 // ========== CONFIG ==========
 router.route('/video-config').get(getVideoConfig); // Get video upload constraints (public)
@@ -115,27 +116,27 @@ router.route('/:id')
   .delete(protect, authorize('user', 'story'), deleteStory);
 
 // ========== STORY VIEWS ==========
-router.route('/:id/view').post(protect, markStoryViewed);
+router.route('/:id/view').post(protect, interactionLimiter, markStoryViewed);
 router.route('/:id/views').get(protect, getStoryViewers);
 
 // ========== STORY REACTIONS ==========
 router.route('/:id/react')
-  .post(protect, reactToStory)
-  .delete(protect, removeReaction);
+  .post(protect, interactionLimiter, reactToStory)
+  .delete(protect, interactionLimiter, removeReaction);
 router.route('/:id/reactions').get(protect, getStoryReactions);
 
 // ========== STORY REPLIES ==========
-router.route('/:id/reply').post(protect, replyToStory);
+router.route('/:id/reply').post(protect, interactionLimiter, replyToStory);
 
 // ========== STORY POLLS ==========
-router.route('/:id/poll/vote').post(protect, voteStoryPoll);
+router.route('/:id/poll/vote').post(protect, interactionLimiter, voteStoryPoll);
 
 // ========== STORY QUESTIONS ==========
-router.route('/:id/question/answer').post(protect, answerStoryQuestion);
+router.route('/:id/question/answer').post(protect, interactionLimiter, answerStoryQuestion);
 router.route('/:id/question/responses').get(protect, getQuestionResponses);
 
 // ========== STORY SHARING ==========
-router.route('/:id/share').post(protect, shareStory);
+router.route('/:id/share').post(protect, interactionLimiter, shareStory);
 
 // ========== STORY ARCHIVE ==========
 router.route('/:id/archive').post(protect, archiveStory);

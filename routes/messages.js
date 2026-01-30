@@ -24,15 +24,16 @@ const advancedMessages = require('../controllers/advancedMessages');
 
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
+const { searchLimiter } = require('../middleware/rateLimiter');
 
 // ========== BASIC MESSAGE ROUTES ==========
-router.route('/').get(getMessages).post(
+router.route('/').get(protect, getMessages).post(
   protect, 
   checkMessageLimit, 
   uploadSingle('attachment', 'bananatalk/messages'),
   createMessage
 );
-router.route('/search').get(protect, searchMessages);
+router.route('/search').get(protect, searchLimiter, searchMessages);
 router.route('/conversations').post(protect, createConversationRoom).get(protect, getConversationRooms);
 
 // ========== ADVANCED FEATURES (HelloTalk/KakaoTalk Style) ==========
@@ -99,10 +100,10 @@ router.route('/:id/bookmark').post(protect, advancedMessages.bookmarkMessage).de
 router.route('/:id/trigger-destruct').post(protect, advancedMessages.triggerDestruct);
 
 // ========== BASIC ID ROUTES (must be last) ==========
-router.route('/:id').get(getMessage).put(protect, messageManagement.editMessage).delete(protect, messageManagement.deleteMessage);
-router.route('/user/:userId').get(getUserMessages);
-router.route('/senders/:userId').get(getUserSenders);
-router.route('/conversation/:senderId/:receiverId').get(getConversation);
-router.route('/from/:userId').get(getMessagesFromUser);
+router.route('/:id').get(protect, getMessage).put(protect, messageManagement.editMessage).delete(protect, messageManagement.deleteMessage);
+router.route('/user/:userId').get(protect, getUserMessages);
+router.route('/senders/:userId').get(protect, getUserSenders);
+router.route('/conversation/:senderId/:receiverId').get(protect, getConversation);
+router.route('/from/:userId').get(protect, getMessagesFromUser);
 
 module.exports = router;

@@ -144,6 +144,11 @@ const AI_RATE_LIMITS = {
     free: { windowMs: 60 * 60 * 1000, max: 10 },
     regular: { windowMs: 60 * 60 * 1000, max: 30 },
     vip: { windowMs: 60 * 60 * 1000, max: 100 }
+  },
+  lessonBuilder: {
+    free: { windowMs: 60 * 60 * 1000, max: 5 },       // 5 lessons per hour (expensive operation)
+    regular: { windowMs: 60 * 60 * 1000, max: 15 },   // 15 per hour
+    vip: { windowMs: 60 * 60 * 1000, max: 50 }        // 50 per hour
   }
 };
 
@@ -178,4 +183,56 @@ exports.aiRateLimiter = (feature) => {
     }
   });
 };
+
+/**
+ * Rate limiter for social interactions (likes, shares, reports, follows)
+ * Prevents spam while allowing normal usage
+ */
+exports.interactionLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 30, // 30 interactions per minute
+  message: {
+    success: false,
+    error: 'Too many interactions. Please slow down.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.user ? `interaction:${req.user.id}` : `interaction:${req.ip}`;
+  }
+});
+
+/**
+ * Rate limiter for report submissions (stricter)
+ */
+exports.reportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // 10 reports per hour
+  message: {
+    success: false,
+    error: 'Too many reports submitted. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.user ? `report:${req.user.id}` : `report:${req.ip}`;
+  }
+});
+
+/**
+ * Rate limiter for search operations
+ */
+exports.searchLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 20, // 20 searches per minute
+  message: {
+    success: false,
+    error: 'Too many search requests. Please slow down.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.user ? `search:${req.user.id}` : `search:${req.ip}`;
+  }
+});
 

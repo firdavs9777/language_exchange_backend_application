@@ -474,6 +474,17 @@ role: {
       return !this.googleId && !this.facebookId && !this.appleId;
     }
   },
+  // Community interest topics (max 10)
+  topics: [{
+    type: String,
+    maxlength: 50
+  }],
+  // Language proficiency level (CEFR scale)
+  languageLevel: {
+    type: String,
+    enum: ['A1', 'A2', 'B1', 'B2', 'C1', 'C2', null],
+    default: null
+  },
   status: {
     type: String,
     enum: ['online', 'away', 'busy', 'offline'],

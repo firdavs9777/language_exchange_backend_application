@@ -38,6 +38,7 @@ const conversations = require('./routes/conversations');
 const reports = require('./routes/report');
 const notifications = require('./routes/notifications');
 const learning = require('./routes/learning');
+const community = require('./routes/community');
 const aiConversation = require('./routes/aiConversation');
 const grammarFeedback = require('./routes/grammarFeedback');
 const speech = require('./routes/speech');
@@ -65,10 +66,23 @@ const allowedOrigins = [
   "https://api.banatalk.com"
 ];
 
-// Initialize Socket.IO
+// Initialize Socket.IO with proper CORS
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow all origins for Socket.IO
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else if (process.env.NODE_ENV === 'development') {
+        // Allow all origins in development
+        callback(null, true);
+      } else {
+        console.warn(`Socket.IO blocked origin: ${origin}`);
+        callback(null, true); // Still allow but log (for mobile apps)
+      }
+    },
     methods: ["GET", "POST"],
     credentials: true
   },
@@ -125,9 +139,14 @@ app.use(compression());
 const rateLimiter = require('./middleware/rateLimiter');
 app.use('/api/v1/', rateLimiter.generalLimiter);
 
-// Middleware - Morgan (Development logging)
+// Middleware - Request Logging
+const { requestLogger, errorRequestLogger } = require('./middleware/requestLogger');
 if (process.env.NODE_ENV === 'development') {
+  // Detailed morgan logging in development
   app.use(morgan('dev'));
+} else {
+  // Custom request logger in production (logs errors and slow requests)
+  app.use(requestLogger({ logLevel: 'info' }));
 }
 
 // Middleware - Static files
@@ -145,15 +164,59 @@ app.use(hpp()); // Prevent HTTP Parameter Pollution
 // Middleware - Passport
 app.use(passport.initialize());
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({
+// Health check endpoint (enhanced)
+app.get('/health', async (req, res) => {
+  const startTime = Date.now();
+
+  // Check MongoDB connection
+  let dbStatus = 'unknown';
+  let dbLatency = null;
+  try {
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState === 1) {
+      const dbStart = Date.now();
+      await mongoose.connection.db.admin().ping();
+      dbLatency = Date.now() - dbStart;
+      dbStatus = 'connected';
+    } else {
+      dbStatus = 'disconnected';
+    }
+  } catch (error) {
+    dbStatus = 'error';
+  }
+
+  // Memory usage
+  const memUsage = process.memoryUsage();
+  const formatBytes = (bytes) => Math.round(bytes / 1024 / 1024 * 100) / 100;
+
+  // Build health response
+  const health = {
     success: true,
-    message: 'Server is healthy',
+    status: dbStatus === 'connected' ? 'healthy' : 'degraded',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
-    socketIO: 'connected'
-  });
+    uptime: Math.round(process.uptime()),
+    version: process.env.npm_package_version || '1.0.0',
+    checks: {
+      database: {
+        status: dbStatus,
+        latencyMs: dbLatency
+      },
+      socketIO: {
+        status: 'active',
+        connections: io.sockets?.sockets?.size || 0
+      },
+      memory: {
+        heapUsedMB: formatBytes(memUsage.heapUsed),
+        heapTotalMB: formatBytes(memUsage.heapTotal),
+        rssMB: formatBytes(memUsage.rss)
+      }
+    },
+    responseTimeMs: Date.now() - startTime
+  };
+
+  const statusCode = health.status === 'healthy' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // Test endpoint
@@ -164,6 +227,25 @@ app.get('/test', (req, res) => {
     origin: req.get('Origin'),
     timestamp: new Date().toISOString()
   });
+});
+
+// API info endpoint
+app.get('/api', (req, res) => {
+  res.status(200).json({
+    success: true,
+    name: 'BanaTalk API',
+    version: 'v1',
+    currentVersion: '/api/v1',
+    documentation: '/api/v1/docs',
+    health: '/health',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Add API version header to all v1 responses
+app.use('/api/v1', (req, res, next) => {
+  res.setHeader('X-API-Version', 'v1');
+  next();
 });
 
 // API Routes
@@ -181,11 +263,15 @@ app.use('/api/v1/reports', reports);
 app.use('/api/v1/notifications', notifications);
 app.use('/api/v1/contact', require('./routes/contact'));
 app.use('/api/v1/learning', learning);
+app.use('/api/v1/community', community);
 app.use('/api/v1/lessons', lessonBuilder);
 app.use('/api/v1/ai-conversation', aiConversation);
 app.use('/api/v1/grammar-feedback', grammarFeedback);
 app.use('/api/v1/speech', speech);
 app.use('/api/v1/translate', aiTranslation);
+
+// Error request logger (logs failed requests)
+app.use(errorRequestLogger);
 
 // Error handler middleware (must be last)
 app.use(errorHandler);
@@ -211,49 +297,87 @@ server.listen(PORT, HOST, () => {
   }
 });
 
-// Graceful shutdown handlers
+// ============================================================
+// GRACEFUL SHUTDOWN HANDLING
+// ============================================================
+
+let isShuttingDown = false;
+
+/**
+ * Graceful shutdown function
+ * Closes all connections properly before exiting
+ */
+const gracefulShutdown = async (signal, exitCode = 0) => {
+  if (isShuttingDown) {
+    console.log('Shutdown already in progress...'.yellow);
+    return;
+  }
+  isShuttingDown = true;
+
+  console.log('');
+  console.log(`👋 ${signal} received. Starting graceful shutdown...`.yellow);
+
+  // Set a timeout to force exit if graceful shutdown takes too long
+  const forceExitTimeout = setTimeout(() => {
+    console.log('⚠️  Forced exit after timeout'.red);
+    process.exit(exitCode);
+  }, 30000); // 30 second timeout
+
+  try {
+    // 1. Stop accepting new connections
+    console.log('📡 Stopping new connections...'.cyan);
+    server.close();
+
+    // 2. Close Socket.IO connections gracefully
+    console.log('🔌 Closing Socket.IO connections...'.cyan);
+    io.close((err) => {
+      if (err) console.error('Socket.IO close error:', err);
+    });
+
+    // 3. Close MongoDB connection
+    console.log('🗄️  Closing database connection...'.cyan);
+    const mongoose = require('mongoose');
+    await mongoose.connection.close();
+
+    // 4. Clear the force exit timeout
+    clearTimeout(forceExitTimeout);
+
+    console.log('✅ Graceful shutdown completed'.green);
+    process.exit(exitCode);
+
+  } catch (error) {
+    console.error('❌ Error during shutdown:', error);
+    clearTimeout(forceExitTimeout);
+    process.exit(1);
+  }
+};
+
+// Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
   console.log('');
   console.log(`❌ Unhandled Rejection: ${err.message}`.red.bold);
-  console.log(err.stack);
-  
-  // Close server and exit
-  server.close(() => {
-    console.log('💀 Server closed due to unhandled rejection'.red);
-    process.exit(1);
-  });
+  if (process.env.NODE_ENV === 'development') {
+    console.log(err.stack);
+  }
+  // Don't crash on unhandled rejections in production, just log
+  if (process.env.NODE_ENV !== 'production') {
+    gracefulShutdown('UNHANDLED_REJECTION', 1);
+  }
 });
 
+// Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.log('');
   console.log(`❌ Uncaught Exception: ${err.message}`.red.bold);
   console.log(err.stack);
-  
-  // Exit immediately for uncaught exceptions
-  console.log('💀 Server shutting down due to uncaught exception'.red);
-  process.exit(1);
+  // Always exit on uncaught exceptions - the app state may be corrupted
+  gracefulShutdown('UNCAUGHT_EXCEPTION', 1);
 });
 
-// Handle SIGTERM
-process.on('SIGTERM', () => {
-  console.log('');
-  console.log('👋 SIGTERM received. Performing graceful shutdown...'.yellow);
-  
-  server.close(() => {
-    console.log('💤 Server closed successfully'.green);
-    process.exit(0);
-    });
-  });
-  
+// Handle SIGTERM (Docker, Kubernetes, etc.)
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
 // Handle SIGINT (Ctrl+C)
-process.on('SIGINT', () => {
-  console.log('');
-  console.log('👋 SIGINT received. Performing graceful shutdown...'.yellow);
-  
-  server.close(() => {
-    console.log('💤 Server closed successfully'.green);
-    process.exit(0);
-  }); 
-});
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 module.exports = { app, server, io };

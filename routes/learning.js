@@ -58,6 +58,7 @@ const {
 } = require('../controllers/learning');
 
 const { protect } = require('../middleware/auth');
+const { aiRateLimiter } = require('../middleware/rateLimiter');
 
 // All routes require authentication
 router.use(protect);
@@ -110,12 +111,12 @@ router.put('/achievements/featured', setFeaturedAchievements);
 router.get('/activity', getActivitySummary);
 
 // ===================== AI RECOMMENDATION ROUTES =====================
-router.get('/recommendations/adaptive', getAdaptiveRecommendations);
-router.post('/recommendations/refresh', refreshRecommendations);
+router.get('/recommendations/adaptive', aiRateLimiter('conversation'), getAdaptiveRecommendations);
+router.post('/recommendations/refresh', aiRateLimiter('conversation'), refreshRecommendations);
 router.get('/progress/weak-areas', getWeakAreas);
 
 // ===================== AI QUIZ ROUTES =====================
-router.post('/quizzes/generate', generateAIQuiz);
+router.post('/quizzes/generate', aiRateLimiter('quiz'), generateAIQuiz);
 router.get('/quizzes/ai', getAIQuizzes);
 router.get('/quizzes/ai/stats', getAIQuizStats);
 router.post('/quizzes/ai/:id/start', startAIQuiz);
@@ -123,12 +124,12 @@ router.post('/quizzes/ai/:id/answer', submitAIQuizAnswer);
 router.post('/quizzes/ai/:id/complete', completeAIQuiz);
 
 // ===================== AI LESSON ASSISTANT ROUTES =====================
-router.post('/lessons/:id/assistant/hint', getExerciseHint);
-router.post('/lessons/:id/assistant/explain', explainConcept);
-router.post('/lessons/:id/assistant/feedback', getAnswerFeedback);
-router.post('/lessons/:id/assistant/ask', askAssistant);
-router.post('/lessons/:id/assistant/practice', generatePractice);
+router.post('/lessons/:id/assistant/hint', aiRateLimiter('conversation'), getExerciseHint);
+router.post('/lessons/:id/assistant/explain', aiRateLimiter('conversation'), explainConcept);
+router.post('/lessons/:id/assistant/feedback', aiRateLimiter('grammar'), getAnswerFeedback);
+router.post('/lessons/:id/assistant/ask', aiRateLimiter('conversation'), askAssistant);
+router.post('/lessons/:id/assistant/practice', aiRateLimiter('lessonBuilder'), generatePractice);
 router.get('/lessons/:id/assistant/summary', getLessonSummary);
-router.post('/assistant/translate', getTranslationHelp);
+router.post('/assistant/translate', aiRateLimiter('translation'), getTranslationHelp);
 
 module.exports = router;

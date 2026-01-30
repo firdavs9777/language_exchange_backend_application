@@ -250,19 +250,156 @@ exports.getLessonById = asyncHandler(async (req, res, next) => {
 exports.completeLesson = asyncHandler(async (req, res, next) => {
   const lessonId = req.params.id;
   const userId = req.user.id;
-  const {
-    score = 0,
-    correctAnswers = 0,
-    totalQuestions = 0,
-    timeSpentMs = 0,
-    answers = []
-  } = req.body;
 
-  // Find the lesson
+  // Validate lessonId format
+  if (!lessonId || !lessonId.match(/^[0-9a-fA-F]{24}$/)) {
+    return next(new ErrorResponse('Invalid lesson ID format', 400));
+  }
+
+  // Extract input
+  const { timeSpentMs = 0, answers = [] } = req.body;
+
+  // Validate timeSpentMs (non-negative, max 24 hours)
+  const maxTimeMs = 24 * 60 * 60 * 1000; // 24 hours
+  const validatedTimeSpentMs = Math.max(0, Math.min(maxTimeMs, Number(timeSpentMs) || 0));
+
+  // Validate answers is an array
+  const validatedAnswers = Array.isArray(answers) ? answers : [];
+
+  // Find the lesson with exercises
   const lesson = await Lesson.findById(lessonId);
   if (!lesson) {
     return next(new ErrorResponse('Lesson not found', 404));
   }
+
+  // Calculate score from answers array
+  const exercises = lesson.exercises || [];
+  const totalQuestions = exercises.length;
+  let correctAnswersCount = 0;
+  let totalPoints = 0;
+  let earnedPoints = 0;
+
+  for (const exercise of exercises) {
+    const points = exercise.points || 10;
+    totalPoints += points;
+
+    // Find the user's answer for this exercise
+    const userAnswerObj = validatedAnswers.find(
+      a => a.exerciseIndex === exercises.indexOf(exercise)
+    );
+
+    if (!userAnswerObj) continue;
+
+    const userAnswer = userAnswerObj.answer;
+    let isCorrect = false;
+
+    switch (exercise.type) {
+      case 'multiple_choice':
+        // Check if answer matches correct option ID or isCorrect option
+        if (exercise.options && exercise.options.length > 0) {
+          const correctOption = exercise.options.find(opt => opt.isCorrect);
+          if (correctOption) {
+            // Support both option ID and text matching
+            isCorrect = userAnswer === correctOption._id?.toString() ||
+                       userAnswer === correctOption.text ||
+                       userAnswer === exercise.correctAnswer;
+          }
+        } else if (exercise.correctAnswer) {
+          isCorrect = userAnswer === exercise.correctAnswer;
+        }
+        break;
+
+      case 'fill_blank':
+      case 'translation':
+      case 'speaking':
+        // Normalize and compare text answers
+        const normalizedUserAnswer = (userAnswer || '').toLowerCase().trim();
+        const acceptedAnswers = [
+          exercise.correctAnswer,
+          ...(exercise.acceptedAnswers || [])
+        ].filter(Boolean).map(a => String(a).toLowerCase().trim());
+        isCorrect = acceptedAnswers.includes(normalizedUserAnswer);
+        break;
+
+      case 'matching':
+        // Format: "left1:right1|left2:right2"
+        if (exercise.options && userAnswer) {
+          const userPairs = userAnswer.split('|').map(pair => {
+            const [left, right] = pair.split(':').map(s => s?.trim().toLowerCase());
+            return { left, right };
+          });
+
+          // Check if all pairs match
+          const correctPairs = exercise.options
+            .filter(opt => opt.text && opt.matchWith)
+            .map(opt => ({
+              left: opt.text.toLowerCase().trim(),
+              right: opt.matchWith.toLowerCase().trim()
+            }));
+
+          isCorrect = correctPairs.length > 0 && correctPairs.every(correct =>
+            userPairs.some(user =>
+              user.left === correct.left && user.right === correct.right
+            )
+          );
+        }
+        break;
+
+      case 'ordering':
+        // Format: "item1|item2|item3" or array
+        if (exercise.correctAnswer) {
+          let correctOrder = exercise.correctAnswer;
+          let userOrder = userAnswer;
+
+          // Normalize to arrays
+          if (typeof correctOrder === 'string') {
+            correctOrder = correctOrder.split('|').map(s => s.trim().toLowerCase());
+          } else if (Array.isArray(correctOrder)) {
+            correctOrder = correctOrder.map(s => String(s).trim().toLowerCase());
+          }
+
+          if (typeof userOrder === 'string') {
+            userOrder = userOrder.split('|').map(s => s.trim().toLowerCase());
+          } else if (Array.isArray(userOrder)) {
+            userOrder = userOrder.map(s => String(s).trim().toLowerCase());
+          }
+
+          isCorrect = Array.isArray(correctOrder) && Array.isArray(userOrder) &&
+                     correctOrder.length === userOrder.length &&
+                     correctOrder.every((item, idx) => item === userOrder[idx]);
+        }
+        break;
+
+      case 'listening':
+        // Same as fill_blank for transcript matching
+        const normalizedListening = (userAnswer || '').toLowerCase().trim();
+        const acceptedListening = [
+          exercise.correctAnswer,
+          ...(exercise.acceptedAnswers || [])
+        ].filter(Boolean).map(a => String(a).toLowerCase().trim());
+        isCorrect = acceptedListening.includes(normalizedListening);
+        break;
+
+      default:
+        // For unknown types, check direct equality with correctAnswer
+        if (exercise.correctAnswer) {
+          isCorrect = userAnswer === exercise.correctAnswer ||
+                     String(userAnswer).toLowerCase().trim() ===
+                     String(exercise.correctAnswer).toLowerCase().trim();
+        }
+    }
+
+    if (isCorrect) {
+      correctAnswersCount++;
+      earnedPoints += points;
+    }
+  }
+
+  // Calculate final score
+  const validatedScore = totalPoints > 0
+    ? Math.round((earnedPoints / totalPoints) * 100)
+    : 0;
+  const finalCorrectAnswers = correctAnswersCount;
 
   // Get or create learning progress
   let progress = await LearningProgress.findOne({ user: userId });
@@ -278,8 +415,8 @@ exports.completeLesson = asyncHandler(async (req, res, next) => {
     });
   }
 
-  // Calculate XP earned
-  const isPerfect = score >= 100 || (totalQuestions > 0 && correctAnswers === totalQuestions);
+  // Calculate XP earned (using calculated values)
+  const isPerfect = validatedScore >= 100 || (totalQuestions > 0 && finalCorrectAnswers === totalQuestions);
   const baseXP = lesson.xpReward || 15;
   const perfectBonus = isPerfect ? (lesson.perfectBonus || 5) : 0;
   const xpEarned = baseXP + perfectBonus;
@@ -293,8 +430,8 @@ exports.completeLesson = asyncHandler(async (req, res, next) => {
 
   if (existingCompletion) {
     // Update existing completion if score improved
-    if (score > existingCompletion.score) {
-      existingCompletion.score = score;
+    if (validatedScore > existingCompletion.score) {
+      existingCompletion.score = validatedScore;
       existingCompletion.completedAt = new Date();
       existingCompletion.isPerfect = isPerfect;
       existingCompletion.attempts = (existingCompletion.attempts || 1) + 1;
@@ -306,11 +443,11 @@ exports.completeLesson = asyncHandler(async (req, res, next) => {
     }
     progress.completedLessons.push({
       lesson: lessonId,
-      score,
+      score: validatedScore,
       completedAt: new Date(),
       isPerfect,
       attempts: 1,
-      timeSpentMs
+      timeSpentMs: validatedTimeSpentMs
     });
   }
 
@@ -340,13 +477,13 @@ exports.completeLesson = asyncHandler(async (req, res, next) => {
   if (todayActivity) {
     todayActivity.lessonsCompleted = (todayActivity.lessonsCompleted || 0) + 1;
     todayActivity.xpEarned = (todayActivity.xpEarned || 0) + (isFirstCompletion ? xpEarned : 0);
-    todayActivity.minutesLearned = (todayActivity.minutesLearned || 0) + Math.round(timeSpentMs / 60000);
+    todayActivity.minutesLearned = (todayActivity.minutesLearned || 0) + Math.round(validatedTimeSpentMs / 60000);
   } else {
     progress.dailyActivity.push({
       date: new Date(),
       lessonsCompleted: 1,
       xpEarned: isFirstCompletion ? xpEarned : 0,
-      minutesLearned: Math.round(timeSpentMs / 60000)
+      minutesLearned: Math.round(validatedTimeSpentMs / 60000)
     });
   }
 
@@ -359,8 +496,8 @@ exports.completeLesson = asyncHandler(async (req, res, next) => {
     success: true,
     data: {
       lessonId,
-      score,
-      correctAnswers,
+      score: validatedScore,
+      correctAnswers: finalCorrectAnswers,
       totalQuestions,
       isPerfect,
       xpEarned: isFirstCompletion ? xpEarned : 0,

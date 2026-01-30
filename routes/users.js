@@ -37,12 +37,13 @@ const { protect, authorize } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const { updatePrivacySettingsValidation } = require('../validators/privacyValidator');
 const { uploadSingle, uploadMultiple } = require('../middleware/uploadToSpaces'); // ADD uploadMultiple
+const { interactionLimiter } = require('../middleware/rateLimiter');
 const router = express.Router({ mergeParams: true });
 
 // router.use(protect);
 // router.use(authorize('admin'));
 
-router.route('/').get(getUsers).post(createUser);
+router.route('/').get(protect, getUsers).post(protect, authorize('admin'), createUser);
 
 // ============================================
 // /me routes - MUST BE FIRST (before /:userId routes)
@@ -65,9 +66,9 @@ router
 // /:userId routes (come after /me routes)
 // ============================================
 
-// Follow/Unfollow routes
-router.route('/:userId/follow/:targetUserId').put(followUser);
-router.route('/:userId/unfollow/:targetUserId').put(unfollowUser);
+// Follow/Unfollow routes (rate limited to prevent spam)
+router.route('/:userId/follow/:targetUserId').put(protect, interactionLimiter, followUser);
+router.route('/:userId/unfollow/:targetUserId').put(protect, interactionLimiter, unfollowUser);
 router.route('/:userId/followers').get(protect, getFollowers);
 router.route('/:userId/following').get(protect, getFollowing);
 
@@ -140,6 +141,6 @@ router
   .get(protect, getProfileVisitors);
 
 // User CRUD routes (must be last to avoid conflicts)
-router.route('/:id').get(getUser).put(updateUser).delete(deleteUser);
+router.route('/:id').get(protect, getUser).put(protect, updateUser).delete(protect, deleteUser);
 
 module.exports = router;

@@ -97,9 +97,15 @@ exports.getConversation = asyncHandler(async (req, res, next) => {
 
   const conversation = await Conversation.findById(id)
     .populate('participants', 'name images email')
-    .populate('lastMessage')
-    .populate('lastMessage.sender', 'name images')
-    .populate('lastMessage.receiver', 'name images');
+    .populate({
+      path: 'lastMessage',
+      select: 'message createdAt sender receiver',
+      populate: [
+        { path: 'sender', select: 'name images' },
+        { path: 'receiver', select: 'name images' }
+      ]
+    })
+    .lean();
 
   if (!conversation) {
     return next(new ErrorResponse('Conversation not found', 404));
@@ -120,14 +126,14 @@ exports.getConversation = asyncHandler(async (req, res, next) => {
   );
 
   // Get unread count
-  const unread = conversation.unreadCount.find(
+  const unread = conversation.unreadCount?.find(
     u => u.user.toString() === userId.toString()
   );
 
   res.status(200).json({
     success: true,
     data: {
-      ...conversation.toObject(),
+      ...conversation,
       otherParticipant,
       unreadCount: unread ? unread.count : 0
     }

@@ -1046,40 +1046,93 @@ const cleanupTypingIndicators = (userId) => {
 const startPeriodicCleanup = () => {
   setInterval(() => {
     try {
+      const now = Date.now();
+      let cleanedCount = 0;
+
       // Clean up stale online cache entries (older than 5 minutes)
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      
+      const fiveMinutesAgo = new Date(now - 5 * 60 * 1000);
+
       for (const [userId, data] of onlineUsersCache.entries()) {
         if (data.status === 'offline' && data.updatedAt < fiveMinutesAgo) {
           onlineUsersCache.delete(userId);
+          cleanedCount++;
         }
       }
-      
+
       // Clean up stale connection states
       for (const [socketId, state] of connectionStates.entries()) {
         if (state === 'disconnecting' && !socketMetadata.has(socketId)) {
           connectionStates.delete(socketId);
+          cleanedCount++;
         }
       }
-      
+
+      // Clean up orphaned socket metadata (sockets that no longer exist)
+      const thirtyMinutesAgo = new Date(now - 30 * 60 * 1000);
+      for (const [socketId, metadata] of socketMetadata.entries()) {
+        if (metadata.connectedAt < thirtyMinutesAgo) {
+          // Check if this socket is still tracked in userConnections
+          const userId = metadata.userId;
+          if (userConnections.has(userId) && !userConnections.get(userId).has(socketId)) {
+            socketMetadata.delete(socketId);
+            connectionStates.delete(socketId);
+            cleanedCount++;
+          }
+        }
+      }
+
+      // Clean up empty userConnections entries
+      for (const [userId, sockets] of userConnections.entries()) {
+        if (sockets.size === 0) {
+          userConnections.delete(userId);
+          cleanedCount++;
+        }
+      }
+
+      // Clean up stale typing timeouts (shouldn't happen, but safety check)
+      for (const [key, timeout] of typingTimeouts.entries()) {
+        // Typing keys are formatted as "userId_toUserId"
+        const parts = key.split('_');
+        const userId = parts[0];
+        if (!userConnections.has(userId)) {
+          clearTimeout(timeout);
+          typingTimeouts.delete(key);
+          cleanedCount++;
+        }
+      }
+
       // Clean up old queued messages (older than 24 hours)
-      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-      
+      const oneDayAgo = now - 24 * 60 * 60 * 1000;
+
       for (const [userId, messages] of offlineMessageQueue.entries()) {
         const filtered = messages.filter(msg => {
           const msgTime = new Date(msg.message?.createdAt).getTime();
           return msgTime > oneDayAgo;
         });
-        
+
         if (filtered.length === 0) {
           offlineMessageQueue.delete(userId);
+          cleanedCount++;
         } else if (filtered.length < messages.length) {
           offlineMessageQueue.set(userId, filtered);
+          cleanedCount += messages.length - filtered.length;
         }
       }
-      
-      console.log('🧹 Periodic cleanup completed');
-      
+
+      // Log memory stats periodically (only if something was cleaned)
+      if (cleanedCount > 0 || process.env.NODE_ENV === 'development') {
+        const stats = {
+          userConnections: userConnections.size,
+          socketMetadata: socketMetadata.size,
+          onlineUsersCache: onlineUsersCache.size,
+          typingTimeouts: typingTimeouts.size,
+          offlineQueues: offlineMessageQueue.size,
+          connectionStates: connectionStates.size,
+          cleaned: cleanedCount
+        };
+        console.log('🧹 Socket cleanup:', JSON.stringify(stats));
+      }
+
     } catch (error) {
       console.error('❌ Periodic cleanup error:', error);
     }

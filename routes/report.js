@@ -16,14 +16,15 @@ const {
 const router = express.Router();
 
 const { protect, authorize, authorizeRole } = require('../middleware/auth');
+const { reportLimiter } = require('../middleware/rateLimiter');
 
 // Public routes (none for reports)
 
 // Protected routes (authenticated users)
 router.use(protect);
 
-// User routes - anyone can report content
-router.post('/', createReport);
+// User routes - anyone can report content (rate limited to prevent abuse)
+router.post('/', reportLimiter, createReport);
 router.get('/my-reports', getMyReports);
 
 // Admin only routes

@@ -12,18 +12,10 @@ const { logSecurityEvent } = require('../utils/securityLogger');
 const { getDeviceInfo } = require('../validators/authValidator');
 const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
 
-// In-memory verification storage with automatic cleanup
-const usersVerification = {};
-
-// Clean expired verification codes every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  Object.keys(usersVerification).forEach(email => {
-    if (usersVerification[email].expiration < now) {
-      delete usersVerification[email];
-    }
-  });
-},5 * 60 * 1000);
+// Note: Verification codes are stored in the User model fields:
+// - emailVerificationCode / emailVerificationExpire
+// - passwordResetCode / passwordResetExpire
+// The VerificationCode model can be used for additional separation if needed
 
 /**
  * Configure Facebook Authentication Strategy
@@ -156,9 +148,7 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
     });
     
     const { sub: appleId, email } = appleResponse;
-    
-    console.log('✅ Apple token verified:', { appleId, email });
-    
+
     // Try to find existing user by Apple ID
     let user = await User.findOne({ appleId });
     
@@ -205,12 +195,8 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
           country: 'Not specified'
         }
       });
-      
-      console.log('✅ New Apple user created:', user._id);
-    } else {
-      console.log('✅ Existing user logged in:', user._id);
     }
-    
+
     const deviceInfo = getDeviceInfo(req);
     logSecurityEvent('APPLE_MOBILE_LOGIN_SUCCESS', {
       userId: user._id,
@@ -1106,8 +1092,6 @@ exports.resetPassword = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.updateDetails = asyncHandler(async (req, res, next) => {
-  console.log('📝 Update details request body:', JSON.stringify(req.body, null, 2));
-  
   // Extract the fields to update
   const {
     name,
@@ -1155,8 +1139,6 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     }
   }
 
-  console.log('📝 Fields to update:', JSON.stringify(fieldsToUpdate, null, 2));
-
   // If user is updating profile details, mark profile as completed
   if (native_language && language_to_learn && gender && birth_year !== '2000') {
     fieldsToUpdate.profileCompleted = true;
@@ -1176,12 +1158,9 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     if (!user) {
       return next(new ErrorResponse(`User not found`, 404));
     }
-    
-    console.log('✅ User updated successfully:', user._id);
-    
+
     sendTokenResponse(user, 200, res, req);
   } catch (error) {
-    console.error('❌ Update error:', error);
     return next(new ErrorResponse(error.message || 'Failed to update user', 400));
   }
 });
@@ -1349,9 +1328,7 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
     
     const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
-    
-    console.log('✅ Google token verified:', { googleId, email, name });
-    
+
     // Try to find existing user by Google ID
     let user = await User.findOne({ googleId });
     
@@ -1395,12 +1372,8 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
           country: 'Not specified'
         }
       });
-      
-      console.log('✅ New Google user created:', user._id);
-    } else {
-      console.log('✅ Existing user logged in:', user._id);
     }
-    
+
     const deviceInfo = getDeviceInfo(req);
     logSecurityEvent('GOOGLE_MOBILE_LOGIN_SUCCESS', {
       userId: user._id,
@@ -1411,12 +1384,6 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
     sendTokenResponse(user, 200, res, req, deviceInfo);
     
   } catch (error) {
-    console.error('❌ Google mobile auth error:', error);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     logSecurityEvent('GOOGLE_MOBILE_AUTH_FAILED', {
       error: error.message,
       code: error.code

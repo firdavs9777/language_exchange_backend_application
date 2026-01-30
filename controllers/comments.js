@@ -194,13 +194,41 @@ exports.createComment = asyncHandler(async (req, res, next) => {
 
 // @desc DELETE Delete comment
 // @route DELETE /api/v1/moments/:momentId/comments/:id
-// @access Public
+// @access Private (owner or moment owner or admin)
 
 exports.deleteComment = asyncHandler(async (req, res, next) => {
-    const comment = await Comment.remove(req.body);
+    const commentId = req.params.id || req.params.commentId;
+
+    const comment = await Comment.findById(commentId);
+
+    if (!comment) {
+        return next(new ErrorResponse('Comment not found', 404));
+    }
+
+    // Get the moment to check if user is moment owner
+    const moment = await Moment.findById(comment.moment);
+
+    // Authorization: user must be comment owner, moment owner, or admin
+    const isCommentOwner = comment.user.toString() === req.user._id.toString();
+    const isMomentOwner = moment && moment.user.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isCommentOwner && !isMomentOwner && !isAdmin) {
+        return next(new ErrorResponse('Not authorized to delete this comment', 403));
+    }
+
+    // Remove comment from moment's comments array and decrement count
+    if (moment) {
+        moment.comments = moment.comments.filter(c => c.toString() !== commentId);
+        moment.commentCount = Math.max(0, (moment.commentCount || 0) - 1);
+        await moment.save();
+    }
+
+    await comment.deleteOne();
+
     res.status(200).json({
         success: true,
-        data: comment
+        data: {}
     });
 });
 

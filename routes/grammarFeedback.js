@@ -14,6 +14,7 @@ const {
 } = require('../controllers/grammarFeedback');
 
 const { protect } = require('../middleware/auth');
+const { aiRateLimiter } = require('../middleware/rateLimiter');
 
 // All routes require authentication
 router.use(protect);
@@ -23,10 +24,10 @@ router.get('/history', getHistory);
 router.get('/stats', getStats);
 router.get('/common-errors', getCommonErrors);
 router.get('/rate-limit', checkRateLimit);
-router.post('/explain-rule', explainRule);
+router.post('/explain-rule', aiRateLimiter('grammar'), explainRule);
 
-// Main feedback routes
-router.post('/', requestFeedback);
+// Main feedback routes (AI rate limited for OpenAI calls)
+router.post('/', aiRateLimiter('grammar'), requestFeedback);
 router.get('/:id', getFeedback);
 router.put('/:id/viewed', markViewed);
 router.put('/:id/applied', markApplied);

@@ -2,7 +2,6 @@ const path = require('path');
 const asyncHandler = require('../middleware/async');
 const Message = require('../models/Message');
 const ErrorResponse = require('../utils/errorResponse');
-const { timeStamp } = require('console');
 const User = require("../models/User")
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const mongoose = require('mongoose');
@@ -163,12 +162,26 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   //@route GET /api/v1/messages/:id
   //@access Private
   exports.getMessage = asyncHandler(async (req, res, next) => {
-    const message = await Message.findById(req.params.id);
+    const message = await Message.findById(req.params.id)
+      .populate('sender', 'name images')
+      .populate('receiver', 'name images')
+      .lean();
+
     if (!message) {
       return next(
         new ErrorResponse(`Message not found with id of ${req.params.id}`, 404)
       );
     }
+
+    // Authorization check - user must be sender or receiver
+    const userId = req.user._id.toString();
+    const senderId = message.sender?._id?.toString() || message.sender?.toString();
+    const receiverId = message.receiver?._id?.toString() || message.receiver?.toString();
+
+    if (userId !== senderId && userId !== receiverId) {
+      return next(new ErrorResponse('Not authorized to view this message', 403));
+    }
+
     res.status(200).json({ success: true, data: message });
   });
 
@@ -180,7 +193,12 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
 
   exports.getUserMessages = asyncHandler(async (req, res, next) => {
     const { userId } = req.params;
-  
+
+    // Authorization check - users can only view their own messages
+    if (req.user._id.toString() !== userId && req.user.role !== 'admin') {
+      return next(new ErrorResponse('Not authorized to view these messages', 403));
+    }
+
     // Pagination
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;

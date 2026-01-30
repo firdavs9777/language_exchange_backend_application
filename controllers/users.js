@@ -7,6 +7,10 @@ const fs = require('fs').promises;
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 
+// Field selection for public user data (excludes sensitive fields like email, password)
+const USER_PUBLIC_FIELDS = 'name bio images native_language language_to_learn level streakDays totalXp createdAt';
+const USER_LIST_FIELDS = 'name images native_language language_to_learn level';
+
 
 
 
@@ -86,23 +90,20 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
   }
 
   const [users, total] = await Promise.all([
-    User.find(query).skip(skip).limit(limit),
+    User.find(query)
+      .select(USER_LIST_FIELDS)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
     User.countDocuments(query)
   ]);
-
-  const usersWithImages = users.map(user => ({
-    ...user.toObject(),
-    imageUrls: user.images.map(image => 
-      image
-    )
-  }));
 
   res.status(200).json({
     success: true,
     count: users.length,
     total,
     pages: Math.ceil(total / limit),
-    data: usersWithImages
+    data: users
   });
 });
 
@@ -110,22 +111,17 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
 // @route    GET /api/v1/auth/users/:id
 // @access   Private/Admin
 exports.getUser = asyncHandler(async (req, res, next) => {
-  const user = await User.findById(req.params.id);
-  
+  const user = await User.findById(req.params.id)
+    .select(USER_PUBLIC_FIELDS)
+    .lean();
+
   if (!user) {
     return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
-  const userWithImages = {
-    ...user.toObject(),
-    imageUrls: user.images.map(image => 
-      image
-    )
-  };
-
   res.status(200).json({
     success: true,
-    data: userWithImages
+    data: user
   });
 });
 
@@ -143,9 +139,23 @@ exports.createUser = asyncHandler(async (req, res, next) => {
 
 // @desc     Update user
 // @route    PUT /api/v1/auth/users/:id
-// @access   Private/Admin
+// @access   Private (own profile) or Admin
 exports.updateUser = asyncHandler(async (req, res, next) => {
-  const user = await User.findByIdAndUpdate(req.params.id, req.body, {
+  // Authorization check - users can only update their own profile
+  if (req.user._id.toString() !== req.params.id && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to update this user', 403));
+  }
+
+  // Filter out sensitive fields that users cannot update themselves
+  const restrictedFields = ['role', 'userMode', 'vipSubscription', 'fcmTokens', 'password', 'email'];
+  const updateData = { ...req.body };
+
+  // Only admins can update restricted fields
+  if (req.user.role !== 'admin') {
+    restrictedFields.forEach(field => delete updateData[field]);
+  }
+
+  const user = await User.findByIdAndUpdate(req.params.id, updateData, {
     new: true,
     runValidators: true
   });
@@ -154,13 +164,18 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
-   sendTokenResponse(user, 200, res);
+  sendTokenResponse(user, 200, res);
 });
 
 // @desc     Delete user
 // @route    DELETE /api/v1/auth/users/:id
-// @access   Private/Admin
+// @access   Private (own account) or Admin
 exports.deleteUser = asyncHandler(async (req, res, next) => {
+  // Authorization check - users can only delete their own account
+  if (req.user._id.toString() !== req.params.id && req.user.role !== 'admin') {
+    return next(new ErrorResponse('Not authorized to delete this user', 403));
+  }
+
   const user = await User.findByIdAndDelete(req.params.id);
 
   if (!user) {

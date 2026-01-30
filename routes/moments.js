@@ -31,6 +31,7 @@ const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVi
 const commentRouter = require('./comment');
 const router = express.Router();
 const { protect, optionalAuth } = require('../middleware/auth');
+const { interactionLimiter, reportLimiter } = require('../middleware/rateLimiter');
 
 // Comments routes
 router.use('/:momentId/comments', commentRouter);
@@ -74,12 +75,12 @@ router.route('/:id/video')
   )
   .delete(protect, deleteVideo);
 
-// Interactions
-router.route('/:id/like').post(protect, likeMoment);
-router.route('/:id/dislike').post(protect, dislikeMoment);
-router.route('/:id/save').post(protect, saveMoment).delete(protect, unsaveMoment);
-router.route('/:id/share').post(protect, shareMoment);
-router.route('/:id/report').post(protect, reportMoment);
+// Interactions (rate limited to prevent spam)
+router.route('/:id/like').post(protect, interactionLimiter, likeMoment);
+router.route('/:id/dislike').post(protect, interactionLimiter, dislikeMoment);
+router.route('/:id/save').post(protect, interactionLimiter, saveMoment).delete(protect, interactionLimiter, unsaveMoment);
+router.route('/:id/share').post(protect, interactionLimiter, shareMoment);
+router.route('/:id/report').post(protect, reportLimiter, reportMoment);
 
 // Translation
 const { translateValidation } = require('../validators/translationValidator');

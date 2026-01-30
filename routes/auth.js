@@ -25,7 +25,7 @@ const {
 } = require('../controllers/auth');
 
 const router = express.Router();
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const {
   authLimiter,
@@ -154,7 +154,8 @@ router.post('/sendCodeEmail', emailLimiter, emailVerificationValidation, validat
 router.post('/verifyEmailCode', authLimiter, verifyCodeValidation, validate, verifyCode);
 router.post('/google/mobile', authLimiter, googleMobileLogin);
 router.post('/apple/mobile', authLimiter, appleMobileLogin); 
-router.put('/make-admin/:userId', makeAdmin);
+// Admin only route - MUST be protected
+router.put('/make-admin/:userId', protect, authorize('admin'), makeAdmin);
 
 
 module.exports = router;

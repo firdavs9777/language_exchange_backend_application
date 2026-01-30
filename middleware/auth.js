@@ -64,41 +64,45 @@ exports.optionalAuth = asyncHandler(async (req, res, next) => {
   }
 });
 
-exports.authorize = (resourceOwnerField, modelType) => {
+// Role-based authorization (e.g., authorize('admin'))
+exports.authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user) {
+      return next(new ErrorResponse('Not authorized to access this route', 401));
+    }
+
+    if (!roles.includes(req.user.role)) {
+      return next(
+        new ErrorResponse(
+          `User role '${req.user.role || 'user'}' is not authorized to access this route`,
+          403
+        )
+      );
+    }
+
+    next();
+  };
+};
+
+// Resource ownership authorization (e.g., authorizeOwner('user', 'moment'))
+exports.authorizeOwner = (resourceOwnerField, modelType) => {
   return asyncHandler(async (req, res, next) => {
-    console.log('req.params.id:', req.params.id);
     if (req.params.id) {
       const resourceId = req.params.id;
       let Model;
       if (modelType === 'moment') {
         Model = Moment;
-      }
-      else if (modelType === 'comment') {
-        Model = Comment
-      }
-      else {
-        Model = Story
+      } else if (modelType === 'comment') {
+        Model = Comment;
+      } else {
+        Model = Story;
       }
 
-      
       const resource = await Model.findById(resourceId);
-
-      console.log('resource:', resource);
-      console.log('req.user:', req.user);
-      console.log('req.user.id:', req.user.id);
 
       if (!resource) {
         return next(new ErrorResponse('Resource not found', 404));
       }
-
-      console.log(
-        'resource[resourceOwnerField]:',
-        resource[resourceOwnerField]
-      );
-      console.log(
-        'resource[resourceOwnerField].toString():',
-        resource[resourceOwnerField].toString()
-      );
 
       if (resource[resourceOwnerField].toString() !== req.user.id) {
         return next(new ErrorResponse('Not authorized', 403));
@@ -111,49 +115,19 @@ exports.authorize = (resourceOwnerField, modelType) => {
   });
 };
 
-exports.authorizeRole = (...roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return next(new ErrorResponse('Not authorized to access this route', 401));
-    }
+// Legacy alias for backward compatibility
+exports.authorizeRole = exports.authorize;
 
-    if (!roles.includes(req.user.role)) {
-      return next(
-        new ErrorResponse(
-          `User role '${req.user.role || 'none'}' is not authorized to access this route`,
-          403
-        )
-      );
-    }
-    
-    next();
-  };
-};
+// Comment-specific authorization
 exports.authorizeComment = (resourceOwnerField) => {
   return asyncHandler(async (req, res, next) => {
-    console.log('req.params.id:', req.params.id);
     if (req.params.id) {
       const resourceId = req.params.id;
-      const Comment = Comment
-
       const resource = await Comment.findById(resourceId);
-
-      console.log('resource:', resource);
-      console.log('req.user:', req.user);
-      console.log('req.user.id:', req.user.id);
 
       if (!resource) {
         return next(new ErrorResponse('Resource not found', 404));
       }
-
-      console.log(
-        'resource[resourceOwnerField]:',
-        resource[resourceOwnerField]
-      );
-      console.log(
-        'resource[resourceOwnerField].toString():',
-        resource[resourceOwnerField].toString()
-      );
 
       if (resource[resourceOwnerField].toString() !== req.user.id) {
         return next(new ErrorResponse('Not authorized', 403));

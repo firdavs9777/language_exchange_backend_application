@@ -25,31 +25,32 @@ const {
 } = require('../controllers/lessonBuilder');
 
 const { protect, authorize } = require('../middleware/auth');
+const { aiRateLimiter } = require('../middleware/rateLimiter');
 
 // All routes require authentication
 router.use(protect);
 
 // ============================================================
-// GENERATION ROUTES
+// GENERATION ROUTES (AI rate limited)
 // ============================================================
 
 // Generate a single lesson
-router.post('/generate', generateLesson);
+router.post('/generate', aiRateLimiter('lessonBuilder'), generateLesson);
 
 // Generate exercises only
-router.post('/generate/exercises', generateExercises);
+router.post('/generate/exercises', aiRateLimiter('lessonBuilder'), generateExercises);
 
 // Generate vocabulary list
-router.post('/generate/vocabulary', generateVocabulary);
+router.post('/generate/vocabulary', aiRateLimiter('lessonBuilder'), generateVocabulary);
 
 // Generate complete curriculum (Admin only)
-router.post('/generate/curriculum', authorize('admin'), generateCurriculum);
+router.post('/generate/curriculum', authorize('admin'), aiRateLimiter('lessonBuilder'), generateCurriculum);
 
 // Batch generate lessons (Admin only)
-router.post('/generate/batch', authorize('admin'), batchGenerateLessons);
+router.post('/generate/batch', authorize('admin'), aiRateLimiter('lessonBuilder'), batchGenerateLessons);
 
 // Enhance existing lesson
-router.post('/:id/enhance', enhanceLesson);
+router.post('/:id/enhance', aiRateLimiter('lessonBuilder'), enhanceLesson);
 
 // Complete/submit a lesson
 router.post('/:id/complete', completeLesson);
