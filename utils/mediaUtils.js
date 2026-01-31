@@ -10,8 +10,12 @@ exports.validateFileType = (mimeType, allowedTypes) => {
   
   const typeMap = {
     image: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
-    video: ['video/mp4', 'video/mov', 'video/avi', 'video/quicktime'],
-    audio: ['audio/mpeg', 'audio/mp3', 'audio/m4a', 'audio/wav', 'audio/aac', 'audio/x-m4a'],
+    video: ['video/mp4', 'video/mov', 'video/avi', 'video/quicktime', 'video/webm', 'video/3gpp', 'video/x-m4v'],
+    audio: [
+      'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/x-m4a',
+      'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/aac',
+      'audio/ogg', 'audio/webm', 'audio/amr', 'audio/3gpp'
+    ],
     document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain']
   };
 

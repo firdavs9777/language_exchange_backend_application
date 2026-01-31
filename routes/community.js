@@ -14,9 +14,20 @@ const {
 
 const { protect, authorize } = require('../middleware/auth');
 const { interactionLimiter } = require('../middleware/rateLimiter');
+const { checkNearbyAccess, checkWaveLimit, getUserLimitsInfo } = require('../middleware/checkLimitations');
 
 // All routes require authentication
 router.use(protect);
+
+// ============================================
+// USER LIMITS INFO
+// ============================================
+
+/**
+ * @route   GET /api/v1/community/limits
+ * @desc    Get current user's limits and usage
+ */
+router.get('/limits', getUserLimitsInfo);
 
 // ============================================
 // NEARBY USERS
@@ -26,8 +37,9 @@ router.use(protect);
  * @route   GET /api/v1/community/nearby
  * @desc    Get nearby users based on location
  * @query   latitude, longitude, radius (km), limit, offset, language, minAge, maxAge, gender, onlineOnly
+ * @access  Regular & VIP users only (visitors blocked)
  */
-router.get('/nearby', getNearbyUsers);
+router.get('/nearby', checkNearbyAccess, getNearbyUsers);
 
 // ============================================
 // WAVES
@@ -37,8 +49,9 @@ router.get('/nearby', getNearbyUsers);
  * @route   POST /api/v1/community/wave
  * @desc    Send a wave to another user
  * @body    { targetUserId, message? }
+ * @access  Limited per day based on user tier
  */
-router.post('/wave', interactionLimiter, sendWave);
+router.post('/wave', checkWaveLimit, interactionLimiter, sendWave);
 
 /**
  * @route   GET /api/v1/community/waves

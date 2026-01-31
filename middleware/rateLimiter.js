@@ -163,13 +163,33 @@ exports.aiRateLimiter = (feature) => {
   return rateLimit({
     windowMs: limits.free.windowMs,
     max: (req) => {
-      // Get user tier from request
-      const tier = req.user?.subscription?.tier || 'free';
+      // Get user tier from userMode field
+      // Map: visitor -> free, regular -> regular, vip -> vip
+      const userMode = req.user?.userMode || 'visitor';
+      const tierMap = { 'visitor': 'free', 'regular': 'regular', 'vip': 'vip' };
+      const tier = tierMap[userMode] || 'free';
+
+      // Check if VIP subscription is actually active
+      if (userMode === 'vip' && req.user?.vipSubscription) {
+        const isVipActive = req.user.vipSubscription.isActive &&
+                           new Date(req.user.vipSubscription.endDate) > new Date();
+        if (!isVipActive) {
+          return limits.regular?.max || limits.free.max;
+        }
+      }
+
       return limits[tier]?.max || limits.free.max;
     },
-    message: {
-      success: false,
-      error: `Too many ${feature} requests. Please try again later or upgrade your plan for higher limits.`
+    message: (req) => {
+      const userMode = req.user?.userMode || 'visitor';
+      const upgradeMsg = userMode !== 'vip'
+        ? ' Upgrade to VIP for higher limits.'
+        : '';
+      return {
+        success: false,
+        error: `Too many ${feature} requests. Please try again later.${upgradeMsg}`,
+        upgradeAvailable: userMode !== 'vip'
+      };
     },
     standardHeaders: true,
     legacyHeaders: false,

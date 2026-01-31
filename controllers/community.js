@@ -43,7 +43,11 @@ exports.getNearbyUsers = asyncHandler(async (req, res, next) => {
   }
 
   // Convert radius to meters (MongoDB uses meters)
-  const radiusInMeters = Math.min(Math.max(parseFloat(radius) || 50, 1), 500) * 1000;
+  // Respect max radius from user tier (set by checkNearbyAccess middleware)
+  const maxAllowedRadius = req.maxNearbyRadius || 50;
+  const requestedRadius = parseFloat(radius) || 50;
+  const effectiveRadius = Math.min(Math.max(requestedRadius, 1), maxAllowedRadius);
+  const radiusInMeters = effectiveRadius * 1000;
   const limitNum = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
   const offsetNum = Math.max(parseInt(offset) || 0, 0);
 

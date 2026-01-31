@@ -15,6 +15,7 @@ const {
 
 const { protect } = require('../middleware/auth');
 const { interactionLimiter } = require('../middleware/rateLimiter');
+const { checkVoiceRoomAccess } = require('../middleware/checkLimitations');
 
 // All routes require authentication
 router.use(protect);
@@ -42,8 +43,9 @@ router.get('/:id', getVoiceRoom);
  * @route   POST /api/v1/voicerooms
  * @desc    Create a new voice room
  * @body    { title, description?, topic?, language, secondaryLanguage?, maxParticipants?, isPublic?, tags? }
+ * @access  Regular & VIP users only (visitors blocked)
  */
-router.post('/', interactionLimiter, createVoiceRoom);
+router.post('/', checkVoiceRoomAccess, interactionLimiter, createVoiceRoom);
 
 /**
  * @route   POST /api/v1/voicerooms/:id/join

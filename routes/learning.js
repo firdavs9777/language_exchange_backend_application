@@ -60,6 +60,7 @@ const {
 
 const { protect } = require('../middleware/auth');
 const { aiRateLimiter } = require('../middleware/rateLimiter');
+const { checkVocabularyLimit } = require('../middleware/checkLimitations');
 
 // All routes require authentication
 router.use(protect);
@@ -73,7 +74,7 @@ router.put('/progress/preferences', updatePreferences);
 // ===================== VOCABULARY ROUTES =====================
 router.route('/vocabulary')
   .get(getVocabulary)
-  .post(addVocabulary);
+  .post(checkVocabularyLimit, addVocabulary);
 
 router.get('/vocabulary/stats', getVocabularyStats);
 router.get('/vocabulary/review', getVocabularyReview);
