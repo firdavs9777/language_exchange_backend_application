@@ -11,6 +11,7 @@ const {
   getVocabulary,
   addVocabulary,
   getVocabularyReview,
+  getVocabularyStats,
   submitVocabularyReview,
   updateVocabulary,
   deleteVocabulary,
@@ -74,6 +75,7 @@ router.route('/vocabulary')
   .get(getVocabulary)
   .post(addVocabulary);
 
+router.get('/vocabulary/stats', getVocabularyStats);
 router.get('/vocabulary/review', getVocabularyReview);
 
 router.route('/vocabulary/:id')

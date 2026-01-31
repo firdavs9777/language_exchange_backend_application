@@ -350,6 +350,114 @@ exports.deleteVocabulary = asyncHandler(async (req, res, next) => {
   });
 });
 
+/**
+ * @desc    Get vocabulary statistics
+ * @route   GET /api/v1/learning/vocabulary/stats
+ * @access  Private
+ */
+exports.getVocabularyStats = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+
+  const [reviewStats, srsDistribution, recentActivity] = await Promise.all([
+    Vocabulary.getReviewStats(userId),
+    Vocabulary.getSrsDistribution(userId),
+    Vocabulary.aggregate([
+      {
+        $match: {
+          user: new (require('mongoose').Types.ObjectId)(userId),
+          isArchived: false
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' }
+          },
+          wordsAdded: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: -1 } },
+      { $limit: 7 }
+    ])
+  ]);
+
+  // Calculate streak (consecutive days with reviews)
+  const reviewHistory = await Vocabulary.aggregate([
+    {
+      $match: {
+        user: new (require('mongoose').Types.ObjectId)(userId),
+        lastReviewed: { $ne: null },
+        isArchived: false
+      }
+    },
+    {
+      $group: {
+        _id: {
+          $dateToString: { format: '%Y-%m-%d', date: '$lastReviewed' }
+        },
+        reviews: { $sum: 1 }
+      }
+    },
+    { $sort: { _id: -1 } },
+    { $limit: 30 }
+  ]);
+
+  // Calculate current streak
+  let streak = 0;
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+  if (reviewHistory.length > 0) {
+    const lastReviewDate = reviewHistory[0]._id;
+    if (lastReviewDate === today || lastReviewDate === yesterday) {
+      streak = 1;
+      for (let i = 1; i < reviewHistory.length; i++) {
+        const currentDate = new Date(reviewHistory[i - 1]._id);
+        const prevDate = new Date(reviewHistory[i]._id);
+        const diffDays = Math.round((currentDate - prevDate) / 86400000);
+        if (diffDays === 1) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+    }
+  }
+
+  // Format SRS distribution for frontend
+  const srsLevels = {
+    new: 0,
+    learning: 0,
+    review: 0,
+    mastered: 0
+  };
+
+  srsDistribution.forEach(item => {
+    if (item._id === 0) srsLevels.new = item.count;
+    else if (item._id >= 1 && item._id <= 3) srsLevels.learning += item.count;
+    else if (item._id >= 4 && item._id <= 7) srsLevels.review += item.count;
+    else if (item._id >= 8) srsLevels.mastered += item.count;
+  });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      total: reviewStats?.total || 0,
+      mastered: reviewStats?.mastered || 0,
+      learning: reviewStats?.learning || 0,
+      new: reviewStats?.new || 0,
+      dueNow: reviewStats?.dueNow || 0,
+      dueToday: reviewStats?.dueToday || 0,
+      reviewAccuracy: reviewStats?.reviewAccuracy || 0,
+      averageEase: reviewStats?.averageEase || 2.5,
+      srsDistribution: srsLevels,
+      recentActivity: recentActivity.reverse(),
+      streak,
+      lastReviewDate: reviewHistory[0]?._id || null
+    }
+  });
+});
+
 // ===================== LESSONS =====================
 
 /**
