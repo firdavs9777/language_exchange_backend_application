@@ -34,19 +34,8 @@ const ALLOWED_VIDEO_TYPES = [
   'video/x-m4v'       // .m4v
 ];
 const ALLOWED_AUDIO_TYPES = [
-  'audio/mpeg',       // .mp3
-  'audio/mp3',        // .mp3 (alternative)
-  'audio/mp4',        // .m4a
-  'audio/x-m4a',      // .m4a (alternative)
-  'audio/m4a',        // .m4a (alternative)
-  'audio/aac',        // .aac
-  'audio/wav',        // .wav
-  'audio/x-wav',      // .wav (alternative)
-  'audio/wave',       // .wav (alternative)
-  'audio/ogg',        // .ogg
-  'audio/webm',       // .webm audio
-  'audio/amr',        // .amr (mobile voice)
-  'audio/3gpp'        // .3gp audio
+  'audio/mpeg',       // .mp3 (standard)
+  'audio/mp3'         // .mp3 (alternative MIME type)
 ];
 
 // Upload to Spaces
@@ -69,7 +58,7 @@ const uploadToSpaces = multer({
     const isAudio = ALLOWED_AUDIO_TYPES.includes(file.mimetype);
 
     if (!isImage && !isVideo && !isAudio) {
-      return cb(new Error('File type not allowed! Supported: Images (JPG, PNG, GIF, WebP), Videos (MP4, MOV, AVI, WebM), Audio (MP3, M4A, AAC, WAV, OGG)'));
+      return cb(new Error('File type not allowed! Supported: Images (JPG, PNG, GIF, WebP), Videos (MP4, MOV, AVI, WebM), Audio (MP3)'));
     }
 
     cb(null, true);
