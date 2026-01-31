@@ -220,8 +220,8 @@ exports.sendDisappearingMessage = asyncHandler(async (req, res, next) => {
 
   const newMessage = await Message.create(messageData);
 
-  await newMessage.populate('sender', 'name images');
-  await newMessage.populate('receiver', 'name images');
+  await newMessage.populate('sender', 'name images userMode');
+  await newMessage.populate('receiver', 'name images userMode');
 
   // Notify receiver
   const io = req.app.get('io');
@@ -562,8 +562,8 @@ exports.sendVideoMessage = asyncHandler(async (req, res, next) => {
   await conversation.updateUnreadCount(receiver, 1);
   await conversation.save();
 
-  await message.populate('sender', 'name images');
-  await message.populate('receiver', 'name images');
+  await message.populate('sender', 'name images userMode');
+  await message.populate('receiver', 'name images userMode');
 
   // Notify receiver via socket
   const io = req.app.get('io');
@@ -707,8 +707,8 @@ exports.sendVoiceMessage = asyncHandler(async (req, res, next) => {
   await conversation.updateUnreadCount(receiver, 1);
   await conversation.save();
 
-  await message.populate('sender', 'name images');
-  await message.populate('receiver', 'name images');
+  await message.populate('sender', 'name images userMode');
+  await message.populate('receiver', 'name images userMode');
 
   // Notify receiver
   const io = req.app.get('io');
@@ -743,8 +743,8 @@ exports.getMentions = asyncHandler(async (req, res, next) => {
   const messages = await Message.find({
     'mentions.user': userId
   })
-    .populate('sender', 'name images')
-    .populate('receiver', 'name images')
+    .populate('sender', 'name images userMode')
+    .populate('receiver', 'name images userMode')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);

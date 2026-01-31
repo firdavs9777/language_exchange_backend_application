@@ -8,8 +8,8 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
-const USER_PUBLIC_FIELDS = 'name bio images native_language language_to_learn level streakDays totalXp createdAt';
-const USER_LIST_FIELDS = 'name images native_language language_to_learn level';
+const USER_PUBLIC_FIELDS = 'name bio images native_language language_to_learn level streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan';
+const USER_LIST_FIELDS = 'name images native_language language_to_learn level userMode';
 
 
 

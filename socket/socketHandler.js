@@ -469,8 +469,8 @@ const registerMessageHandlers = (socket, io) => {
       
       // Populate message
       const populatedMessage = await Message.findById(newMessage._id)
-        .populate('sender', 'name imageUrls')
-        .populate('receiver', 'name imageUrls');
+        .populate('sender', 'name images userMode')
+        .populate('receiver', 'name images userMode');
       
       // Update conversation
       await updateConversation(userId, receiver, newMessage._id);
@@ -1363,8 +1363,8 @@ const registerVoiceMessageHandlers = (socket, io) => {
       });
       
       const populatedMessage = await Message.findById(voiceMessage._id)
-        .populate('sender', 'name images')
-        .populate('receiver', 'name images');
+        .populate('sender', 'name images userMode')
+        .populate('receiver', 'name images userMode');
       
       // Update conversation
       await updateConversation(userId, receiver, voiceMessage._id);
@@ -1759,8 +1759,8 @@ const registerDisappearingMessageHandlers = (socket, io) => {
       const newMessage = await Message.create(messageData);
       
       const populatedMessage = await Message.findById(newMessage._id)
-        .populate('sender', 'name images')
-        .populate('receiver', 'name images');
+        .populate('sender', 'name images userMode')
+        .populate('receiver', 'name images userMode');
       
       // Update conversation
       await updateConversation(userId, receiver, newMessage._id);

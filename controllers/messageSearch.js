@@ -104,8 +104,8 @@ exports.searchMessages = asyncHandler(async (req, res, next) => {
   const [total, messages] = await Promise.all([
     Message.countDocuments(query),
     Message.find(query)
-      .populate('sender', 'name images')
-      .populate('receiver', 'name images')
+      .populate('sender', 'name images userMode')
+      .populate('receiver', 'name images userMode')
       .populate('replyTo', 'message sender')
       .sort({ createdAt: -1 })
       .skip(skip)

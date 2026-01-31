@@ -622,7 +622,7 @@ exports.replyToStory = asyncHandler(async (req, res, next) => {
     await story.save();
     
     // Populate for response
-    await dmMessage.populate('sender', 'name images');
+    await dmMessage.populate('sender', 'name images userMode');
     
     // Notify story owner via socket
     const io = req.app.get('io');

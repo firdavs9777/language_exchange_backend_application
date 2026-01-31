@@ -39,7 +39,7 @@ exports.getConversations = asyncHandler(async (req, res, next) => {
   }
 
   const conversations = await Conversation.find(query)
-    .populate('participants', 'name images email')
+    .populate('participants', 'name images email userMode')
     .populate('lastMessage')
     .sort({ 
       'pinnedBy.user': -1, // Pinned first
@@ -96,7 +96,7 @@ exports.getConversation = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
 
   const conversation = await Conversation.findById(id)
-    .populate('participants', 'name images email')
+    .populate('participants', 'name images email userMode')
     .populate({
       path: 'lastMessage',
       select: 'message createdAt sender receiver',

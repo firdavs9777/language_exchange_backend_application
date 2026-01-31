@@ -134,8 +134,8 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
     const [total, messages] = await Promise.all([
       Message.countDocuments(query),
       Message.find(query)
-        .populate('sender', 'name images')
-        .populate('receiver', 'name images')
+        .populate('sender', 'name images userMode')
+        .populate('receiver', 'name images userMode')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(actualLimit)
@@ -163,8 +163,8 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   //@access Private
   exports.getMessage = asyncHandler(async (req, res, next) => {
     const message = await Message.findById(req.params.id)
-      .populate('sender', 'name images')
-      .populate('receiver', 'name images')
+      .populate('sender', 'name images userMode')
+      .populate('receiver', 'name images userMode')
       .lean();
 
     if (!message) {
@@ -213,8 +213,8 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
     const [total, messages] = await Promise.all([
       Message.countDocuments(query),
       Message.find(query)
-        .populate('sender', 'name images')
-        .populate('receiver', 'name images')
+        .populate('sender', 'name images userMode')
+        .populate('receiver', 'name images userMode')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(actualLimit)
@@ -402,8 +402,8 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
     const [total, messages] = await Promise.all([
       Message.countDocuments(query),
       Message.find(query)
-        .populate('sender', 'name images')
-        .populate('receiver', 'name images')
+        .populate('sender', 'name images userMode')
+        .populate('receiver', 'name images userMode')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(actualLimit)
@@ -556,8 +556,8 @@ exports.createMessage = asyncHandler(async (req, res, next) => {
   await conversation.updateUnreadCount(receiver, 1);
   await conversation.save();
   
-  await newMessage.populate('sender', 'name images');
-  await newMessage.populate('receiver', 'name images');
+  await newMessage.populate('sender', 'name images userMode');
+  await newMessage.populate('receiver', 'name images userMode');
   if (newMessage.replyTo) {
     await newMessage.populate('replyTo', 'message sender');
   }
@@ -674,8 +674,8 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
     const [total, messages] = await Promise.all([
       Message.countDocuments(query),
       Message.find(query)
-        .populate('sender', 'name images')
-        .populate('receiver', 'name images')
+        .populate('sender', 'name images userMode')
+        .populate('receiver', 'name images userMode')
         .sort({ createdAt: 1 }) // Sort messages by creation date in ascending order
         .skip(skip)
         .limit(actualLimit)

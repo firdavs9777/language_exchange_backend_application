@@ -53,8 +53,8 @@ exports.editMessage = asyncHandler(async (req, res, next) => {
   await msg.save();
 
   // Populate for response
-  await msg.populate('sender', 'name images');
-  await msg.populate('receiver', 'name images');
+  await msg.populate('sender', 'name images userMode');
+  await msg.populate('receiver', 'name images userMode');
 
   // ✨ Socket.IO: Notify receiver and sender's other devices
   try {
@@ -267,8 +267,8 @@ exports.replyToMessage = asyncHandler(async (req, res, next) => {
 
   // Populate reply information
   await replyMessage.populate('replyTo', 'message sender');
-  await replyMessage.populate('sender', 'name images');
-  await replyMessage.populate('receiver', 'name images');
+  await replyMessage.populate('sender', 'name images userMode');
+  await replyMessage.populate('receiver', 'name images userMode');
 
   res.status(201).json({
     success: true,
@@ -357,7 +357,24 @@ exports.forwardMessage = asyncHandler(async (req, res, next) => {
       media: originalMessage.media || null
     });
 
+    // Populate for socket notification
+    await forwardedMessage.populate('sender', 'name images userMode');
+    await forwardedMessage.populate('receiver', 'name images userMode');
+
     forwardedMessages.push(forwardedMessage);
+
+    // Notify receiver via socket
+    try {
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user_${receiverId}`).emit('newMessage', {
+          message: forwardedMessage,
+          isForwarded: true
+        });
+      }
+    } catch (socketError) {
+      console.error('Socket error on forward:', socketError);
+    }
   }
 
   // Increment message count (once per forward action, not per receiver)
@@ -368,6 +385,7 @@ exports.forwardMessage = asyncHandler(async (req, res, next) => {
     message: `Message forwarded to ${forwardedMessages.length} recipient(s)`,
     data: {
       forwarded: forwardedMessages.length,
+      messages: forwardedMessages,
       errors: errors.length > 0 ? errors : undefined
     }
   });
@@ -408,6 +426,28 @@ exports.pinMessage = asyncHandler(async (req, res, next) => {
 
   await msg.save();
 
+  // Populate for response
+  await msg.populate('sender', 'name images userMode');
+  await msg.populate('receiver', 'name images userMode');
+
+  // Notify other participant via socket
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      const otherUserId = msg.sender.toString() === userId.toString()
+        ? msg.receiver._id
+        : msg.sender._id;
+
+      io.to(`user_${otherUserId}`).emit('messagePinned', {
+        messageId: msg._id,
+        pinned: msg.pinned,
+        pinnedBy: userId
+      });
+    }
+  } catch (socketError) {
+    console.error('Socket error on pin:', socketError);
+  }
+
   res.status(200).json({
     success: true,
     message: msg.pinned ? 'Message pinned' : 'Message unpinned',
@@ -433,8 +473,8 @@ exports.getMessageReplies = asyncHandler(async (req, res, next) => {
   }
 
   const replies = await Message.find({ replyTo: id })
-    .populate('sender', 'name images')
-    .populate('receiver', 'name images')
+    .populate('sender', 'name images userMode')
+    .populate('receiver', 'name images userMode')
     .sort({ createdAt: 1 })
     .skip(skip)
     .limit(limit)
