@@ -8,6 +8,7 @@ const LIMITS = require('../config/limitations');
 const notificationService = require('../services/notificationService');
 const { registerCallHandlers } = require('./callHandler');
 const { registerAIConversationHandlers, registerGrammarFeedbackHandlers } = require('./aiConversationHandler');
+const { registerVoiceRoomHandlers } = require('./voiceRoomHandler');
 const learningTrackingService = require('../services/learningTrackingService');
 const { detectLanguage } = require('../services/translationService');
 
@@ -49,32 +50,70 @@ const SOCKET_CONFIG = {
  */
 const socketAuth = (socket, next) => {
   try {
-    const token = socket.handshake.auth.token || 
+    const token = socket.handshake.auth.token ||
                   socket.handshake.headers.authorization ||
                   socket.handshake.query.token;
-    
-    console.log('🔑 Socket auth attempt:', socket.id);
-    
+
     if (!token) {
-      console.log('❌ No token provided');
       return next(new Error('Authentication error: No token provided'));
     }
-    
+
     const cleanToken = token.replace(/^Bearer\s+/i, '');
     const decoded = jwt.verify(cleanToken, process.env.JWT_SECRET);
-    
+
     // Extract device ID for multi-device support
     const deviceId = socket.handshake.query.deviceId || socket.handshake.auth.deviceId || 'default';
-    
+
     socket.user = decoded;
     socket.deviceId = deviceId;
-    
-    console.log(`✅ User ${decoded.id} authenticated (device: ${deviceId})`);
+    socket.tokenExp = decoded.exp; // Store token expiry
+
     next();
   } catch (err) {
-    console.log('❌ Auth error:', err.message);
     return next(new Error('Authentication error: Invalid token'));
   }
+};
+
+/**
+ * Setup token expiry monitoring
+ * Notifies client before token expires so they can refresh
+ */
+const setupTokenExpiryMonitor = (socket) => {
+  const tokenExp = socket.tokenExp;
+  if (!tokenExp) return;
+
+  const expiresAt = tokenExp * 1000; // Convert to milliseconds
+  const warningTime = 5 * 60 * 1000; // Warn 5 minutes before expiry
+  const checkInterval = 60 * 1000; // Check every minute
+
+  const tokenCheckInterval = setInterval(() => {
+    const now = Date.now();
+    const timeUntilExpiry = expiresAt - now;
+
+    if (timeUntilExpiry <= 0) {
+      // Token expired - disconnect with reason
+      socket.emit('tokenExpired', {
+        reason: 'token_expired',
+        timestamp: new Date().toISOString()
+      });
+      clearInterval(tokenCheckInterval);
+      socket.disconnect(true);
+    } else if (timeUntilExpiry <= warningTime) {
+      // Token expiring soon - notify client
+      socket.emit('tokenExpiring', {
+        expiresIn: Math.floor(timeUntilExpiry / 1000), // Seconds until expiry
+        expiresAt: new Date(expiresAt).toISOString()
+      });
+    }
+  }, checkInterval);
+
+  // Cleanup on disconnect
+  socket.on('disconnect', () => {
+    clearInterval(tokenCheckInterval);
+  });
+
+  // Store interval reference for potential cleanup
+  socket.tokenCheckInterval = tokenCheckInterval;
 };
 
 /**
@@ -142,7 +181,18 @@ const initializeSocket = (io) => {
     
     // Broadcast online status
     broadcastUserStatus(socket, io, userId, 'online');
-    
+
+    // Send connection verified event to client
+    socket.emit('connectionVerified', {
+      userId,
+      socketId: socket.id,
+      connectedAt: new Date().toISOString(),
+      deviceId
+    });
+
+    // Setup token expiry monitoring
+    setupTokenExpiryMonitor(socket);
+
     // Register event handlers
     registerMessageHandlers(socket, io);
     registerTypingHandlers(socket, io);
@@ -156,6 +206,7 @@ const initializeSocket = (io) => {
     registerPollHandlers(socket, io);
     registerDisappearingMessageHandlers(socket, io);
     registerCallHandlers(socket, io);
+    registerVoiceRoomHandlers(socket, io);
     registerAIConversationHandlers(socket, io);
     registerGrammarFeedbackHandlers(socket, io);
 
@@ -965,14 +1016,53 @@ const handleSocketError = (socket, error) => {
 };
 
 /**
+ * Map Socket.IO disconnect reasons to user-friendly reasons
+ */
+const mapDisconnectReason = (reason) => {
+  const reasonMap = {
+    'io server disconnect': 'server_disconnect',
+    'io client disconnect': 'client_disconnect',
+    'ping timeout': 'connection_timeout',
+    'transport close': 'connection_lost',
+    'transport error': 'connection_error',
+    'server shutting down': 'maintenance',
+    'forced close': 'forced_disconnect'
+  };
+  return reasonMap[reason] || reason;
+};
+
+/**
+ * Gracefully disconnect a user with a reason
+ * @param {Socket} socket - The socket to disconnect
+ * @param {string} reason - The disconnect reason
+ */
+const gracefulDisconnect = (socket, reason) => {
+  try {
+    // Emit disconnect reason before disconnecting
+    socket.emit('disconnectReason', {
+      reason,
+      timestamp: new Date().toISOString()
+    });
+
+    // Small delay to ensure message is sent
+    setTimeout(() => {
+      socket.disconnect(true);
+    }, 100);
+  } catch (error) {
+    socket.disconnect(true);
+  }
+};
+
+/**
  * Handle user disconnection
  */
 const handleDisconnect = async (socket, io, reason) => {
   const userId = socket.user?.id;
-  
+
   if (!userId) return;
-  
-  console.log(`❌ User ${userId} disconnected (socket: ${socket.id}): ${reason}`);
+
+  const friendlyReason = mapDisconnectReason(reason);
+  console.log(`❌ User ${userId} disconnected (socket: ${socket.id}): ${friendlyReason}`);
   
   // Mark as disconnecting
   connectionStates.set(socket.id, 'disconnecting');

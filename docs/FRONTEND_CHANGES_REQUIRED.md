@@ -16,6 +16,10 @@
 6. [Removed/Changed Endpoints](#6-removedchanged-endpoints)
 7. [Security Improvements](#7-security-improvements)
 8. [Performance Optimizations](#8-performance-optimizations)
+9. [New Community API Endpoints](#9-new-community-api-endpoints)
+10. [Lesson Completion Fix](#10-lesson-completion-fix)
+11. [Voice Rooms API](#11-voice-rooms-api)
+12. [Socket.IO Improvements](#12-socketio-improvements)
 
 ---
 
@@ -496,6 +500,480 @@ The `POST /api/v1/lessons/:id/complete` endpoint now properly calculates scores 
 
 ---
 
+## 11. Voice Rooms API
+
+Voice rooms enable real-time voice conversations for language practice.
+
+### REST Endpoints
+
+#### List Voice Rooms
+
+```
+GET /api/v1/voicerooms
+```
+
+**Query Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| language | string | Filter by primary language |
+| topic | string | Filter by topic (language_exchange, pronunciation, etc.) |
+| page | number | Page number (default: 1) |
+| limit | number | Items per page (default: 20, max: 50) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "room123",
+      "title": "English Practice",
+      "description": "Casual conversation practice",
+      "topic": "language_exchange",
+      "language": "English",
+      "secondaryLanguage": "Spanish",
+      "host": { "_id": "...", "name": "John", "images": [...] },
+      "participantCount": 5,
+      "maxParticipants": 8,
+      "participants": [
+        { "_id": "...", "name": "Jane", "images": [...], "role": "speaker", "isSpeaking": true }
+      ],
+      "status": "active",
+      "tags": ["casual", "beginners"],
+      "createdAt": "2026-01-31T10:00:00Z"
+    }
+  ],
+  "pagination": { "total": 25, "page": 1, "limit": 20, "hasMore": true }
+}
+```
+
+#### Get My Active Room
+
+```
+GET /api/v1/voicerooms/my
+```
+
+Returns the user's current active room (if any), or `null`.
+
+#### Get Single Room
+
+```
+GET /api/v1/voicerooms/:id
+```
+
+Returns full room details with all participants.
+
+#### Create Voice Room
+
+```
+POST /api/v1/voicerooms
+```
+
+**Request Body:**
+```json
+{
+  "title": "English Conversation Practice",
+  "description": "Let's practice speaking!",
+  "topic": "language_exchange",
+  "language": "English",
+  "secondaryLanguage": "Korean",
+  "maxParticipants": 8,
+  "isPublic": true,
+  "tags": ["casual", "intermediate"]
+}
+```
+
+**Topics:**
+- `language_exchange` - General language practice
+- `pronunciation` - Focus on pronunciation
+- `grammar` - Grammar discussions
+- `vocabulary` - Building vocabulary
+- `culture` - Cultural exchange
+- `interview_prep` - Interview preparation
+- `business` - Business English
+- `casual` - Casual chat
+- `debate` - Debates and discussions
+- `storytelling` - Sharing stories
+
+**Error (400):** "You already have an active room" - End your current room first.
+
+#### Join Voice Room
+
+```
+POST /api/v1/voicerooms/:id/join
+```
+
+**Errors:**
+- 404: "Voice room not found"
+- 400: "This room has ended"
+- 400: "You are already in this room"
+- 400: "Room is full"
+- 403: "You cannot join this room" (blocked by host)
+
+#### Leave Voice Room
+
+```
+POST /api/v1/voicerooms/:id/leave
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "roomId": "room123",
+    "message": "Left room successfully",
+    "roomEnded": false
+  }
+}
+```
+
+#### End Voice Room (Host Only)
+
+```
+POST /api/v1/voicerooms/:id/end
+```
+
+**Error (403):** "Only the host can end the room"
+
+#### Update Participant Status
+
+```
+PUT /api/v1/voicerooms/:id/status
+```
+
+**Request Body:**
+```json
+{
+  "isMuted": true,
+  "isSpeaking": false
+}
+```
+
+#### Promote to Co-Host (Host Only)
+
+```
+PUT /api/v1/voicerooms/:id/promote/:userId
+```
+
+---
+
+### Voice Room Socket Events
+
+Connect to Socket.IO and use these events for real-time voice room interactions.
+
+#### Events to EMIT (Client → Server)
+
+**Join Room Socket Channel:**
+```dart
+socket.emit('voiceroom:join', { 'roomId': 'room123' });
+```
+
+**Leave Room Socket Channel:**
+```dart
+socket.emit('voiceroom:leave', { 'roomId': 'room123' });
+```
+
+**Speaking Status:**
+```dart
+socket.emit('voiceroom:speaking', { 'roomId': 'room123', 'isSpeaking': true });
+```
+
+**Mute Status:**
+```dart
+socket.emit('voiceroom:mute', { 'roomId': 'room123', 'isMuted': true });
+```
+
+**Raise Hand:**
+```dart
+socket.emit('voiceroom:raise_hand', { 'roomId': 'room123' });
+```
+
+**Send Chat Message:**
+```dart
+socket.emit('voiceroom:chat', { 'roomId': 'room123', 'message': 'Hello!' });
+```
+
+**WebRTC Signaling:**
+```dart
+// Send offer to connect
+socket.emit('voiceroom:rtc_offer', {
+  'roomId': 'room123',
+  'targetUserId': 'user456',
+  'offer': rtcOfferSdp
+});
+
+// Send answer
+socket.emit('voiceroom:rtc_answer', {
+  'roomId': 'room123',
+  'targetUserId': 'user456',
+  'answer': rtcAnswerSdp
+});
+
+// Send ICE candidate
+socket.emit('voiceroom:ice_candidate', {
+  'roomId': 'room123',
+  'targetUserId': 'user456',
+  'candidate': iceCandidate
+});
+```
+
+#### Events to LISTEN (Server → Client)
+
+**Room Joined Successfully:**
+```dart
+socket.on('voiceroom:joined', (data) {
+  // { roomId, participants }
+  // Initialize room state with current participants
+});
+```
+
+**User Joined Room:**
+```dart
+socket.on('voiceroom:user_joined', (data) {
+  // { roomId, user: { _id, name, images } }
+  // Add user to participant list
+});
+```
+
+**User Left Room:**
+```dart
+socket.on('voiceroom:user_left', (data) {
+  // { roomId, userId, roomEnded, newHost? }
+  // Remove user from list, check if room ended
+});
+```
+
+**Speaking Status Changed:**
+```dart
+socket.on('voiceroom:speaking', (data) {
+  // { roomId, userId, isSpeaking }
+  // Update UI to show speaking indicator
+});
+```
+
+**Mute Status Changed:**
+```dart
+socket.on('voiceroom:mute', (data) {
+  // { roomId, userId, isMuted }
+  // Update participant mute indicator
+});
+```
+
+**Participant Status Changed:**
+```dart
+socket.on('voiceroom:participant_status', (data) {
+  // { roomId, userId, isMuted, isSpeaking }
+  // General status update from REST API
+});
+```
+
+**Hand Raised:**
+```dart
+socket.on('voiceroom:hand_raised', (data) {
+  // { roomId, user: { _id, name, images } }
+  // Show hand raised notification to host
+});
+```
+
+**User Promoted:**
+```dart
+socket.on('voiceroom:user_promoted', (data) {
+  // { roomId, userId, role: 'cohost' }
+  // Update user role in UI
+});
+```
+
+**Chat Message:**
+```dart
+socket.on('voiceroom:chat', (data) {
+  // { roomId, message, user: { _id, name, images }, timestamp }
+  // Display message in room chat
+});
+```
+
+**Room Created (Global):**
+```dart
+socket.on('voiceroom:created', (data) {
+  // { roomId, title, host, language }
+  // New room available - refresh room list
+});
+```
+
+**Room Ended:**
+```dart
+socket.on('voiceroom:ended', (data) {
+  // { roomId, endedBy? }
+  // Room has ended - navigate away
+});
+```
+
+**WebRTC Signaling:**
+```dart
+socket.on('voiceroom:rtc_offer', (data) {
+  // { roomId, fromUserId, offer }
+  // Handle incoming WebRTC offer
+});
+
+socket.on('voiceroom:rtc_answer', (data) {
+  // { roomId, fromUserId, answer }
+  // Handle incoming WebRTC answer
+});
+
+socket.on('voiceroom:ice_candidate', (data) {
+  // { roomId, fromUserId, candidate }
+  // Handle incoming ICE candidate
+});
+```
+
+**Error:**
+```dart
+socket.on('voiceroom:error', (data) {
+  // { message }
+  // Show error to user
+});
+```
+
+---
+
+## 12. Socket.IO Improvements
+
+### New Connection Events
+
+#### Connection Verified
+
+After successful authentication, the server sends a verification event:
+
+```dart
+socket.on('connectionVerified', (data) {
+  // {
+  //   userId: 'user123',
+  //   socketId: 'abc123',
+  //   connectedAt: '2026-01-31T10:00:00Z',
+  //   deviceId: 'device456'
+  // }
+  print('Socket connected and verified!');
+});
+```
+
+**Usage:** Confirm socket is authenticated and ready for use.
+
+### Token Expiry Notifications
+
+#### Token Expiring Warning
+
+Sent 5 minutes before token expires:
+
+```dart
+socket.on('tokenExpiring', (data) {
+  // {
+  //   expiresIn: 300,  // seconds until expiry
+  //   expiresAt: '2026-01-31T10:05:00Z'
+  // }
+
+  // Prompt user to refresh token
+  showDialog(
+    title: 'Session Expiring',
+    message: 'Your session will expire in ${data['expiresIn'] ~/ 60} minutes. Please refresh.',
+    action: () => refreshAuthToken()
+  );
+});
+```
+
+#### Token Expired
+
+Sent when token has expired (socket will disconnect):
+
+```dart
+socket.on('tokenExpired', (data) {
+  // {
+  //   reason: 'token_expired',
+  //   timestamp: '2026-01-31T10:05:00Z'
+  // }
+
+  // Redirect to login
+  navigateToLogin();
+});
+```
+
+**Important:** After this event, the socket will be disconnected. Re-authenticate and reconnect.
+
+### Graceful Disconnect Reasons
+
+When the server disconnects your socket, you'll receive a reason:
+
+```dart
+socket.on('disconnectReason', (data) {
+  // {
+  //   reason: 'server_disconnect' | 'connection_timeout' | 'connection_lost' |
+  //           'connection_error' | 'maintenance' | 'forced_disconnect',
+  //   timestamp: '2026-01-31T10:00:00Z'
+  // }
+
+  switch (data['reason']) {
+    case 'maintenance':
+      showMessage('Server is undergoing maintenance');
+      break;
+    case 'connection_timeout':
+      showMessage('Connection timed out');
+      attemptReconnect();
+      break;
+    case 'forced_disconnect':
+      showMessage('You were disconnected');
+      break;
+  }
+});
+```
+
+### Recommended Socket Connection Flow
+
+```dart
+class SocketService {
+  late Socket socket;
+
+  void connect(String token) {
+    socket = io('https://api.banatalk.com', {
+      'auth': {'token': token},
+      'transports': ['websocket', 'polling'],
+    });
+
+    // Connection verified
+    socket.on('connectionVerified', (data) {
+      print('Connected as user: ${data['userId']}');
+      _isVerified = true;
+    });
+
+    // Token expiring - refresh proactively
+    socket.on('tokenExpiring', (data) {
+      _refreshToken();
+    });
+
+    // Token expired - must re-login
+    socket.on('tokenExpired', (data) {
+      _handleLogout();
+    });
+
+    // Graceful disconnect reason
+    socket.on('disconnectReason', (data) {
+      _handleDisconnectReason(data['reason']);
+    });
+
+    // Standard disconnect
+    socket.on('disconnect', (reason) {
+      _handleDisconnect(reason);
+    });
+  }
+
+  void _refreshToken() async {
+    final newToken = await AuthService.refreshToken();
+    socket.disconnect();
+    connect(newToken);
+  }
+}
+```
+
+---
+
 ## Migration Checklist
 
 **Authentication & Authorization:**
@@ -520,10 +998,30 @@ The `POST /api/v1/lessons/:id/complete` endpoint now properly calculates scores 
 - [ ] Implement topics selection using `/api/v1/community/topics`
 - [ ] Update lesson completion to not send score (calculated server-side)
 
+**Voice Rooms:**
+- [ ] Implement voice rooms list screen using `/api/v1/voicerooms`
+- [ ] Add create room functionality with topic selection
+- [ ] Implement room joining/leaving flow
+- [ ] Add WebRTC for voice communication
+- [ ] Handle all `voiceroom:*` socket events
+- [ ] Implement speaking indicators and mute controls
+- [ ] Add raise hand and chat features
+- [ ] Handle room ending gracefully
+
+**Socket.IO:**
+- [ ] Listen for `connectionVerified` event after connecting
+- [ ] Handle `tokenExpiring` event to refresh token proactively
+- [ ] Handle `tokenExpired` event to redirect to login
+- [ ] Handle `disconnectReason` event for user-friendly messages
+- [ ] Implement automatic reconnection with fresh token
+
 **Testing:**
 - [ ] Test all flows with authentication
 - [ ] Update error handling for new error messages
 - [ ] Test location permissions for nearby users feature
+- [ ] Test voice room creation, joining, and leaving
+- [ ] Test WebRTC connections between participants
+- [ ] Test token expiry handling and reconnection
 
 ---
 
@@ -536,5 +1034,6 @@ If you have questions about these changes, check:
 
 ---
 
-**Document Version**: 1.0
+**Document Version**: 1.1
 **Last Updated**: January 31, 2026
+**Changes in v1.1**: Added Voice Rooms API and Socket.IO improvements documentation
