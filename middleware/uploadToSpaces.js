@@ -34,8 +34,12 @@ const ALLOWED_VIDEO_TYPES = [
   'video/x-m4v'       // .m4v
 ];
 const ALLOWED_AUDIO_TYPES = [
-  'audio/mpeg',       // .mp3 (standard)
-  'audio/mp3'         // .mp3 (alternative MIME type)
+  'audio/mpeg',       // .mp3
+  'audio/mp3',        // .mp3 (alternative)
+  'audio/aac',        // .aac (iOS native)
+  'audio/x-aac',      // .aac (alternative)
+  'audio/mp4',        // .m4a (AAC in MP4 container)
+  'audio/x-m4a'       // .m4a (alternative)
 ];
 
 // Upload to Spaces
@@ -58,7 +62,7 @@ const uploadToSpaces = multer({
     const isAudio = ALLOWED_AUDIO_TYPES.includes(file.mimetype);
 
     if (!isImage && !isVideo && !isAudio) {
-      return cb(new Error('File type not allowed! Supported: Images (JPG, PNG, GIF, WebP), Videos (MP4, MOV, AVI, WebM), Audio (MP3)'));
+      return cb(new Error('File type not allowed! Supported: Images (JPG, PNG, GIF, WebP), Videos (MP4, MOV, AVI, WebM), Audio (MP3, AAC, M4A)'));
     }
 
     cb(null, true);

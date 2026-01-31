@@ -11,7 +11,7 @@ exports.validateFileType = (mimeType, allowedTypes) => {
   const typeMap = {
     image: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
     video: ['video/mp4', 'video/mov', 'video/avi', 'video/quicktime', 'video/webm', 'video/3gpp', 'video/x-m4v'],
-    audio: ['audio/mpeg', 'audio/mp3'],  // MP3 only - frontend converts before upload
+    audio: ['audio/mpeg', 'audio/mp3', 'audio/aac', 'audio/x-aac', 'audio/mp4', 'audio/x-m4a'],  // MP3, AAC, M4A
     document: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain']
   };
 
