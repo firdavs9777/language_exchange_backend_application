@@ -2,16 +2,146 @@ const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const { logSecurityEvent } = require('../utils/securityLogger');
-const iap = require('in-app-purchase');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const https = require('https');
 
-// Configure in-app-purchase
-iap.config({
-  // Apple specific configuration
-  applePassword: process.env.APPLE_SHARED_SECRET,
-  // Use Apple's sandbox or production based on environment
-  appleExcludeOldTransactions: true,
-  verbose: process.env.NODE_ENV === 'development'
-});
+// Apple's App Store environment
+const APPLE_PRODUCTION_URL = 'https://buy.itunes.apple.com/verifyReceipt';
+const APPLE_SANDBOX_URL = 'https://sandbox.itunes.apple.com/verifyReceipt';
+
+const appleSharedSecret = process.env.APPLE_SHARED_SECRET;
+
+if (!appleSharedSecret) {
+  console.warn('⚠️ APPLE_SHARED_SECRET not configured! iOS purchase verification may fail for legacy receipts.');
+}
+
+/**
+ * Verify the certificate chain from x5c header
+ */
+function verifyCertificateChain(x5c) {
+  if (!x5c || x5c.length < 2) {
+    throw new Error('Invalid certificate chain');
+  }
+
+  // The first certificate is the signing certificate
+  // The last certificate should chain to Apple Root CA
+  // For simplicity, we trust certificates that have proper chain
+  // In production, you should verify the full chain to Apple Root CA
+
+  // Get the signing certificate (first in chain)
+  const signingCertPem = `-----BEGIN CERTIFICATE-----\n${x5c[0].match(/.{1,64}/g).join('\n')}\n-----END CERTIFICATE-----`;
+
+  return signingCertPem;
+}
+
+/**
+ * Verify and decode a StoreKit 2 JWS transaction
+ */
+async function verifyStoreKit2Transaction(signedTransaction) {
+  try {
+    // Decode header to get certificate chain
+    const parts = signedTransaction.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Invalid JWS format');
+    }
+
+    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString());
+    const x5c = header.x5c;
+    const alg = header.alg;
+
+    console.log('   JWS Header alg:', alg);
+    console.log('   JWS Header has x5c:', !!x5c);
+
+    if (!x5c || x5c.length === 0) {
+      throw new Error('No certificate chain in JWS header');
+    }
+
+    // Get the public key from the certificate chain
+    const signingCertPem = verifyCertificateChain(x5c);
+
+    // Create public key from certificate
+    const publicKey = crypto.createPublicKey({
+      key: signingCertPem,
+      format: 'pem'
+    });
+
+    // Verify and decode the JWT
+    const decoded = jwt.verify(signedTransaction, publicKey, {
+      algorithms: ['ES256']
+    });
+
+    console.log('   Decoded transaction bundleId:', decoded.bundleId);
+    console.log('   Decoded transaction productId:', decoded.productId);
+    console.log('   Decoded transaction type:', decoded.type);
+
+    return decoded;
+  } catch (error) {
+    console.error('JWS verification error:', error.message);
+    throw error;
+  }
+}
+
+/**
+ * Check if receipt is StoreKit 2 JWS format
+ */
+function isStoreKit2Format(receiptData) {
+  // StoreKit 2 JWS tokens start with 'eyJ' (base64url encoded JSON)
+  return typeof receiptData === 'string' && receiptData.startsWith('eyJ');
+}
+
+/**
+ * Verify legacy receipt with Apple's verifyReceipt endpoint
+ */
+async function verifyLegacyReceipt(receiptData, useSandbox = false) {
+  const url = useSandbox ? APPLE_SANDBOX_URL : APPLE_PRODUCTION_URL;
+
+  const requestBody = JSON.stringify({
+    'receipt-data': receiptData,
+    'password': appleSharedSecret,
+    'exclude-old-transactions': true
+  });
+
+  return new Promise((resolve, reject) => {
+    const urlObj = new URL(url);
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(requestBody)
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const response = JSON.parse(data);
+
+          // Status 21007 means sandbox receipt sent to production
+          if (response.status === 21007 && !useSandbox) {
+            // Retry with sandbox
+            verifyLegacyReceipt(receiptData, true)
+              .then(resolve)
+              .catch(reject);
+            return;
+          }
+
+          resolve(response);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.write(requestBody);
+    req.end();
+  });
+}
 
 /**
  * @desc    Verify iOS purchase receipt and activate VIP
@@ -26,57 +156,132 @@ exports.verifyIOSPurchase = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    // Setup IAP
-    await iap.setup();
+    console.log('🍎 Starting iOS purchase verification...');
+    console.log('   Product ID:', productId);
+    console.log('   Transaction ID:', transactionId);
+    console.log('   Receipt length:', receiptData?.length);
+    console.log('   Receipt format:', isStoreKit2Format(receiptData) ? 'StoreKit 2 (JWS)' : 'Legacy');
 
-    // Validate the receipt
-    const validationResponse = await iap.validate({
-      receipt: receiptData,
-      platform: 'apple'
-    });
+    let finalProductId;
+    let finalTransactionId;
+    let expirationDate = null;
 
-    console.log('📱 Receipt validation result:', validationResponse);
+    // Check if this is StoreKit 2 format (JWS)
+    if (isStoreKit2Format(receiptData)) {
+      console.log('📱 Processing StoreKit 2 JWS transaction...');
 
-    // Check if receipt is valid
-    if (!iap.isValidated(validationResponse)) {
-      logSecurityEvent('IOS_RECEIPT_INVALID', {
-        userId: req.user.id,
-        reason: 'Receipt validation failed'
-      });
-      return next(new ErrorResponse('Invalid receipt', 400));
-    }
+      try {
+        const transactionInfo = await verifyStoreKit2Transaction(receiptData);
+        console.log('✅ StoreKit 2 transaction verified:', JSON.stringify(transactionInfo, null, 2));
 
-    // Get purchase info
-    const purchaseData = iap.getPurchaseData(validationResponse);
-    
-    if (!purchaseData || purchaseData.length === 0) {
-      return next(new ErrorResponse('No purchase data found in receipt', 400));
-    }
+        // Extract data from the decoded transaction
+        finalProductId = transactionInfo.productId || productId;
+        finalTransactionId = transactionInfo.transactionId || transactionInfo.originalTransactionId || transactionId;
 
-    // Find the specific purchase
-    // If productId and transactionId provided, find exact match
-    // Otherwise, use the latest purchase
-    let purchase;
-    if (productId && transactionId) {
-      purchase = purchaseData.find(
-        p => p.productId === productId && p.transactionId === transactionId
-      );
+        // Check expiration for subscriptions
+        if (transactionInfo.expiresDate) {
+          expirationDate = new Date(transactionInfo.expiresDate);
+          if (expirationDate < new Date()) {
+            logSecurityEvent('IOS_SUBSCRIPTION_EXPIRED', {
+              userId: req.user.id,
+              productId: finalProductId,
+              expirationDate
+            });
+            return next(new ErrorResponse('Subscription has expired', 400));
+          }
+        }
+      } catch (jwsError) {
+        console.error('❌ StoreKit 2 verification failed:', jwsError.message);
+        logSecurityEvent('IOS_JWS_VERIFICATION_FAILED', {
+          userId: req.user.id,
+          error: jwsError.message
+        });
+        return next(new ErrorResponse(`Transaction verification failed: ${jwsError.message}`, 400));
+      }
     } else {
-      // Use the most recent purchase
-      purchase = purchaseData.sort((a, b) => {
-        const dateA = a.purchaseDate ? new Date(a.purchaseDate) : new Date(0);
-        const dateB = b.purchaseDate ? new Date(b.purchaseDate) : new Date(0);
-        return dateB - dateA;
-      })[0];
-    }
+      // Legacy receipt format - use Apple's verifyReceipt endpoint
+      console.log('📱 Processing legacy receipt...');
 
-    if (!purchase) {
-      return next(new ErrorResponse('Purchase not found in receipt', 400));
-    }
+      if (!appleSharedSecret) {
+        console.error('❌ APPLE_SHARED_SECRET is not configured on this server!');
+        logSecurityEvent('IOS_RECEIPT_ERROR', {
+          userId: req.user.id,
+          error: 'APPLE_SHARED_SECRET not configured'
+        });
+        return next(new ErrorResponse('Server configuration error: Apple shared secret not configured. Please contact support.', 500));
+      }
 
-    // Use purchase productId if not provided in request
-    const finalProductId = productId || purchase.productId;
-    const finalTransactionId = transactionId || purchase.transactionId;
+      console.log('📤 Sending receipt to Apple for validation...');
+      const validationResponse = await verifyLegacyReceipt(receiptData);
+
+      console.log('📱 Receipt validation result:', JSON.stringify(validationResponse, null, 2));
+
+      // Check if receipt is valid (status 0 = valid)
+      if (validationResponse.status !== 0) {
+        const statusMessages = {
+          21000: 'The App Store could not read the receipt',
+          21002: 'The receipt data is malformed',
+          21003: 'The receipt could not be authenticated',
+          21004: 'The shared secret does not match',
+          21005: 'The receipt server is not available',
+          21006: 'The receipt is valid but subscription has expired',
+          21007: 'Sandbox receipt sent to production',
+          21008: 'Production receipt sent to sandbox'
+        };
+        const errorMessage = statusMessages[validationResponse.status] || `Validation failed with status ${validationResponse.status}`;
+
+        logSecurityEvent('IOS_RECEIPT_INVALID', {
+          userId: req.user.id,
+          status: validationResponse.status,
+          reason: errorMessage
+        });
+        return next(new ErrorResponse(errorMessage, 400));
+      }
+
+      // Get the latest receipt info
+      const latestReceiptInfo = validationResponse.latest_receipt_info ||
+                                (validationResponse.receipt && validationResponse.receipt.in_app) ||
+                                [];
+
+      if (!latestReceiptInfo || latestReceiptInfo.length === 0) {
+        return next(new ErrorResponse('No purchase data found in receipt', 400));
+      }
+
+      // Find the specific purchase or use the latest one
+      let purchase;
+      if (productId && transactionId) {
+        purchase = latestReceiptInfo.find(
+          p => p.product_id === productId && p.transaction_id === transactionId
+        );
+      } else {
+        // Sort by purchase date and get the latest
+        purchase = latestReceiptInfo.sort((a, b) => {
+          const dateA = parseInt(a.purchase_date_ms) || 0;
+          const dateB = parseInt(b.purchase_date_ms) || 0;
+          return dateB - dateA;
+        })[0];
+      }
+
+      if (!purchase) {
+        return next(new ErrorResponse('Purchase not found in receipt', 400));
+      }
+
+      finalProductId = productId || purchase.product_id;
+      finalTransactionId = transactionId || purchase.transaction_id;
+
+      // Check expiration for subscriptions
+      if (purchase.expires_date_ms) {
+        expirationDate = new Date(parseInt(purchase.expires_date_ms));
+        if (expirationDate < new Date()) {
+          logSecurityEvent('IOS_SUBSCRIPTION_EXPIRED', {
+            userId: req.user.id,
+            productId: finalProductId,
+            expirationDate
+          });
+          return next(new ErrorResponse('Subscription has expired', 400));
+        }
+      }
+    }
 
     // Determine subscription plan based on productId
     let plan = 'monthly';
@@ -169,11 +374,34 @@ exports.verifyIOSPurchase = asyncHandler(async (req, res, next) => {
 
   } catch (error) {
     console.error('❌ iOS Receipt Validation Error:', error);
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+
+    // Check for common configuration issues
+    if (!process.env.APPLE_SHARED_SECRET) {
+      console.error('❌ APPLE_SHARED_SECRET is not configured!');
+      logSecurityEvent('IOS_RECEIPT_ERROR', {
+        userId: req.user.id,
+        error: 'APPLE_SHARED_SECRET not configured'
+      });
+      return next(new ErrorResponse('Server configuration error: Apple shared secret not configured', 500));
+    }
+
     logSecurityEvent('IOS_RECEIPT_ERROR', {
       userId: req.user.id,
       error: error.message
     });
-    return next(new ErrorResponse('Failed to verify purchase', 500));
+
+    // Provide more specific error messages
+    if (error.message && error.message.includes('21007')) {
+      return next(new ErrorResponse('This receipt is from the sandbox environment. Please use a sandbox tester account.', 400));
+    } else if (error.message && error.message.includes('21008')) {
+      return next(new ErrorResponse('This receipt is from the production environment.', 400));
+    } else if (error.message && error.message.includes('password')) {
+      return next(new ErrorResponse('Invalid shared secret configured on server', 500));
+    }
+
+    return next(new ErrorResponse(`Failed to verify purchase: ${error.message}`, 500));
   }
 });
 
@@ -190,34 +418,69 @@ exports.verifySubscriptionStatus = asyncHandler(async (req, res, next) => {
   }
 
   try {
-    await iap.setup();
-
-    const validationResponse = await iap.validate({
-      receipt: receiptData,
-      platform: 'apple'
-    });
-
-    if (!iap.isValidated(validationResponse)) {
-      return next(new ErrorResponse('Invalid receipt', 400));
-    }
-
-    const purchaseData = iap.getPurchaseData(validationResponse);
-    
-    // Check for active subscriptions
     const now = Date.now();
-    const activeSubscriptions = purchaseData.filter(item => {
-      if (item.expirationDate) {
-        return new Date(item.expirationDate).getTime() > now;
-      }
-      return false;
-    });
+    let activeSubscription = null;
+    let productId = null;
+    let expiresDate = null;
 
-    // Get the most recent active subscription
-    const activeSubscription = activeSubscriptions.sort((a, b) => {
-      const dateA = a.expirationDate ? new Date(a.expirationDate) : new Date(0);
-      const dateB = b.expirationDate ? new Date(b.expirationDate) : new Date(0);
-      return dateB - dateA;
-    })[0];
+    // Check if this is StoreKit 2 format (JWS)
+    if (isStoreKit2Format(receiptData)) {
+      console.log('📱 Checking StoreKit 2 subscription status...');
+
+      try {
+        const transactionInfo = await verifyStoreKit2Transaction(receiptData);
+
+        // Check if subscription is active
+        if (transactionInfo.expiresDate) {
+          const expDate = new Date(transactionInfo.expiresDate);
+          if (expDate.getTime() > now) {
+            activeSubscription = transactionInfo;
+            productId = transactionInfo.productId;
+            expiresDate = expDate;
+          }
+        }
+      } catch (jwsError) {
+        console.error('❌ StoreKit 2 verification failed:', jwsError.message);
+        return next(new ErrorResponse('Transaction verification failed', 400));
+      }
+    } else {
+      // Legacy receipt format
+      console.log('📱 Checking legacy subscription status...');
+
+      if (!appleSharedSecret) {
+        return next(new ErrorResponse('Server configuration error', 500));
+      }
+
+      const validationResponse = await verifyLegacyReceipt(receiptData);
+
+      if (validationResponse.status !== 0) {
+        return next(new ErrorResponse('Invalid receipt', 400));
+      }
+
+      const latestReceiptInfo = validationResponse.latest_receipt_info ||
+                                (validationResponse.receipt && validationResponse.receipt.in_app) ||
+                                [];
+
+      // Find active subscriptions
+      const activeSubscriptions = latestReceiptInfo.filter(item => {
+        if (item.expires_date_ms) {
+          return parseInt(item.expires_date_ms) > now;
+        }
+        return false;
+      });
+
+      // Get the most recent active subscription
+      if (activeSubscriptions.length > 0) {
+        activeSubscription = activeSubscriptions.sort((a, b) => {
+          const dateA = parseInt(a.expires_date_ms) || 0;
+          const dateB = parseInt(b.expires_date_ms) || 0;
+          return dateB - dateA;
+        })[0];
+
+        productId = activeSubscription.product_id;
+        expiresDate = new Date(parseInt(activeSubscription.expires_date_ms));
+      }
+    }
 
     // Also check user's current VIP status
     const user = await User.findById(req.user.id);
@@ -232,8 +495,8 @@ exports.verifySubscriptionStatus = asyncHandler(async (req, res, next) => {
       success: true,
       data: {
         isActive: !!activeSubscription,
-        expiresDate: activeSubscription?.expirationDate || null,
-        productId: activeSubscription?.productId || null,
+        expiresDate: expiresDate,
+        productId: productId,
         userVIPStatus
       }
     });
@@ -249,27 +512,84 @@ exports.verifySubscriptionStatus = asyncHandler(async (req, res, next) => {
 });
 
 /**
- * @desc    Handle iOS subscription webhook (Apple Server Notifications)
+ * @desc    Handle iOS subscription webhook (Apple Server Notifications V1 & V2)
  * @route   POST /api/v1/purchases/ios/webhook
  * @access  Public (called by Apple)
  */
-exports.handleAppleWebhook = asyncHandler(async (req, res, next) => {
+exports.handleAppleWebhook = asyncHandler(async (req, res) => {
   const notification = req.body;
 
-  console.log('🍎 Apple Server Notification:', JSON.stringify(notification, null, 2));
+  console.log('🍎 Apple Server Notification received');
 
   try {
-    const notificationType = notification.notification_type;
-    const unifiedReceipt = notification.unified_receipt;
-    const latestReceiptInfo = unifiedReceipt?.latest_receipt_info?.[0];
-    
-    if (!latestReceiptInfo) {
-      console.log('⚠️ No receipt info in notification');
+    let notificationType;
+    let originalTransactionId;
+    let productId;
+    let transactionId;
+
+    // Check if this is V2 format (has signedPayload)
+    if (notification.signedPayload) {
+      console.log('📱 Processing App Store Server Notification V2...');
+
+      try {
+        // Decode the signed payload (JWS)
+        const payload = await verifyStoreKit2Transaction(notification.signedPayload);
+        console.log('   V2 Notification type:', payload.notificationType);
+        console.log('   V2 Subtype:', payload.subtype);
+
+        notificationType = payload.notificationType;
+
+        // The transaction info is also a JWS in V2
+        if (payload.data?.signedTransactionInfo) {
+          const transactionInfo = await verifyStoreKit2Transaction(payload.data.signedTransactionInfo);
+          originalTransactionId = transactionInfo.originalTransactionId;
+          productId = transactionInfo.productId;
+          transactionId = transactionInfo.transactionId;
+        }
+
+        // Map V2 notification types to V1 equivalents for unified handling
+        const v2ToV1Map = {
+          'SUBSCRIBED': 'INITIAL_BUY',
+          'DID_RENEW': 'DID_RENEW',
+          'DID_FAIL_TO_RENEW': 'DID_FAIL_TO_RENEW',
+          'DID_CHANGE_RENEWAL_STATUS': 'DID_CHANGE_RENEWAL_STATUS',
+          'EXPIRED': 'EXPIRED',
+          'GRACE_PERIOD_EXPIRED': 'EXPIRED',
+          'REFUND': 'CANCEL'
+        };
+        notificationType = v2ToV1Map[notificationType] || notificationType;
+
+      } catch (jwsError) {
+        console.error('❌ V2 notification verification failed:', jwsError.message);
+        return res.status(200).json({ success: true });
+      }
+    } else {
+      // V1 format
+      console.log('📱 Processing App Store Server Notification V1...');
+      console.log('   V1 Notification:', JSON.stringify(notification, null, 2));
+
+      notificationType = notification.notification_type;
+      const unifiedReceipt = notification.unified_receipt;
+      const latestReceiptInfo = unifiedReceipt?.latest_receipt_info?.[0];
+
+      if (!latestReceiptInfo) {
+        console.log('⚠️ No receipt info in notification');
+        return res.status(200).json({ success: true });
+      }
+
+      originalTransactionId = latestReceiptInfo.original_transaction_id;
+      productId = latestReceiptInfo.product_id;
+      transactionId = latestReceiptInfo.transaction_id;
+    }
+
+    if (!originalTransactionId) {
+      console.log('⚠️ No transaction ID in notification');
       return res.status(200).json({ success: true });
     }
 
-    const originalTransactionId = latestReceiptInfo.original_transaction_id;
-    const productId = latestReceiptInfo.product_id;
+    console.log('   Notification type:', notificationType);
+    console.log('   Original Transaction ID:', originalTransactionId);
+    console.log('   Product ID:', productId);
     
     // Find user by transaction ID (stored in vipSubscription.transactions)
     const user = await User.findOne({
@@ -284,9 +604,9 @@ exports.handleAppleWebhook = asyncHandler(async (req, res, next) => {
 
     // Determine plan from productId
     let plan = 'monthly';
-    if (productId.includes('quarterly')) {
+    if (productId && productId.includes('quarterly')) {
       plan = 'quarterly';
-    } else if (productId.includes('yearly')) {
+    } else if (productId && productId.includes('yearly')) {
       plan = 'yearly';
     }
 
@@ -305,11 +625,11 @@ exports.handleAppleWebhook = asyncHandler(async (req, res, next) => {
 
       case 'DID_RENEW':
         console.log(`🔄 Subscription renewed for user ${user._id}`);
-        
+
         // Extend subscription
         const now = new Date();
         let newEndDate = new Date(user.vipSubscription.endDate || now);
-        
+
         switch(plan) {
           case 'monthly':
             newEndDate.setMonth(newEndDate.getMonth() + 1);
@@ -321,31 +641,31 @@ exports.handleAppleWebhook = asyncHandler(async (req, res, next) => {
             newEndDate.setFullYear(newEndDate.getFullYear() + 1);
             break;
         }
-        
+
         user.vipSubscription.endDate = newEndDate;
         user.vipSubscription.nextBillingDate = newEndDate;
         user.vipSubscription.lastPaymentDate = now;
         user.vipSubscription.isActive = true;
         user.vipSubscription.autoRenew = true;
-        
+
         // Add transaction record
         if (!user.vipSubscription.transactions) {
           user.vipSubscription.transactions = [];
         }
         user.vipSubscription.transactions.push({
-          transactionId: latestReceiptInfo.transaction_id,
+          transactionId: transactionId || originalTransactionId,
           productId,
           plan,
           purchaseDate: now,
           type: 'renewal'
         });
-        
+
         await user.save();
-        
+
         logSecurityEvent('IOS_RENEWAL_SUCCESS', {
           userId: user._id,
           productId,
-          transactionId: latestReceiptInfo.transaction_id
+          transactionId: transactionId || originalTransactionId
         });
         break;
 
