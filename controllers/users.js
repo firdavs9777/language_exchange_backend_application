@@ -8,7 +8,7 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
-const USER_PUBLIC_FIELDS = 'name bio images native_language language_to_learn level streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan';
+const USER_PUBLIC_FIELDS = 'name bio images native_language language_to_learn level streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
 const USER_LIST_FIELDS = 'name images native_language language_to_learn level userMode';
 
 
@@ -112,16 +112,18 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
 // @access   Private/Admin
 exports.getUser = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.params.id)
-    .select(USER_PUBLIC_FIELDS)
-    .lean();
+    .select(USER_PUBLIC_FIELDS);
 
   if (!user) {
     return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
+  // Process user images to add imageUrls
+  const userWithImages = processUserImages(user, req);
+
   res.status(200).json({
     success: true,
-    data: user
+    data: userWithImages
   });
 });
 
@@ -382,8 +384,14 @@ exports.followUser = asyncHandler(async (req, res, next) => {
     success: true,
     message: `Now following ${targetUser.name}`,
     data: {
-      following: user.following,
-      followers: targetUser.followers
+      targetUser: {
+        followersCount: targetUser.followers.length,
+        followers: targetUser.followers
+      },
+      currentUser: {
+        followingCount: user.following.length,
+        following: user.following
+      }
     }
   });
 });
@@ -416,8 +424,14 @@ exports.unfollowUser = asyncHandler(async (req, res, next) => {
     success: true,
     message: `Unfollowed ${targetUser.name}`,
     data: {
-      following: user.following,
-      followers: targetUser.followers
+      targetUser: {
+        followersCount: targetUser.followers.length,
+        followers: targetUser.followers
+      },
+      currentUser: {
+        followingCount: user.following.length,
+        following: user.following
+      }
     }
   });
 });
@@ -533,9 +547,6 @@ exports.updatePrivacySettings = asyncHandler(async (req, res, next) => {
   };
 
   await user.save();
-
-  // Process user images for response
-  const userWithImages = processUserImages(user, req);
 
   res.status(200).json({
     success: true,
