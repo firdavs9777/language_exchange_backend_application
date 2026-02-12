@@ -9,7 +9,7 @@ const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
 const USER_PUBLIC_FIELDS = 'name bio images native_language language_to_learn level streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
-const USER_LIST_FIELDS = 'name images native_language language_to_learn level userMode';
+const USER_LIST_FIELDS = 'name images native_language language_to_learn level userMode location followers following isOnline lastActive';
 
 
 
@@ -98,12 +98,33 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     User.countDocuments(query)
   ]);
 
+  // Process users to add imageUrls and counts
+  const processedUsers = users.map(user => {
+    // Generate imageUrls
+    let imageUrls = null;
+    if (user.images && Array.isArray(user.images) && user.images.length > 0) {
+      imageUrls = user.images.map(image => {
+        if (image.startsWith('http://') || image.startsWith('https://')) {
+          return image;
+        }
+        return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`;
+      });
+    }
+
+    return {
+      ...user,
+      imageUrls,
+      followersCount: user.followers ? user.followers.length : 0,
+      followingCount: user.following ? user.following.length : 0
+    };
+  });
+
   res.status(200).json({
     success: true,
-    count: users.length,
+    count: processedUsers.length,
     total,
     pages: Math.ceil(total / limit),
-    data: users
+    data: processedUsers
   });
 });
 
