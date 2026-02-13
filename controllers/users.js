@@ -9,7 +9,7 @@ const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
 const USER_PUBLIC_FIELDS = 'name bio images native_language language_to_learn level streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
-const USER_LIST_FIELDS = 'name images native_language language_to_learn level userMode location followers following isOnline lastActive';
+const USER_LIST_FIELDS = 'name images native_language language_to_learn level userMode location followers following isOnline lastActive gender birth_year birth_month birth_day bio vipSubscription.isActive';
 
 
 
