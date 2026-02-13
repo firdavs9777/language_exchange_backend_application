@@ -269,3 +269,10 @@ exports.isValidLanguageCode = (langCode) => {
   return exports.SUPPORTED_LANGUAGES.includes(langCode);
 };
 
+/**
+ * Detect the language of a given text
+ * @param {String} text - Text to detect language for
+ * @returns {Promise<String>} Language code
+ */
+exports.detectLanguage = detectLanguage;
+
