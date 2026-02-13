@@ -465,7 +465,31 @@ exports.createMessage = asyncHandler(async (req, res, next) => {
   if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
     return next(new ErrorResponse('Cannot send message to this user', 403));
   }
-  
+
+  // Check first-time conversation limit (max 5 messages until they reply)
+  const FIRST_CHAT_MESSAGE_LIMIT = 5;
+
+  // Check if receiver has ever sent a message to sender (i.e., they've replied)
+  const receiverHasReplied = await Message.exists({
+    sender: receiver,
+    receiver: sender
+  });
+
+  if (!receiverHasReplied) {
+    // This is a one-way conversation - check how many messages sender has sent
+    const messagesSentToReceiver = await Message.countDocuments({
+      sender: sender,
+      receiver: receiver
+    });
+
+    if (messagesSentToReceiver >= FIRST_CHAT_MESSAGE_LIMIT) {
+      return next(new ErrorResponse(
+        `You can only send ${FIRST_CHAT_MESSAGE_LIMIT} messages until they reply. Please wait for a response.`,
+        429
+      ));
+    }
+  }
+
   const canSend = await senderUser.canSendMessage();
   if (!canSend) {
     const LIMITS = require('../config/limitations');

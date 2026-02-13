@@ -178,6 +178,15 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
     restrictedFields.forEach(field => delete updateData[field]);
   }
 
+  // Validate that native_language and language_to_learn are different
+  const existingUser = await User.findById(req.params.id).select('native_language language_to_learn');
+  const newNativeLanguage = (updateData.native_language || existingUser?.native_language || '').toLowerCase().trim();
+  const newLanguageToLearn = (updateData.language_to_learn || existingUser?.language_to_learn || '').toLowerCase().trim();
+
+  if (newNativeLanguage && newLanguageToLearn && newNativeLanguage === newLanguageToLearn) {
+    return next(new ErrorResponse('Native language and language to learn cannot be the same', 400));
+  }
+
   const user = await User.findByIdAndUpdate(req.params.id, updateData, {
     new: true,
     runValidators: true

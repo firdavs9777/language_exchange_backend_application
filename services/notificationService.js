@@ -270,6 +270,43 @@ const sendProfileVisit = async (profileOwnerId, visitorId) => {
 };
 
 /**
+ * Send wave notification
+ * @param {String} recipientId - User receiving the wave
+ * @param {String} waverId - User who waved
+ * @param {String} waveId - Wave ID
+ * @param {Boolean} isMutual - Whether this is a mutual wave
+ * @returns {Object} - Result
+ */
+const sendWave = async (recipientId, waverId, waveId, isMutual = false) => {
+  try {
+    const waver = await User.findById(waverId);
+
+    if (!waver) {
+      return { success: false, error: 'Waver not found' };
+    }
+
+    const notification = templates.getWaveTemplate(
+      waver.name,
+      isMutual,
+      {
+        userId: waverId,
+        waveId: waveId
+      }
+    );
+
+    // Add waver's image
+    if (waver.images && waver.images.length > 0) {
+      notification.imageUrl = waver.images[0];
+    }
+
+    return await send(recipientId, 'wave', notification);
+  } catch (error) {
+    console.error('❌ Error sending wave notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Check if notification should be sent based on user preferences
  * @private
  * @param {Object} user - User document
@@ -459,6 +496,7 @@ module.exports = {
   sendMomentComment,
   sendFriendRequest,
   sendProfileVisit,
-  sendFollowerMoment
+  sendFollowerMoment,
+  sendWave
 };
 

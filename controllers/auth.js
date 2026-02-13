@@ -337,6 +337,11 @@ exports.register = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Please provide all required fields', 400));
   }
 
+  // Validate that native_language and language_to_learn are different
+  if (native_language.toLowerCase().trim() === language_to_learn.toLowerCase().trim()) {
+    return next(new ErrorResponse('Native language and language to learn cannot be the same', 400));
+  }
+
   // Find user by email
   const user = await User.findOne({ email });
 
@@ -1105,7 +1110,9 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     images,
     native_language,
     language_to_learn,
-    privacySettings
+    privacySettings,
+    profileCompleted,
+    topics
   } = req.body;
 
   // Remove undefined fields
@@ -1119,9 +1126,11 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     birth_day,
     images,
     native_language,
-    language_to_learn, 
+    language_to_learn,
     location,
-    privacySettings
+    privacySettings,
+    profileCompleted,
+    topics
   }).reduce((acc, [key, value]) => {
     if (value !== undefined) acc[key] = value;
     return acc;
@@ -1139,8 +1148,12 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     }
   }
 
-  // If user is updating profile details, mark profile as completed
-  if (native_language && language_to_learn && gender && birth_year !== '2000') {
+  // If user explicitly sets profileCompleted to true, respect that
+  // Otherwise auto-set based on required fields being present
+  if (profileCompleted === true) {
+    fieldsToUpdate.profileCompleted = true;
+  } else if (native_language && language_to_learn && gender && birth_year && birth_month && birth_day) {
+    // Auto-set profileCompleted if all required profile fields are present
     fieldsToUpdate.profileCompleted = true;
   }
 

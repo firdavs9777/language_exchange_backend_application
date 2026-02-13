@@ -175,10 +175,10 @@ const getSubscriptionExpiringTemplate = (daysLeft) => {
  * @returns {Object} - { title, body, data }
  */
 const getFollowerMomentTemplate = (userName, momentPreview, momentData = {}) => {
-  const previewText = momentPreview 
+  const previewText = momentPreview
     ? `"${momentPreview.substring(0, 60)}${momentPreview.length > 60 ? '...' : ''}"`
     : 'Check it out!';
-  
+
   return {
     title: `${userName} posted a moment`,
     body: previewText,
@@ -187,6 +187,29 @@ const getFollowerMomentTemplate = (userName, momentPreview, momentData = {}) => 
       userId: momentData.userId || '',
       momentId: momentData.momentId || '',
       screen: 'moment_detail'
+    }
+  };
+};
+
+/**
+ * Wave notification template
+ * @param {String} waverName - Name of the person who waved
+ * @param {Boolean} isMutual - Whether this is a mutual wave
+ * @param {Object} waveData - Additional wave data
+ * @returns {Object} - { title, body, data }
+ */
+const getWaveTemplate = (waverName, isMutual, waveData = {}) => {
+  return {
+    title: isMutual ? '👋 It\'s a match!' : '👋 New Wave',
+    body: isMutual
+      ? `You and ${waverName} both waved at each other!`
+      : `${waverName} waved at you`,
+    data: {
+      type: 'wave',
+      userId: waveData.userId || '',
+      waveId: waveData.waveId || '',
+      isMutual: isMutual ? 'true' : 'false',
+      screen: 'community'
     }
   };
 };
@@ -200,6 +223,7 @@ module.exports = {
   getSystemTemplate,
   getReengagementTemplate,
   getSubscriptionExpiringTemplate,
-  getFollowerMomentTemplate
+  getFollowerMomentTemplate,
+  getWaveTemplate
 };
 

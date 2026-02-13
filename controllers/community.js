@@ -3,6 +3,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const User = require('../models/User');
 const Wave = require('../models/Wave');
 const Topic = require('../models/Topic');
+const notificationService = require('../services/notificationService');
 
 // ============================================
 // NEARBY USERS
@@ -227,7 +228,23 @@ exports.sendWave = asyncHandler(async (req, res, next) => {
   // Check if mutual wave exists
   const isMutual = await Wave.checkMutualWave(fromUserId, targetUserId);
 
-  // TODO: Send push notification to target user
+  // Send push notification to target user
+  notificationService.sendWave(
+    targetUserId,
+    fromUserId,
+    wave._id.toString(),
+    isMutual
+  ).catch(err => console.error('❌ Wave notification failed:', err));
+
+  // If it's a mutual wave, also notify the original waver
+  if (isMutual) {
+    notificationService.sendWave(
+      fromUserId,
+      targetUserId,
+      wave._id.toString(),
+      true
+    ).catch(err => console.error('❌ Mutual wave notification failed:', err));
+  }
 
   res.status(201).json({
     success: true,

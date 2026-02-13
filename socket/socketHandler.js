@@ -393,10 +393,16 @@ const broadcastUserStatus = (socket, io, userId, status) => {
     lastSeen: status === 'offline' ? new Date().toISOString() : null,
     deviceCount: userConnections.get(userId)?.size || 0
   };
-  
+
   // Update cache
   if (status === 'online') {
     updateOnlineCache(userId);
+
+    // Persist online status to database (don't await to avoid blocking)
+    User.findByIdAndUpdate(userId, {
+      isOnline: true,
+      lastSeen: null // Clear lastSeen when online
+    }).catch(err => console.error(`❌ Failed to update online status for ${userId}:`, err));
   } else {
     onlineUsersCache.set(userId, {
       userId,
@@ -406,7 +412,7 @@ const broadcastUserStatus = (socket, io, userId, status) => {
       updatedAt: new Date()
     });
   }
-  
+
   socket.broadcast.emit('userStatusUpdate', statusData);
 };
 
@@ -420,17 +426,36 @@ const registerMessageHandlers = (socket, io) => {
   socket.on('sendMessage', async (data, callback) => {
     try {
       const receiver = data?.receiver || data?.receiverId;
-      const messageText = data?.message || data?.text || data?.content;
-      
+      let messageText = data?.message || data?.text || data?.content;
+
       // Validation
       if (!receiver) {
         throw new Error('Receiver ID is required');
       }
-      
+
       if (!messageText || typeof messageText !== 'string' || messageText.trim().length === 0) {
         throw new Error('Message text is required');
       }
-      
+
+      // Max message length validation (10KB to prevent abuse)
+      const MAX_MESSAGE_LENGTH = 10000;
+      if (messageText.length > MAX_MESSAGE_LENGTH) {
+        throw new Error(`Message too long. Maximum ${MAX_MESSAGE_LENGTH} characters allowed.`);
+      }
+
+      // Basic sanitization - trim whitespace
+      messageText = messageText.trim();
+
+      // Validate receiver ID format (MongoDB ObjectId)
+      if (!/^[0-9a-fA-F]{24}$/.test(receiver)) {
+        throw new Error('Invalid receiver ID format');
+      }
+
+      // Prevent self-messaging
+      if (receiver === userId) {
+        throw new Error('Cannot send message to yourself');
+      }
+
       console.log(`📤 Message: ${userId} → ${receiver}`);
       
       // Get sender user and check limits
@@ -447,8 +472,33 @@ const registerMessageHandlers = (socket, io) => {
       if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
         throw new Error('Cannot send message to blocked user');
       }
-      
-      // Check message limit
+
+      // Check first-time conversation limit (max 5 messages until they reply)
+      const FIRST_CHAT_MESSAGE_LIMIT = 5;
+
+      // Check if receiver has ever sent a message to sender (i.e., they've replied)
+      const receiverHasReplied = await Message.exists({
+        sender: receiver,
+        receiver: userId
+      });
+
+      if (!receiverHasReplied) {
+        // This is a one-way conversation - check how many messages sender has sent
+        const messagesSentToReceiver = await Message.countDocuments({
+          sender: userId,
+          receiver: receiver
+        });
+
+        if (messagesSentToReceiver >= FIRST_CHAT_MESSAGE_LIMIT) {
+          throw new Error(
+            `You can only send ${FIRST_CHAT_MESSAGE_LIMIT} messages until ${senderUser.name ? 'they' : 'this user'} replies. Please wait for a response.`
+          );
+        }
+
+        console.log(`📊 First chat limit: ${messagesSentToReceiver + 1}/${FIRST_CHAT_MESSAGE_LIMIT} messages to new user`);
+      }
+
+      // Check daily message limit
       const canSend = await senderUser.canSendMessage();
       if (!canSend) {
         const { current, max, resetTime } = getMessageLimitInfo(senderUser);
@@ -456,7 +506,7 @@ const registerMessageHandlers = (socket, io) => {
           `Daily message limit exceeded. Used ${current}/${max}. Resets at ${resetTime}.`
         );
       }
-      
+
       // Create message
       const newMessage = await Message.create({
         sender: userId,
@@ -496,32 +546,36 @@ const registerMessageHandlers = (socket, io) => {
       
       // Try to send to receiver with retry
       const sent = await sendMessageWithRetry(io, receiver, 'newMessage', messagePayload);
-      
+
       // If receiver is offline, queue the message
       if (!sent) {
         queueOfflineMessage(receiver, messagePayload);
-        
-        // Send push notification
-        notificationService.sendChatMessage(
-          receiver,
-          userId,
-          {
-            _id: newMessage._id,
-            text: messageText,
-            conversation: newMessage.conversation
-          }
-        ).catch(err => console.error('Push notification failed:', err));
       }
+
+      // IMPORTANT: Always send push notification regardless of socket status
+      // User might be "online" on web but have mobile app in background
+      // Push notifications are handled by user preferences on the recipient side
+      notificationService.sendChatMessage(
+        receiver,
+        userId,
+        {
+          _id: newMessage._id,
+          text: messageText,
+          conversation: newMessage.conversation
+        }
+      ).catch(err => console.error('Push notification failed:', err));
       
       // Send acknowledgment to sender
       const senderResponse = {
         status: 'success',
         message: populatedMessage,
         unreadCount: unreadForSender,
-        delivered: sent
+        delivered: sent,
+        queued: !sent // Add queued flag for better client handling
       };
-      
-      if (callback) {
+
+      // Safe callback check
+      if (callback && typeof callback === 'function') {
         callback(senderResponse);
       }
       
@@ -550,13 +604,14 @@ const registerMessageHandlers = (socket, io) => {
 
     } catch (error) {
       console.error('❌ Send message error:', error.message);
-      
+
       const errorResponse = {
         status: 'error',
         error: error.message
       };
-      
-      if (callback) {
+
+      // Safe callback check
+      if (callback && typeof callback === 'function') {
         callback(errorResponse);
       } else {
         socket.emit('messageError', errorResponse);
@@ -1073,26 +1128,34 @@ const handleDisconnect = async (socket, io, reason) => {
   // Remove from connections
   if (userConnections.has(userId)) {
     userConnections.get(userId).delete(socket.id);
-    
+
     if (userConnections.get(userId).size === 0) {
       // Last connection - user is now offline
       userConnections.delete(userId);
       onlineUsersCache.delete(userId);
-      
+
+      const lastSeenTime = new Date();
+
       console.log(`📴 User ${userId} is now offline`);
-      
+
+      // Persist lastSeen to database (don't await to avoid blocking)
+      User.findByIdAndUpdate(userId, {
+        isOnline: false,
+        lastSeen: lastSeenTime
+      }).catch(err => console.error(`❌ Failed to update lastSeen for ${userId}:`, err));
+
       socket.broadcast.emit('userStatusUpdate', {
         userId,
         status: 'offline',
-        lastSeen: new Date().toISOString(),
+        lastSeen: lastSeenTime.toISOString(),
         deviceCount: 0
       });
     } else {
       // Still has other connections
       updateOnlineCache(userId);
-      
+
       console.log(`📱 User ${userId} still has ${userConnections.get(userId).size} connection(s)`);
-      
+
       socket.broadcast.emit('userStatusUpdate', {
         userId,
         status: 'online',
@@ -1181,8 +1244,8 @@ const startPeriodicCleanup = () => {
 
       // Clean up stale typing timeouts (shouldn't happen, but safety check)
       for (const [key, timeout] of typingTimeouts.entries()) {
-        // Typing keys are formatted as "userId_toUserId"
-        const parts = key.split('_');
+        // Typing keys are formatted as "userId-toUserId" (hyphen, not underscore)
+        const parts = key.split('-');
         const userId = parts[0];
         if (!userConnections.has(userId)) {
           clearTimeout(timeout);
