@@ -167,10 +167,10 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
     if (!user) {
       // Apple user data from the first-time sign-in (may be null on subsequent logins)
       const fullName = appleUser?.fullName;
-      const userName = fullName 
-        ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim() 
+      const userName = fullName
+        ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim()
         : 'Apple User';
-      
+
       user = await User.create({
         appleId,
         email: email || `${appleId}@privaterelay.appleid.com`, // Apple may hide email
@@ -195,6 +195,25 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
           country: 'Not specified'
         }
       });
+    } else {
+      // Existing user - check if profile is actually complete but flag wasn't set
+      // This handles users who completed their profile but profileCompleted wasn't updated
+      if (!user.profileCompleted) {
+        const hasRealName = user.name && user.name !== 'Apple User' && user.name !== 'Google User' && user.name.trim().length > 0;
+        const hasRealBirthYear = user.birth_year && user.birth_year !== '2000';
+        const hasImages = user.images && user.images.length > 0;
+        const hasRealGender = user.gender && user.gender !== 'other';
+        const hasRealBio = user.bio && !user.bio.includes('I joined using');
+
+        // If user has filled in most profile fields, mark as complete
+        const completedFields = [hasRealName, hasRealBirthYear, hasImages, hasRealGender, hasRealBio].filter(Boolean).length;
+
+        if (completedFields >= 3) {
+          console.log(`🔧 Auto-completing profile for existing user ${user._id} (${completedFields}/5 fields complete)`);
+          user.profileCompleted = true;
+          await user.save();
+        }
+      }
     }
 
     const deviceInfo = getDeviceInfo(req);
@@ -1385,6 +1404,24 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
           country: 'Not specified'
         }
       });
+    } else {
+      // Existing user - check if profile is actually complete but flag wasn't set
+      if (!user.profileCompleted) {
+        const hasRealName = user.name && user.name !== 'Apple User' && user.name !== 'Google User' && user.name !== 'User' && user.name.trim().length > 0;
+        const hasRealBirthYear = user.birth_year && user.birth_year !== '2000';
+        const hasImages = user.images && user.images.length > 0;
+        const hasRealGender = user.gender && user.gender !== 'other';
+        const hasRealBio = user.bio && !user.bio.includes('I joined using');
+
+        // If user has filled in most profile fields, mark as complete
+        const completedFields = [hasRealName, hasRealBirthYear, hasImages, hasRealGender, hasRealBio].filter(Boolean).length;
+
+        if (completedFields >= 3) {
+          console.log(`🔧 Auto-completing profile for existing user ${user._id} (${completedFields}/5 fields complete)`);
+          user.profileCompleted = true;
+          await user.save();
+        }
+      }
     }
 
     const deviceInfo = getDeviceInfo(req);
