@@ -642,13 +642,13 @@ const registerMessageHandlers = (socket, io) => {
   socket.on('markAsRead', async (data, callback) => {
     try {
       const senderId = data?.senderId || data;
-      
+
       if (!senderId) {
         throw new Error('Sender ID is required');
       }
-      
+
       console.log(`📖 Mark as read: ${senderId} → ${userId}`);
-      
+
       // Update messages
       const result = await Message.updateMany(
         {
@@ -661,28 +661,49 @@ const registerMessageHandlers = (socket, io) => {
           readAt: new Date()
         }
       );
-      
+
       console.log(`✅ Marked ${result.modifiedCount} messages as read`);
-      
+
       // Update conversation unread count
       await updateConversationUnreadCount(userId, senderId, 0);
-      
+
+      // Decrement badge count for the messages that were marked as read
+      if (result.modifiedCount > 0) {
+        try {
+          await User.findByIdAndUpdate(
+            userId,
+            {
+              $inc: { 'badges.unreadMessages': -result.modifiedCount }
+            },
+            { new: true }
+          );
+          // Ensure badge doesn't go negative
+          await User.updateOne(
+            { _id: userId, 'badges.unreadMessages': { $lt: 0 } },
+            { $set: { 'badges.unreadMessages': 0 } }
+          );
+          console.log(`📊 Decremented badge count by ${result.modifiedCount} for user ${userId}`);
+        } catch (badgeError) {
+          console.error('❌ Error updating badge count:', badgeError.message);
+        }
+      }
+
       // Notify sender reliably
       await sendMessageWithRetry(io, senderId, 'messagesRead', {
         readBy: userId,
         count: result.modifiedCount
       });
-      
+
       if (callback) {
         callback({
           status: 'success',
           markedCount: result.modifiedCount
         });
       }
-      
+
     } catch (error) {
       console.error('❌ Mark as read error:', error.message);
-      
+
       if (callback) {
         callback({
           status: 'error',

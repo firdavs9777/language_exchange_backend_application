@@ -26,6 +26,7 @@ const {
   clearAll,
   getBadgeCount,
   resetBadge,
+  syncBadges,
   sendTestNotification
 } = require('../controllers/notifications');
 
@@ -100,6 +101,8 @@ router.post(
   validate,
   resetBadge
 );
+
+router.post('/sync-badges', syncBadges);
 
 // Testing
 router.post(

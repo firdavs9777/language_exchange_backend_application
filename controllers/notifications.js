@@ -1,5 +1,6 @@
 const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
+const Message = require('../models/Message');
 const Notification = require('../models/Notification');
 const ErrorResponse = require('../utils/errorResponse');
 const notificationService = require('../services/notificationService');
@@ -397,6 +398,53 @@ exports.resetBadge = asyncHandler(async (req, res, next) => {
     data: {
       unreadMessages: user.badges.unreadMessages || 0,
       unreadNotifications: user.badges.unreadNotifications || 0
+    }
+  });
+});
+
+/**
+ * @desc    Sync/recalculate badge counts from actual data
+ * @route   POST /api/v1/notifications/sync-badges
+ * @access  Private
+ */
+exports.syncBadges = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+
+  // Count actual unread messages (messages sent TO this user that are unread)
+  const unreadMessagesCount = await Message.countDocuments({
+    receiver: userId,
+    read: false
+  });
+
+  // Count actual unread notifications
+  const unreadNotificationsCount = await Notification.countDocuments({
+    userId: userId,
+    read: false
+  });
+
+  // Update user's badge counts to match reality
+  const user = await User.findByIdAndUpdate(
+    userId,
+    {
+      'badges.unreadMessages': unreadMessagesCount,
+      'badges.unreadNotifications': unreadNotificationsCount
+    },
+    { new: true }
+  );
+
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  console.log(`📊 Badge sync for ${userId}: messages=${unreadMessagesCount}, notifications=${unreadNotificationsCount}`);
+
+  res.status(200).json({
+    success: true,
+    message: 'Badge counts synced successfully',
+    data: {
+      unreadMessages: unreadMessagesCount,
+      unreadNotifications: unreadNotificationsCount,
+      total: unreadMessagesCount + unreadNotificationsCount
     }
   });
 });
