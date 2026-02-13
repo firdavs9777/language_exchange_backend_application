@@ -640,6 +640,8 @@ const registerMessageHandlers = (socket, io) => {
   
   // Mark messages as read
   socket.on('markAsRead', async (data, callback) => {
+    // Get fresh userId from socket
+    const userId = socket.user?.id || registeredUserId;
     try {
       const senderId = data?.senderId || data;
 
@@ -715,19 +717,21 @@ const registerMessageHandlers = (socket, io) => {
   
   // Delete message
   socket.on('deleteMessage', async (data, callback) => {
+    // Get fresh userId from socket
+    const userId = socket.user?.id || registeredUserId;
     try {
       const messageId = data?.messageId || data;
-      
+
       if (!messageId) {
         throw new Error('Message ID is required');
       }
-      
+
       const message = await Message.findById(messageId);
-      
+
       if (!message) {
         throw new Error('Message not found');
       }
-      
+
       if (message.sender.toString() !== userId) {
         throw new Error('Not authorized to delete this message');
       }
