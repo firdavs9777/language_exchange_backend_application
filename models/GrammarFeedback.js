@@ -156,7 +156,8 @@ const GrammarFeedbackSchema = new mongoose.Schema({
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  toObject: { virtuals: true },
+  suppressReservedKeysWarning: true // 'errors' is intentionally used as a field name
 });
 
 // Indexes
