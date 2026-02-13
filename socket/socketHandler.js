@@ -68,6 +68,7 @@ const socketAuth = (socket, next) => {
     socket.deviceId = deviceId;
     socket.tokenExp = decoded.exp; // Store token expiry
 
+    console.log(`🔐 Socket auth success - userId: ${decoded.id}, deviceId: ${deviceId}`);
     next();
   } catch (err) {
     return next(new Error('Authentication error: Invalid token'));
@@ -137,10 +138,20 @@ const initializeSocket = (io) => {
       socket.disconnect(true);
       return;
     }
-    
+
+    // Verify user exists in database
+    const userExists = await User.findById(userId).select('_id name email');
+    if (!userExists) {
+      console.error(`❌ User ${userId} not found in database - disconnecting socket`);
+      socket.emit('error', { message: 'User not found. Please log in again.' });
+      socket.disconnect(true);
+      return;
+    }
+    console.log(`✅ User verified: ${userExists.name || userExists.email} (${userId})`);
+
     // Set connection state
     connectionStates.set(socket.id, 'connecting');
-    
+
     console.log(`✅ User ${userId} connecting (socket: ${socket.id}, device: ${deviceId})`);
     
     // Handle multiple connections intelligently
@@ -420,10 +431,14 @@ const broadcastUserStatus = (socket, io, userId, status) => {
  * Register message-related event handlers
  */
 const registerMessageHandlers = (socket, io) => {
-  const userId = socket.user.id;
-  
+  // Get userId at registration time, but also verify at send time
+  const registeredUserId = socket.user.id;
+  console.log(`📝 Registering message handlers for user: ${registeredUserId}`);
+
   // Send message with retry logic
   socket.on('sendMessage', async (data, callback) => {
+    // Always use fresh userId from socket in case it changed
+    const userId = socket.user?.id || registeredUserId;
     try {
       const receiver = data?.receiver || data?.receiverId;
       let messageText = data?.message || data?.text || data?.content;
@@ -457,12 +472,16 @@ const registerMessageHandlers = (socket, io) => {
       }
 
       console.log(`📤 Message: ${userId} → ${receiver}`);
-      
+      console.log(`🔍 Looking up sender with userId: "${userId}" (type: ${typeof userId})`);
+
       // Get sender user and check limits
       const senderUser = await User.findById(userId);
       if (!senderUser) {
+        console.error(`❌ Sender not found in database: "${userId}"`);
+        console.error(`   socket.user:`, JSON.stringify(socket.user));
         throw new Error('Sender not found');
       }
+      console.log(`✅ Found sender: ${senderUser.name || senderUser.email}`);
       
       // Reset daily counters if new day
       await resetDailyCounters(senderUser);

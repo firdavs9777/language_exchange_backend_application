@@ -27,6 +27,13 @@ exports.protect = asyncHandler(async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     req.user = await User.findById(decoded.id);
+
+    // Check if user was found in database
+    if (!req.user) {
+      console.error(`Auth middleware: User not found for id ${decoded.id}`);
+      return next(new ErrorResponse('User not found or account deleted', 401));
+    }
+
     next();
   } catch (err) {
     return next(new ErrorResponse('Not authorize to access this route', 401));
