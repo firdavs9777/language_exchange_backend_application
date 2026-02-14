@@ -139,7 +139,7 @@ exports.updateSettings = asyncHandler(async (req, res, next) => {
   // Build update object
   const updateFields = {};
   const allowedFields = [
-    'enabled', 'chatMessages', 'moments', 'friendRequests',
+    'enabled', 'chatMessages', 'moments', 'followerMoments', 'friendRequests',
     'profileVisits', 'marketing', 'sound', 'vibration', 'showPreview'
   ];
 
