@@ -6,6 +6,167 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const https = require('https');
 
+// VIP Plans configuration
+const VIP_PLANS = {
+  monthly: {
+    id: 'monthly',
+    name: 'Monthly VIP',
+    description: 'Full VIP access for 1 month',
+    duration: 1,
+    durationUnit: 'month',
+    features: [
+      'Unlimited daily messages',
+      'See who visited your profile',
+      'Unlimited profile views',
+      'Priority in nearby users',
+      'Ad-free experience',
+      'Unlimited voice room creation',
+      'Unlimited waves per day',
+      'Premium support'
+    ],
+    ios: {
+      productId: process.env.IOS_VIP_MONTHLY_PRODUCT_ID || 'com.bananatalk.vip.monthly',
+      price: 9.99,
+      currency: 'USD',
+      localizedPrice: '$9.99'
+    },
+    android: {
+      productId: process.env.ANDROID_VIP_MONTHLY_PRODUCT_ID || 'vip_monthly',
+      price: 9.99,
+      currency: 'USD',
+      localizedPrice: '$9.99'
+    }
+  },
+  quarterly: {
+    id: 'quarterly',
+    name: 'Quarterly VIP',
+    description: 'Full VIP access for 3 months - Save 20%',
+    duration: 3,
+    durationUnit: 'month',
+    savings: '20%',
+    features: [
+      'Unlimited daily messages',
+      'See who visited your profile',
+      'Unlimited profile views',
+      'Priority in nearby users',
+      'Ad-free experience',
+      'Unlimited voice room creation',
+      'Unlimited waves per day',
+      'Premium support'
+    ],
+    ios: {
+      productId: process.env.IOS_VIP_QUARTERLY_PRODUCT_ID || 'com.bananatalk.vip.quarterly',
+      price: 23.99,
+      currency: 'USD',
+      localizedPrice: '$23.99',
+      originalPrice: 29.97,
+      originalLocalizedPrice: '$29.97'
+    },
+    android: {
+      productId: process.env.ANDROID_VIP_QUARTERLY_PRODUCT_ID || 'vip_quarterly',
+      price: 23.99,
+      currency: 'USD',
+      localizedPrice: '$23.99',
+      originalPrice: 29.97,
+      originalLocalizedPrice: '$29.97'
+    }
+  },
+  yearly: {
+    id: 'yearly',
+    name: 'Yearly VIP',
+    description: 'Full VIP access for 1 year - Best Value, Save 40%',
+    duration: 12,
+    durationUnit: 'month',
+    savings: '40%',
+    recommended: true,
+    features: [
+      'Unlimited daily messages',
+      'See who visited your profile',
+      'Unlimited profile views',
+      'Priority in nearby users',
+      'Ad-free experience',
+      'Unlimited voice room creation',
+      'Unlimited waves per day',
+      'Premium support',
+      'Exclusive yearly member badge'
+    ],
+    ios: {
+      productId: process.env.IOS_VIP_YEARLY_PRODUCT_ID || 'com.bananatalk.vip.yearly',
+      price: 71.99,
+      currency: 'USD',
+      localizedPrice: '$71.99',
+      originalPrice: 119.88,
+      originalLocalizedPrice: '$119.88'
+    },
+    android: {
+      productId: process.env.ANDROID_VIP_YEARLY_PRODUCT_ID || 'vip_yearly',
+      price: 71.99,
+      currency: 'USD',
+      localizedPrice: '$71.99',
+      originalPrice: 119.88,
+      originalLocalizedPrice: '$119.88'
+    }
+  }
+};
+
+/**
+ * @desc    Get available VIP subscription plans
+ * @route   GET /api/v1/purchases/plans
+ * @access  Public
+ */
+exports.getVIPPlans = asyncHandler(async (req, res, next) => {
+  const { platform } = req.query;
+
+  // Build response with platform-specific product IDs if requested
+  const plans = Object.values(VIP_PLANS).map(plan => {
+    const basePlan = {
+      id: plan.id,
+      name: plan.name,
+      description: plan.description,
+      duration: plan.duration,
+      durationUnit: plan.durationUnit,
+      features: plan.features,
+      savings: plan.savings || null,
+      recommended: plan.recommended || false
+    };
+
+    if (platform === 'ios') {
+      return {
+        ...basePlan,
+        productId: plan.ios.productId,
+        price: plan.ios.price,
+        currency: plan.ios.currency,
+        localizedPrice: plan.ios.localizedPrice,
+        originalPrice: plan.ios.originalPrice,
+        originalLocalizedPrice: plan.ios.originalLocalizedPrice
+      };
+    } else if (platform === 'android') {
+      return {
+        ...basePlan,
+        productId: plan.android.productId,
+        price: plan.android.price,
+        currency: plan.android.currency,
+        localizedPrice: plan.android.localizedPrice,
+        originalPrice: plan.android.originalPrice,
+        originalLocalizedPrice: plan.android.originalLocalizedPrice
+      };
+    } else {
+      // Return both platforms
+      return {
+        ...basePlan,
+        ios: plan.ios,
+        android: plan.android
+      };
+    }
+  });
+
+  res.status(200).json({
+    success: true,
+    count: plans.length,
+    data: plans
+  });
+});
+
 // Apple's App Store environment
 const APPLE_PRODUCTION_URL = 'https://buy.itunes.apple.com/verifyReceipt';
 const APPLE_SANDBOX_URL = 'https://sandbox.itunes.apple.com/verifyReceipt';

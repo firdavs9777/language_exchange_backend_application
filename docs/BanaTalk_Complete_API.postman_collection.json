@@ -1063,23 +1063,55 @@
     },
     {
       "name": "15. Purchases & Subscriptions",
+      "description": "VIP subscription management for iOS and Android in-app purchases.",
       "item": [
+        {
+          "name": "Get VIP Plans",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/purchases/plans?platform=ios", "host": ["{{baseUrl}}"], "path": ["purchases", "plans"], "query": [{ "key": "platform", "value": "ios", "description": "Optional: ios, android, or omit for both" }] },
+            "description": "Get available VIP subscription plans with pricing. Public endpoint - no auth required."
+          }
+        },
         {
           "name": "Verify iOS Purchase",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"receiptData\": \"base64-receipt-data\",\n  \"productId\": \"com.bananatalk.vip.monthly\"\n}" },
-            "url": { "raw": "{{baseUrl}}/purchases/ios/verify", "host": ["{{baseUrl}}"], "path": ["purchases", "ios", "verify"] }
+            "body": { "mode": "raw", "raw": "{\n  \"receiptData\": \"base64-receipt-data-or-JWS-transaction\",\n  \"productId\": \"com.bananatalk.vip.monthly\",\n  \"transactionId\": \"optional-transaction-id\"\n}" },
+            "url": { "raw": "{{baseUrl}}/purchases/ios/verify", "host": ["{{baseUrl}}"], "path": ["purchases", "ios", "verify"] },
+            "description": "Verify iOS purchase receipt (supports both StoreKit 2 JWS and legacy receipts) and activate VIP."
           }
         },
         {
-          "name": "Verify Subscription Status",
+          "name": "iOS Subscription Status",
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": { "mode": "raw", "raw": "{\n  \"receiptData\": \"base64-receipt-data\"\n}" },
-            "url": { "raw": "{{baseUrl}}/purchases/ios/subscription-status", "host": ["{{baseUrl}}"], "path": ["purchases", "ios", "subscription-status"] }
+            "url": { "raw": "{{baseUrl}}/purchases/ios/subscription-status", "host": ["{{baseUrl}}"], "path": ["purchases", "ios", "subscription-status"] },
+            "description": "Check current iOS subscription status."
+          }
+        },
+        {
+          "name": "Verify Android Purchase",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"purchaseToken\": \"google-play-purchase-token\",\n  \"productId\": \"vip_monthly\",\n  \"orderId\": \"optional-order-id\",\n  \"packageName\": \"com.bananatalk.app\"\n}" },
+            "url": { "raw": "{{baseUrl}}/purchases/android/verify", "host": ["{{baseUrl}}"], "path": ["purchases", "android", "verify"] },
+            "description": "Verify Android/Google Play purchase and activate VIP."
+          }
+        },
+        {
+          "name": "Android Subscription Status",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"purchaseToken\": \"google-play-purchase-token\",\n  \"productId\": \"vip_monthly\",\n  \"packageName\": \"com.bananatalk.app\"\n}" },
+            "url": { "raw": "{{baseUrl}}/purchases/android/subscription-status", "host": ["{{baseUrl}}"], "path": ["purchases", "android", "subscription-status"] },
+            "description": "Check current Android subscription status."
           }
         }
       ]

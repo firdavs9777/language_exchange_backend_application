@@ -274,8 +274,24 @@ role: {
         type: String,
         enum: ['initial', 'renewal', 'upgrade', 'downgrade'],
         default: 'initial'
-      }
-    }]
+      },
+      platform: {
+        type: String,
+        enum: ['ios', 'android', null],
+        default: null
+      },
+      purchaseToken: String // For Android - truncated token for webhook matching
+    }],
+    // Tracking for expiry warning notifications
+    warnings: {
+      '7day': { type: Boolean, default: false },
+      '3day': { type: Boolean, default: false },
+      '1day': { type: Boolean, default: false }
+    },
+    gracePeriodNotified: {
+      type: Boolean,
+      default: false
+    }
   },
 
   // VIP features
@@ -978,7 +994,15 @@ UserSchema.methods.activateVIP = function(plan, paymentMethod) {
     autoRenew: false,
     paymentMethod: paymentMethod,
     lastPaymentDate: now,
-    nextBillingDate: endDate
+    nextBillingDate: endDate,
+    transactions: this.vipSubscription?.transactions || [],
+    // Reset warning flags on activation/renewal
+    warnings: {
+      '7day': false,
+      '3day': false,
+      '1day': false
+    },
+    gracePeriodNotified: false
   };
 
   // Enable all VIP features

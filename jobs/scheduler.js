@@ -20,6 +20,7 @@ const {
   cleanupOldNotifications
 } = require('./notificationJobs');
 const { startLearningJobs } = require('./learningJobs');
+const { runSubscriptionExpiryJob } = require('./subscriptionExpiryJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -191,11 +192,32 @@ const scheduleNotificationCleanup = () => {
     // Schedule next run (7 days from now)
     setTimeout(runJob, 7 * 24 * 60 * 60 * 1000);
   };
-  
+
   // Schedule first run (next Sunday at 3 AM)
   const msUntilNextRun = getMillisecondsUntil(3, 0, 0); // 3:00 AM Sunday
   console.log(`📅 Notification cleanup scheduled in ${Math.round(msUntilNextRun / 1000 / 60 / 60)} hours`);
   setTimeout(runJob, msUntilNextRun);
+};
+
+/**
+ * Schedule subscription expiry check (every hour)
+ * Critical job for billing integrity - checks expired VIP subscriptions
+ * and deactivates them after grace period
+ */
+const scheduleSubscriptionExpiry = () => {
+  const runJob = async () => {
+    try {
+      await runSubscriptionExpiryJob();
+    } catch (error) {
+      console.error('Scheduled subscription expiry job failed:', error);
+    }
+    // Schedule next run (1 hour from now)
+    setTimeout(runJob, 60 * 60 * 1000);
+  };
+
+  // Start first run after 1 minute (allow server to fully initialize)
+  setTimeout(runJob, 60 * 1000);
+  console.log('📅 Subscription expiry job scheduled (hourly)');
 };
 
 /**
@@ -220,6 +242,9 @@ const startScheduler = () => {
   scheduleReengagement();
   scheduleSubscriptionReminders();
   scheduleNotificationCleanup();
+
+  // Subscription/billing jobs
+  scheduleSubscriptionExpiry();
 
   // Learning/gamification jobs
   startLearningJobs();
@@ -255,7 +280,10 @@ const runAllJobsNow = async () => {
     
     console.log('\n7️⃣ Running notification cleanup...');
     await cleanupOldNotifications();
-    
+
+    console.log('\n8️⃣ Running subscription expiry check...');
+    await runSubscriptionExpiryJob();
+
     console.log('\n✅ All jobs completed!');
   } catch (error) {
     console.error('Error running jobs:', error);
@@ -271,6 +299,7 @@ module.exports = {
   scheduleTokenCleanup,
   scheduleReengagement,
   scheduleSubscriptionReminders,
-  scheduleNotificationCleanup
+  scheduleNotificationCleanup,
+  scheduleSubscriptionExpiry
 };
 
