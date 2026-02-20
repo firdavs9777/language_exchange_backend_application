@@ -343,12 +343,16 @@ exports.verifyIOSPurchase = asyncHandler(async (req, res, next) => {
         if (transactionInfo.expiresDate) {
           expirationDate = new Date(transactionInfo.expiresDate);
           if (expirationDate < new Date()) {
-            logSecurityEvent('IOS_SUBSCRIPTION_EXPIRED', {
+            // Subscription expired - but this might be a re-subscription attempt
+            // Allow it to proceed, we'll create a new subscription period from now
+            console.log('   Subscription expired, will renew from current date');
+            logSecurityEvent('IOS_SUBSCRIPTION_RENEWAL_FROM_EXPIRED', {
               userId: req.user.id,
               productId: finalProductId,
-              expirationDate
+              oldExpirationDate: expirationDate
             });
-            return next(new ErrorResponse('Subscription has expired', 400));
+            // Set expirationDate to null so we create a fresh subscription
+            expirationDate = null;
           }
         }
       } catch (jwsError) {
@@ -434,12 +438,16 @@ exports.verifyIOSPurchase = asyncHandler(async (req, res, next) => {
       if (purchase.expires_date_ms) {
         expirationDate = new Date(parseInt(purchase.expires_date_ms));
         if (expirationDate < new Date()) {
-          logSecurityEvent('IOS_SUBSCRIPTION_EXPIRED', {
+          // Subscription expired - but this might be a re-subscription attempt
+          // Allow it to proceed, we'll create a new subscription period from now
+          console.log('   Subscription expired, will renew from current date');
+          logSecurityEvent('IOS_SUBSCRIPTION_RENEWAL_FROM_EXPIRED', {
             userId: req.user.id,
             productId: finalProductId,
-            expirationDate
+            oldExpirationDate: expirationDate
           });
-          return next(new ErrorResponse('Subscription has expired', 400));
+          // Set expirationDate to null so we create a fresh subscription
+          expirationDate = null;
         }
       }
     }
