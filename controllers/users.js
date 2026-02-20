@@ -60,7 +60,7 @@ exports.uploadMultiplePhotos = asyncHandler(async (req, res, next) => {
     totalImages: user.images.length
   });
 });
-// @desc     Get all users (Community/Explore)
+// @desc     Get all users (Community/Explore) with server-side filtering
 // @route    GET /api/v1/auth/users
 // @access   Private/Admin
 exports.getUsers = asyncHandler(async (req, res, next) => {
@@ -89,9 +89,84 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     }
   }
 
+  // Language exchange filter - find users who speak what I'm learning OR want to learn what I speak
+  const { nativeLanguage, learningLanguage, matchLanguage } = req.query;
+
+  if (matchLanguage === 'true' && (nativeLanguage || learningLanguage)) {
+    const languageConditions = [];
+
+    // Find users whose native language matches what I'm learning
+    if (learningLanguage) {
+      languageConditions.push({
+        native_language: { $regex: new RegExp(`^${learningLanguage}$`, 'i') }
+      });
+    }
+
+    // Find users who want to learn my native language
+    if (nativeLanguage) {
+      languageConditions.push({
+        language_to_learn: { $regex: new RegExp(`^${nativeLanguage}$`, 'i') }
+      });
+    }
+
+    if (languageConditions.length > 0) {
+      query.$or = languageConditions;
+    }
+  }
+
+  // Gender filter
+  if (req.query.gender) {
+    const genderMap = {
+      'male': ['male', 'm', 'man', 'boy'],
+      'female': ['female', 'f', 'woman', 'girl'],
+      'other': ['other', 'non-binary', 'nonbinary', 'nb']
+    };
+    const genderVariants = genderMap[req.query.gender.toLowerCase()] || [req.query.gender];
+    query.gender = { $regex: new RegExp(`^(${genderVariants.join('|')})$`, 'i') };
+  }
+
+  // Age filter (using birth_year)
+  const currentYear = new Date().getFullYear();
+  if (req.query.minAge || req.query.maxAge) {
+    const minAge = parseInt(req.query.minAge, 10);
+    const maxAge = parseInt(req.query.maxAge, 10);
+
+    if (minAge && minAge > 18) {
+      // min age = current year - birth_year, so birth_year <= currentYear - minAge
+      query.birth_year = { ...query.birth_year, $lte: currentYear - minAge };
+    }
+    if (maxAge && maxAge < 100) {
+      // max age = current year - birth_year, so birth_year >= currentYear - maxAge
+      query.birth_year = { ...query.birth_year, $gte: currentYear - maxAge };
+    }
+  }
+
+  // Online only filter
+  if (req.query.onlineOnly === 'true') {
+    query.isOnline = true;
+  }
+
+  // Country filter
+  if (req.query.country) {
+    query['location.country'] = { $regex: new RegExp(req.query.country, 'i') };
+  }
+
+  // Language level filter
+  if (req.query.languageLevel) {
+    query.level = req.query.languageLevel.toUpperCase();
+  }
+
+  // Sort: VIP first, then online, then most recently active
+  const sortOptions = {
+    'vipSubscription.isActive': -1,
+    'isOnline': -1,
+    'lastActive': -1
+  };
+
   const [users, total] = await Promise.all([
     User.find(query)
       .select(USER_LIST_FIELDS)
+      .sort(sortOptions)
       .skip(skip)
       .limit(limit)
       .lean(),
