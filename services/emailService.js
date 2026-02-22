@@ -220,5 +220,45 @@ exports.sendVipSubscriptionEmail = async (user, plan, endDate) => {
   }
 };
 
+/**
+ * Send daily admin report
+ */
+exports.sendAdminDailyReport = async (adminEmail, stats) => {
+  try {
+    const template = templates.adminDailyReportEmail(stats);
+    await sendEmail({
+      email: adminEmail,
+      subject: template.subject,
+      message: template.text,
+      html: template.html
+    });
+    console.log(`✅ Daily admin report sent to ${adminEmail}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to send daily admin report to ${adminEmail}:`, error);
+    return false;
+  }
+};
+
+/**
+ * Send new user notification to admin
+ */
+exports.sendNewUserNotification = async (adminEmail, user) => {
+  try {
+    const template = templates.newUserNotificationEmail(user);
+    await sendEmail({
+      email: adminEmail,
+      subject: template.subject,
+      message: template.text,
+      html: template.html
+    });
+    console.log(`✅ New user notification sent to ${adminEmail} for user ${user.email}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Failed to send new user notification to ${adminEmail}:`, error);
+    return false;
+  }
+};
+
 module.exports = exports;
 

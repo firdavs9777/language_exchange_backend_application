@@ -21,6 +21,7 @@ const {
 } = require('./notificationJobs');
 const { startLearningJobs } = require('./learningJobs');
 const { runSubscriptionExpiryJob } = require('./subscriptionExpiryJob');
+const { runAdminReportJob } = require('./adminReportJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -221,6 +222,28 @@ const scheduleSubscriptionExpiry = () => {
 };
 
 /**
+ * Schedule daily admin report (daily at 9:00 AM)
+ * Sends daily statistics to admin email
+ */
+const scheduleAdminReport = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled admin report...');
+    try {
+      await runAdminReportJob();
+    } catch (error) {
+      console.error('Scheduled admin report failed:', error);
+    }
+    // Schedule next run (24 hours from now)
+    setTimeout(runJob, 24 * 60 * 60 * 1000);
+  };
+
+  // Schedule first run at 9:00 AM
+  const msUntilNextRun = getMillisecondsUntil(9, 0);
+  console.log(`📅 Admin report scheduled in ${Math.round(msUntilNextRun / 1000 / 60)} minutes`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
  * Start all scheduled jobs
  */
 const startScheduler = () => {
@@ -245,6 +268,9 @@ const startScheduler = () => {
 
   // Subscription/billing jobs
   scheduleSubscriptionExpiry();
+
+  // Admin reports
+  scheduleAdminReport();
 
   // Learning/gamification jobs
   startLearningJobs();
@@ -284,6 +310,9 @@ const runAllJobsNow = async () => {
     console.log('\n8️⃣ Running subscription expiry check...');
     await runSubscriptionExpiryJob();
 
+    console.log('\n9️⃣ Running admin report...');
+    await runAdminReportJob();
+
     console.log('\n✅ All jobs completed!');
   } catch (error) {
     console.error('Error running jobs:', error);
@@ -300,6 +329,7 @@ module.exports = {
   scheduleReengagement,
   scheduleSubscriptionReminders,
   scheduleNotificationCleanup,
-  scheduleSubscriptionExpiry
+  scheduleSubscriptionExpiry,
+  scheduleAdminReport
 };
 

@@ -602,5 +602,194 @@ exports.vipSubscriptionEmail = (userName, plan, endDate) => {
   };
 };
 
+// ===================== ADMIN EMAILS =====================
+
+/**
+ * Daily admin report email
+ */
+exports.adminDailyReportEmail = (stats) => {
+  const content = `
+    <tr>
+      <td style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 40px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Daily Admin Report</h1>
+        <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 10px 0 0 0;">${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 30px;">
+        <h2 style="color: #1e3c72; margin: 0 0 25px 0; font-size: 22px;">User Statistics</h2>
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 25px 0;">
+          <tr>
+            <td width="50%" style="padding: 10px;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 25px; text-align: center;">
+                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.totalUsers || 0}</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Total Users</p>
+              </div>
+            </td>
+            <td width="50%" style="padding: 10px;">
+              <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 12px; padding: 25px; text-align: center;">
+                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.newUsersToday || 0}</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">New Users Today</p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td width="50%" style="padding: 10px;">
+              <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; padding: 25px; text-align: center;">
+                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.newUsersThisWeek || 0}</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">New Users This Week</p>
+              </div>
+            </td>
+            <td width="50%" style="padding: 10px;">
+              <div style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); border-radius: 12px; padding: 25px; text-align: center;">
+                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.activeUsersToday || 0}</p>
+                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Active Users Today</p>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <h2 style="color: #1e3c72; margin: 30px 0 20px 0; font-size: 22px;">Subscription Stats</h2>
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9ff; border-radius: 12px; padding: 20px; margin: 15px 0;">
+          <tr>
+            <td>
+              <table width="100%" cellpadding="8" cellspacing="0">
+                <tr>
+                  <td style="font-size: 15px; color: #555;">Total VIP Users:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.totalVipUsers || 0}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 15px; color: #555;">New VIP Today:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.newVipToday || 0}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 15px; color: #555;">Expiring in 7 days:</td>
+                  <td style="font-size: 15px; color: #f7971e; font-weight: bold; text-align: right;">${stats.expiringVipSoon || 0}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <h2 style="color: #1e3c72; margin: 30px 0 20px 0; font-size: 22px;">Content Stats</h2>
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fff4; border-radius: 12px; padding: 20px; margin: 15px 0;">
+          <tr>
+            <td>
+              <table width="100%" cellpadding="8" cellspacing="0">
+                <tr>
+                  <td style="font-size: 15px; color: #555;">Messages Sent Today:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.messagesToday || 0}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 15px; color: #555;">Moments Created Today:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.momentsToday || 0}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 15px; color: #555;">Stories Posted Today:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.storiesToday || 0}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        ${stats.newUsersList && stats.newUsersList.length > 0 ? `
+        <h2 style="color: #1e3c72; margin: 30px 0 20px 0; font-size: 22px;">New Users Today</h2>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+          <tr style="background-color: #f5f5f5;">
+            <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Name</td>
+            <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Email</td>
+            <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Joined</td>
+          </tr>
+          ${stats.newUsersList.map(user => `
+          <tr>
+            <td style="padding: 12px; color: #555; border-bottom: 1px solid #f0f0f0;">${user.name}</td>
+            <td style="padding: 12px; color: #555; border-bottom: 1px solid #f0f0f0;">${user.email}</td>
+            <td style="padding: 12px; color: #555; border-bottom: 1px solid #f0f0f0;">${new Date(user.createdAt).toLocaleTimeString()}</td>
+          </tr>
+          `).join('')}
+        </table>
+        ` : ''}
+
+        <p style="font-size: 14px; color: #888888; text-align: center; margin: 30px 0 0 0;">
+          This is an automated daily report for ${APP_NAME} administrators.
+        </p>
+      </td>
+    </tr>
+  `;
+
+  return {
+    subject: `[${APP_NAME}] Daily Report - ${new Date().toLocaleDateString()}`,
+    html: baseTemplate(content, '#1e3c72'),
+    text: `${APP_NAME} Daily Report - Total Users: ${stats.totalUsers}, New Users Today: ${stats.newUsersToday}, Active Users: ${stats.activeUsersToday}`
+  };
+};
+
+/**
+ * New user registration notification for admin
+ */
+exports.newUserNotificationEmail = (user) => {
+  const content = `
+    <tr>
+      <td style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 40px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">New User Joined!</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 30px;">
+        <p style="font-size: 18px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
+          A new user has completed registration on ${APP_NAME}!
+        </p>
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9ff; border-radius: 12px; padding: 25px; margin: 25px 0;">
+          <tr>
+            <td>
+              <table width="100%" cellpadding="10" cellspacing="0">
+                <tr>
+                  <td style="font-size: 15px; color: #666; width: 120px;">Name:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.name}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 15px; color: #666;">Email:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.email}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 15px; color: #666;">Gender:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.gender || 'Not specified'}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 15px; color: #666;">Native Language:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.native_language || 'Not specified'}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 15px; color: #666;">Learning:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.language_to_learn || 'Not specified'}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 15px; color: #666;">Joined:</td>
+                  <td style="font-size: 15px; color: #333; font-weight: bold;">${new Date().toLocaleString()}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
+          This is an automated notification for ${APP_NAME} administrators.
+        </p>
+      </td>
+    </tr>
+  `;
+
+  return {
+    subject: `[${APP_NAME}] New User: ${user.name} just joined!`,
+    html: baseTemplate(content, '#11998e'),
+    text: `New user registered on ${APP_NAME}: ${user.name} (${user.email})`
+  };
+};
+
 module.exports = exports;
 

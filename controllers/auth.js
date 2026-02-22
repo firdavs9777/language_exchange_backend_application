@@ -12,6 +12,9 @@ const { logSecurityEvent } = require('../utils/securityLogger');
 const { getDeviceInfo } = require('../validators/authValidator');
 const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
 
+// Admin email for notifications
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'bananatalkmain@gmail.com';
+
 // Note: Verification codes are stored in the User model fields:
 // - emailVerificationCode / emailVerificationExpire
 // - passwordResetCode / passwordResetExpire
@@ -60,8 +63,13 @@ passport.use(
             isEmailVerified: true, // Facebook users are pre-verified
             isRegistrationComplete: true // Facebook users skip email verification
           });
+
+          // Send new user notification to admin (async)
+          emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
+            console.error('Failed to send new user notification to admin:', err)
+          );
         }
-        
+
         return done(null, user);
       } catch (err) {
         console.error('Facebook auth error:', err);
@@ -113,8 +121,13 @@ passport.use(
             isEmailVerified: true, // Google users are pre-verified
             isRegistrationComplete: true // Google users skip email verification
           });
+
+          // Send new user notification to admin (async)
+          emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
+            console.error('Failed to send new user notification to admin:', err)
+          );
         }
-        
+
         return done(null, user);
       } catch (err) {
         console.error('Google auth error:', err);
@@ -195,6 +208,11 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
           country: 'Not specified'
         }
       });
+
+      // Send new user notification to admin (async)
+      emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
+        console.error('Failed to send new user notification to admin:', err)
+      );
     } else {
       // Existing user - check if profile is actually complete but flag wasn't set
       // This handles users who completed their profile but profileCompleted wasn't updated
@@ -398,8 +416,13 @@ exports.register = asyncHandler(async (req, res, next) => {
   await user.save();
 
   // Send welcome email (async, don't block response)
-  emailService.sendWelcomeEmail(user).catch(err => 
+  emailService.sendWelcomeEmail(user).catch(err =>
     console.error('Failed to send welcome email:', err)
+  );
+
+  // Send new user notification to admin (async, don't block response)
+  emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
+    console.error('Failed to send new user notification to admin:', err)
   );
 
   // Send token response
@@ -1404,6 +1427,11 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
           country: 'Not specified'
         }
       });
+
+      // Send new user notification to admin (async)
+      emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
+        console.error('Failed to send new user notification to admin:', err)
+      );
     } else {
       // Existing user - check if profile is actually complete but flag wasn't set
       if (!user.profileCompleted) {
