@@ -700,11 +700,14 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
       Message.find(query)
         .populate('sender', 'name images userMode')
         .populate('receiver', 'name images userMode')
-        .sort({ createdAt: 1 }) // Sort messages by creation date in ascending order
+        .sort({ createdAt: -1 }) // Get newest messages first
         .skip(skip)
         .limit(actualLimit)
         .lean()
     ]);
+
+    // Reverse to show oldest first in the UI (chat order)
+    messages.reverse();
 
     // Check if messages exist
     if (total === 0) {
