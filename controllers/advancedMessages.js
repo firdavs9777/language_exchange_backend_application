@@ -873,13 +873,26 @@ exports.getBookmarks = asyncHandler(async (req, res, next) => {
  */
 exports.setConversationTheme = asyncHandler(async (req, res, next) => {
   const { theme } = req.body;
-  const conversationId = req.params.id;
+  const idParam = req.params.id; // Can be conversation ID or partner user ID
   const userId = req.user._id;
 
-  const conversation = await Conversation.findById(conversationId);
+  // Try to find conversation by ID first, then by participants
+  let conversation = await Conversation.findById(idParam);
 
   if (!conversation) {
-    return next(new ErrorResponse('Conversation not found', 404));
+    // Try to find by participant IDs (idParam is the partner's user ID)
+    conversation = await Conversation.findOne({
+      participants: { $all: [userId, idParam], $size: 2 },
+      isGroup: false
+    });
+  }
+
+  if (!conversation) {
+    // Create a new conversation if none exists
+    conversation = await Conversation.create({
+      participants: [userId, idParam],
+      isGroup: false
+    });
   }
 
   if (!conversation.participants.some(p => p.toString() === userId.toString())) {
@@ -900,13 +913,26 @@ exports.setConversationTheme = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.getConversationTheme = asyncHandler(async (req, res, next) => {
-  const conversationId = req.params.id;
+  const idParam = req.params.id; // Can be conversation ID or partner user ID
   const userId = req.user._id;
 
-  const conversation = await Conversation.findById(conversationId);
+  // Try to find conversation by ID first, then by participants
+  let conversation = await Conversation.findById(idParam);
 
   if (!conversation) {
-    return next(new ErrorResponse('Conversation not found', 404));
+    // Try to find by participant IDs (idParam is the partner's user ID)
+    conversation = await Conversation.findOne({
+      participants: { $all: [userId, idParam], $size: 2 },
+      isGroup: false
+    });
+  }
+
+  if (!conversation) {
+    // No conversation exists yet, return default theme
+    return res.status(200).json({
+      success: true,
+      data: { preset: 'default', fontSize: 'medium' }
+    });
   }
 
   if (!conversation.participants.some(p => p.toString() === userId.toString())) {
