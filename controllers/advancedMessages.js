@@ -895,6 +895,31 @@ exports.setConversationTheme = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    Get conversation theme for current user
+ * @route   GET /api/v1/conversations/:id/theme
+ * @access  Private
+ */
+exports.getConversationTheme = asyncHandler(async (req, res, next) => {
+  const conversationId = req.params.id;
+  const userId = req.user._id;
+
+  const conversation = await Conversation.findById(conversationId);
+
+  if (!conversation) {
+    return next(new ErrorResponse('Conversation not found', 404));
+  }
+
+  if (!conversation.participants.some(p => p.toString() === userId.toString())) {
+    return next(new ErrorResponse('Not a participant', 403));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: conversation.getUserTheme(userId)
+  });
+});
+
+/**
  * @desc    Set nickname for user in conversation
  * @route   PUT /api/v1/conversations/:id/nickname
  * @access  Private

@@ -39,8 +39,8 @@ const SOCKET_CONFIG = {
   TYPING_TIMEOUT: 5000,
   MESSAGE_RETRY_ATTEMPTS: 3,
   MESSAGE_RETRY_DELAY: 1000,
-  HEARTBEAT_INTERVAL: 25000,
-  HEARTBEAT_TIMEOUT: 30000,
+  HEARTBEAT_INTERVAL: 30000,  // Ping every 30 seconds
+  HEARTBEAT_TIMEOUT: 60000,   // 30 second window to respond (60-30=30s)
   OFFLINE_MESSAGE_QUEUE_MAX: 50,
   CLEANUP_INTERVAL: 60000, // Clean up stale data every minute
 };
@@ -295,31 +295,49 @@ const handleMultipleConnections = async (socket, io, userId, deviceId) => {
 
 /**
  * Setup heartbeat to detect dead connections
+ * Uses a more forgiving timeout to handle mobile app background states
  */
 const setupHeartbeat = (socket, io) => {
   let heartbeatTimeout;
-  
-  // Send ping every 25 seconds
+  let missedPongs = 0;
+  const MAX_MISSED_PONGS = 2; // Allow 2 missed pongs before disconnecting
+
+  // Send ping periodically
   const pingInterval = setInterval(() => {
     if (socket.connected) {
       socket.emit('ping');
-      
-      // Expect pong within 5 seconds
+
+      // Clear previous timeout if any
+      clearTimeout(heartbeatTimeout);
+
+      // Set timeout for pong response
       heartbeatTimeout = setTimeout(() => {
-        console.log(`💔 Heartbeat timeout for socket ${socket.id}`);
-        socket.disconnect(true);
+        missedPongs++;
+        console.log(`⚠️ Missed pong ${missedPongs}/${MAX_MISSED_PONGS} for socket ${socket.id}`);
+
+        if (missedPongs >= MAX_MISSED_PONGS) {
+          console.log(`💔 Heartbeat timeout for socket ${socket.id} after ${MAX_MISSED_PONGS} missed pongs`);
+          socket.disconnect(true);
+        }
       }, SOCKET_CONFIG.HEARTBEAT_TIMEOUT - SOCKET_CONFIG.HEARTBEAT_INTERVAL);
     } else {
       clearInterval(pingInterval);
       clearTimeout(heartbeatTimeout);
     }
   }, SOCKET_CONFIG.HEARTBEAT_INTERVAL);
-  
-  // Handle pong response
+
+  // Handle pong response - reset missed count
   socket.on('pong', () => {
     clearTimeout(heartbeatTimeout);
+    missedPongs = 0; // Reset on successful pong
   });
-  
+
+  // Also handle client-initiated ping (mobile apps send these)
+  socket.on('ping', (data) => {
+    socket.emit('pong', { timestamp: Date.now() });
+    missedPongs = 0; // Client is alive
+  });
+
   // Cleanup on disconnect
   socket.on('disconnect', () => {
     clearInterval(pingInterval);

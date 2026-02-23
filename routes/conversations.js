@@ -31,7 +31,9 @@ router.route('/:id/read').put(markConversationAsRead);
 // ========== ADVANCED FEATURES (KakaoTalk/HelloTalk Style) ==========
 
 // Theme customization
-router.route('/:id/theme').put(advancedMessages.setConversationTheme);
+router.route('/:id/theme')
+  .get(advancedMessages.getConversationTheme)
+  .put(advancedMessages.setConversationTheme);
 
 // Nicknames
 router.route('/:id/nickname').put(advancedMessages.setNickname);

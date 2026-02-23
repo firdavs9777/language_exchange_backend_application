@@ -89,8 +89,11 @@ const io = new Server(server, {
   },
   allowEIO3: true,
   transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000
+  pingTimeout: 120000,  // 2 minutes - more forgiving for mobile apps in background
+  pingInterval: 30000,  // 30 seconds
+  upgradeTimeout: 30000,
+  maxHttpBufferSize: 1e8,  // 100MB for media uploads
+  connectTimeout: 45000
 });
 
 // Initialize socket event handlers

@@ -348,3 +348,70 @@ exports.markConversationAsRead = asyncHandler(async (req, res, next) => {
   });
 });
 
+/**
+ * @desc    Set conversation theme/wallpaper
+ * @route   PUT /api/v1/conversations/:id/theme
+ * @access  Private
+ */
+exports.setConversationTheme = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { theme } = req.body;
+  const userId = req.user._id;
+
+  const conversation = await Conversation.findById(id);
+
+  if (!conversation) {
+    return next(new ErrorResponse('Conversation not found', 404));
+  }
+
+  // Check if user is participant
+  const isParticipant = conversation.participants.some(
+    p => p.toString() === userId.toString()
+  );
+
+  if (!isParticipant) {
+    return next(new ErrorResponse('Not authorized', 403));
+  }
+
+  // Save theme for this specific user
+  await conversation.setUserTheme(userId, theme);
+
+  res.status(200).json({
+    success: true,
+    message: 'Theme updated successfully',
+    data: { theme: conversation.getUserTheme(userId) }
+  });
+});
+
+/**
+ * @desc    Get conversation theme/wallpaper for user
+ * @route   GET /api/v1/conversations/:id/theme
+ * @access  Private
+ */
+exports.getConversationTheme = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const userId = req.user._id;
+
+  const conversation = await Conversation.findById(id);
+
+  if (!conversation) {
+    return next(new ErrorResponse('Conversation not found', 404));
+  }
+
+  // Check if user is participant
+  const isParticipant = conversation.participants.some(
+    p => p.toString() === userId.toString()
+  );
+
+  if (!isParticipant) {
+    return next(new ErrorResponse('Not authorized', 403));
+  }
+
+  const theme = conversation.getUserTheme(userId);
+
+  res.status(200).json({
+    success: true,
+    data: { theme }
+  });
+});
+
