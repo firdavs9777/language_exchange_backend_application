@@ -191,21 +191,21 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
         images: [],
         isEmailVerified: true,
         isRegistrationComplete: true,
-        // Default values for required fields (only for new OAuth users)
-        gender: 'other',
-        bio: 'Hello! I joined using Apple. 🍎',
-        birth_year: '2000',
-        birth_month: '1',
-        birth_day: '1',
+        // Empty defaults - user MUST fill these in profile completion
+        gender: '',
+        bio: '',
+        birth_year: '',
+        birth_month: '',
+        birth_day: '',
         profileCompleted: false,
-        native_language: 'English',
-        language_to_learn: 'Korean',
+        native_language: '',
+        language_to_learn: '',
         location: {
           type: 'Point',
           coordinates: [0.0, 0.0],
-          formattedAddress: 'Not specified',
-          city: 'Not specified',
-          country: 'Not specified'
+          formattedAddress: '',
+          city: '',
+          country: ''
         }
       });
 
@@ -1433,21 +1433,21 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
         images: picture ? [picture] : [],
         isEmailVerified: true,
         isRegistrationComplete: true,
-        // Default values for required fields (only for new OAuth users)
-        gender: 'other',
-        bio: 'Hello! I joined using Google. 👋',
-        birth_year: '2000',
-        birth_month: '1',
+        // Empty defaults - user MUST fill these in profile completion
+        gender: '',
+        bio: '',
+        birth_year: '',
+        birth_month: '',
         profileCompleted: false,
-        birth_day: '1',
-        native_language: 'English',
-        language_to_learn: 'Korean',
+        birth_day: '',
+        native_language: '',
+        language_to_learn: '',
         location: {
           type: 'Point',
           coordinates: [0.0, 0.0],
-          formattedAddress: 'Not specified',
-          city: 'Not specified',
-          country: 'Not specified'
+          formattedAddress: '',
+          city: '',
+          country: ''
         }
       });
 
