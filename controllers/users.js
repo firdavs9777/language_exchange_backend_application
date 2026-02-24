@@ -1,5 +1,6 @@
 const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
+const UserInteraction = require('../models/UserInteraction');
 const ErrorResponse = require('../utils/errorResponse');
 const { processUserImages } = require('../utils/imageUtils');
 const path = require('path');
@@ -70,14 +71,30 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
 
   // Get blocked users if authenticated
   let blockedUserIds = [];
+  let excludedUserIds = [];
+
   if (req.user) {
+    // Get blocked users
     blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
+
+    // Get skipped/waved users if excludeInteracted is true (default)
+    const excludeInteracted = req.query.excludeInteracted !== 'false';
+    if (excludeInteracted) {
+      try {
+        excludedUserIds = await UserInteraction.getExcludedUserIds(req.user._id, ['skip', 'wave']);
+        excludedUserIds = excludedUserIds.map(id => id.toString());
+      } catch (err) {
+        console.log('Could not fetch excluded users:', err.message);
+      }
+    }
   }
 
-  // Build query - exclude blocked users
+  // Build query - exclude blocked and interacted users
   let query = {};
-  if (blockedUserIds.length > 0) {
-    query._id = { $nin: blockedUserIds };
+  const allExcludedIds = [...blockedUserIds, ...excludedUserIds];
+
+  if (allExcludedIds.length > 0) {
+    query._id = { $nin: allExcludedIds };
   }
 
   // Also exclude current user from results
@@ -114,8 +131,14 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     }
   }
 
-  // Gender filter
-  if (req.query.gender) {
+  // Check if user is VIP for premium filters
+  const isVip = req.user && (
+    req.user.userMode === 'vip' ||
+    (req.user.vipSubscription && req.user.vipSubscription.isActive)
+  );
+
+  // Gender filter (VIP only - ignore for non-VIP users)
+  if (req.query.gender && isVip) {
     const genderMap = {
       'male': ['male', 'm', 'man', 'boy'],
       'female': ['female', 'f', 'woman', 'girl'],
@@ -146,14 +169,37 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     query.isOnline = true;
   }
 
-  // Country filter
-  if (req.query.country) {
+  // Country filter (VIP only - ignore for non-VIP users)
+  if (req.query.country && isVip) {
     query['location.country'] = { $regex: new RegExp(req.query.country, 'i') };
   }
 
   // Language level filter
   if (req.query.languageLevel) {
     query.level = req.query.languageLevel.toUpperCase();
+  }
+
+  // Server-side search filter (search in name, bio, languages)
+  if (req.query.search && req.query.search.trim()) {
+    const searchRegex = new RegExp(req.query.search.trim(), 'i');
+    const searchConditions = [
+      { name: searchRegex },
+      { bio: searchRegex },
+      { native_language: searchRegex },
+      { language_to_learn: searchRegex }
+    ];
+
+    // Combine with existing $or conditions if any
+    if (query.$or) {
+      // Wrap existing $or and search $or in $and
+      query.$and = [
+        { $or: query.$or },
+        { $or: searchConditions }
+      ];
+      delete query.$or;
+    } else {
+      query.$or = searchConditions;
+    }
   }
 
   // Sort: VIP first, then online, then most recently active

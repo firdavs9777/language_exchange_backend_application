@@ -268,6 +268,7 @@ app.use('/api/v1/notifications', notifications);
 app.use('/api/v1/contact', require('./routes/contact'));
 app.use('/api/v1/learning', learning);
 app.use('/api/v1/community', community);
+app.use('/api/v1/interactions', require('./routes/interactions'));
 app.use('/api/v1/voicerooms', voiceRooms);
 app.use('/api/v1/lessons', lessonBuilder);
 app.use('/api/v1/ai-conversation', aiConversation);
