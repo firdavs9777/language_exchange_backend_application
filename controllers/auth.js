@@ -11,6 +11,7 @@ const jwt = require('jsonwebtoken');
 const { logSecurityEvent } = require('../utils/securityLogger');
 const { getDeviceInfo } = require('../validators/authValidator');
 const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
+const { generateUsername } = require('../utils/generateUsername');
 
 // Admin email for notifications
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'bananatalkmain@gmail.com';
@@ -55,19 +56,19 @@ passport.use(
         
         if (!user) {
           // Create new user if not found
+          const userName = `${name.givenName || ''} ${name.familyName || ''}`.trim();
+          const username = await generateUsername(userName);
+
           user = await User.create({
             facebookId: id,
             email,
-            name: `${name.givenName || ''} ${name.familyName || ''}`.trim(),
+            name: userName,
+            username,
             images: photos && photos[0] ? [photos[0].value] : [],
             isEmailVerified: true, // Facebook users are pre-verified
             isRegistrationComplete: true // Facebook users skip email verification
           });
-
-          // Send new user notification to admin (async)
-          emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
-            console.error('Failed to send new user notification to admin:', err)
-          );
+          // Note: Admin notification will be sent when user completes their profile
         }
 
         return done(null, user);
@@ -113,19 +114,19 @@ passport.use(
         
         if (!user) {
           // Create new user if not found
+          const userName = `${name.givenName || ''} ${name.familyName || ''}`.trim() || name.displayName || 'User';
+          const username = await generateUsername(userName);
+
           user = await User.create({
             googleId: id,
             email,
-            name: `${name.givenName || ''} ${name.familyName || ''}`.trim() || name.displayName || 'User',
+            name: userName,
+            username,
             images: photos && photos[0] && photos[0].value ? [photos[0].value] : [],
             isEmailVerified: true, // Google users are pre-verified
             isRegistrationComplete: true // Google users skip email verification
           });
-
-          // Send new user notification to admin (async)
-          emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
-            console.error('Failed to send new user notification to admin:', err)
-          );
+          // Note: Admin notification will be sent when user completes their profile
         }
 
         return done(null, user);
@@ -184,10 +185,14 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
         ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim()
         : 'Apple User';
 
+      // Generate unique username
+      const username = await generateUsername(userName);
+
       user = await User.create({
         appleId,
         email: email || `${appleId}@privaterelay.appleid.com`, // Apple may hide email
         name: userName || 'Apple User',
+        username,
         images: [],
         isEmailVerified: true,
         isRegistrationComplete: true,
@@ -208,11 +213,7 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
           country: ''
         }
       });
-
-      // Send new user notification to admin (async)
-      emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
-        console.error('Failed to send new user notification to admin:', err)
-      );
+      // Note: Admin notification will be sent when user completes their profile
     } else {
       // Existing user - check if profile is actually complete but flag wasn't set
       // This handles users who completed their profile but profileCompleted wasn't updated
@@ -402,20 +403,27 @@ exports.register = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User already registered. Please login instead.', 400));
   }
 
+  // Generate unique username
+  const username = await generateUsername(name);
+
+  // Ensure images is an array
+  const userImages = Array.isArray(images) ? images.filter(img => img && typeof img === 'string') : [];
+
   // Update user with actual data
   user.name = name;
+  user.username = username;
   user.gender = gender;
   user.password = password; // Will be hashed by pre-save middleware
   user.bio = bio;
   user.birth_year = birth_year;
   user.birth_month = birth_month;
   user.birth_day = birth_day;
-  user.images = images ;
+  user.images = userImages;
   user.native_language = native_language;
   user.language_to_learn = language_to_learn;
   user.location = location;
   user.isRegistrationComplete = true;  // MARK AS COMPLETE
-  
+
   // Optional fields
   if (mbti) user.mbti = mbti;
   if (bloodType) user.bloodType = bloodType;
@@ -427,10 +435,12 @@ exports.register = asyncHandler(async (req, res, next) => {
     console.error('Failed to send welcome email:', err)
   );
 
-  // Send new user notification to admin (async, don't block response)
-  emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
-    console.error('Failed to send new user notification to admin:', err)
-  );
+  // Send new user notification to admin with full user data (async, don't block response)
+  User.findById(user._id).lean().then(fullUser => {
+    emailService.sendNewUserNotification(ADMIN_EMAIL, fullUser).catch(err =>
+      console.error('Failed to send new user notification to admin:', err)
+    );
+  });
 
   // Send token response
   sendTokenResponse(user, 201, res);
@@ -1197,6 +1207,10 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     }
   }
 
+  // Check if profile was previously incomplete (for sending notification)
+  const userBeforeUpdate = await User.findById(req.user.id).select('profileCompleted username name email gender native_language language_to_learn');
+  const wasProfileIncomplete = !userBeforeUpdate?.profileCompleted;
+
   // If user explicitly sets profileCompleted to true, respect that
   // Otherwise auto-set based on required fields being present
   if (profileCompleted === true) {
@@ -1204,10 +1218,9 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
   } else if (native_language && language_to_learn && gender && birth_year && birth_month && birth_day) {
     // Auto-set profileCompleted only if ALL critical fields are present
     // Including location, proper bio, and at least 2 images
-    const currentUser = await User.findById(req.user.id);
-    const effectiveLocation = location || currentUser?.location;
-    const effectiveImages = images || currentUser?.images || [];
-    const effectiveBio = bio || currentUser?.bio || '';
+    const effectiveLocation = location || userBeforeUpdate?.location;
+    const effectiveImages = images || userBeforeUpdate?.images || [];
+    const effectiveBio = bio || userBeforeUpdate?.bio || '';
 
     const hasLocation = effectiveLocation && effectiveLocation.city && effectiveLocation.country;
     const hasEnoughImages = effectiveImages.length >= 2;
@@ -1225,8 +1238,8 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
   try {
     // Find and update the user
     const user = await User.findByIdAndUpdate(
-      req.user.id, 
-      fieldsToUpdate, 
+      req.user.id,
+      fieldsToUpdate,
       {
         new: true,
         runValidators: false,
@@ -1235,6 +1248,16 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
 
     if (!user) {
       return next(new ErrorResponse(`User not found`, 404));
+    }
+
+    // Send admin notification when profile is completed for the first time
+    if (wasProfileIncomplete && fieldsToUpdate.profileCompleted === true) {
+      console.log(`🎉 New user completed profile: ${user.email}`);
+      // Fetch full user data for the notification email (including all fields)
+      const fullUser = await User.findById(user._id).lean();
+      emailService.sendNewUserNotification(ADMIN_EMAIL, fullUser).catch(err =>
+        console.error('Failed to send new user notification to admin:', err)
+      );
     }
 
     sendTokenResponse(user, 200, res, req);
@@ -1426,10 +1449,15 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
     
     // If still no user, create new one
     if (!user) {
+      // Generate unique username
+      const userName = name || 'User';
+      const username = await generateUsername(userName);
+
       user = await User.create({
         googleId,
         email,
-        name: name || 'User',
+        name: userName,
+        username,
         images: picture ? [picture] : [],
         isEmailVerified: true,
         isRegistrationComplete: true,
@@ -1450,11 +1478,7 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
           country: ''
         }
       });
-
-      // Send new user notification to admin (async)
-      emailService.sendNewUserNotification(ADMIN_EMAIL, user).catch(err =>
-        console.error('Failed to send new user notification to admin:', err)
-      );
+      // Note: Admin notification will be sent when user completes their profile
     } else {
       // Existing user - check if profile is actually complete but flag wasn't set
       if (!user.profileCompleted) {

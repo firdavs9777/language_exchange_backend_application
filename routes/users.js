@@ -1,13 +1,15 @@
 const {
   getUsers,
   getUser,
+  getUserByUsername,
+  searchUsersByUsername,
   createUser,
   updateUser,
   deleteUser,
   updateProfilePicture,
   removeProfilePicture,
   userPhotoUpload,
-  uploadMultiplePhotos, 
+  uploadMultiplePhotos,
   followUser,
   unfollowUser,
   getFollowing,
@@ -44,6 +46,16 @@ const router = express.Router({ mergeParams: true });
 // router.use(authorize('admin'));
 
 router.route('/').get(protect, getUsers).post(protect, authorize('admin'), createUser);
+
+// ============================================
+// Username search routes - MUST BE BEFORE /:userId routes
+// ============================================
+
+// Search users by username (partial match)
+router.route('/search/username').get(protect, searchUsersByUsername);
+
+// Get user by exact username
+router.route('/username/:username').get(protect, getUserByUsername);
 
 // ============================================
 // /me routes - MUST BE FIRST (before /:userId routes)

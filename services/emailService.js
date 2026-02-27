@@ -245,6 +245,15 @@ exports.sendAdminDailyReport = async (adminEmail, stats) => {
  */
 exports.sendNewUserNotification = async (adminEmail, user) => {
   try {
+    // Log user data for debugging
+    console.log(`📧 Preparing new user notification for: ${user.email}`);
+    console.log(`   - Name: ${user.name}`);
+    console.log(`   - Username: @${user.username || 'N/A'}`);
+    console.log(`   - Images: ${user.images ? user.images.length : 0} photo(s)`);
+    if (user.images && user.images.length > 0) {
+      user.images.forEach((img, i) => console.log(`     Photo ${i + 1}: ${img}`));
+    }
+
     const template = templates.newUserNotificationEmail(user);
     await sendEmail({
       email: adminEmail,

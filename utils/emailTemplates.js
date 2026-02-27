@@ -701,12 +701,14 @@ exports.adminDailyReportEmail = (stats) => {
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
           <tr style="background-color: #f5f5f5;">
             <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Name</td>
+            <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Username</td>
             <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Email</td>
             <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Joined</td>
           </tr>
           ${stats.newUsersList.map(user => `
           <tr>
             <td style="padding: 12px; color: #555; border-bottom: 1px solid #f0f0f0;">${user.name}</td>
+            <td style="padding: 12px; color: #11998e; border-bottom: 1px solid #f0f0f0;">@${user.username || 'N/A'}</td>
             <td style="padding: 12px; color: #555; border-bottom: 1px solid #f0f0f0;">${user.email}</td>
             <td style="padding: 12px; color: #555; border-bottom: 1px solid #f0f0f0;">${new Date(user.createdAt).toLocaleTimeString()}</td>
           </tr>
@@ -732,50 +734,178 @@ exports.adminDailyReportEmail = (stats) => {
  * New user registration notification for admin
  */
 exports.newUserNotificationEmail = (user) => {
+  // Ensure images is a valid array of strings
+  const images = Array.isArray(user.images)
+    ? user.images.filter(img => img && typeof img === 'string' && img.startsWith('http'))
+    : [];
+
+  // Get profile photo URL (first image)
+  const profilePhoto = images.length > 0 ? images[0] : null;
+
+  // Get location info
+  const location = user.location || {};
+  const locationStr = [location.city, location.country].filter(Boolean).join(', ') || 'Not specified';
+
+  // Get birth date
+  const birthDate = user.birth_year && user.birth_month && user.birth_day
+    ? `${user.birth_year}-${user.birth_month}-${user.birth_day}`
+    : 'Not specified';
+
+  // Generate photo gallery HTML
+  const photoGalleryHtml = images.length > 0
+    ? `
+      <h3 style="color: #11998e; margin: 25px 0 15px 0; font-size: 16px;">Photos (${images.length}):</h3>
+      <table width="100%" cellpadding="5" cellspacing="0">
+        <tr>
+          ${images.slice(0, 5).map((img, i) => `
+            <td width="20%" align="center" style="vertical-align: top;">
+              <a href="${img}" target="_blank">
+                <img src="${img}" alt="Photo ${i + 1}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; border: 2px solid #e0e0e0;">
+              </a>
+            </td>
+          `).join('')}
+        </tr>
+      </table>
+      <p style="font-size: 12px; color: #888; margin: 10px 0 0 0;">Click photos to view full size</p>
+    `
+    : '<p style="color: #888; font-style: italic;">No photos uploaded</p>';
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">New User Joined!</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">New User Completed Profile!</h1>
+        <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 10px 0 0 0;">${new Date().toLocaleString()}</p>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
-        <p style="font-size: 18px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-          A new user has completed registration on ${APP_NAME}!
-        </p>
 
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9ff; border-radius: 12px; padding: 25px; margin: 25px 0;">
+        <!-- Profile Header with Photo -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 25px;">
+          <tr>
+            <td width="120" style="vertical-align: top;">
+              ${profilePhoto
+                ? `<a href="${profilePhoto}" target="_blank"><img src="${profilePhoto}" alt="${user.name}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid #11998e;"></a>`
+                : `<div style="width: 100px; height: 100px; border-radius: 50%; background: #e0e0e0; display: flex; align-items: center; justify-content: center; font-size: 36px; color: #999;">👤</div>`
+              }
+            </td>
+            <td style="vertical-align: middle; padding-left: 20px;">
+              <h2 style="margin: 0; color: #333; font-size: 24px;">${user.name}</h2>
+              <p style="margin: 5px 0 0 0; color: #11998e; font-size: 16px; font-weight: bold;">@${user.username || 'N/A'}</p>
+              <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">${user.email}</p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- User Details -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9ff; border-radius: 12px; padding: 20px; margin: 20px 0;">
           <tr>
             <td>
-              <table width="100%" cellpadding="10" cellspacing="0">
+              <h3 style="color: #11998e; margin: 0 0 15px 0; font-size: 16px;">Basic Info:</h3>
+              <table width="100%" cellpadding="8" cellspacing="0">
                 <tr>
-                  <td style="font-size: 15px; color: #666; width: 120px;">Name:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.name}</td>
+                  <td style="font-size: 14px; color: #666; width: 140px;">User ID:</td>
+                  <td style="font-size: 14px; color: #333; font-family: monospace;">${user._id || 'N/A'}</td>
                 </tr>
                 <tr>
-                  <td style="font-size: 15px; color: #666;">Email:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.email}</td>
+                  <td style="font-size: 14px; color: #666;">Gender:</td>
+                  <td style="font-size: 14px; color: #333; font-weight: bold;">${user.gender || 'Not specified'}</td>
                 </tr>
                 <tr>
-                  <td style="font-size: 15px; color: #666;">Gender:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.gender || 'Not specified'}</td>
+                  <td style="font-size: 14px; color: #666;">Birth Date:</td>
+                  <td style="font-size: 14px; color: #333;">${birthDate}</td>
                 </tr>
                 <tr>
-                  <td style="font-size: 15px; color: #666;">Native Language:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.native_language || 'Not specified'}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 15px; color: #666;">Learning:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold;">${user.language_to_learn || 'Not specified'}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 15px; color: #666;">Joined:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold;">${new Date().toLocaleString()}</td>
+                  <td style="font-size: 14px; color: #666;">Location:</td>
+                  <td style="font-size: 14px; color: #333;">${locationStr}</td>
                 </tr>
               </table>
             </td>
           </tr>
         </table>
+
+        <!-- Language Info -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fff4; border-radius: 12px; padding: 20px; margin: 20px 0;">
+          <tr>
+            <td>
+              <h3 style="color: #11998e; margin: 0 0 15px 0; font-size: 16px;">Language Info:</h3>
+              <table width="100%" cellpadding="8" cellspacing="0">
+                <tr>
+                  <td style="font-size: 14px; color: #666; width: 140px;">Native Language:</td>
+                  <td style="font-size: 14px; color: #333; font-weight: bold;">${user.native_language || 'Not specified'}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 14px; color: #666;">Learning:</td>
+                  <td style="font-size: 14px; color: #333; font-weight: bold;">${user.language_to_learn || 'Not specified'}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Bio -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff9e6; border-radius: 12px; padding: 20px; margin: 20px 0;">
+          <tr>
+            <td>
+              <h3 style="color: #f7971e; margin: 0 0 10px 0; font-size: 16px;">Bio:</h3>
+              <p style="font-size: 14px; color: #333; line-height: 1.6; margin: 0; font-style: italic;">"${user.bio || 'No bio provided'}"</p>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Additional Info -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; border-radius: 12px; padding: 20px; margin: 20px 0;">
+          <tr>
+            <td>
+              <h3 style="color: #666; margin: 0 0 15px 0; font-size: 16px;">Additional Info:</h3>
+              <table width="100%" cellpadding="8" cellspacing="0">
+                <tr>
+                  <td style="font-size: 14px; color: #666; width: 140px;">MBTI:</td>
+                  <td style="font-size: 14px; color: #333;">${user.mbti || 'Not specified'}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 14px; color: #666;">Blood Type:</td>
+                  <td style="font-size: 14px; color: #333;">${user.bloodType || 'Not specified'}</td>
+                </tr>
+                <tr>
+                  <td style="font-size: 14px; color: #666;">VIP Status:</td>
+                  <td style="font-size: 14px; color: ${user.vipSubscription?.isActive ? '#f7971e' : '#666'}; font-weight: bold;">
+                    ${user.vipSubscription?.isActive ? '👑 VIP (' + (user.vipSubscription.plan || 'Active') + ')' : 'Regular User'}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-size: 14px; color: #666;">Account Created:</td>
+                  <td style="font-size: 14px; color: #333;">${user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <!-- Photo Gallery -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; margin: 20px 0;">
+          <tr>
+            <td>
+              ${photoGalleryHtml}
+            </td>
+          </tr>
+        </table>
+
+        <!-- Photo URLs (for easy copying) -->
+        ${images.length > 0 ? `
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0f0f0; border-radius: 8px; padding: 15px; margin: 20px 0;">
+          <tr>
+            <td>
+              <h4 style="color: #666; margin: 0 0 10px 0; font-size: 14px;">Photo URLs (click to copy):</h4>
+              ${images.map((img, i) => `
+                <p style="font-size: 12px; color: #333; margin: 5px 0; word-break: break-all;">
+                  <strong>Photo ${i + 1}:</strong> <a href="${img}" target="_blank" style="color: #11998e;">${img}</a>
+                </p>
+              `).join('')}
+            </td>
+          </tr>
+        </table>
+        ` : ''}
 
         <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
           This is an automated notification for ${APP_NAME} administrators.
@@ -785,9 +915,18 @@ exports.newUserNotificationEmail = (user) => {
   `;
 
   return {
-    subject: `[${APP_NAME}] New User: ${user.name} just joined!`,
+    subject: `[${APP_NAME}] New User: ${user.name} (@${user.username || 'N/A'}) completed profile!`,
     html: baseTemplate(content, '#11998e'),
-    text: `New user registered on ${APP_NAME}: ${user.name} (${user.email})`
+    text: `New user completed profile on ${APP_NAME}:
+Name: ${user.name}
+Username: @${user.username || 'N/A'}
+Email: ${user.email}
+Gender: ${user.gender || 'N/A'}
+Location: ${locationStr}
+Native Language: ${user.native_language || 'N/A'}
+Learning: ${user.language_to_learn || 'N/A'}
+Bio: ${user.bio || 'N/A'}
+Photos: ${images.length > 0 ? images.join('\n') : 'None'}`
   };
 };
 

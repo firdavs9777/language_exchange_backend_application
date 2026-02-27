@@ -8,6 +8,14 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add a name']
   },
+  username: {
+    type: String,
+    unique: true,
+    sparse: true, // Allow null values while still enforcing uniqueness
+    lowercase: true,
+    trim: true,
+    match: [/^[a-z0-9_]+$/, 'Username can only contain lowercase letters, numbers, and underscores']
+  },
   gender: {
     type: String,
     required: function() {
@@ -1467,6 +1475,9 @@ UserSchema.methods.isBlockedBy = function(userId) {
 };
 
 // FCM Token indexes
+// Username index for fast lookups
+UserSchema.index({ username: 1 });
+
 UserSchema.index({ 'fcmTokens.token': 1 });
 UserSchema.index({ 'fcmTokens.deviceId': 1 });
 

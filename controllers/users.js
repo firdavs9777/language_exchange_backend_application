@@ -9,8 +9,8 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
-const USER_PUBLIC_FIELDS = 'name bio images native_language language_to_learn level streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
-const USER_LIST_FIELDS = 'name images native_language language_to_learn level userMode location followers following isOnline lastActive gender birth_year birth_month birth_day bio vipSubscription.isActive topics';
+const USER_PUBLIC_FIELDS = 'name username bio images native_language language_to_learn level streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
+const USER_LIST_FIELDS = 'name username images native_language language_to_learn level userMode location followers following isOnline lastActive gender birth_year birth_month birth_day bio vipSubscription.isActive topics';
 
 
 
@@ -266,6 +266,75 @@ exports.getUser = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     data: userWithImages
+  });
+});
+
+// @desc     Get user by username
+// @route    GET /api/v1/users/username/:username
+// @access   Private
+exports.getUserByUsername = asyncHandler(async (req, res, next) => {
+  const { username } = req.params;
+
+  // Normalize username (lowercase, remove @ if present)
+  const normalizedUsername = username.toLowerCase().replace(/^@/, '').trim();
+
+  if (!normalizedUsername) {
+    return next(new ErrorResponse('Username is required', 400));
+  }
+
+  const user = await User.findOne({ username: normalizedUsername })
+    .select(USER_PUBLIC_FIELDS);
+
+  if (!user) {
+    return next(new ErrorResponse(`User not found with username @${normalizedUsername}`, 404));
+  }
+
+  // Process user images to add imageUrls
+  const userWithImages = processUserImages(user, req);
+
+  res.status(200).json({
+    success: true,
+    data: userWithImages
+  });
+});
+
+// @desc     Search users by username (partial match)
+// @route    GET /api/v1/users/search/username
+// @access   Private
+exports.searchUsersByUsername = asyncHandler(async (req, res, next) => {
+  const { q, limit = 20 } = req.query;
+
+  if (!q || q.length < 2) {
+    return next(new ErrorResponse('Search query must be at least 2 characters', 400));
+  }
+
+  // Normalize query (lowercase, remove @ if present)
+  const normalizedQuery = q.toLowerCase().replace(/^@/, '').trim();
+
+  // Get blocked users
+  let blockedUserIds = [];
+  if (req.user) {
+    blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
+  }
+
+  // Build query - partial match on username, exclude blocked users and self
+  const query = {
+    username: { $regex: normalizedQuery, $options: 'i' },
+    _id: { $nin: [...blockedUserIds, req.user._id] }
+  };
+
+  const users = await User.find(query)
+    .select(USER_LIST_FIELDS)
+    .limit(parseInt(limit, 10))
+    .lean();
+
+  // Process images for each user
+  const usersWithImages = users.map(user => processUserImages(user, req));
+
+  res.status(200).json({
+    success: true,
+    count: usersWithImages.length,
+    data: usersWithImages
   });
 });
 

@@ -103,7 +103,7 @@ const gatherStats = async () => {
     isRegistrationComplete: true,
     createdAt: { $gte: startOfDay, $lt: endOfDay }
   })
-    .select('name email createdAt native_language language_to_learn')
+    .select('name username email createdAt native_language language_to_learn')
     .sort({ createdAt: -1 })
     .limit(20)
     .lean();
