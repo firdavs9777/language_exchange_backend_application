@@ -388,19 +388,32 @@ exports.setConversationTheme = asyncHandler(async (req, res, next) => {
   // Notify the other participant via socket
   try {
     const io = req.app.get('io');
+    console.log(`🎨 Theme save - io available: ${!!io}`);
+    console.log(`🎨 Theme save - participants: ${JSON.stringify(conversation.participants)}`);
+    console.log(`🎨 Theme save - current userId: ${userId}`);
+
     if (io) {
       const otherParticipantId = conversation.participants.find(
         p => p.toString() !== userId.toString()
       );
 
+      console.log(`🎨 Theme save - otherParticipantId: ${otherParticipantId}`);
+
       if (otherParticipantId) {
-        io.to(`user_${otherParticipantId}`).emit('themeChanged', {
+        const roomName = `user_${otherParticipantId}`;
+        console.log(`🎨 Emitting themeChanged to room: ${roomName}`);
+
+        io.to(roomName).emit('themeChanged', {
           conversationId: conversation._id,
           theme: conversation.theme,
-          changedBy: userId
+          changedBy: userId.toString()
         });
         console.log(`🎨 Socket: Theme changed by ${userId}, notifying ${otherParticipantId}`);
+      } else {
+        console.log(`🎨 No other participant found to notify`);
       }
+    } else {
+      console.log(`🎨 Socket.io not available`);
     }
   } catch (socketError) {
     console.error('❌ Socket error on theme change:', socketError);
