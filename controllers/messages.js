@@ -201,9 +201,9 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
 
     // Pagination
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 50;
+    const limit = parseInt(req.query.limit) || 500; // Increased default to 500 for chat list
     const skip = (page - 1) * limit;
-    const actualLimit = Math.min(limit, 100); // Max 100 per page
+    const actualLimit = Math.min(limit, 1000); // Increased max to 1000 for chat list loading
 
     const query = {
       $or: [{ sender: userId }, { receiver: userId }],
@@ -324,12 +324,16 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         $project: {
           _id: '$user._id',
           name: '$user.name',
+          username: '$user.username',
           images: '$user.images',
           imageUrls: '$user.images',
+          userMode: '$user.userMode',
+          vipSubscription: '$user.vipSubscription',
           lastMessage: {
             message: '$lastMessage.message',
             createdAt: '$lastMessage.createdAt',
-            _id: '$lastMessage._id'
+            _id: '$lastMessage._id',
+            media: '$lastMessage.media'
           },
           unreadCount: 1
         }
