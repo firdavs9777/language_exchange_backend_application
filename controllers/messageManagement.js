@@ -268,10 +268,36 @@ exports.replyToMessage = asyncHandler(async (req, res, next) => {
   // Increment message count
   await senderUser.incrementMessageCount();
 
-  // Populate reply information
-  await replyMessage.populate('replyTo', 'message sender');
-  await replyMessage.populate('sender', 'name images userMode');
-  await replyMessage.populate('receiver', 'name images userMode');
+  // Populate reply information (also populate replyTo.sender for display)
+  await replyMessage.populate({
+    path: 'replyTo',
+    select: '_id message sender',
+    populate: { path: 'sender', select: '_id name images' }
+  });
+  await replyMessage.populate('sender', '_id name images userMode');
+  await replyMessage.populate('receiver', '_id name images userMode');
+
+  // ✨ Socket.IO: Notify receiver of new reply message
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      // Notify receiver
+      io.to(`user_${receiver}`).emit('newMessage', {
+        message: replyMessage,
+        isReply: true
+      });
+
+      // Notify sender's other devices (sync across devices)
+      io.to(`user_${userId}`).emit('messageSent', {
+        message: replyMessage,
+        isReply: true
+      });
+
+      console.log(`💬 Socket: Reply sent from ${userId} to ${receiver}`);
+    }
+  } catch (socketError) {
+    console.error('❌ Socket error on reply:', socketError);
+  }
 
   res.status(201).json({
     success: true,

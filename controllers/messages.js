@@ -704,6 +704,11 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
       Message.find(query)
         .populate('sender', 'name username images userMode')
         .populate('receiver', 'name username images userMode')
+        .populate({
+          path: 'replyTo',
+          select: '_id message sender',
+          populate: { path: 'sender', select: '_id name images' }
+        })
         .sort({ createdAt: -1 }) // Get newest messages first
         .skip(skip)
         .limit(actualLimit)
