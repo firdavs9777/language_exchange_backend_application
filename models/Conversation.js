@@ -71,23 +71,23 @@ const ConversationSchema = new mongoose.Schema({
   
   // Chat Theme/Background (KakaoTalk style)
   theme: {
-    // Theme preset name
+    // Theme preset name (flexible - accepts any string)
     preset: {
       type: String,
-      enum: ['default', 'dark', 'light', 'blue', 'pink', 'green', 'custom'],
       default: 'default'
     },
     // Custom background image URL
     backgroundUrl: String,
     // Background color (for solid colors)
     backgroundColor: String,
+    // Gradient colors array
+    gradientColors: [String],
     // Chat bubble colors
     senderBubbleColor: String,
     receiverBubbleColor: String,
     // Font settings
     fontSize: {
       type: String,
-      enum: ['small', 'medium', 'large'],
       default: 'medium'
     }
   },
