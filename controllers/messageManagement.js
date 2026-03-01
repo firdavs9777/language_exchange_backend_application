@@ -436,7 +436,7 @@ exports.pinMessage = asyncHandler(async (req, res, next) => {
   }
 
   // Only participants can pin
-  const isParticipant = msg.sender.toString() === userId.toString() || 
+  const isParticipant = msg.sender.toString() === userId.toString() ||
                         msg.receiver.toString() === userId.toString();
 
   if (!isParticipant) {
@@ -444,7 +444,31 @@ exports.pinMessage = asyncHandler(async (req, res, next) => {
   }
 
   // Toggle pin status
-  msg.pinned = !msg.pinned;
+  const willBePinned = !msg.pinned;
+
+  // If pinning a new message, unpin any existing pinned messages in this conversation
+  if (willBePinned) {
+    // Find and unpin all other pinned messages between these two users
+    await Message.updateMany(
+      {
+        $or: [
+          { sender: msg.sender, receiver: msg.receiver },
+          { sender: msg.receiver, receiver: msg.sender }
+        ],
+        pinned: true,
+        _id: { $ne: msg._id }
+      },
+      {
+        $set: {
+          pinned: false,
+          pinnedAt: null,
+          pinnedBy: null
+        }
+      }
+    );
+  }
+
+  msg.pinned = willBePinned;
   if (msg.pinned) {
     msg.pinnedAt = new Date();
     msg.pinnedBy = userId;
