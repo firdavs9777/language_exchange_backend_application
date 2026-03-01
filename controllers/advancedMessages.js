@@ -867,7 +867,7 @@ exports.getBookmarks = asyncHandler(async (req, res, next) => {
 // ========== CONVERSATION FEATURES ==========
 
 /**
- * @desc    Set conversation theme
+ * @desc    Set conversation theme (shared between both users)
  * @route   PUT /api/v1/conversations/:id/theme
  * @access  Private
  */
@@ -875,6 +875,9 @@ exports.setConversationTheme = asyncHandler(async (req, res, next) => {
   const { theme } = req.body;
   const idParam = req.params.id; // Can be conversation ID or partner user ID
   const userId = req.user._id;
+
+  console.log(`🎨 setConversationTheme called: idParam=${idParam}, userId=${userId}`);
+  console.log(`🎨 Theme to save:`, theme);
 
   // Try to find conversation by ID first, then by participants
   let conversation = await Conversation.findById(idParam);
@@ -899,16 +902,44 @@ exports.setConversationTheme = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not a participant', 403));
   }
 
-  await conversation.setUserTheme(userId, theme);
+  // Save theme at conversation level (SHARED between both users)
+  conversation.theme = { ...conversation.theme, ...theme };
+  await conversation.save();
+  console.log(`🎨 Theme saved to conversation: ${conversation._id}`);
+
+  // Notify the other participant via socket
+  const io = req.app.get('io');
+  console.log(`🎨 Socket.io available: ${!!io}`);
+
+  if (io) {
+    const otherParticipantId = conversation.participants.find(
+      p => p.toString() !== userId.toString()
+    );
+
+    console.log(`🎨 Other participant: ${otherParticipantId}`);
+
+    if (otherParticipantId) {
+      const roomName = `user_${otherParticipantId}`;
+      console.log(`🎨 Emitting themeChanged to room: ${roomName}`);
+
+      io.to(roomName).emit('themeChanged', {
+        conversationId: conversation._id,
+        theme: conversation.theme,
+        changedBy: userId.toString()
+      });
+      console.log(`🎨 Socket emitted themeChanged successfully`);
+    }
+  }
 
   res.status(200).json({
     success: true,
-    data: conversation.getUserTheme(userId)
+    message: 'Theme updated successfully',
+    data: conversation.theme
   });
 });
 
 /**
- * @desc    Get conversation theme for current user
+ * @desc    Get conversation theme (shared between both users)
  * @route   GET /api/v1/conversations/:id/theme
  * @access  Private
  */
@@ -931,7 +962,7 @@ exports.getConversationTheme = asyncHandler(async (req, res, next) => {
     // No conversation exists yet, return default theme
     return res.status(200).json({
       success: true,
-      data: { preset: 'default', fontSize: 'medium' }
+      data: { preset: 'default' }
     });
   }
 
@@ -939,9 +970,12 @@ exports.getConversationTheme = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not a participant', 403));
   }
 
+  // Return the SHARED conversation theme
+  const theme = conversation.theme || { preset: 'default' };
+
   res.status(200).json({
     success: true,
-    data: conversation.getUserTheme(userId)
+    data: theme
   });
 });
 
