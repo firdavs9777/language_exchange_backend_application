@@ -358,7 +358,15 @@ exports.setConversationTheme = asyncHandler(async (req, res, next) => {
   const { theme } = req.body;
   const userId = req.user._id;
 
-  const conversation = await Conversation.findById(id);
+  // First try to find conversation by ID
+  let conversation = await Conversation.findById(id);
+
+  // If not found, try to find by participants (id might be the other user's ID)
+  if (!conversation) {
+    conversation = await Conversation.findOne({
+      participants: { $all: [userId, id] }
+    });
+  }
 
   if (!conversation) {
     return next(new ErrorResponse('Conversation not found', 404));
@@ -414,10 +422,22 @@ exports.getConversationTheme = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const userId = req.user._id;
 
-  const conversation = await Conversation.findById(id);
+  // First try to find conversation by ID
+  let conversation = await Conversation.findById(id);
+
+  // If not found, try to find by participants (id might be the other user's ID)
+  if (!conversation) {
+    conversation = await Conversation.findOne({
+      participants: { $all: [userId, id] }
+    });
+  }
 
   if (!conversation) {
-    return next(new ErrorResponse('Conversation not found', 404));
+    // No conversation found - return default theme
+    return res.status(200).json({
+      success: true,
+      data: { preset: 'default' }
+    });
   }
 
   // Check if user is participant
