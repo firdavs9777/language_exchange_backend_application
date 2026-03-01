@@ -181,30 +181,44 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
 
   // Server-side search filter (search in name, username, bio, languages)
   if (req.query.search && req.query.search.trim()) {
-    // Remove @ prefix if user typed it for username search
     let searchTerm = req.query.search.trim();
-    if (searchTerm.startsWith('@')) {
+    const isUsernameSearch = searchTerm.startsWith('@');
+
+    // Remove @ prefix if user typed it for username search
+    if (isUsernameSearch) {
       searchTerm = searchTerm.substring(1);
     }
-    const searchRegex = new RegExp(searchTerm, 'i');
-    const searchConditions = [
-      { name: searchRegex },
-      { username: searchRegex },
-      { bio: searchRegex },
-      { native_language: searchRegex },
-      { language_to_learn: searchRegex }
-    ];
 
-    // Combine with existing $or conditions if any
-    if (query.$or) {
-      // Wrap existing $or and search $or in $and
-      query.$and = [
-        { $or: query.$or },
-        { $or: searchConditions }
-      ];
+    const searchRegex = new RegExp(searchTerm, 'i');
+
+    // If searching with @ prefix, search ONLY by username and ignore language filters
+    // This allows finding any user by their exact username
+    if (isUsernameSearch) {
+      // Clear language-related filters for username search
       delete query.$or;
+      delete query.$and;
+      query.username = searchRegex;
     } else {
-      query.$or = searchConditions;
+      // Regular search - search in multiple fields
+      const searchConditions = [
+        { name: searchRegex },
+        { username: searchRegex },
+        { bio: searchRegex },
+        { native_language: searchRegex },
+        { language_to_learn: searchRegex }
+      ];
+
+      // Combine with existing $or conditions if any
+      if (query.$or) {
+        // Wrap existing $or and search $or in $and
+        query.$and = [
+          { $or: query.$or },
+          { $or: searchConditions }
+        ];
+        delete query.$or;
+      } else {
+        query.$or = searchConditions;
+      }
     }
   }
 
