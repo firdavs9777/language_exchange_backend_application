@@ -96,9 +96,10 @@ router
   .put(protect, uploadSingle('photo', 'bananatalk/profiles'), userPhotoUpload);
 
 // Multiple photos upload route (NEW)
+// Note: maxCount is 6 to match Flutter registration which allows 2-6 images
 router
   .route('/:id/photos')
-  .post(protect, uploadMultiple('photos', 5, 'bananatalk/profiles'), uploadMultiplePhotos);
+  .post(protect, uploadMultiple('photos', 6, 'bananatalk/profiles'), uploadMultiplePhotos);
 
 // Delete photo at specific index
 router

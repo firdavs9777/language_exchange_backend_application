@@ -179,11 +179,17 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     query.level = req.query.languageLevel.toUpperCase();
   }
 
-  // Server-side search filter (search in name, bio, languages)
+  // Server-side search filter (search in name, username, bio, languages)
   if (req.query.search && req.query.search.trim()) {
-    const searchRegex = new RegExp(req.query.search.trim(), 'i');
+    // Remove @ prefix if user typed it for username search
+    let searchTerm = req.query.search.trim();
+    if (searchTerm.startsWith('@')) {
+      searchTerm = searchTerm.substring(1);
+    }
+    const searchRegex = new RegExp(searchTerm, 'i');
     const searchConditions = [
       { name: searchRegex },
+      { username: searchRegex },
       { bio: searchRegex },
       { native_language: searchRegex },
       { language_to_learn: searchRegex }

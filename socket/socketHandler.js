@@ -556,8 +556,8 @@ const registerMessageHandlers = (socket, io) => {
       
       // Populate message
       const populatedMessage = await Message.findById(newMessage._id)
-        .populate('sender', 'name images userMode')
-        .populate('receiver', 'name images userMode');
+        .populate('sender', 'name username images userMode')
+        .populate('receiver', 'name username images userMode');
       
       // Update conversation
       await updateConversation(userId, receiver, newMessage._id);
@@ -1488,12 +1488,12 @@ const registerVoiceMessageHandlers = (socket, io) => {
       });
       
       const populatedMessage = await Message.findById(voiceMessage._id)
-        .populate('sender', 'name images userMode')
-        .populate('receiver', 'name images userMode');
-      
+        .populate('sender', 'name username images userMode')
+        .populate('receiver', 'name username images userMode');
+
       // Update conversation
       await updateConversation(userId, receiver, voiceMessage._id);
-      
+
       // Notify receiver
       io.to(`user_${receiver}`).emit('newVoiceMessage', {
         message: populatedMessage,
@@ -1882,14 +1882,14 @@ const registerDisappearingMessageHandlers = (socket, io) => {
       }
       
       const newMessage = await Message.create(messageData);
-      
+
       const populatedMessage = await Message.findById(newMessage._id)
-        .populate('sender', 'name images userMode')
-        .populate('receiver', 'name images userMode');
-      
+        .populate('sender', 'name username images userMode')
+        .populate('receiver', 'name username images userMode');
+
       // Update conversation
       await updateConversation(userId, receiver, newMessage._id);
-      
+
       // Notify receiver
       io.to(`user_${receiver}`).emit('newDisappearingMessage', {
         message: populatedMessage,
