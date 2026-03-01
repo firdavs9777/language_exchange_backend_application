@@ -423,6 +423,7 @@ exports.register = asyncHandler(async (req, res, next) => {
   user.language_to_learn = language_to_learn;
   user.location = location;
   user.isRegistrationComplete = true;  // MARK AS COMPLETE
+  user.profileCompleted = true;  // All required fields collected during email registration
 
   // Optional fields
   if (mbti) user.mbti = mbti;
