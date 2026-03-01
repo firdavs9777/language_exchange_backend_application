@@ -52,6 +52,9 @@ exports.editMessage = asyncHandler(async (req, res, next) => {
   msg.editedAt = new Date();
   await msg.save();
 
+  // Save receiver ID before population (population converts to object)
+  const receiverId = msg.receiver.toString();
+
   // Populate for response
   await msg.populate('sender', 'name images userMode');
   await msg.populate('receiver', 'name images userMode');
@@ -61,7 +64,7 @@ exports.editMessage = asyncHandler(async (req, res, next) => {
     const io = req.app.get('io');
     if (io) {
       // Notify receiver that message was edited
-      io.to(`user_${msg.receiver}`).emit('messageEdited', {
+      io.to(`user_${receiverId}`).emit('messageEdited', {
         messageId: msg._id,
         message: msg,
         editedAt: msg.editedAt,
@@ -426,6 +429,10 @@ exports.pinMessage = asyncHandler(async (req, res, next) => {
 
   await msg.save();
 
+  // Save IDs before population (population converts to objects)
+  const senderId = msg.sender.toString();
+  const receiverId = msg.receiver.toString();
+
   // Populate for response
   await msg.populate('sender', 'name images userMode');
   await msg.populate('receiver', 'name images userMode');
@@ -434,9 +441,8 @@ exports.pinMessage = asyncHandler(async (req, res, next) => {
   try {
     const io = req.app.get('io');
     if (io) {
-      const otherUserId = msg.sender.toString() === userId.toString()
-        ? msg.receiver._id
-        : msg.sender._id;
+      // Determine the other user (if I'm the sender, notify receiver; vice versa)
+      const otherUserId = senderId === userId.toString() ? receiverId : senderId;
 
       io.to(`user_${otherUserId}`).emit('messagePinned', {
         messageId: msg._id,
