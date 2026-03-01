@@ -349,7 +349,7 @@ exports.markConversationAsRead = asyncHandler(async (req, res, next) => {
 });
 
 /**
- * @desc    Set conversation theme/wallpaper
+ * @desc    Set conversation theme/wallpaper (shared between both users)
  * @route   PUT /api/v1/conversations/:id/theme
  * @access  Private
  */
@@ -373,18 +373,40 @@ exports.setConversationTheme = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not authorized', 403));
   }
 
-  // Save theme for this specific user
-  await conversation.setUserTheme(userId, theme);
+  // Save theme at conversation level (shared between both users)
+  conversation.theme = { ...conversation.theme, ...theme };
+  await conversation.save();
+
+  // Notify the other participant via socket
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      const otherParticipantId = conversation.participants.find(
+        p => p.toString() !== userId.toString()
+      );
+
+      if (otherParticipantId) {
+        io.to(`user_${otherParticipantId}`).emit('themeChanged', {
+          conversationId: conversation._id,
+          theme: conversation.theme,
+          changedBy: userId
+        });
+        console.log(`🎨 Socket: Theme changed by ${userId}, notifying ${otherParticipantId}`);
+      }
+    }
+  } catch (socketError) {
+    console.error('❌ Socket error on theme change:', socketError);
+  }
 
   res.status(200).json({
     success: true,
     message: 'Theme updated successfully',
-    data: { theme: conversation.getUserTheme(userId) }
+    data: conversation.theme
   });
 });
 
 /**
- * @desc    Get conversation theme/wallpaper for user
+ * @desc    Get conversation theme/wallpaper (shared)
  * @route   GET /api/v1/conversations/:id/theme
  * @access  Private
  */
@@ -407,11 +429,12 @@ exports.getConversationTheme = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not authorized', 403));
   }
 
-  const theme = conversation.getUserTheme(userId);
+  // Return the shared conversation theme
+  const theme = conversation.theme || { preset: 'default' };
 
   res.status(200).json({
     success: true,
-    data: { theme }
+    data: theme
   });
 });
 
