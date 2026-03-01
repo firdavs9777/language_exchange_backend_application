@@ -51,6 +51,30 @@ exports.addReaction = asyncHandler(async (req, res, next) => {
   // Populate user info
   await message.populate('reactions.user', 'name images');
 
+  // Emit socket event for real-time reaction update
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      // Notify both sender and receiver of the message
+      const senderId = message.sender.toString();
+      const receiverId = message.receiver.toString();
+
+      const reactionData = {
+        messageId: id,
+        reactions: message.reactions,
+        addedBy: userId.toString(),
+        emoji: emoji
+      };
+
+      io.to(`user_${senderId}`).emit('messageReaction', reactionData);
+      io.to(`user_${receiverId}`).emit('messageReaction', reactionData);
+
+      console.log(`📡 Reaction event sent: ${emoji} on message ${id}`);
+    }
+  } catch (socketError) {
+    console.error('❌ Socket reaction error:', socketError);
+  }
+
   res.status(200).json({
     success: true,
     message: 'Reaction added successfully',
@@ -79,6 +103,30 @@ exports.removeReaction = asyncHandler(async (req, res, next) => {
   );
 
   await message.save();
+
+  // Emit socket event for real-time reaction removal
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      const senderId = message.sender.toString();
+      const receiverId = message.receiver.toString();
+
+      const reactionData = {
+        messageId: id,
+        reactions: message.reactions,
+        removedBy: userId.toString(),
+        emoji: emoji,
+        removed: true
+      };
+
+      io.to(`user_${senderId}`).emit('messageReaction', reactionData);
+      io.to(`user_${receiverId}`).emit('messageReaction', reactionData);
+
+      console.log(`📡 Reaction removed event sent: ${emoji} on message ${id}`);
+    }
+  } catch (socketError) {
+    console.error('❌ Socket reaction error:', socketError);
+  }
 
   res.status(200).json({
     success: true,
