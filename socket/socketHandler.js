@@ -1363,20 +1363,29 @@ const updateConversation = async (senderId, receiverId, messageId) => {
       participants: { $all: [senderId, receiverId], $size: 2 },
       isGroup: false
     });
-    
+
     if (!conversation) {
       conversation = await Conversation.create({
         participants: [senderId, receiverId],
         isGroup: false
       });
     }
-    
+
     conversation.lastMessage = messageId;
     conversation.lastMessageAt = new Date();
-    
+
+    // Remove receiver from deletedBy so conversation reappears when they get a new message
+    if (conversation.deletedBy && conversation.deletedBy.length > 0) {
+      const receiverIdStr = receiverId.toString();
+      conversation.deletedBy = conversation.deletedBy.filter(
+        id => id.toString() !== receiverIdStr
+      );
+      console.log(`📬 Removed ${receiverIdStr} from deletedBy - conversation will reappear`);
+    }
+
     await conversation.updateUnreadCount(receiverId, 1);
     await conversation.save();
-    
+
   } catch (error) {
     console.error('❌ Update conversation error:', error);
   }
