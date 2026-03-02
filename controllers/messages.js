@@ -272,6 +272,12 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
 
     // Use aggregation pipeline for efficient querying
     const userIdObj = new mongoose.Types.ObjectId(userId);
+
+    // Debug: Check deleted conversations
+    const Conversation = require('../models/Conversation');
+    const deletedConvs = await Conversation.find({ deletedBy: userIdObj }).select('_id deletedBy participants');
+    console.log(`🗑️ DEBUG: User ${userId} has ${deletedConvs.length} deleted conversations:`, deletedConvs.map(c => ({ id: c._id, deletedBy: c.deletedBy })));
+
     const uniqueSenders = await Message.aggregate([
       {
         $match: {
@@ -352,10 +358,20 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         $addFields: {
           isDeleted: {
             $cond: {
-              if: { $and: [
-                { $isArray: '$conversation.deletedBy' },
-                { $in: [userIdObj, '$conversation.deletedBy'] }
-              ]},
+              if: {
+                $or: [
+                  // Check if deletedBy contains the ObjectId
+                  { $and: [
+                    { $isArray: '$conversation.deletedBy' },
+                    { $in: [userIdObj, '$conversation.deletedBy'] }
+                  ]},
+                  // Check if deletedBy contains the string version
+                  { $and: [
+                    { $isArray: '$conversation.deletedBy' },
+                    { $in: [userId, '$conversation.deletedBy'] }
+                  ]}
+                ]
+              },
               then: true,
               else: false
             }
