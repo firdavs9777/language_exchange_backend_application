@@ -201,16 +201,23 @@ const unsubscribeFromTopic = async (userId, topic) => {
  * @private
  */
 const _buildMessage = (token, notification, data, platform, badges = {}) => {
+  // Include imageUrl in data payload for Flutter to access reliably
+  const dataWithImage = { ...data };
+  if (notification.imageUrl) {
+    dataWithImage.imageUrl = notification.imageUrl;
+    dataWithImage.senderImage = notification.imageUrl; // Alias for clarity
+  }
+
   const message = {
     token: token,
     notification: {
       title: notification.title,
       body: notification.body
     },
-    data: _sanitizeData(data)
+    data: _sanitizeData(dataWithImage)
   };
 
-  // Add image if provided
+  // Add image if provided (for system notification display)
   if (notification.imageUrl) {
     message.notification.imageUrl = notification.imageUrl;
   }
