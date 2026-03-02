@@ -25,21 +25,23 @@ const send = async (userId, type, notificationData) => {
 
     // Check if we should send this notification
     const shouldSend = await _shouldSendNotification(user, type, notificationData.data);
-    
+
     if (!shouldSend) {
       console.log(`ℹ️ Skipping notification for user ${userId} (preferences/muted)`);
       return { success: true, skipped: true, reason: 'User preferences' };
     }
 
-    // Save to notification history
-    await _saveToHistory(
-      userId,
-      type,
-      notificationData.title,
-      notificationData.body,
-      notificationData.data,
-      notificationData.imageUrl
-    );
+    // Save to notification history (skip chat_message - shown in chat list)
+    if (type !== 'chat_message') {
+      await _saveToHistory(
+        userId,
+        type,
+        notificationData.title,
+        notificationData.body,
+        notificationData.data,
+        notificationData.imageUrl
+      );
+    }
 
     // Send via FCM
     const result = await fcmService.sendToUser(
@@ -52,8 +54,8 @@ const send = async (userId, type, notificationData) => {
       notificationData.data
     );
 
-    // Update badge count
-    if (result.success && result.delivered > 0) {
+    // Update badge count (skip chat_message - uses unreadMessages badge instead)
+    if (result.success && result.delivered > 0 && type !== 'chat_message') {
       await _updateBadgeCount(userId, 'notifications', 1);
     }
 

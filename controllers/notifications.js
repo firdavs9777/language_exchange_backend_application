@@ -416,10 +416,11 @@ exports.syncBadges = asyncHandler(async (req, res, next) => {
     read: false
   });
 
-  // Count actual unread notifications
+  // Count actual unread notifications (excluding chat_message - those are in chat list)
   const unreadNotificationsCount = await Notification.countDocuments({
     userId: userId,
-    read: false
+    read: false,
+    type: { $ne: 'chat_message' }
   });
 
   // Update user's badge counts to match reality
