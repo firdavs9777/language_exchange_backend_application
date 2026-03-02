@@ -347,6 +347,16 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
           preserveNullAndEmptyArrays: true
         }
       },
+      // Filter out conversations deleted by current user
+      {
+        $match: {
+          $or: [
+            { 'conversation.deletedBy': { $exists: false } },
+            { 'conversation.deletedBy': { $not: { $elemMatch: { $eq: userIdObj } } } },
+            { conversation: { $exists: false } } // Keep partners without conversation doc
+          ]
+        }
+      },
       {
         $project: {
           _id: '$user._id',
