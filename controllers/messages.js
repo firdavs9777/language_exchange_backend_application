@@ -320,6 +320,33 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         }
       },
       { $unwind: '$user' },
+      // Lookup conversation for this chat partner
+      {
+        $lookup: {
+          from: 'conversations',
+          let: { partnerId: '$user._id', currentUserId: userIdObj },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $in: ['$$partnerId', '$participants'] },
+                    { $in: ['$$currentUserId', '$participants'] }
+                  ]
+                }
+              }
+            },
+            { $limit: 1 }
+          ],
+          as: 'conversation'
+        }
+      },
+      {
+        $unwind: {
+          path: '$conversation',
+          preserveNullAndEmptyArrays: true
+        }
+      },
       {
         $project: {
           _id: '$user._id',
@@ -335,10 +362,52 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
             _id: '$lastMessage._id',
             media: '$lastMessage.media'
           },
-          unreadCount: 1
+          unreadCount: 1,
+          // Add conversation data
+          conversationId: '$conversation._id',
+          isPinned: {
+            $cond: {
+              if: { $isArray: '$conversation.pinnedBy' },
+              then: {
+                $gt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: '$conversation.pinnedBy',
+                        as: 'pin',
+                        cond: { $eq: ['$$pin.user', userIdObj] }
+                      }
+                    }
+                  },
+                  0
+                ]
+              },
+              else: false
+            }
+          },
+          isMuted: {
+            $cond: {
+              if: { $isArray: '$conversation.mutedBy' },
+              then: {
+                $gt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: '$conversation.mutedBy',
+                        as: 'mute',
+                        cond: { $eq: ['$$mute.user', userIdObj] }
+                      }
+                    }
+                  },
+                  0
+                ]
+              },
+              else: false
+            }
+          }
         }
       },
-      { $sort: { 'lastMessage.createdAt': -1 } },
+      { $sort: { isPinned: -1, 'lastMessage.createdAt': -1 } },
       { $skip: skip },
       { $limit: actualLimit }
     ]);
