@@ -172,6 +172,11 @@ exports.muteConversation = asyncHandler(async (req, res, next) => {
 
   await conversation.mute(userId, duration);
 
+  // Also add to user's mutedChats for notification filtering
+  await User.findByIdAndUpdate(userId, {
+    $addToSet: { 'notificationSettings.mutedChats': id }
+  });
+
   res.status(200).json({
     success: true,
     message: 'Conversation muted successfully',
@@ -195,6 +200,11 @@ exports.unmuteConversation = asyncHandler(async (req, res, next) => {
   }
 
   await conversation.unmute(userId);
+
+  // Also remove from user's mutedChats
+  await User.findByIdAndUpdate(userId, {
+    $pull: { 'notificationSettings.mutedChats': id }
+  });
 
   res.status(200).json({
     success: true,
