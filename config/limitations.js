@@ -10,13 +10,13 @@ module.exports = {
   // Users who haven't verified email or just browsing
   visitor: {
     // Messaging
-    messagesPerDay: 10,
-    voiceMessagesPerDay: 0,
+    messagesPerDay: 50,
+    voiceMessagesPerDay: 10,
 
     // Content Creation
-    momentsPerDay: 0,
-    storiesPerDay: 0,
-    commentsPerDay: 5,
+    momentsPerDay: 5,
+    storiesPerDay: 3,
+    commentsPerDay: 20,
 
     // Social
     profileViewsPerDay: 20,
@@ -24,21 +24,22 @@ module.exports = {
     followsPerDay: 10,
 
     // Community
-    nearbySearchEnabled: false,
-    nearbySearchPerDay: 0,
-    nearbyRadius: 0, // km
+    nearbySearchEnabled: true,
+    nearbySearchPerDay: 10,
+    nearbyRadius: 50, // km
 
     // Voice Rooms
-    voiceRoomsPerDay: 0,
-    voiceRoomDurationMinutes: 0,
-    canCreateVoiceRoom: false,
+    voiceRoomsPerDay: 3,
+    voiceRoomDurationMinutes: 30,
+    canCreateVoiceRoom: true,
+    maxParticipantsInRoom: 8,
 
     // AI Features (per hour)
     aiConversationPerHour: 5,
     aiGrammarCheckPerHour: 10,
     aiTranslationPerHour: 20,
     aiQuizPerHour: 3,
-    aiLessonBuilderPerHour: 0,
+    aiLessonBuilderPerHour: 5,
     aiPronunciationPerHour: 5,
     ttsPerHour: 10,
     sttPerHour: 5,
@@ -48,9 +49,9 @@ module.exports = {
     lessonsPerDay: 3,
 
     // Storage
-    maxPhotoUploadMB: 5,
-    maxVideoUploadMB: 0,
-    maxVoiceUploadMB: 0
+    maxPhotoUploadMB: 10,
+    maxVideoUploadMB: 50,
+    maxVoiceUploadMB: 10
   },
 
   // ===================== REGULAR USER LIMITS =====================

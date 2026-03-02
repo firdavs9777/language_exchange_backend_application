@@ -137,8 +137,8 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     (req.user.vipSubscription && req.user.vipSubscription.isActive)
   );
 
-  // Gender filter (VIP only - ignore for non-VIP users)
-  if (req.query.gender && isVip) {
+  // Gender filter (available to all users)
+  if (req.query.gender) {
     const genderMap = {
       'male': ['male', 'm', 'man', 'boy'],
       'female': ['female', 'f', 'woman', 'girl'],
@@ -169,8 +169,8 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     query.isOnline = true;
   }
 
-  // Country filter (VIP only - ignore for non-VIP users)
-  if (req.query.country && isVip) {
+  // Country filter (available to all users)
+  if (req.query.country) {
     query['location.country'] = { $regex: new RegExp(req.query.country, 'i') };
   }
 

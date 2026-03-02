@@ -62,11 +62,6 @@ exports.checkMomentLimit = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User not found', 404));
   }
 
-  // Visitors cannot create moments
-  if (user.userMode === 'visitor') {
-    return next(new ErrorResponse('Visitors cannot create moments. Please upgrade to regular user.', 403));
-  }
-
   // Reset counters if new day
   await resetDailyCounters(user);
   await user.save();
@@ -103,11 +98,6 @@ exports.checkStoryLimit = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User not found', 404));
   }
 
-  // Visitors cannot create stories
-  if (user.userMode === 'visitor') {
-    return next(new ErrorResponse('Visitors cannot create stories. Please upgrade to regular user.', 403));
-  }
-
   // Reset counters if new day
   await resetDailyCounters(user);
   await user.save();
@@ -142,11 +132,6 @@ exports.checkCommentLimit = asyncHandler(async (req, res, next) => {
   const user = await User.findById(req.user.id);
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
-  }
-
-  // Visitors cannot create comments
-  if (user.userMode === 'visitor') {
-    return next(new ErrorResponse('Visitors cannot create comments. Please upgrade to regular user.', 403));
   }
 
   // Reset counters if new day
@@ -303,8 +288,9 @@ exports.checkWaveLimit = asyncHandler(async (req, res, next) => {
   const tier = getUserTier(user);
   const limits = LIMITS[tier] || LIMITS.regular;
 
+  // Check if waves are completely disabled (shouldn't happen with current config)
   if (limits.wavesPerDay === 0) {
-    return next(new ErrorResponse('Waves are not available for visitors. Please sign up.', 403));
+    return next(new ErrorResponse('Waves are temporarily unavailable.', 403));
   }
 
   if (limits.wavesPerDay === -1) {
