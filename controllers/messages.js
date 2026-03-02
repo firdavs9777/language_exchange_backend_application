@@ -682,6 +682,14 @@ exports.createMessage = asyncHandler(async (req, res, next) => {
   conversation.lastMessage = newMessage._id;
   conversation.lastMessageAt = new Date();
   await conversation.updateUnreadCount(receiver, 1);
+
+  // Remove receiver from deletedBy so conversation reappears when they get a new message
+  if (conversation.deletedBy && conversation.deletedBy.length > 0) {
+    conversation.deletedBy = conversation.deletedBy.filter(
+      id => id.toString() !== receiver.toString()
+    );
+  }
+
   await conversation.save();
   
   await newMessage.populate('sender', 'name username images userMode');
