@@ -14,7 +14,12 @@ exports.getConversations = asyncHandler(async (req, res, next) => {
   const { archived, muted, pinned } = req.query;
 
   let query = {
-    participants: userId
+    participants: userId,
+    // Exclude conversations deleted by this user
+    $or: [
+      { deletedBy: { $exists: false } },
+      { deletedBy: { $ne: userId } }
+    ]
   };
 
   // Filter by archived
@@ -291,6 +296,47 @@ exports.unpinConversation = asyncHandler(async (req, res, next) => {
     success: true,
     message: 'Conversation unpinned successfully',
     data: conversation
+  });
+});
+
+/**
+ * @desc    Delete a conversation (soft delete - removes for current user only)
+ * @route   DELETE /api/v1/conversations/:id
+ * @access  Private
+ */
+exports.deleteConversation = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const userId = req.user._id;
+
+  const conversation = await Conversation.findById(id);
+
+  if (!conversation) {
+    return next(new ErrorResponse('Conversation not found', 404));
+  }
+
+  // Check if user is participant
+  const isParticipant = conversation.participants.some(
+    p => p.toString() === userId.toString()
+  );
+
+  if (!isParticipant) {
+    return next(new ErrorResponse('Not authorized', 403));
+  }
+
+  // Soft delete - add user to deletedBy array
+  if (!conversation.deletedBy) {
+    conversation.deletedBy = [];
+  }
+
+  if (!conversation.deletedBy.some(id => id.toString() === userId.toString())) {
+    conversation.deletedBy.push(userId);
+  }
+
+  await conversation.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Conversation deleted successfully'
   });
 });
 

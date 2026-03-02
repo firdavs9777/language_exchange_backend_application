@@ -8,7 +8,8 @@ const {
   unarchiveConversation,
   pinConversation,
   unpinConversation,
-  markConversationAsRead
+  markConversationAsRead,
+  deleteConversation
 } = require('../controllers/conversations');
 const advancedMessages = require('../controllers/advancedMessages');
 const { protect } = require('../middleware/auth');
@@ -19,7 +20,9 @@ router.use(protect);
 
 // ========== BASIC CONVERSATION ROUTES ==========
 router.route('/').get(getConversations);
-router.route('/:id').get(getConversation);
+router.route('/:id')
+  .get(getConversation)
+  .delete(deleteConversation);
 router.route('/:id/mute').post(muteConversation);
 router.route('/:id/unmute').post(unmuteConversation);
 router.route('/:id/archive').post(archiveConversation);
