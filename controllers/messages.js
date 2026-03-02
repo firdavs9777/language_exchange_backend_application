@@ -353,36 +353,6 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
           preserveNullAndEmptyArrays: true
         }
       },
-      // Filter out conversations deleted by current user
-      {
-        $addFields: {
-          isDeleted: {
-            $cond: {
-              if: {
-                $or: [
-                  // Check if deletedBy contains the ObjectId
-                  { $and: [
-                    { $isArray: '$conversation.deletedBy' },
-                    { $in: [userIdObj, '$conversation.deletedBy'] }
-                  ]},
-                  // Check if deletedBy contains the string version
-                  { $and: [
-                    { $isArray: '$conversation.deletedBy' },
-                    { $in: [userId, '$conversation.deletedBy'] }
-                  ]}
-                ]
-              },
-              then: true,
-              else: false
-            }
-          }
-        }
-      },
-      {
-        $match: {
-          isDeleted: { $ne: true }
-        }
-      },
       {
         $project: {
           _id: '$user._id',
@@ -441,8 +411,8 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
               else: false
             }
           },
-          // Preserve isDeleted for post-processing filter
-          isDeleted: 1
+          // Include deletedBy for post-processing filter
+          deletedBy: '$conversation.deletedBy'
         }
       },
       { $sort: { isPinned: -1, 'lastMessage.createdAt': -1 } },
@@ -480,16 +450,30 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
 
     // Filter out deleted conversations (post-processing for reliability)
     const filteredSenders = uniqueSenders.filter(sender => {
-      if (!sender.isDeleted) return true;
-      console.log(`🗑️ Filtering out deleted conversation for user: ${sender.name}`);
-      return false;
+      // Check if current user is in deletedBy array
+      if (sender.deletedBy && Array.isArray(sender.deletedBy)) {
+        const isDeleted = sender.deletedBy.some(
+          deletedUserId => deletedUserId.toString() === userId.toString()
+        );
+        if (isDeleted) {
+          console.log(`🗑️ Filtering out deleted conversation for user: ${sender.name} (convId: ${sender.conversationId})`);
+          return false;
+        }
+      }
+      return true;
     });
 
-    console.log(`📬 Returning ${filteredSenders.length} chat partners (filtered from ${uniqueSenders.length})`);
+    // Remove deletedBy from response (not needed by frontend)
+    const cleanedSenders = filteredSenders.map(sender => {
+      const { deletedBy, ...rest } = sender;
+      return rest;
+    });
+
+    console.log(`📬 Returning ${cleanedSenders.length} chat partners (filtered from ${uniqueSenders.length})`);
 
     res.status(200).json({
       success: true,
-      count: filteredSenders.length,
+      count: cleanedSenders.length,
       total,
       pagination: {
         currentPage: page,
@@ -498,7 +482,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1
       },
-      data: filteredSenders,
+      data: cleanedSenders,
     });
   });
 
