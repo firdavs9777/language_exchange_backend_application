@@ -440,7 +440,9 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
               },
               else: false
             }
-          }
+          },
+          // Preserve isDeleted for post-processing filter
+          isDeleted: 1
         }
       },
       { $sort: { isPinned: -1, 'lastMessage.createdAt': -1 } },
@@ -476,9 +478,18 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
     const total = totalResult.length > 0 ? totalResult[0].total : 0;
     const totalPages = Math.ceil(total / actualLimit);
 
+    // Filter out deleted conversations (post-processing for reliability)
+    const filteredSenders = uniqueSenders.filter(sender => {
+      if (!sender.isDeleted) return true;
+      console.log(`🗑️ Filtering out deleted conversation for user: ${sender.name}`);
+      return false;
+    });
+
+    console.log(`📬 Returning ${filteredSenders.length} chat partners (filtered from ${uniqueSenders.length})`);
+
     res.status(200).json({
       success: true,
-      count: uniqueSenders.length,
+      count: filteredSenders.length,
       total,
       pagination: {
         currentPage: page,
@@ -487,7 +498,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1
       },
-      data: uniqueSenders,
+      data: filteredSenders,
     });
   });
 
