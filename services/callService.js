@@ -9,22 +9,40 @@ const { getIceServers } = require('../config/xirsys');
 // Cache ICE servers for 5 minutes to reduce API calls
 let cachedIceServers = null;
 let cacheExpiry = 0;
+let fetchPromise = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 /**
  * Get ICE servers (cached)
+ * Uses promise-based mutex to prevent duplicate API calls
  */
 const getCachedIceServers = async () => {
   const now = Date.now();
 
+  // Return cached if valid
   if (cachedIceServers && now < cacheExpiry) {
     return cachedIceServers;
   }
 
-  cachedIceServers = await getIceServers();
-  cacheExpiry = now + CACHE_DURATION;
+  // If a fetch is already in progress, wait for it
+  if (fetchPromise) {
+    return fetchPromise;
+  }
 
-  return cachedIceServers;
+  // Start a new fetch
+  fetchPromise = getIceServers()
+    .then(servers => {
+      cachedIceServers = servers;
+      cacheExpiry = Date.now() + CACHE_DURATION;
+      fetchPromise = null;
+      return servers;
+    })
+    .catch(err => {
+      fetchPromise = null;
+      throw err;
+    });
+
+  return fetchPromise;
 };
 
 /**
