@@ -5,6 +5,12 @@ const callService = require('../services/callService');
 // Track active calls (callId -> { participants, status })
 const activeCalls = new Map();
 
+// Track call timeouts (callId -> timeoutId)
+const callTimeouts = new Map();
+
+// Call timeout duration (60 seconds)
+const CALL_TIMEOUT_MS = 60 * 1000;
+
 /**
  * Register WebRTC call event handlers
  */
@@ -74,7 +80,49 @@ const registerCallHandlers = (socket, io) => {
         status: 'ringing',
         type: callType
       });
-      
+
+      // Set timeout for unanswered call
+      const timeoutId = setTimeout(async () => {
+        try {
+          const callData = activeCalls.get(call._id.toString());
+          if (callData && callData.status === 'ringing') {
+            // Mark as missed
+            call.status = 'missed';
+            call.endTime = new Date();
+            call.endReason = 'timeout';
+            await call.save();
+
+            activeCalls.delete(call._id.toString());
+            callTimeouts.delete(call._id.toString());
+
+            // Notify caller
+            io.to(`user_${userId}`).emit('call:timeout', {
+              callId: call._id,
+              reason: 'No answer'
+            });
+
+            // Notify recipient
+            io.to(recipientRoom).emit('call:missed', {
+              callId: call._id,
+              caller: {
+                _id: caller._id,
+                name: caller.name,
+                profilePicture: caller.profilePicture
+              }
+            });
+
+            console.log(`⏰ Call timeout: ${call._id}`);
+          }
+        } catch (error) {
+          console.error('❌ Call timeout error:', error.message);
+          // Still cleanup maps even if db save fails
+          activeCalls.delete(call._id.toString());
+          callTimeouts.delete(call._id.toString());
+        }
+      }, CALL_TIMEOUT_MS);
+
+      callTimeouts.set(call._id.toString(), timeoutId);
+
       // Notify recipient
       io.to(recipientRoom).emit('call:incoming', {
         callId: call._id,
@@ -135,6 +183,13 @@ const registerCallHandlers = (socket, io) => {
       const callData = activeCalls.get(callId);
       
       if (accept) {
+        // Clear timeout
+        const timeoutId = callTimeouts.get(callId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          callTimeouts.delete(callId);
+        }
+
         // Accept call
         call.status = 'active';
         await call.save();
@@ -164,6 +219,13 @@ const registerCallHandlers = (socket, io) => {
         console.log(`✅ Call accepted: ${callId}`);
         
       } else {
+        // Clear timeout
+        const timeoutId = callTimeouts.get(callId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          callTimeouts.delete(callId);
+        }
+
         // Reject call
         call.status = 'rejected';
         call.endTime = new Date();
@@ -284,12 +346,19 @@ const registerCallHandlers = (socket, io) => {
       if (!call) {
         throw new Error('Call not found');
       }
-      
+
+      // Clear timeout
+      const timeoutId = callTimeouts.get(callId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        callTimeouts.delete(callId);
+      }
+
       call.status = 'ended';
       call.endTime = new Date();
       call.duration = Math.floor((call.endTime - call.startTime) / 1000);
       await call.save();
-      
+
       // Remove from active calls
       activeCalls.delete(callId);
       
@@ -479,6 +548,13 @@ const registerCallHandlers = (socket, io) => {
     // End any active calls for this user
     for (const [callId, callData] of activeCalls.entries()) {
       if (callData.participants.includes(userId)) {
+        // Clear timeout if exists
+        const timeoutId = callTimeouts.get(callId);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          callTimeouts.delete(callId);
+        }
+
         // End the call
         Call.findByIdAndUpdate(callId, {
           status: 'ended',
