@@ -6,26 +6,42 @@
 const axios = require('axios');
 
 const XIRSYS_API_URL = 'https://global.xirsys.net';
+const DEFAULT_CHANNEL = 'banatalk';
+const REQUEST_TIMEOUT_MS = 5000;
+const FALLBACK_ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' }
+];
 
 /**
  * Fetch ICE servers from Xirsys
  * Returns STUN and TURN server credentials
  */
 const getIceServers = async () => {
+  // Check credentials before making request
+  const ident = process.env.XIRSYS_IDENT;
+  const secret = process.env.XIRSYS_SECRET;
+
+  if (!ident || !secret) {
+    console.warn('Xirsys credentials not configured. Using fallback STUN servers.');
+    return FALLBACK_ICE_SERVERS;
+  }
+
   try {
-    const channel = process.env.XIRSYS_CHANNEL || 'default';
+    const channel = process.env.XIRSYS_CHANNEL || DEFAULT_CHANNEL;
 
     const response = await axios.put(
       `${XIRSYS_API_URL}/_turn/${channel}`,
       {},
       {
         auth: {
-          username: process.env.XIRSYS_IDENT,
-          password: process.env.XIRSYS_SECRET
+          username: ident,
+          password: secret
         },
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        timeout: REQUEST_TIMEOUT_MS
       }
     );
 
@@ -37,14 +53,7 @@ const getIceServers = async () => {
     throw new Error('Invalid Xirsys response');
   } catch (error) {
     console.error('Failed to fetch ICE servers:', error.message);
-
-    // Fallback to free STUN servers
-    return {
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-      ]
-    };
+    return FALLBACK_ICE_SERVERS;
   }
 };
 
