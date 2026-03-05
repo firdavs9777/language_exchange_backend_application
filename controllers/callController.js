@@ -85,7 +85,14 @@ exports.getMissedCallsCount = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
   const { since } = req.query;
 
-  const sinceDate = since ? new Date(since) : null;
+  let sinceDate = null;
+  if (since) {
+    sinceDate = new Date(since);
+    if (isNaN(sinceDate.getTime())) {
+      return next(new ErrorResponse('Invalid date format for "since" parameter', 400));
+    }
+  }
+
   const count = await callService.getMissedCallsCount(userId, sinceDate);
 
   res.status(200).json({
