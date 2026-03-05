@@ -1,5 +1,6 @@
 const Call = require('../models/Call');
 const User = require('../models/User');
+const callService = require('../services/callService');
 
 // Track active calls (callId -> { participants, status })
 const activeCalls = new Map();
@@ -63,7 +64,10 @@ const registerCallHandlers = (socket, io) => {
         initiator: userId,
         startTime: new Date()
       });
-      
+
+      // Get ICE servers for WebRTC
+      const iceServers = await callService.getCachedIceServers();
+
       // Track active call
       activeCalls.set(call._id.toString(), {
         participants: [userId, targetUserId],
@@ -79,7 +83,8 @@ const registerCallHandlers = (socket, io) => {
           name: caller.name,
           profilePicture: caller.profilePicture
         },
-        callType: callType
+        callType: callType,
+        iceServers
       });
       
       // Confirm to caller
@@ -91,7 +96,8 @@ const registerCallHandlers = (socket, io) => {
             _id: recipient._id,
             name: recipient.name,
             profilePicture: recipient.profilePicture
-          }
+          },
+          iceServers
         });
       }
       
