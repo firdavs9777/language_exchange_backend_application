@@ -45,6 +45,7 @@ const grammarFeedback = require('./routes/grammarFeedback');
 const speech = require('./routes/speech');
 const aiTranslation = require('./routes/aiTranslation');
 const lessonBuilder = require('./routes/lessonBuilder');
+const calls = require('./routes/calls');
 
 // Initialize Express app
 const app = express();
@@ -275,6 +276,7 @@ app.use('/api/v1/ai-conversation', aiConversation);
 app.use('/api/v1/grammar-feedback', grammarFeedback);
 app.use('/api/v1/speech', speech);
 app.use('/api/v1/translate', aiTranslation);
+app.use('/api/v1/calls', calls);
 
 // Error request logger (logs failed requests)
 app.use(errorRequestLogger);
