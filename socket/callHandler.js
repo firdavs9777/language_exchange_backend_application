@@ -321,7 +321,7 @@ const registerCallHandlers = (socket, io) => {
       }
       
       console.log(`✅ Call ended: ${callId} (${call.duration}s)`);
-      
+
     } catch (error) {
       console.error('❌ Call end error:', error.message);
       if (callback) {
@@ -332,7 +332,121 @@ const registerCallHandlers = (socket, io) => {
       }
     }
   });
-  
+
+  // ============ MUTE TOGGLE ============
+
+  socket.on('call:mute', async (data, callback) => {
+    try {
+      const { callId, isMuted } = data;
+
+      if (!callId || typeof isMuted !== 'boolean') {
+        throw new Error('Call ID and muted state are required');
+      }
+
+      console.log(`🔇 Call mute: ${callId} - ${isMuted ? 'muted' : 'unmuted'} by ${userId}`);
+
+      const call = await Call.findById(callId);
+
+      if (!call) {
+        throw new Error('Call not found');
+      }
+
+      // Verify user is a participant
+      const isParticipant = call.participants.some(
+        id => id.toString() === userId
+      );
+      if (!isParticipant) {
+        throw new Error('Not authorized for this call');
+      }
+
+      // Verify call is active
+      if (call.status !== 'active') {
+        throw new Error('Call is not active');
+      }
+
+      // Notify other participant
+      const otherUserId = call.participants.find(
+        id => id.toString() !== userId
+      );
+
+      if (otherUserId) {
+        const otherUserRoom = `user_${otherUserId.toString()}`;
+        io.to(otherUserRoom).emit('call:mute', {
+          callId,
+          userId,
+          isMuted
+        });
+      }
+
+      if (callback) {
+        callback({ status: 'success' });
+      }
+
+    } catch (error) {
+      console.error('❌ Call mute error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+
+  // ============ VIDEO TOGGLE ============
+
+  socket.on('call:video-toggle', async (data, callback) => {
+    try {
+      const { callId, isVideoEnabled } = data;
+
+      if (!callId || typeof isVideoEnabled !== 'boolean') {
+        throw new Error('Call ID and video state are required');
+      }
+
+      console.log(`📹 Video toggle: ${callId} - ${isVideoEnabled ? 'on' : 'off'} by ${userId}`);
+
+      const call = await Call.findById(callId);
+
+      if (!call) {
+        throw new Error('Call not found');
+      }
+
+      // Verify user is a participant
+      const isParticipant = call.participants.some(
+        id => id.toString() === userId
+      );
+      if (!isParticipant) {
+        throw new Error('Not authorized for this call');
+      }
+
+      // Verify call is active
+      if (call.status !== 'active') {
+        throw new Error('Call is not active');
+      }
+
+      // Notify other participant
+      const otherUserId = call.participants.find(
+        id => id.toString() !== userId
+      );
+
+      if (otherUserId) {
+        const otherUserRoom = `user_${otherUserId.toString()}`;
+        io.to(otherUserRoom).emit('call:video-toggle', {
+          callId,
+          userId,
+          isVideoEnabled
+        });
+      }
+
+      if (callback) {
+        callback({ status: 'success' });
+      }
+
+    } catch (error) {
+      console.error('❌ Video toggle error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+
   // ============ CALL MISSED ============
   
   socket.on('call:missed', async (data) => {
