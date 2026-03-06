@@ -117,11 +117,17 @@ const registerVoiceRoomHandlers = (socket, io) => {
           name: user?.name,
           images: user?.images
         },
-        participantCount: room.participants.length + 1
+        participantCount: roomParticipantsCache.get(roomId)?.participantIds.size || room.participants.length + 1
       });
 
-      // Get ICE servers for WebRTC
-      const iceServers = await getCachedIceServers();
+      // Get ICE servers for WebRTC (with fallback)
+      let iceServers;
+      try {
+        iceServers = await getCachedIceServers();
+      } catch (err) {
+        console.error('Failed to get ICE servers, using fallback:', err.message);
+        iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+      }
 
       // Send current room state to joining user with ICE servers
       socket.emit('voiceroom:joined', {
