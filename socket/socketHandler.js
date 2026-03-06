@@ -1050,31 +1050,38 @@ const registerPresenceHandlers = (socket, io) => {
   socket.on('getUserStatus', async (data, callback) => {
     try {
       const targetUserId = data?.userId;
-      
+
       if (!targetUserId) {
         throw new Error('User ID is required');
       }
-      
+
       const cachedStatus = onlineUsersCache.get(targetUserId);
-      
-      const response = cachedStatus ? {
-        status: 'success',
-        data: {
-          userId: targetUserId,
-          status: cachedStatus.status,
-          lastSeen: cachedStatus.lastSeen,
-          deviceCount: cachedStatus.deviceCount
-        }
-      } : {
-        status: 'success',
-        data: {
-          userId: targetUserId,
-          status: 'offline',
-          lastSeen: new Date().toISOString(),
-          deviceCount: 0
-        }
-      };
-      
+
+      let response;
+      if (cachedStatus && cachedStatus.status === 'online') {
+        response = {
+          status: 'success',
+          data: {
+            userId: targetUserId,
+            status: cachedStatus.status,
+            lastSeen: cachedStatus.lastSeen,
+            deviceCount: cachedStatus.deviceCount
+          }
+        };
+      } else {
+        // Query database for actual lastSeen
+        const userData = await User.findById(targetUserId, { isOnline: 1, lastSeen: 1 }).lean();
+        response = {
+          status: 'success',
+          data: {
+            userId: targetUserId,
+            status: userData?.isOnline ? 'online' : 'offline',
+            lastSeen: userData?.lastSeen ? userData.lastSeen.toISOString() : null,
+            deviceCount: 0
+          }
+        };
+      }
+
       // FIX: Check if callback exists before calling
       if (callback && typeof callback === 'function') {
         callback(response);
@@ -1082,10 +1089,10 @@ const registerPresenceHandlers = (socket, io) => {
         // If no callback, emit response directly
         socket.emit('userStatusUpdate', response.data);
       }
-      
+
     } catch (error) {
       console.error('❌ Get user status error:', error.message);
-      
+
       if (callback && typeof callback === 'function') {
         callback({
           status: 'error',
@@ -1098,35 +1105,67 @@ const registerPresenceHandlers = (socket, io) => {
   socket.on('requestStatusUpdates', async (data) => {
     try {
       const userIds = data?.userIds || [];
-      
+
       if (!Array.isArray(userIds) || userIds.length === 0) {
         return;
       }
-      
+
       console.log(`📊 Requesting status for ${userIds.length} users`);
-      
+
       const statusUpdates = {};
-      
+      const offlineUserIds = [];
+
+      // First check cache for online users
       for (const targetId of userIds) {
         const cachedStatus = onlineUsersCache.get(targetId);
-        
-        if (cachedStatus) {
+
+        if (cachedStatus && cachedStatus.status === 'online') {
           statusUpdates[targetId] = {
             status: cachedStatus.status,
             lastSeen: cachedStatus.lastSeen,
             deviceCount: cachedStatus.deviceCount
           };
         } else {
-          statusUpdates[targetId] = {
-            status: 'offline',
-            lastSeen: new Date().toISOString(),
-            deviceCount: 0
-          };
+          offlineUserIds.push(targetId);
         }
       }
-      
+
+      // Query database for actual lastSeen of offline users
+      if (offlineUserIds.length > 0) {
+        try {
+          const offlineUsers = await User.find(
+            { _id: { $in: offlineUserIds } },
+            { _id: 1, isOnline: 1, lastSeen: 1 }
+          ).lean();
+
+          const userMap = {};
+          offlineUsers.forEach(u => {
+            userMap[u._id.toString()] = u;
+          });
+
+          for (const targetId of offlineUserIds) {
+            const userData = userMap[targetId];
+            statusUpdates[targetId] = {
+              status: userData?.isOnline ? 'online' : 'offline',
+              lastSeen: userData?.lastSeen ? userData.lastSeen.toISOString() : null,
+              deviceCount: 0
+            };
+          }
+        } catch (dbError) {
+          console.error('❌ Error fetching lastSeen from DB:', dbError);
+          // Fallback to null lastSeen
+          for (const targetId of offlineUserIds) {
+            statusUpdates[targetId] = {
+              status: 'offline',
+              lastSeen: null,
+              deviceCount: 0
+            };
+          }
+        }
+      }
+
       socket.emit('bulkStatusUpdate', statusUpdates);
-      
+
     } catch (error) {
       console.error('❌ Request status updates error:', error);
     }
