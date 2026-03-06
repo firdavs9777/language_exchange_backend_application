@@ -678,22 +678,24 @@ const registerMessageHandlers = (socket, io) => {
             resetDailyCounters(senderUser).then(() => senderUser.save())
           ]).catch(err => console.error('Background update error:', err.message));
 
-          // Push notification - only send if socket delivery failed (user offline)
-          // If socket succeeded, user received message in real-time - no push needed
-          // This prevents duplicate notifications when user has app open
-          if (!sent) {
-            notificationService.sendChatMessage(
-              receiver,
-              userId,
-              {
-                _id: newMessage._id,
-                text: messageText,
-                conversation: newMessage.conversation
-              }
-            ).catch(err => console.error('Push notification failed:', err));
-          } else {
-            console.log(`📱 Skipping push notification - user ${receiver} received via socket`);
-          }
+          // Push notification - always send for chat messages
+          // The client handles deduplication (skips showing when app is in foreground)
+          // This ensures notifications work when app is backgrounded but socket still connected
+          notificationService.sendChatMessage(
+            receiver,
+            userId,
+            {
+              _id: newMessage._id,
+              text: messageText,
+              conversation: newMessage.conversation
+            }
+          ).then(result => {
+            if (result.skipped) {
+              console.log(`📱 Push notification skipped for ${receiver} (user preferences)`);
+            } else if (result.success) {
+              console.log(`📱 Push notification sent to ${receiver}`);
+            }
+          }).catch(err => console.error('Push notification failed:', err));
 
           // Learning tracking (already async) - get conversation ID first
           if (messageText && messageText.length > 0) {
