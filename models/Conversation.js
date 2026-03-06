@@ -260,6 +260,13 @@ ConversationSchema.index({ 'unreadCount.user': 1, 'unreadCount.count': 1 });
 // Index for participant lookups
 ConversationSchema.index({ participants: 1 });
 
+// Index for direct message conversation lookup (most common socket query)
+// Optimizes: findOne({ participants: { $all: [user1, user2] }, isGroup: false })
+ConversationSchema.index({ participants: 1, isGroup: 1 });
+
+// Index for deleted conversations filtering
+ConversationSchema.index({ deletedBy: 1, participants: 1 });
+
 // Pre-save hook
 ConversationSchema.pre('save', function(next) {
   this.updatedAt = Date.now();

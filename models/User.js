@@ -1481,4 +1481,21 @@ UserSchema.index({ username: 1 });
 UserSchema.index({ 'fcmTokens.token': 1 });
 UserSchema.index({ 'fcmTokens.deviceId': 1 });
 
+// ========== CHAT PERFORMANCE INDEXES ==========
+// Index for user lookup by ID with commonly needed fields
+UserSchema.index({ _id: 1, name: 1, username: 1, images: 1, userMode: 1 });
+
+// Index for online status queries
+UserSchema.index({ isOnline: 1, lastSeen: -1 });
+
+// Index for blocked users lookup (for chat permissions)
+UserSchema.index({ blockedUsers: 1 });
+UserSchema.index({ blockedBy: 1 });
+
+// Compound index for user discovery/search
+UserSchema.index({ isOnline: 1, userMode: 1, lastSeen: -1 });
+
+// Index for email lookup (login)
+UserSchema.index({ email: 1 });
+
 module.exports = mongoose.model('User', UserSchema);
