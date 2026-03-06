@@ -683,18 +683,26 @@ const registerMessageHandlers = (socket, io) => {
             console.log(`📱 Skipping push notification - user ${receiver} received via socket`);
           }
 
-          // Learning tracking (already async)
+          // Learning tracking (already async) - get conversation ID first
           if (messageText && messageText.length > 0) {
-            detectLanguage(messageText).then(detectedLang => {
-              learningTrackingService.trackMessage({
-                userId,
-                conversationId: newMessage.conversation,
-                messageId: newMessage._id,
-                partnerId: receiver,
-                messageText,
-                detectedLanguage: detectedLang
-              }).catch(err => console.error('Learning tracking error:', err.message));
-            }).catch(err => console.error('Language detection error:', err.message));
+            // Find conversation for tracking (may have just been created)
+            Conversation.findOne({
+              participants: { $all: [userId, receiver], $size: 2 },
+              isGroup: false
+            }).select('_id').lean().then(conv => {
+              if (!conv) return; // Skip if no conversation found
+
+              detectLanguage(messageText).then(detectedLang => {
+                learningTrackingService.trackMessage({
+                  userId,
+                  conversationId: conv._id,
+                  messageId: newMessage._id,
+                  partnerId: receiver,
+                  messageText,
+                  detectedLanguage: detectedLang
+                }).catch(err => console.error('Learning tracking error:', err.message));
+              }).catch(err => console.error('Language detection error:', err.message));
+            }).catch(err => console.error('Conversation lookup error:', err.message));
           }
 
           const totalTime = Date.now() - startTime;
