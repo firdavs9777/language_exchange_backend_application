@@ -360,21 +360,22 @@ exports.googleCallback = asyncHandler(async (req, res, next) => {
  * @access  Public
  */
 exports.register = asyncHandler(async (req, res, next) => {
-  const { 
-    email, 
-    password, 
-    name, 
-    gender, 
-    bio, 
-    birth_year, 
-    birth_month, 
+  const {
+    email,
+    password,
+    name,
+    gender,
+    bio,
+    birth_year,
+    birth_month,
     birth_day,
     images,
     native_language,
     language_to_learn,
     mbti,
-    bloodType, 
-    location
+    bloodType,
+    location,
+    termsAccepted
   } = req.body;
 
   // Validate required fields
@@ -428,6 +429,12 @@ exports.register = asyncHandler(async (req, res, next) => {
   // Optional fields
   if (mbti) user.mbti = mbti;
   if (bloodType) user.bloodType = bloodType;
+
+  // Save terms acceptance if provided
+  if (termsAccepted) {
+    user.termsAccepted = true;
+    user.termsAcceptedDate = new Date();
+  }
 
   await user.save();
 
