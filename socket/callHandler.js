@@ -516,6 +516,144 @@ const registerCallHandlers = (socket, io) => {
     }
   });
 
+  // ============ RECONNECTION ============
+
+  socket.on('call:reconnecting', async (data) => {
+    try {
+      const { callId } = data;
+
+      if (!callId) return;
+
+      console.log(`🔄 Call reconnecting: ${callId} by ${userId}`);
+
+      const call = await Call.findById(callId);
+
+      if (!call || call.status !== 'active') return;
+
+      // Verify user is a participant
+      const isParticipant = call.participants.some(
+        id => id.toString() === userId
+      );
+      if (!isParticipant) {
+        throw new Error('Not authorized for this call');
+      }
+
+      // Notify other participant
+      const otherUserId = call.participants.find(
+        id => id.toString() !== userId
+      );
+
+      if (otherUserId) {
+        io.to(`user_${otherUserId.toString()}`).emit('call:peer-reconnecting', {
+          callId,
+          userId
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Reconnecting event error:', error.message);
+    }
+  });
+
+  socket.on('call:reconnected', async (data) => {
+    try {
+      const { callId } = data;
+
+      if (!callId) return;
+
+      console.log(`✅ Call reconnected: ${callId} by ${userId}`);
+
+      const call = await Call.findById(callId);
+
+      if (!call || call.status !== 'active') return;
+
+      // Verify user is a participant
+      const isParticipant = call.participants.some(
+        id => id.toString() === userId
+      );
+      if (!isParticipant) {
+        throw new Error('Not authorized for this call');
+      }
+
+      // Notify other participant
+      const otherUserId = call.participants.find(
+        id => id.toString() !== userId
+      );
+
+      if (otherUserId) {
+        io.to(`user_${otherUserId.toString()}`).emit('call:peer-reconnected', {
+          callId,
+          userId
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Reconnected event error:', error.message);
+    }
+  });
+
+  socket.on('call:failed', async (data, callback) => {
+    try {
+      const { callId, reason } = data;
+
+      if (!callId) {
+        throw new Error('Call ID is required');
+      }
+
+      console.log(`❌ Call failed: ${callId} - ${reason || 'unknown'}`);
+
+      const call = await Call.findById(callId);
+
+      if (!call) {
+        throw new Error('Call not found');
+      }
+
+      // Verify user is a participant
+      const isParticipant = call.participants.some(
+        id => id.toString() === userId
+      );
+      if (!isParticipant) {
+        throw new Error('Not authorized for this call');
+      }
+
+      call.status = 'failed';
+      call.endTime = new Date();
+      call.endReason = 'failed';
+      await call.save();
+
+      activeCalls.delete(callId);
+
+      // Clear timeout if exists
+      const timeoutId = callTimeouts.get(callId);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+        callTimeouts.delete(callId);
+      }
+
+      // Notify other participant
+      const otherUserId = call.participants.find(
+        id => id.toString() !== userId
+      );
+
+      if (otherUserId) {
+        io.to(`user_${otherUserId.toString()}`).emit('call:failed', {
+          callId,
+          reason: reason || 'Connection failed'
+        });
+      }
+
+      if (callback) {
+        callback({ status: 'success' });
+      }
+
+    } catch (error) {
+      console.error('❌ Call failed error:', error.message);
+      if (callback) {
+        callback({ status: 'error', error: error.message });
+      }
+    }
+  });
+
   // ============ CALL MISSED ============
   
   socket.on('call:missed', async (data) => {
