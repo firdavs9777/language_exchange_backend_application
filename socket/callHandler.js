@@ -1,6 +1,7 @@
 const Call = require('../models/Call');
 const User = require('../models/User');
 const callService = require('../services/callService');
+const { sendToUser } = require('../services/fcmService');
 
 // Track active calls (callId -> { participants, status })
 const activeCalls = new Map();
@@ -111,6 +112,21 @@ const registerCallHandlers = (socket, io) => {
               }
             });
 
+            // Send push notification for missed call
+            sendToUser(
+              targetUserId,
+              {
+                title: 'Missed Call',
+                body: `You missed a call from ${caller.name}`
+              },
+              {
+                type: 'missed_call',
+                callId: call._id.toString(),
+                callerId: userId,
+                callerName: caller.name
+              }
+            ).catch(err => console.error('FCM error:', err.message));
+
             console.log(`⏰ Call timeout: ${call._id}`);
           }
         } catch (error) {
@@ -134,7 +150,24 @@ const registerCallHandlers = (socket, io) => {
         callType: callType,
         iceServers
       });
-      
+
+      // Send push notification for incoming call
+      sendToUser(
+        targetUserId,
+        {
+          title: `Incoming ${callType === 'video' ? 'Video' : 'Audio'} Call`,
+          body: `${caller.name} is calling you...`
+        },
+        {
+          type: 'incoming_call',
+          callId: call._id.toString(),
+          callerId: userId,
+          callerName: caller.name,
+          callerAvatar: caller.profilePicture || '',
+          callType
+        }
+      ).catch(err => console.error('FCM error:', err.message));
+
       // Confirm to caller
       if (callback) {
         callback({
