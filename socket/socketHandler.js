@@ -40,9 +40,64 @@ const SOCKET_CONFIG = {
   MESSAGE_RETRY_ATTEMPTS: 3,
   MESSAGE_RETRY_DELAY: 1000,
   HEARTBEAT_INTERVAL: 30000,  // Ping every 30 seconds
-  HEARTBEAT_TIMEOUT: 60000,   // 30 second window to respond (60-30=30s)
+  HEARTBEAT_TIMEOUT: 120000,  // 90 second window to respond (120-30=90s) - matches Socket.IO pingTimeout
   OFFLINE_MESSAGE_QUEUE_MAX: 50,
   CLEANUP_INTERVAL: 60000, // Clean up stale data every minute
+  USER_CACHE_TTL: 60000, // Cache user data for 1 minute
+  USER_CACHE_MAX_SIZE: 1000, // Max cached users
+};
+
+// ========== USER CACHE FOR FAST LOOKUPS ==========
+
+// Cache structure: userId -> { user, timestamp, blockedUsers, blockedByUsers }
+const userCache = new Map();
+
+/**
+ * Get user from cache or database
+ * Returns cached user data for fast message sending
+ */
+const getCachedUser = async (userId) => {
+  const now = Date.now();
+  const cached = userCache.get(userId);
+
+  // Return cached if valid
+  if (cached && (now - cached.timestamp) < SOCKET_CONFIG.USER_CACHE_TTL) {
+    return cached.user;
+  }
+
+  // Fetch from database
+  const user = await User.findById(userId).select('name username images userMode blockedUsers blockedBy regularUserLimitations visitorLimitations lastLimitReset');
+
+  if (user) {
+    // Enforce cache size limit
+    if (userCache.size >= SOCKET_CONFIG.USER_CACHE_MAX_SIZE) {
+      // Remove oldest entry
+      const oldestKey = userCache.keys().next().value;
+      userCache.delete(oldestKey);
+    }
+
+    userCache.set(userId, {
+      user,
+      timestamp: now
+    });
+  }
+
+  return user;
+};
+
+/**
+ * Invalidate user cache entry
+ * Call this when user data changes (block, unblock, etc.)
+ */
+const invalidateUserCache = (userId) => {
+  userCache.delete(userId);
+};
+
+/**
+ * Clear entire user cache
+ */
+const clearUserCache = () => {
+  userCache.clear();
 };
 
 /**
@@ -300,7 +355,9 @@ const handleMultipleConnections = async (socket, io, userId, deviceId) => {
 const setupHeartbeat = (socket, io) => {
   let heartbeatTimeout;
   let missedPongs = 0;
-  const MAX_MISSED_PONGS = 2; // Allow 2 missed pongs before disconnecting
+  let lastPongTime = Date.now();
+  const MAX_MISSED_PONGS = 4; // Allow 4 missed pongs (120s total) - matches Socket.IO pingTimeout for mobile apps
+  const userId = socket.user?.id;
 
   // Send ping periodically
   const pingInterval = setInterval(() => {
@@ -313,10 +370,15 @@ const setupHeartbeat = (socket, io) => {
       // Set timeout for pong response
       heartbeatTimeout = setTimeout(() => {
         missedPongs++;
-        console.log(`⚠️ Missed pong ${missedPongs}/${MAX_MISSED_PONGS} for socket ${socket.id}`);
+        const silentSeconds = Math.round((Date.now() - lastPongTime) / 1000);
+
+        // Only log every other missed pong to reduce noise
+        if (missedPongs % 2 === 0 || missedPongs >= MAX_MISSED_PONGS - 1) {
+          console.log(`⚠️ HEARTBEAT: user=${userId} socket=${socket.id} missed=${missedPongs}/${MAX_MISSED_PONGS} silent=${silentSeconds}s`);
+        }
 
         if (missedPongs >= MAX_MISSED_PONGS) {
-          console.log(`💔 Heartbeat timeout for socket ${socket.id} after ${MAX_MISSED_PONGS} missed pongs`);
+          console.log(`💔 HEARTBEAT_TIMEOUT: user=${userId} socket=${socket.id} silent=${silentSeconds}s - disconnecting`);
           socket.disconnect(true);
         }
       }, SOCKET_CONFIG.HEARTBEAT_TIMEOUT - SOCKET_CONFIG.HEARTBEAT_INTERVAL);
@@ -329,13 +391,15 @@ const setupHeartbeat = (socket, io) => {
   // Handle pong response - reset missed count
   socket.on('pong', () => {
     clearTimeout(heartbeatTimeout);
-    missedPongs = 0; // Reset on successful pong
+    missedPongs = 0;
+    lastPongTime = Date.now();
   });
 
   // Also handle client-initiated ping (mobile apps send these)
-  socket.on('ping', (data) => {
+  socket.on('ping', () => {
     socket.emit('pong', { timestamp: Date.now() });
-    missedPongs = 0; // Client is alive
+    missedPongs = 0;
+    lastPongTime = Date.now();
   });
 
   // Cleanup on disconnect
@@ -453,15 +517,17 @@ const registerMessageHandlers = (socket, io) => {
   const registeredUserId = socket.user.id;
   console.log(`📝 Registering message handlers for user: ${registeredUserId}`);
 
-  // Send message with retry logic
+  // Send message with retry logic - OPTIMIZED for speed (parallel DB ops, immediate ACK)
   socket.on('sendMessage', async (data, callback) => {
+    const startTime = Date.now();
     // Always use fresh userId from socket in case it changed
     const userId = socket.user?.id || registeredUserId;
+
     try {
       const receiver = data?.receiver || data?.receiverId;
       let messageText = data?.message || data?.text || data?.content;
 
-      // Validation
+      // ========== PHASE 1: FAST VALIDATION (no DB calls) ==========
       if (!receiver) {
         throw new Error('Receiver ID is required');
       }
@@ -470,72 +536,51 @@ const registerMessageHandlers = (socket, io) => {
         throw new Error('Message text is required');
       }
 
-      // Max message length validation (10KB to prevent abuse)
       const MAX_MESSAGE_LENGTH = 10000;
       if (messageText.length > MAX_MESSAGE_LENGTH) {
         throw new Error(`Message too long. Maximum ${MAX_MESSAGE_LENGTH} characters allowed.`);
       }
 
-      // Basic sanitization - trim whitespace
       messageText = messageText.trim();
 
-      // Validate receiver ID format (MongoDB ObjectId)
       if (!/^[0-9a-fA-F]{24}$/.test(receiver)) {
         throw new Error('Invalid receiver ID format');
       }
 
-      // Prevent self-messaging
       if (receiver === userId) {
         throw new Error('Cannot send message to yourself');
       }
 
-      console.log(`📤 Message: ${userId} → ${receiver}`);
-      console.log(`🔍 Looking up sender with userId: "${userId}" (type: ${typeof userId})`);
+      // ========== PHASE 2: PARALLEL DB LOOKUPS ==========
+      // Run all pre-checks in parallel for speed
+      const [senderUser, receiverHasReplied, messagesSentToReceiver] = await Promise.all([
+        getCachedUser(userId), // Use cache instead of direct DB lookup
+        Message.exists({ sender: receiver, receiver: userId }),
+        Message.countDocuments({ sender: userId, receiver: receiver })
+      ]);
 
-      // Get sender user and check limits
-      const senderUser = await User.findById(userId);
       if (!senderUser) {
         console.error(`❌ Sender not found in database: "${userId}"`);
-        console.error(`   socket.user:`, JSON.stringify(socket.user));
         throw new Error('Sender not found');
       }
-      console.log(`✅ Found sender: ${senderUser.name || senderUser.email}`);
-      
-      // Reset daily counters if new day
-      await resetDailyCounters(senderUser);
-      await senderUser.save();
-      
-      // Check block status
-      if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
+
+      // Check block status (using cached data)
+      const blockedUsers = senderUser.blockedUsers || [];
+      const blockedBy = senderUser.blockedBy || [];
+      if (blockedUsers.some(id => id.toString() === receiver) ||
+          blockedBy.some(id => id.toString() === receiver)) {
         throw new Error('Cannot send message to blocked user');
       }
 
-      // Check first-time conversation limit (max 5 messages until they reply)
+      // Check first-time conversation limit
       const FIRST_CHAT_MESSAGE_LIMIT = 5;
-
-      // Check if receiver has ever sent a message to sender (i.e., they've replied)
-      const receiverHasReplied = await Message.exists({
-        sender: receiver,
-        receiver: userId
-      });
-
-      if (!receiverHasReplied) {
-        // This is a one-way conversation - check how many messages sender has sent
-        const messagesSentToReceiver = await Message.countDocuments({
-          sender: userId,
-          receiver: receiver
-        });
-
-        if (messagesSentToReceiver >= FIRST_CHAT_MESSAGE_LIMIT) {
-          throw new Error(
-            `You can only send ${FIRST_CHAT_MESSAGE_LIMIT} messages until ${senderUser.name ? 'they' : 'this user'} replies. Please wait for a response.`
-          );
-        }
-
-        console.log(`📊 First chat limit: ${messagesSentToReceiver + 1}/${FIRST_CHAT_MESSAGE_LIMIT} messages to new user`);
+      if (!receiverHasReplied && messagesSentToReceiver >= FIRST_CHAT_MESSAGE_LIMIT) {
+        throw new Error(
+          `You can only send ${FIRST_CHAT_MESSAGE_LIMIT} messages until they reply. Please wait for a response.`
+        );
       }
 
-      // Check daily message limit
+      // Check daily message limit (quick in-memory check)
       const canSend = await senderUser.canSendMessage();
       if (!canSend) {
         const { current, max, resetTime } = getMessageLimitInfo(senderUser);
@@ -544,100 +589,121 @@ const registerMessageHandlers = (socket, io) => {
         );
       }
 
-      // Create message
+      // ========== PHASE 3: CREATE MESSAGE & IMMEDIATE ACK ==========
+      // Create message first - this is the critical path
       const newMessage = await Message.create({
         sender: userId,
         receiver,
-        message: messageText.trim()
+        message: messageText
       });
-      
-      // Increment sender's message count
-      await senderUser.incrementMessageCount();
-      
-      // Populate message
-      const populatedMessage = await Message.findById(newMessage._id)
-        .populate('sender', 'name username images userMode')
-        .populate('receiver', 'name username images userMode');
-      
-      // Update conversation
-      await updateConversation(userId, receiver, newMessage._id);
-      
-      // Get unread counts
-      const unreadForReceiver = await Message.countDocuments({
-        receiver,
-        sender: userId,
-        read: false
-      });
-      
-      const unreadForSender = await Message.countDocuments({
-        receiver: userId,
-        sender: receiver,
-        read: false
-      });
-      
-      const messagePayload = {
-        message: populatedMessage,
-        unreadCount: unreadForReceiver,
-        senderId: userId
+
+      // Get sender/receiver info for response (parallel)
+      const [senderInfo, receiverInfo] = await Promise.all([
+        User.findById(userId).select('name username images userMode').lean(),
+        User.findById(receiver).select('name username images userMode').lean()
+      ]);
+
+      // Build populated message object manually (faster than .populate())
+      const populatedMessage = {
+        _id: newMessage._id,
+        sender: senderInfo,
+        receiver: receiverInfo,
+        message: newMessage.message,
+        messageType: newMessage.messageType || 'text',
+        read: false,
+        createdAt: newMessage.createdAt,
+        updatedAt: newMessage.updatedAt
       };
-      
-      // Try to send to receiver with retry
-      const sent = await sendMessageWithRetry(io, receiver, 'newMessage', messagePayload);
 
-      // If receiver is offline, queue the message
-      if (!sent) {
-        queueOfflineMessage(receiver, messagePayload);
-      }
-
-      // IMPORTANT: Always send push notification regardless of socket status
-      // User might be "online" on web but have mobile app in background
-      // Push notifications are handled by user preferences on the recipient side
-      notificationService.sendChatMessage(
-        receiver,
-        userId,
-        {
-          _id: newMessage._id,
-          text: messageText,
-          conversation: newMessage.conversation
-        }
-      ).catch(err => console.error('Push notification failed:', err));
-      
-      // Send acknowledgment to sender
+      // ========== PHASE 4: SEND IMMEDIATE ACK TO SENDER ==========
+      // This is what makes it feel fast - respond before all background work
       const senderResponse = {
         status: 'success',
         message: populatedMessage,
-        unreadCount: unreadForSender,
-        delivered: sent,
-        queued: !sent // Add queued flag for better client handling
+        unreadCount: 0, // Will be updated async
+        delivered: true, // Optimistic
+        queued: false
       };
 
-      // Safe callback check
+      // IMMEDIATE callback to sender - they see "sent" instantly
       if (callback && typeof callback === 'function') {
         callback(senderResponse);
       }
-      
-      // Emit to sender's other devices
-      socket.to(`user_${userId}`).emit('messageSent', {
-        message: populatedMessage,
-        unreadCount: unreadForSender,
-        receiverId: receiver
-      });
-      
-      console.log(`✅ Message ${sent ? 'delivered' : 'queued'}: ${userId} → ${receiver}`);
 
-      // Track message for learning progress (async, don't block)
-      if (messageText && messageText.length > 0) {
-        detectLanguage(messageText).then(detectedLang => {
-          learningTrackingService.trackMessage({
-            userId,
-            conversationId: newMessage.conversation,
-            messageId: newMessage._id,
-            partnerId: receiver,
-            messageText,
-            detectedLanguage: detectedLang
-          }).catch(err => console.error('Learning tracking error:', err.message));
-        }).catch(err => console.error('Language detection error:', err.message));
-      }
+      const ackTime = Date.now() - startTime;
+      console.log(`⚡ Message ACK in ${ackTime}ms: ${userId} → ${receiver}`);
+
+      // ========== PHASE 5: BACKGROUND OPERATIONS (non-blocking) ==========
+      // All these run async after user already got their ACK
+
+      // Background task: Send to receiver, update counts, etc.
+      setImmediate(async () => {
+        try {
+          // Send to receiver
+          const messagePayload = {
+            message: populatedMessage,
+            unreadCount: 1,
+            senderId: userId
+          };
+
+          const sent = await sendMessageWithRetry(io, receiver, 'newMessage', messagePayload);
+
+          if (!sent) {
+            queueOfflineMessage(receiver, messagePayload);
+          }
+
+          // Emit to sender's other devices
+          socket.to(`user_${userId}`).emit('messageSent', {
+            message: populatedMessage,
+            unreadCount: 0,
+            receiverId: receiver
+          });
+
+          // Update conversation and counts (parallel, non-blocking)
+          Promise.all([
+            updateConversation(userId, receiver, newMessage._id),
+            senderUser.incrementMessageCount(),
+            resetDailyCounters(senderUser).then(() => senderUser.save())
+          ]).catch(err => console.error('Background update error:', err.message));
+
+          // Push notification - only send if socket delivery failed (user offline)
+          // If socket succeeded, user received message in real-time - no push needed
+          // This prevents duplicate notifications when user has app open
+          if (!sent) {
+            notificationService.sendChatMessage(
+              receiver,
+              userId,
+              {
+                _id: newMessage._id,
+                text: messageText,
+                conversation: newMessage.conversation
+              }
+            ).catch(err => console.error('Push notification failed:', err));
+          } else {
+            console.log(`📱 Skipping push notification - user ${receiver} received via socket`);
+          }
+
+          // Learning tracking (already async)
+          if (messageText && messageText.length > 0) {
+            detectLanguage(messageText).then(detectedLang => {
+              learningTrackingService.trackMessage({
+                userId,
+                conversationId: newMessage.conversation,
+                messageId: newMessage._id,
+                partnerId: receiver,
+                messageText,
+                detectedLanguage: detectedLang
+              }).catch(err => console.error('Learning tracking error:', err.message));
+            }).catch(err => console.error('Language detection error:', err.message));
+          }
+
+          const totalTime = Date.now() - startTime;
+          console.log(`✅ Message fully processed in ${totalTime}ms: ${userId} → ${receiver}`);
+
+        } catch (bgError) {
+          console.error('❌ Background task error:', bgError.message);
+        }
+      });
 
     } catch (error) {
       console.error('❌ Send message error:', error.message);
@@ -1171,7 +1237,7 @@ const gracefulDisconnect = (socket, reason) => {
 };
 
 /**
- * Handle user disconnection
+ * Handle user disconnection with detailed logging
  */
 const handleDisconnect = async (socket, io, reason) => {
   const userId = socket.user?.id;
@@ -1179,7 +1245,12 @@ const handleDisconnect = async (socket, io, reason) => {
   if (!userId) return;
 
   const friendlyReason = mapDisconnectReason(reason);
-  console.log(`❌ User ${userId} disconnected (socket: ${socket.id}): ${friendlyReason}`);
+  const metadata = socketMetadata.get(socket.id);
+  const connectionDuration = metadata ? Math.round((Date.now() - new Date(metadata.connectedAt).getTime()) / 1000) : 0;
+  const deviceId = metadata?.deviceId || 'unknown';
+
+  // Detailed disconnect logging for debugging
+  console.log(`❌ DISCONNECT: user=${userId} socket=${socket.id} reason=${friendlyReason} duration=${connectionDuration}s device=${deviceId}`);
   
   // Mark as disconnecting
   connectionStates.set(socket.id, 'disconnecting');
@@ -1995,6 +2066,8 @@ module.exports = {
   initializeSocket,
   getOnlineUsersCount,
   getOnlineUserIds,
-    getConnectionInfo
+  getConnectionInfo,
+  invalidateUserCache, // Call this when user blocks/unblocks someone
+  clearUserCache // Call this on server restart or cache issues
 };
 
