@@ -92,6 +92,13 @@ const registerVoiceRoomHandlers = (socket, io) => {
         return socket.emit('voiceroom:error', { message: 'Room not found' });
       }
 
+      // Initialize cache with current room data
+      roomParticipantsCache.set(roomId, {
+        participantIds: new Set(room.participants.map(p => p.user.toString())),
+        status: room.status,
+        lastUpdated: Date.now()
+      });
+
       // Join socket room
       socket.join(`voiceroom_${roomId}`);
 
@@ -216,11 +223,11 @@ const registerVoiceRoomHandlers = (socket, io) => {
 
       // Check both users are participants
       const participantIds = roomData.participantIds;
-      if (!participantIds.includes(userId)) {
+      if (!participantIds.includes(userId.toString())) {
         console.log(`WebRTC offer rejected: User ${userId} not in room ${roomId}`);
         return socket.emit('voiceroom:error', { message: 'Not authorized' });
       }
-      if (!participantIds.includes(targetUserId)) {
+      if (!participantIds.includes(targetUserId.toString())) {
         console.log(`WebRTC offer rejected: Target ${targetUserId} not in room ${roomId}`);
         return socket.emit('voiceroom:error', { message: 'Target not in room' });
       }
@@ -258,11 +265,11 @@ const registerVoiceRoomHandlers = (socket, io) => {
 
       // Check both users are participants
       const participantIds = roomData.participantIds;
-      if (!participantIds.includes(userId)) {
+      if (!participantIds.includes(userId.toString())) {
         console.log(`WebRTC answer rejected: User ${userId} not in room ${roomId}`);
         return socket.emit('voiceroom:error', { message: 'Not authorized' });
       }
-      if (!participantIds.includes(targetUserId)) {
+      if (!participantIds.includes(targetUserId.toString())) {
         console.log(`WebRTC answer rejected: Target ${targetUserId} not in room ${roomId}`);
         return socket.emit('voiceroom:error', { message: 'Target not in room' });
       }
@@ -300,11 +307,11 @@ const registerVoiceRoomHandlers = (socket, io) => {
 
       // Check both users are participants
       const participantIds = roomData.participantIds;
-      if (!participantIds.includes(userId)) {
+      if (!participantIds.includes(userId.toString())) {
         console.log(`ICE candidate rejected: User ${userId} not in room ${roomId}`);
         return socket.emit('voiceroom:error', { message: 'Not authorized' });
       }
-      if (!participantIds.includes(targetUserId)) {
+      if (!participantIds.includes(targetUserId.toString())) {
         console.log(`ICE candidate rejected: Target ${targetUserId} not in room ${roomId}`);
         return socket.emit('voiceroom:error', { message: 'Target not in room' });
       }
