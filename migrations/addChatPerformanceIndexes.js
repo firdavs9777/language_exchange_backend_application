@@ -49,7 +49,7 @@ const runMigration = async () => {
 
     const conversationIndexes = [
       { key: { participants: 1, isGroup: 1 }, name: 'dm_lookup' },
-      { key: { deletedBy: 1, participants: 1 }, name: 'deleted_filter' },
+      // Note: Cannot add { deletedBy: 1, participants: 1 } - MongoDB parallel arrays limitation
     ];
 
     for (const index of conversationIndexes) {

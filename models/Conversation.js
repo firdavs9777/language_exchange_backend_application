@@ -264,8 +264,8 @@ ConversationSchema.index({ participants: 1 });
 // Optimizes: findOne({ participants: { $all: [user1, user2] }, isGroup: false })
 ConversationSchema.index({ participants: 1, isGroup: 1 });
 
-// Index for deleted conversations filtering
-ConversationSchema.index({ deletedBy: 1, participants: 1 });
+// Note: Cannot index { deletedBy: 1, participants: 1 } - MongoDB doesn't support
+// compound indexes on two array fields (parallel arrays limitation)
 
 // Pre-save hook
 ConversationSchema.pre('save', function(next) {
