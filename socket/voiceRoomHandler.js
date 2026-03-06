@@ -5,6 +5,7 @@
 
 const VoiceRoom = require('../models/VoiceRoom');
 const User = require('../models/User');
+const { getCachedIceServers } = require('../services/callService');
 
 // Cache of active room participants for fast signaling validation
 // Key: roomId, Value: { participantIds: Set<string>, status: string, lastUpdated: Date }
@@ -115,13 +116,18 @@ const registerVoiceRoomHandlers = (socket, io) => {
           _id: userId,
           name: user?.name,
           images: user?.images
-        }
+        },
+        participantCount: room.participants.length + 1
       });
 
-      // Send current room state to joining user
+      // Get ICE servers for WebRTC
+      const iceServers = await getCachedIceServers();
+
+      // Send current room state to joining user with ICE servers
       socket.emit('voiceroom:joined', {
         roomId,
-        participants: room.participants
+        participants: room.participants,
+        iceServers
       });
 
     } catch (error) {
