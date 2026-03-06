@@ -131,47 +131,118 @@ const registerVoiceRoomHandlers = (socket, io) => {
   /**
    * WebRTC signaling - offer (targeted to specific user)
    */
-  socket.on('voiceroom:rtc_offer', (data) => {
-    const { roomId, targetUserId, offer } = data;
-    if (!roomId || !targetUserId || !offer) return;
+  socket.on('voiceroom:rtc_offer', async (data) => {
+    try {
+      const { roomId, targetUserId, offer } = data;
+      if (!roomId || !targetUserId || !offer) return;
 
-    // Send only to the target user's socket
-    const targetRoom = `user_${targetUserId}`;
-    io.to(targetRoom).emit('voiceroom:rtc_offer', {
-      roomId,
-      fromUserId: userId,
-      offer
-    });
+      // Verify room and participants
+      const room = await VoiceRoom.findById(roomId);
+      if (!room || !['waiting', 'active'].includes(room.status)) {
+        console.log(`WebRTC offer rejected: Room ${roomId} not active`);
+        return socket.emit('voiceroom:error', { message: 'Room not active' });
+      }
+
+      // Check both users are participants
+      const participantIds = room.participants.map(p => p.user.toString());
+      if (!participantIds.includes(userId)) {
+        console.log(`WebRTC offer rejected: User ${userId} not in room ${roomId}`);
+        return socket.emit('voiceroom:error', { message: 'Not authorized' });
+      }
+      if (!participantIds.includes(targetUserId)) {
+        console.log(`WebRTC offer rejected: Target ${targetUserId} not in room ${roomId}`);
+        return socket.emit('voiceroom:error', { message: 'Target not in room' });
+      }
+
+      // Send to target user
+      const targetRoom = `user_${targetUserId}`;
+      io.to(targetRoom).emit('voiceroom:rtc_offer', {
+        roomId,
+        fromUserId: userId,
+        offer
+      });
+    } catch (error) {
+      console.error('voiceroom:rtc_offer error:', error);
+      socket.emit('voiceroom:error', { message: error.message });
+    }
   });
 
   /**
    * WebRTC signaling - answer (targeted to specific user)
    */
-  socket.on('voiceroom:rtc_answer', (data) => {
-    const { roomId, targetUserId, answer } = data;
-    if (!roomId || !targetUserId || !answer) return;
+  socket.on('voiceroom:rtc_answer', async (data) => {
+    try {
+      const { roomId, targetUserId, answer } = data;
+      if (!roomId || !targetUserId || !answer) return;
 
-    const targetRoom = `user_${targetUserId}`;
-    io.to(targetRoom).emit('voiceroom:rtc_answer', {
-      roomId,
-      fromUserId: userId,
-      answer
-    });
+      // Verify room and participants
+      const room = await VoiceRoom.findById(roomId);
+      if (!room || !['waiting', 'active'].includes(room.status)) {
+        console.log(`WebRTC answer rejected: Room ${roomId} not active`);
+        return socket.emit('voiceroom:error', { message: 'Room not active' });
+      }
+
+      // Check both users are participants
+      const participantIds = room.participants.map(p => p.user.toString());
+      if (!participantIds.includes(userId)) {
+        console.log(`WebRTC answer rejected: User ${userId} not in room ${roomId}`);
+        return socket.emit('voiceroom:error', { message: 'Not authorized' });
+      }
+      if (!participantIds.includes(targetUserId)) {
+        console.log(`WebRTC answer rejected: Target ${targetUserId} not in room ${roomId}`);
+        return socket.emit('voiceroom:error', { message: 'Target not in room' });
+      }
+
+      // Send to target user
+      const targetRoom = `user_${targetUserId}`;
+      io.to(targetRoom).emit('voiceroom:rtc_answer', {
+        roomId,
+        fromUserId: userId,
+        answer
+      });
+    } catch (error) {
+      console.error('voiceroom:rtc_answer error:', error);
+      socket.emit('voiceroom:error', { message: error.message });
+    }
   });
 
   /**
    * WebRTC signaling - ICE candidate (targeted to specific user)
    */
-  socket.on('voiceroom:ice_candidate', (data) => {
-    const { roomId, targetUserId, candidate } = data;
-    if (!roomId || !targetUserId || !candidate) return;
+  socket.on('voiceroom:ice_candidate', async (data) => {
+    try {
+      const { roomId, targetUserId, candidate } = data;
+      if (!roomId || !targetUserId || !candidate) return;
 
-    const targetRoom = `user_${targetUserId}`;
-    io.to(targetRoom).emit('voiceroom:ice_candidate', {
-      roomId,
-      fromUserId: userId,
-      candidate
-    });
+      // Verify room and participants
+      const room = await VoiceRoom.findById(roomId);
+      if (!room || !['waiting', 'active'].includes(room.status)) {
+        console.log(`ICE candidate rejected: Room ${roomId} not active`);
+        return socket.emit('voiceroom:error', { message: 'Room not active' });
+      }
+
+      // Check both users are participants
+      const participantIds = room.participants.map(p => p.user.toString());
+      if (!participantIds.includes(userId)) {
+        console.log(`ICE candidate rejected: User ${userId} not in room ${roomId}`);
+        return socket.emit('voiceroom:error', { message: 'Not authorized' });
+      }
+      if (!participantIds.includes(targetUserId)) {
+        console.log(`ICE candidate rejected: Target ${targetUserId} not in room ${roomId}`);
+        return socket.emit('voiceroom:error', { message: 'Target not in room' });
+      }
+
+      // Send to target user
+      const targetRoom = `user_${targetUserId}`;
+      io.to(targetRoom).emit('voiceroom:ice_candidate', {
+        roomId,
+        fromUserId: userId,
+        candidate
+      });
+    } catch (error) {
+      console.error('voiceroom:ice_candidate error:', error);
+      socket.emit('voiceroom:error', { message: error.message });
+    }
   });
 
   /**
