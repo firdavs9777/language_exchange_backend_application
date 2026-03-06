@@ -129,14 +129,15 @@ const registerVoiceRoomHandlers = (socket, io) => {
   });
 
   /**
-   * WebRTC signaling - offer
+   * WebRTC signaling - offer (targeted to specific user)
    */
   socket.on('voiceroom:rtc_offer', (data) => {
     const { roomId, targetUserId, offer } = data;
     if (!roomId || !targetUserId || !offer) return;
 
-    // Send to specific user in room
-    io.to(`voiceroom_${roomId}`).emit('voiceroom:rtc_offer', {
+    // Send only to the target user's socket
+    const targetRoom = `user_${targetUserId}`;
+    io.to(targetRoom).emit('voiceroom:rtc_offer', {
       roomId,
       fromUserId: userId,
       offer
@@ -144,13 +145,14 @@ const registerVoiceRoomHandlers = (socket, io) => {
   });
 
   /**
-   * WebRTC signaling - answer
+   * WebRTC signaling - answer (targeted to specific user)
    */
   socket.on('voiceroom:rtc_answer', (data) => {
     const { roomId, targetUserId, answer } = data;
     if (!roomId || !targetUserId || !answer) return;
 
-    io.to(`voiceroom_${roomId}`).emit('voiceroom:rtc_answer', {
+    const targetRoom = `user_${targetUserId}`;
+    io.to(targetRoom).emit('voiceroom:rtc_answer', {
       roomId,
       fromUserId: userId,
       answer
@@ -158,13 +160,14 @@ const registerVoiceRoomHandlers = (socket, io) => {
   });
 
   /**
-   * WebRTC signaling - ICE candidate
+   * WebRTC signaling - ICE candidate (targeted to specific user)
    */
   socket.on('voiceroom:ice_candidate', (data) => {
     const { roomId, targetUserId, candidate } = data;
-    if (!roomId || !candidate) return;
+    if (!roomId || !targetUserId || !candidate) return;
 
-    io.to(`voiceroom_${roomId}`).emit('voiceroom:ice_candidate', {
+    const targetRoom = `user_${targetUserId}`;
+    io.to(targetRoom).emit('voiceroom:ice_candidate', {
       roomId,
       fromUserId: userId,
       candidate
