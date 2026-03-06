@@ -710,13 +710,17 @@ exports.sendVoiceMessage = asyncHandler(async (req, res, next) => {
   await message.populate('sender', 'name images userMode');
   await message.populate('receiver', 'name images userMode');
 
-  // Notify receiver
+  // Notify both sender and receiver via socket
   const io = req.app.get('io');
   if (io) {
-    io.to(`user_${receiver}`).emit('newVoiceMessage', {
+    const voiceMessageData = {
       message,
       duration: messageData.media.duration
-    });
+    };
+    // Notify receiver
+    io.to(`user_${receiver}`).emit('newVoiceMessage', voiceMessageData);
+    // Also notify sender so they see the message immediately
+    io.to(`user_${senderId}`).emit('newVoiceMessage', voiceMessageData);
   }
 
   console.log(`🎤 Voice message sent: ${senderId} → ${receiver}, duration: ${duration}s`);
