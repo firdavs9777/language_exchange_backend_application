@@ -532,4 +532,9 @@ MessageSchema.index({ receiver: 1, createdAt: -1 });
 // Index for deleted messages filtering
 MessageSchema.index({ isDeleted: 1, createdAt: -1 });
 
+// Optimized indexes for conversation queries with $or
+// Covers: { sender: X, receiver: Y, isDeleted: { $ne: true } }
+MessageSchema.index({ sender: 1, receiver: 1, isDeleted: 1, createdAt: -1 });
+MessageSchema.index({ receiver: 1, sender: 1, isDeleted: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Message', MessageSchema);

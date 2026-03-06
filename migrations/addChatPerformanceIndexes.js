@@ -71,6 +71,9 @@ const runMigration = async () => {
     const messageIndexes = [
       { key: { sender: 1, receiver: 1 }, name: 'sender_receiver_fast' },
       { key: { receiver: 1, sender: 1 }, name: 'receiver_sender_fast' },
+      // Optimized indexes for conversation queries with isDeleted filter
+      { key: { sender: 1, receiver: 1, isDeleted: 1, createdAt: -1 }, name: 'conversation_query_1' },
+      { key: { receiver: 1, sender: 1, isDeleted: 1, createdAt: -1 }, name: 'conversation_query_2' },
     ];
 
     for (const index of messageIndexes) {

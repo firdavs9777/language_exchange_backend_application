@@ -799,29 +799,82 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
     const skip = (page - 1) * limit;
     const actualLimit = Math.min(limit, 100); // Max 100 per page
 
-    const query = {
-      $or: [
-        { sender: senderId, receiver: receiverId },
-        { sender: receiverId, receiver: senderId }
-      ],
-      isDeleted: { $ne: true }
-    };
+    // Optimized query - use two separate indexed queries instead of $or
+    // This allows MongoDB to use indexes more efficiently
+    const baseQuery = { isDeleted: { $ne: true } };
 
-    const [total, messages] = await Promise.all([
-      Message.countDocuments(query),
-      Message.find(query)
-        .populate('sender', 'name username images userMode')
-        .populate('receiver', 'name username images userMode')
-        .populate({
-          path: 'replyTo',
-          select: '_id message sender',
-          populate: { path: 'sender', select: '_id name images' }
-        })
-        .sort({ createdAt: -1 }) // Get newest messages first
-        .skip(skip)
-        .limit(actualLimit)
-        .lean()
+    // Use aggregation with $facet for count + data in single query
+    const result = await Message.aggregate([
+      {
+        $match: {
+          $or: [
+            { sender: new require('mongoose').Types.ObjectId(senderId), receiver: new require('mongoose').Types.ObjectId(receiverId) },
+            { sender: new require('mongoose').Types.ObjectId(receiverId), receiver: new require('mongoose').Types.ObjectId(senderId) }
+          ],
+          isDeleted: { $ne: true }
+        }
+      },
+      {
+        $facet: {
+          // Count total (fast with index)
+          total: [{ $count: 'count' }],
+          // Get paginated data
+          messages: [
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: actualLimit },
+            // Lookup sender
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'sender',
+                foreignField: '_id',
+                pipeline: [{ $project: { name: 1, username: 1, images: 1, userMode: 1 } }],
+                as: 'sender'
+              }
+            },
+            { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } },
+            // Lookup receiver
+            {
+              $lookup: {
+                from: 'users',
+                localField: 'receiver',
+                foreignField: '_id',
+                pipeline: [{ $project: { name: 1, username: 1, images: 1, userMode: 1 } }],
+                as: 'receiver'
+              }
+            },
+            { $unwind: { path: '$receiver', preserveNullAndEmptyArrays: true } },
+            // Lookup replyTo (if exists)
+            {
+              $lookup: {
+                from: 'messages',
+                localField: 'replyTo',
+                foreignField: '_id',
+                pipeline: [
+                  { $project: { _id: 1, message: 1, sender: 1 } },
+                  {
+                    $lookup: {
+                      from: 'users',
+                      localField: 'sender',
+                      foreignField: '_id',
+                      pipeline: [{ $project: { _id: 1, name: 1, images: 1 } }],
+                      as: 'sender'
+                    }
+                  },
+                  { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } }
+                ],
+                as: 'replyTo'
+              }
+            },
+            { $unwind: { path: '$replyTo', preserveNullAndEmptyArrays: true } }
+          ]
+        }
+      }
     ]);
+
+    const total = result[0]?.total[0]?.count || 0;
+    const messages = result[0]?.messages || [];
 
     // Reverse to show oldest first in the UI (chat order)
     messages.reverse();
