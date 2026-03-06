@@ -35,13 +35,23 @@ const registerCallHandlers = (socket, io) => {
       console.log(`📞 Call initiate: ${userId} → ${targetUserId} (${callType})`);
       
       // Get caller and recipient info
-      const caller = await User.findById(userId).select('name profilePicture');
+      const caller = await User.findById(userId).select('name profilePicture blockedUsers blockedBy');
       const recipient = await User.findById(targetUserId).select('name profilePicture');
       
       if (!caller || !recipient) {
         throw new Error('User not found');
       }
-      
+
+      // Check block status
+      if (caller.blockedUsers?.includes(targetUserId) ||
+          caller.blockedBy?.includes(targetUserId)) {
+        console.log(`Call rejected: Block relationship exists between ${userId} and ${targetUserId}`);
+        return callback({
+          status: 'error',
+          error: 'Cannot call this user'
+        });
+      }
+
       // Check if recipient is online
       const recipientRoom = `user_${targetUserId}`;
       const recipientSockets = await io.in(recipientRoom).fetchSockets();
@@ -389,7 +399,9 @@ const registerCallHandlers = (socket, io) => {
 
       call.status = 'ended';
       call.endTime = new Date();
-      call.duration = Math.floor((call.endTime - call.startTime) / 1000);
+      // Calculate duration from when call was answered, not when it started ringing
+      const durationStart = call.answeredAt || call.startTime;
+      call.duration = Math.floor((call.endTime - durationStart) / 1000);
       await call.save();
 
       // Remove from active calls
