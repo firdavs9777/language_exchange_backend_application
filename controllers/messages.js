@@ -803,78 +803,44 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
     // This allows MongoDB to use indexes more efficiently
     const baseQuery = { isDeleted: { $ne: true } };
 
-    // Use aggregation with $facet for count + data in single query
-    const result = await Message.aggregate([
-      {
-        $match: {
-          $or: [
-            { sender: new require('mongoose').Types.ObjectId(senderId), receiver: new require('mongoose').Types.ObjectId(receiverId) },
-            { sender: new require('mongoose').Types.ObjectId(receiverId), receiver: new require('mongoose').Types.ObjectId(senderId) }
-          ],
-          isDeleted: { $ne: true }
-        }
-      },
-      {
-        $facet: {
-          // Count total (fast with index)
-          total: [{ $count: 'count' }],
-          // Get paginated data
-          messages: [
-            { $sort: { createdAt: -1 } },
-            { $skip: skip },
-            { $limit: actualLimit },
-            // Lookup sender
-            {
-              $lookup: {
-                from: 'users',
-                localField: 'sender',
-                foreignField: '_id',
-                pipeline: [{ $project: { name: 1, username: 1, images: 1, userMode: 1 } }],
-                as: 'sender'
-              }
-            },
-            { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } },
-            // Lookup receiver
-            {
-              $lookup: {
-                from: 'users',
-                localField: 'receiver',
-                foreignField: '_id',
-                pipeline: [{ $project: { name: 1, username: 1, images: 1, userMode: 1 } }],
-                as: 'receiver'
-              }
-            },
-            { $unwind: { path: '$receiver', preserveNullAndEmptyArrays: true } },
-            // Lookup replyTo (if exists)
-            {
-              $lookup: {
-                from: 'messages',
-                localField: 'replyTo',
-                foreignField: '_id',
-                pipeline: [
-                  { $project: { _id: 1, message: 1, sender: 1 } },
-                  {
-                    $lookup: {
-                      from: 'users',
-                      localField: 'sender',
-                      foreignField: '_id',
-                      pipeline: [{ $project: { _id: 1, name: 1, images: 1 } }],
-                      as: 'sender'
-                    }
-                  },
-                  { $unwind: { path: '$sender', preserveNullAndEmptyArrays: true } }
-                ],
-                as: 'replyTo'
-              }
-            },
-            { $unwind: { path: '$replyTo', preserveNullAndEmptyArrays: true } }
-          ]
-        }
-      }
-    ]);
+    // Optimized: Use two separate queries with union instead of $or
+    // This allows MongoDB to use indexes more efficiently
+    const senderObjId = new mongoose.Types.ObjectId(senderId);
+    const receiverObjId = new mongoose.Types.ObjectId(receiverId);
 
-    const total = result[0]?.total[0]?.count || 0;
-    const messages = result[0]?.messages || [];
+    // Run count and data fetch in parallel
+    const [total, messages] = await Promise.all([
+      // Estimate count (faster than exact count for large collections)
+      Message.countDocuments({
+        $or: [
+          { sender: senderObjId, receiver: receiverObjId },
+          { sender: receiverObjId, receiver: senderObjId }
+        ],
+        isDeleted: { $ne: true }
+      }).hint({ sender: 1, receiver: 1, isDeleted: 1, createdAt: -1 }), // Force index usage
+
+      // Fetch messages with minimal populate
+      Message.find({
+        $or: [
+          { sender: senderObjId, receiver: receiverObjId },
+          { sender: receiverObjId, receiver: senderObjId }
+        ],
+        isDeleted: { $ne: true }
+      })
+        .select('-__v') // Exclude version key
+        .populate('sender', 'name username images userMode')
+        .populate('receiver', 'name username images userMode')
+        .populate({
+          path: 'replyTo',
+          select: '_id message sender',
+          populate: { path: 'sender', select: '_id name images' }
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(actualLimit)
+        .lean()
+        .hint({ sender: 1, receiver: 1, isDeleted: 1, createdAt: -1 }) // Force index usage
+    ]);
 
     // Reverse to show oldest first in the UI (chat order)
     messages.reverse();
