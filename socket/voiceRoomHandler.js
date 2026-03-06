@@ -6,6 +6,68 @@
 const VoiceRoom = require('../models/VoiceRoom');
 const User = require('../models/User');
 
+// Cache of active room participants for fast signaling validation
+// Key: roomId, Value: { participantIds: Set<string>, status: string, lastUpdated: Date }
+const roomParticipantsCache = new Map();
+
+/**
+ * Get room participant data (from cache or DB)
+ * @param {string} roomId - Room ID
+ * @param {boolean} forceRefresh - Force DB lookup
+ * @returns {Promise<{participantIds: string[], status: string}|null>}
+ */
+const getRoomParticipants = async (roomId, forceRefresh = false) => {
+  const cached = roomParticipantsCache.get(roomId);
+  const now = Date.now();
+
+  // Use cache if fresh (within 30 seconds) and not forcing refresh
+  if (cached && !forceRefresh && (now - cached.lastUpdated) < 30000) {
+    return { participantIds: [...cached.participantIds], status: cached.status };
+  }
+
+  // Fetch from DB
+  const room = await VoiceRoom.findById(roomId).select('participants status');
+  if (!room) return null;
+
+  const participantIds = new Set(room.participants.map(p => p.user.toString()));
+  roomParticipantsCache.set(roomId, {
+    participantIds,
+    status: room.status,
+    lastUpdated: now
+  });
+
+  return { participantIds: [...participantIds], status: room.status };
+};
+
+/**
+ * Update cache when participant joins
+ */
+const addParticipantToCache = (roomId, participantId) => {
+  const cached = roomParticipantsCache.get(roomId);
+  if (cached) {
+    cached.participantIds.add(participantId);
+    cached.lastUpdated = Date.now();
+  }
+};
+
+/**
+ * Update cache when participant leaves
+ */
+const removeParticipantFromCache = (roomId, participantId) => {
+  const cached = roomParticipantsCache.get(roomId);
+  if (cached) {
+    cached.participantIds.delete(participantId);
+    cached.lastUpdated = Date.now();
+  }
+};
+
+/**
+ * Clear room from cache (when room ends)
+ */
+const clearRoomCache = (roomId) => {
+  roomParticipantsCache.delete(roomId);
+};
+
 /**
  * Register voice room socket handlers
  */
@@ -35,6 +97,9 @@ const registerVoiceRoomHandlers = (socket, io) => {
 
       // Get user info
       const user = await User.findById(userId).select('name images');
+
+      // Add to cache
+      addParticipantToCache(roomId, userId);
 
       // Notify others
       socket.to(`voiceroom_${roomId}`).emit('voiceroom:user_joined', {
@@ -68,6 +133,9 @@ const registerVoiceRoomHandlers = (socket, io) => {
 
       // Leave socket room
       socket.leave(`voiceroom_${roomId}`);
+
+      // Update cache
+      removeParticipantFromCache(roomId, userId);
 
       // Notify others
       socket.to(`voiceroom_${roomId}`).emit('voiceroom:user_left', {
@@ -134,17 +202,20 @@ const registerVoiceRoomHandlers = (socket, io) => {
   socket.on('voiceroom:rtc_offer', async (data) => {
     try {
       const { roomId, targetUserId, offer } = data;
-      if (!roomId || !targetUserId || !offer) return;
+      if (!roomId || !targetUserId || !offer) {
+        console.log('WebRTC offer rejected: Missing required fields');
+        return;
+      }
 
-      // Verify room and participants
-      const room = await VoiceRoom.findById(roomId);
-      if (!room || !['waiting', 'active'].includes(room.status)) {
+      // Verify room and participants (using cache for performance)
+      const roomData = await getRoomParticipants(roomId);
+      if (!roomData || !['waiting', 'active'].includes(roomData.status)) {
         console.log(`WebRTC offer rejected: Room ${roomId} not active`);
         return socket.emit('voiceroom:error', { message: 'Room not active' });
       }
 
       // Check both users are participants
-      const participantIds = room.participants.map(p => p.user.toString());
+      const participantIds = roomData.participantIds;
       if (!participantIds.includes(userId)) {
         console.log(`WebRTC offer rejected: User ${userId} not in room ${roomId}`);
         return socket.emit('voiceroom:error', { message: 'Not authorized' });
@@ -173,17 +244,20 @@ const registerVoiceRoomHandlers = (socket, io) => {
   socket.on('voiceroom:rtc_answer', async (data) => {
     try {
       const { roomId, targetUserId, answer } = data;
-      if (!roomId || !targetUserId || !answer) return;
+      if (!roomId || !targetUserId || !answer) {
+        console.log('WebRTC answer rejected: Missing required fields');
+        return;
+      }
 
-      // Verify room and participants
-      const room = await VoiceRoom.findById(roomId);
-      if (!room || !['waiting', 'active'].includes(room.status)) {
+      // Verify room and participants (using cache for performance)
+      const roomData = await getRoomParticipants(roomId);
+      if (!roomData || !['waiting', 'active'].includes(roomData.status)) {
         console.log(`WebRTC answer rejected: Room ${roomId} not active`);
         return socket.emit('voiceroom:error', { message: 'Room not active' });
       }
 
       // Check both users are participants
-      const participantIds = room.participants.map(p => p.user.toString());
+      const participantIds = roomData.participantIds;
       if (!participantIds.includes(userId)) {
         console.log(`WebRTC answer rejected: User ${userId} not in room ${roomId}`);
         return socket.emit('voiceroom:error', { message: 'Not authorized' });
@@ -212,17 +286,20 @@ const registerVoiceRoomHandlers = (socket, io) => {
   socket.on('voiceroom:ice_candidate', async (data) => {
     try {
       const { roomId, targetUserId, candidate } = data;
-      if (!roomId || !targetUserId || !candidate) return;
+      if (!roomId || !targetUserId || !candidate) {
+        console.log('ICE candidate rejected: Missing required fields');
+        return;
+      }
 
-      // Verify room and participants
-      const room = await VoiceRoom.findById(roomId);
-      if (!room || !['waiting', 'active'].includes(room.status)) {
+      // Verify room and participants (using cache for performance)
+      const roomData = await getRoomParticipants(roomId);
+      if (!roomData || !['waiting', 'active'].includes(roomData.status)) {
         console.log(`ICE candidate rejected: Room ${roomId} not active`);
         return socket.emit('voiceroom:error', { message: 'Room not active' });
       }
 
       // Check both users are participants
-      const participantIds = room.participants.map(p => p.user.toString());
+      const participantIds = roomData.participantIds;
       if (!participantIds.includes(userId)) {
         console.log(`ICE candidate rejected: User ${userId} not in room ${roomId}`);
         return socket.emit('voiceroom:error', { message: 'Not authorized' });
@@ -312,6 +389,9 @@ const registerVoiceRoomHandlers = (socket, io) => {
         try {
           await room.removeParticipant(userId);
 
+          // Update cache
+          removeParticipantFromCache(room._id.toString(), userId);
+
           io.to(`voiceroom_${room._id}`).emit('voiceroom:user_left', {
             roomId: room._id,
             userId,
@@ -319,6 +399,7 @@ const registerVoiceRoomHandlers = (socket, io) => {
           });
 
           if (room.status === 'ended') {
+            clearRoomCache(room._id.toString());
             io.emit('voiceroom:ended', { roomId: room._id });
           }
         } catch (e) {
