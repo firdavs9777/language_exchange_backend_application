@@ -45,12 +45,17 @@ const SOCKET_CONFIG = {
   CLEANUP_INTERVAL: 60000, // Clean up stale data every minute
   USER_CACHE_TTL: 60000, // Cache user data for 1 minute
   USER_CACHE_MAX_SIZE: 1000, // Max cached users
+  RECONNECT_GRACE_PERIOD: 10000, // 10 seconds grace period before marking user offline
 };
 
 // ========== USER CACHE FOR FAST LOOKUPS ==========
 
 // Cache structure: userId -> { user, timestamp, blockedUsers, blockedByUsers }
 const userCache = new Map();
+
+// Grace period timers for reconnection (prevents rapid offline/online flicker)
+// Structure: userId -> timeoutId
+const offlineGraceTimers = new Map();
 
 /**
  * Get user from cache or database
@@ -218,7 +223,14 @@ const initializeSocket = (io) => {
       deviceId,
       connectedAt: new Date(),
     });
-    
+
+    // Cancel any pending offline grace timer (user reconnected)
+    if (offlineGraceTimers.has(userId)) {
+      clearTimeout(offlineGraceTimers.get(userId));
+      offlineGraceTimers.delete(userId);
+      console.log(`✅ User ${userId} reconnected - cancelled offline timer`);
+    }
+
     // Track this connection
     if (!userConnections.has(userId)) {
       userConnections.set(userId, new Set());
@@ -1271,26 +1283,49 @@ const handleDisconnect = async (socket, io, reason) => {
     userConnections.get(userId).delete(socket.id);
 
     if (userConnections.get(userId).size === 0) {
-      // Last connection - user is now offline
+      // Last connection - start grace period before marking offline
+      // This prevents rapid offline/online flicker during mobile app transitions
       userConnections.delete(userId);
-      onlineUsersCache.delete(userId);
 
-      const lastSeenTime = new Date();
+      console.log(`⏳ User ${userId} disconnected - starting ${SOCKET_CONFIG.RECONNECT_GRACE_PERIOD/1000}s grace period`);
 
-      console.log(`📴 User ${userId} is now offline`);
+      // Clear any existing grace timer
+      if (offlineGraceTimers.has(userId)) {
+        clearTimeout(offlineGraceTimers.get(userId));
+      }
 
-      // Persist lastSeen to database (don't await to avoid blocking)
-      User.findByIdAndUpdate(userId, {
-        isOnline: false,
-        lastSeen: lastSeenTime
-      }).catch(err => console.error(`❌ Failed to update lastSeen for ${userId}:`, err));
+      // Set grace period timer
+      const graceTimer = setTimeout(() => {
+        // Check if user reconnected during grace period
+        if (userConnections.has(userId) && userConnections.get(userId).size > 0) {
+          console.log(`✅ User ${userId} reconnected during grace period - staying online`);
+          offlineGraceTimers.delete(userId);
+          return;
+        }
 
-      socket.broadcast.emit('userStatusUpdate', {
-        userId,
-        status: 'offline',
-        lastSeen: lastSeenTime.toISOString(),
-        deviceCount: 0
-      });
+        // User didn't reconnect - mark as offline
+        onlineUsersCache.delete(userId);
+        const lastSeenTime = new Date();
+
+        console.log(`📴 User ${userId} is now offline (after grace period)`);
+
+        // Persist lastSeen to database
+        User.findByIdAndUpdate(userId, {
+          isOnline: false,
+          lastSeen: lastSeenTime
+        }).catch(err => console.error(`❌ Failed to update lastSeen for ${userId}:`, err));
+
+        socket.broadcast.emit('userStatusUpdate', {
+          userId,
+          status: 'offline',
+          lastSeen: lastSeenTime.toISOString(),
+          deviceCount: 0
+        });
+
+        offlineGraceTimers.delete(userId);
+      }, SOCKET_CONFIG.RECONNECT_GRACE_PERIOD);
+
+      offlineGraceTimers.set(userId, graceTimer);
     } else {
       // Still has other connections
       updateOnlineCache(userId);
