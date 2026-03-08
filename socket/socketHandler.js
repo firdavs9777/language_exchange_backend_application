@@ -671,12 +671,14 @@ const registerMessageHandlers = (socket, io) => {
             receiverId: receiver
           });
 
-          // Update conversation and counts (parallel, non-blocking)
-          Promise.all([
-            updateConversation(userId, receiver, newMessage._id),
-            senderUser.incrementMessageCount(),
-            resetDailyCounters(senderUser).then(() => senderUser.save())
-          ]).catch(err => console.error('Background update error:', err.message));
+          // Update conversation (non-blocking)
+          updateConversation(userId, receiver, newMessage._id)
+            .catch(err => console.error('Background update error:', err.message));
+
+          // Reset counters and increment sequentially to avoid parallel save on same doc
+          resetDailyCounters(senderUser)
+            .then(() => senderUser.incrementMessageCount())
+            .catch(err => console.error('Background update error:', err.message));
 
           // Push notification - always send for chat messages
           // The client handles deduplication (skips showing when app is in foreground)
