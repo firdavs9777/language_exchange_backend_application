@@ -277,6 +277,7 @@ app.use('/api/v1/grammar-feedback', grammarFeedback);
 app.use('/api/v1/speech', speech);
 app.use('/api/v1/translate', aiTranslation);
 app.use('/api/v1/calls', calls);
+app.use('/api/v1/analytics', require('./routes/analytics'));
 
 // Error request logger (logs failed requests)
 app.use(errorRequestLogger);

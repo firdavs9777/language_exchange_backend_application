@@ -22,34 +22,45 @@ const {
 const { startLearningJobs } = require('./learningJobs');
 const { runSubscriptionExpiryJob } = require('./subscriptionExpiryJob');
 const { runAdminReportJob } = require('./adminReportJob');
+const { runWebVisitReport } = require('./webVisitReportJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
 
 /**
- * Calculate milliseconds until next occurrence of a time
- * @param {number} targetHour - Target hour (0-23)
+ * Get current time in Korea (KST = UTC+9, no daylight saving)
+ */
+const getKoreaTime = () => {
+  const now = new Date();
+  const koreaOffset = 9 * 60; // KST is UTC+9
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
+  return new Date(utcMs + koreaOffset * 60 * 1000);
+};
+
+/**
+ * Calculate milliseconds until next occurrence of a time in Korea Time (KST)
+ * @param {number} targetHour - Target hour (0-23) in KST
  * @param {number} targetMinute - Target minute (0-59)
  * @param {number} targetDay - Target day of week (0=Sunday, 6=Saturday), null for daily
  */
 const getMillisecondsUntil = (targetHour, targetMinute = 0, targetDay = null) => {
-  const now = new Date();
-  const target = new Date();
-  
-  target.setHours(targetHour, targetMinute, 0, 0);
-  
+  const nowKST = getKoreaTime();
+  const targetKST = new Date(nowKST);
+
+  targetKST.setHours(targetHour, targetMinute, 0, 0);
+
   // If target day specified (for weekly jobs)
   if (targetDay !== null) {
-    const daysUntil = (targetDay - now.getDay() + 7) % 7;
-    target.setDate(target.getDate() + (daysUntil === 0 && now > target ? 7 : daysUntil));
+    const daysUntil = (targetDay - nowKST.getDay() + 7) % 7;
+    targetKST.setDate(targetKST.getDate() + (daysUntil === 0 && nowKST > targetKST ? 7 : daysUntil));
   } else {
     // Daily job - if time has passed today, schedule for tomorrow
-    if (now > target) {
-      target.setDate(target.getDate() + 1);
+    if (nowKST > targetKST) {
+      targetKST.setDate(targetKST.getDate() + 1);
     }
   }
-  
-  return target.getTime() - now.getTime();
+
+  return targetKST.getTime() - nowKST.getTime();
 };
 
 /**
@@ -244,6 +255,27 @@ const scheduleAdminReport = () => {
 };
 
 /**
+ * Schedule weekly web visit report (Mondays at 8:00 AM)
+ */
+const scheduleWebVisitReport = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled web visit report...');
+    try {
+      await runWebVisitReport();
+    } catch (error) {
+      console.error('Scheduled web visit report failed:', error);
+    }
+    // Schedule next run (7 days from now)
+    setTimeout(runJob, 7 * 24 * 60 * 60 * 1000);
+  };
+
+  // Schedule first run (next Monday at 8 AM)
+  const msUntilNextRun = getMillisecondsUntil(8, 0, 1); // 8:00 AM Monday
+  console.log(`📅 Web visit report scheduled in ${Math.round(msUntilNextRun / 1000 / 60 / 60)} hours`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
  * Start all scheduled jobs
  */
 const startScheduler = () => {
@@ -271,6 +303,9 @@ const startScheduler = () => {
 
   // Admin reports
   scheduleAdminReport();
+
+  // Web visit weekly report (Mondays at 8:00 AM)
+  scheduleWebVisitReport();
 
   // Learning/gamification jobs
   startLearningJobs();
@@ -313,6 +348,9 @@ const runAllJobsNow = async () => {
     console.log('\n9️⃣ Running admin report...');
     await runAdminReportJob();
 
+    console.log('\n🔟 Running web visit report...');
+    await runWebVisitReport();
+
     console.log('\n✅ All jobs completed!');
   } catch (error) {
     console.error('Error running jobs:', error);
@@ -330,6 +368,7 @@ module.exports = {
   scheduleSubscriptionReminders,
   scheduleNotificationCleanup,
   scheduleSubscriptionExpiry,
-  scheduleAdminReport
+  scheduleAdminReport,
+  scheduleWebVisitReport
 };
 
