@@ -85,8 +85,8 @@ const seedLanguages = async () => {
     await Language.deleteMany({});
     console.log('🗑️  Cleared existing languages');
 
-    // Insert new languages
-    const result = await Language.insertMany(languages);
+    // Insert new languages (use .create to trigger pre-save hooks for slugify)
+    const result = await Language.create(languages);
     console.log(`✅ Inserted ${result.length} languages`);
 
     // List them

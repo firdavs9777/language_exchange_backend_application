@@ -105,55 +105,37 @@ exports.getUserLimits = (user) => {
   }
 
   if (user.userMode === 'regular') {
+    const formatLimit = (current, max) => {
+      if (max === -1) return { current, max: 'unlimited', remaining: 'unlimited' };
+      return { current, max, remaining: Math.max(0, max - current) };
+    };
+
     return {
       userMode: 'regular',
       isVIP: false,
       limits: {
-        messages: {
-          current: user.regularUserLimitations.messagesSentToday || 0,
-          max: LIMITS.regular.messagesPerDay,
-          remaining: Math.max(0, LIMITS.regular.messagesPerDay - (user.regularUserLimitations.messagesSentToday || 0))
-        },
-        moments: {
-          current: user.regularUserLimitations.momentsCreatedToday || 0,
-          max: LIMITS.regular.momentsPerDay,
-          remaining: Math.max(0, LIMITS.regular.momentsPerDay - (user.regularUserLimitations.momentsCreatedToday || 0))
-        },
-        stories: {
-          current: user.regularUserLimitations.storiesCreatedToday || 0,
-          max: LIMITS.regular.storiesPerDay,
-          remaining: Math.max(0, LIMITS.regular.storiesPerDay - (user.regularUserLimitations.storiesCreatedToday || 0))
-        },
-        comments: {
-          current: user.regularUserLimitations.commentsCreatedToday || 0,
-          max: LIMITS.regular.commentsPerDay,
-          remaining: Math.max(0, LIMITS.regular.commentsPerDay - (user.regularUserLimitations.commentsCreatedToday || 0))
-        },
-        profileViews: {
-          current: user.regularUserLimitations.profileViewsToday || 0,
-          max: LIMITS.regular.profileViewsPerDay,
-          remaining: Math.max(0, LIMITS.regular.profileViewsPerDay - (user.regularUserLimitations.profileViewsToday || 0))
-        }
+        messages: formatLimit(user.regularUserLimitations.messagesSentToday || 0, LIMITS.regular.messagesPerDay),
+        moments: formatLimit(user.regularUserLimitations.momentsCreatedToday || 0, LIMITS.regular.momentsPerDay),
+        stories: formatLimit(user.regularUserLimitations.storiesCreatedToday || 0, LIMITS.regular.storiesPerDay),
+        comments: formatLimit(user.regularUserLimitations.commentsCreatedToday || 0, LIMITS.regular.commentsPerDay),
+        profileViews: formatLimit(user.regularUserLimitations.profileViewsToday || 0, LIMITS.regular.profileViewsPerDay)
       },
       resetTime: nextReset.toISOString()
     };
   }
 
   if (user.userMode === 'visitor') {
+    const formatLimit = (current, max) => {
+      if (max === -1) return { current, max: 'unlimited', remaining: 'unlimited' };
+      return { current, max, remaining: Math.max(0, max - current) };
+    };
+
     return {
       userMode: 'visitor',
       isVIP: false,
       limits: {
-        messages: {
-          current: user.visitorLimitations.messagesSent || 0,
-          max: LIMITS.visitor.messagesPerDay,
-          remaining: Math.max(0, LIMITS.visitor.messagesPerDay - (user.visitorLimitations.messagesSent || 0))
-        },
-        profileViews: {
-          current: user.visitorLimitations.profileViewsToday || 0,
-          max: LIMITS.visitor.profileViewsPerDay,
-          remaining: Math.max(0, LIMITS.visitor.profileViewsPerDay - (user.visitorLimitations.profileViewsToday || 0))
-        }
+        messages: formatLimit(user.visitorLimitations.messagesSent || 0, LIMITS.visitor.messagesPerDay),
+        profileViews: formatLimit(user.visitorLimitations.profileViewsToday || 0, LIMITS.visitor.profileViewsPerDay)
       },
       resetTime: nextReset.toISOString()
     };

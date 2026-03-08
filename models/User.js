@@ -1078,6 +1078,7 @@ UserSchema.methods.canSendMessage = function() {
       this.regularUserLimitations.lastMessageReset = now;
     }
 
+    if (LIMITS.regular.messagesPerDay === -1) return true;
     return this.regularUserLimitations.messagesSentToday < LIMITS.regular.messagesPerDay;
   }
 
@@ -1093,6 +1094,7 @@ UserSchema.methods.canSendMessage = function() {
       this.visitorLimitations.lastMessageReset = now;
     }
 
+    if (LIMITS.visitor.messagesPerDay === -1) return true;
     return this.visitorLimitations.messagesSent < LIMITS.visitor.messagesPerDay;
   }
 
