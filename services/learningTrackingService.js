@@ -59,6 +59,12 @@ const trackMessage = async ({
 
     const targetLang = user.language_to_learn;
     const nativeLang = user.native_language;
+
+    // Skip tracking if user hasn't set their languages
+    if (!targetLang || !nativeLang) {
+      return { success: false, error: 'User language preferences not set' };
+    }
+
     const isTarget = isTargetLanguage(detectedLanguage, targetLang);
     const isNative = isTargetLanguage(detectedLanguage, nativeLang);
 
