@@ -881,26 +881,44 @@ const registerMessageHandlers = (socket, io) => {
  */
 const sendMessageWithRetry = async (io, userId, event, data, attempts = SOCKET_CONFIG.MESSAGE_RETRY_ATTEMPTS) => {
   const userRoom = `user_${userId}`;
-  
+
   for (let i = 0; i < attempts; i++) {
     try {
-      // Check if user is online
+      // Check if user is online in our tracking
+      const connections = userConnections.get(userId);
+      console.log(`🔍 [DEBUG] sendMessageWithRetry: userId=${userId} event=${event}`);
+      console.log(`🔍 [DEBUG] userConnections has userId: ${userConnections.has(userId)}, connections: ${connections ? [...connections].join(', ') : 'none'}`);
+
       if (!userConnections.has(userId)) {
         console.log(`📴 User ${userId} offline - cannot send ${event}`);
         return false;
       }
-      
-      // Get all sockets for this user
+
+      // Get all sockets for this user from the room
       const sockets = await io.in(userRoom).fetchSockets();
-      
+
+      console.log(`🔍 [DEBUG] Sockets in room "${userRoom}": ${sockets.length} (IDs: ${sockets.map(s => s.id).join(', ')})`);
+
+      // Also check what rooms each tracked socket is in
+      if (connections) {
+        for (const socketId of connections) {
+          const s = io.sockets.sockets.get(socketId);
+          if (s) {
+            console.log(`🔍 [DEBUG] Socket ${socketId} connected: ${s.connected}, rooms: ${[...s.rooms].join(', ')}`);
+          } else {
+            console.log(`🔍 [DEBUG] Socket ${socketId} NOT found in io.sockets`);
+          }
+        }
+      }
+
       if (sockets.length === 0) {
         console.log(`📴 No sockets found for user ${userId}`);
         return false;
       }
-      
+
       // Send to all user's devices
       io.to(userRoom).emit(event, data);
-      
+
       console.log(`📨 Sent ${event} to ${sockets.length} device(s) of user ${userId}`);
       return true;
       

@@ -718,24 +718,32 @@ exports.createMessage = asyncHandler(async (req, res, next) => {
       const hasMedia = !!newMessage.media;
       const mediaType = newMessage.media?.type || null;
       
+      // Debug: check room membership before emitting
+      const receiverRoom = `user_${receiver}`;
+      const senderRoom = `user_${sender}`;
+      const receiverSockets = await io.in(receiverRoom).fetchSockets();
+      const senderSockets = await io.in(senderRoom).fetchSockets();
+      console.log(`🔍 [REST DEBUG] Receiver room "${receiverRoom}": ${receiverSockets.length} socket(s) [${receiverSockets.map(s => s.id).join(', ')}]`);
+      console.log(`🔍 [REST DEBUG] Sender room "${senderRoom}": ${senderSockets.length} socket(s) [${senderSockets.map(s => s.id).join(', ')}]`);
+
       // Notify receiver (real-time notification)
-      io.to(`user_${receiver}`).emit('newMessage', {
+      io.to(receiverRoom).emit('newMessage', {
         message: newMessage,
         unreadCount: unreadForReceiver,
         senderId: sender.toString(),
         hasMedia,
         mediaType
       });
-      
+
       // Notify sender's other devices (sync across devices)
-      io.to(`user_${sender}`).emit('messageSent', {
+      io.to(senderRoom).emit('messageSent', {
         message: newMessage,
         unreadCount: unreadForSender,
         receiverId: receiver.toString(),
         hasMedia,
         mediaType
       });
-      
+
       console.log(`📡 Socket notification sent: ${sender} → ${receiver}${hasMedia ? ` (${mediaType})` : ''}`);
     }
   } catch (socketError) {
