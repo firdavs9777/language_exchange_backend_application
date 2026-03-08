@@ -340,13 +340,13 @@ exports.googleCallback = asyncHandler(async (req, res, next) => {
 
     try {
       const token = user.getSignedJwtToken();
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://banatalk.com' : 'http://localhost:3000');
       
       // Redirect to React callback page with token
       res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
     } catch (error) {
       console.error('Token generation error:', error);
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+      const frontendUrl = process.env.FRONTEND_URL || (process.env.NODE_ENV === 'production' ? 'https://banatalk.com' : 'http://localhost:3000');
       res.redirect(`${frontendUrl}/login?error=token_failed`);
     }
 
