@@ -614,10 +614,14 @@ exports.createMessage = asyncHandler(async (req, res, next) => {
     return next(formatLimitError('messages', current, max, nextReset));
   }
   
-  const messageData = { 
-    message: message || null, 
-    sender, 
-    receiver 
+  const validMessageTypes = ['text', 'media', 'voice', 'sticker', 'poll', 'location', 'contact', 'system'];
+  const requestedType = req.body.type || req.body.messageType || 'text';
+
+  const messageData = {
+    message: message || null,
+    sender,
+    receiver,
+    messageType: validMessageTypes.includes(requestedType) ? requestedType : 'text'
   };
   
   // DigitalOcean Spaces attachment logic

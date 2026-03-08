@@ -603,10 +603,14 @@ const registerMessageHandlers = (socket, io) => {
 
       // ========== PHASE 3: CREATE MESSAGE & IMMEDIATE ACK ==========
       // Create message first - this is the critical path
+      const validMessageTypes = ['text', 'sticker'];
+      const msgType = validMessageTypes.includes(data?.messageType) ? data.messageType : 'text';
+
       const newMessage = await Message.create({
         sender: userId,
         receiver,
-        message: messageText
+        message: messageText,
+        messageType: msgType
       });
 
       // Get sender/receiver info for response (parallel)
