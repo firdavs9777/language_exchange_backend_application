@@ -9,9 +9,9 @@ module.exports = {
   // ===================== VISITOR LIMITS =====================
   // Users who haven't verified email or just browsing
   visitor: {
-    // Messaging
-    messagesPerDay: 50,
-    voiceMessagesPerDay: 10,
+    // Messaging - Unlimited for now
+    messagesPerDay: -1,
+    voiceMessagesPerDay: -1,
 
     // Content Creation
     momentsPerDay: 5,
@@ -57,9 +57,9 @@ module.exports = {
   // ===================== REGULAR USER LIMITS =====================
   // Standard registered and verified users
   regular: {
-    // Messaging
-    messagesPerDay: 100,
-    voiceMessagesPerDay: 20,
+    // Messaging - Unlimited for now
+    messagesPerDay: -1,
+    voiceMessagesPerDay: -1,
 
     // Content Creation
     momentsPerDay: 10,

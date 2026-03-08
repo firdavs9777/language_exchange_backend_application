@@ -2,18 +2,33 @@ const mongoose = require('mongoose');
 const slugify = require('slugify');
 
 const LanguageSchema = new mongoose.Schema({
-	code:{
+	code: {
 		type: String,
-		required:false
+		required: true,
+		unique: true,
+		index: true
 	},
 	slugify: String,
-	name:{
+	name: {
+		type: String,
+		required: true
+	},
+	nativeName: {
+		type: String,
+		required: true
+	},
+	flag: {
 		type: String,
 		required: false
-	},
-	nativeName:{
-		type: String,
-		required:false
 	}
 });
-module.exports =  mongoose.model('Language',LanguageSchema);
+
+// Create slug from name
+LanguageSchema.pre('save', function(next) {
+	if (this.name) {
+		this.slugify = slugify(this.name, { lower: true });
+	}
+	next();
+});
+
+module.exports = mongoose.model('Language', LanguageSchema);
