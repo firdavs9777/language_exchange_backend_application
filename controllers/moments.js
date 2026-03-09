@@ -708,7 +708,7 @@ exports.likeMoment = asyncHandler(async (req, res, next) => {
   // Add like
   moment.likedUsers = moment.likedUsers || [];
   moment.likedUsers.push(userId);
-  moment.likeCount = Math.max(0, (moment.likeCount || 0) + 1);
+  moment.likeCount = moment.likedUsers.length;
   await moment.save();
 
   // Send notification to moment owner (if not self-like)
@@ -745,9 +745,25 @@ exports.dislikeMoment = asyncHandler(async (req, res, next) => {
 
   const userId = req.user._id.toString();
 
+  // Check if actually liked before removing
+  const wasLiked = (moment.likedUsers || []).some(id => id.toString() === userId);
+
+  if (!wasLiked) {
+    // Already not liked - return current state without modifying
+    return res.status(200).json({
+      success: true,
+      message: 'Already not liked',
+      data: {
+        _id: moment._id,
+        likeCount: moment.likeCount || 0,
+        isLiked: false
+      }
+    });
+  }
+
   // Remove like
-  moment.likedUsers = (moment.likedUsers || []).filter(id => id.toString() !== userId);
-  moment.likeCount = Math.max(0, (moment.likeCount || 0) - 1);
+  moment.likedUsers = moment.likedUsers.filter(id => id.toString() !== userId);
+  moment.likeCount = Math.max(0, moment.likedUsers.length);
   await moment.save();
 
   res.status(200).json({
