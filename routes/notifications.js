@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const {
   validateTokenRegistration,
@@ -10,7 +10,8 @@ const {
   validateDeviceId,
   validatePagination,
   validateBadgeReset,
-  validateTestNotification
+  validateTestNotification,
+  validateBroadcastNotification
 } = require('../middleware/notificationMiddleware');
 
 const {
@@ -27,7 +28,8 @@ const {
   getBadgeCount,
   resetBadge,
   syncBadges,
-  sendTestNotification
+  sendTestNotification,
+  broadcastNotification
 } = require('../controllers/notifications');
 
 // Token removal doesn't require authentication (can be called during/after logout)
@@ -110,6 +112,15 @@ router.post(
   validateTestNotification,
   validate,
   sendTestNotification
+);
+
+// Admin only - Broadcast notification to all users
+router.post(
+  '/broadcast',
+  authorize('admin'),
+  validateBroadcastNotification,
+  validate,
+  broadcastNotification
 );
 
 module.exports = router;

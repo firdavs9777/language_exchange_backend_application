@@ -129,11 +129,40 @@ exports.validateTestNotification = [
     .optional()
     .trim()
     .isMongoId().withMessage('Invalid user ID'),
-  
+
   body('type')
     .optional()
     .trim()
     .isIn(['chat_message', 'moment_like', 'moment_comment', 'friend_request', 'profile_visit', 'system'])
     .withMessage('Invalid notification type')
+];
+
+/**
+ * Validate broadcast notification (Admin only)
+ */
+exports.validateBroadcastNotification = [
+  body('title')
+    .trim()
+    .notEmpty().withMessage('Notification title is required')
+    .isLength({ min: 1, max: 100 }).withMessage('Title must be between 1 and 100 characters'),
+
+  body('body')
+    .trim()
+    .notEmpty().withMessage('Notification body is required')
+    .isLength({ min: 1, max: 500 }).withMessage('Body must be between 1 and 500 characters'),
+
+  body('imageUrl')
+    .optional()
+    .trim()
+    .isURL().withMessage('Invalid image URL'),
+
+  body('targetAudience')
+    .optional()
+    .trim()
+    .isIn(['all', 'vip', 'active', 'inactive']).withMessage('Target audience must be all, vip, active, or inactive'),
+
+  body('data')
+    .optional()
+    .isObject().withMessage('Data must be an object')
 ];
 

@@ -451,6 +451,119 @@ exports.syncBadges = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    Broadcast notification to all users (Admin only)
+ * @route   POST /api/v1/notifications/broadcast
+ * @access  Private/Admin
+ */
+exports.broadcastNotification = asyncHandler(async (req, res, next) => {
+  const { title, body, imageUrl, targetAudience, data } = req.body;
+
+  // Build user filter based on target audience
+  let userFilter = {};
+
+  switch (targetAudience) {
+    case 'vip':
+      userFilter = { 'subscription.isVip': true };
+      break;
+    case 'active':
+      // Users active in the last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      userFilter = { lastActive: { $gte: sevenDaysAgo } };
+      break;
+    case 'inactive':
+      // Users inactive for 7+ days
+      const inactiveDate = new Date();
+      inactiveDate.setDate(inactiveDate.getDate() - 7);
+      userFilter = { lastActive: { $lt: inactiveDate } };
+      break;
+    case 'all':
+    default:
+      userFilter = {};
+  }
+
+  // Only include users with notifications enabled and marketing allowed
+  userFilter['notificationSettings.enabled'] = { $ne: false };
+  userFilter['notificationSettings.marketing'] = { $ne: false };
+
+  // Get all matching user IDs
+  const users = await User.find(userFilter, '_id').lean();
+  const userIds = users.map(u => u._id.toString());
+
+  if (userIds.length === 0) {
+    return res.status(200).json({
+      success: true,
+      message: 'No users match the target audience',
+      data: { sent: 0, total: 0 }
+    });
+  }
+
+  console.log(`📢 Broadcasting to ${userIds.length} users (audience: ${targetAudience || 'all'})`);
+
+  // Create notification template
+  const notification = {
+    title,
+    body,
+    imageUrl
+  };
+
+  const notificationData = {
+    type: 'system',
+    ...data
+  };
+
+  // Send in batches to avoid overwhelming the system
+  const BATCH_SIZE = 100;
+  let totalDelivered = 0;
+  let totalFailed = 0;
+
+  for (let i = 0; i < userIds.length; i += BATCH_SIZE) {
+    const batch = userIds.slice(i, i + BATCH_SIZE);
+
+    // Send notifications
+    const fcmService = require('../services/fcmService');
+    const result = await fcmService.sendToUsers(batch, notification, notificationData);
+
+    totalDelivered += result.delivered || 0;
+    totalFailed += result.failed || 0;
+
+    // Store notification in history for each user
+    const notificationDocs = batch.map(userId => ({
+      userId,
+      type: 'system',
+      title,
+      body,
+      imageUrl,
+      data: notificationData,
+      sentAt: new Date()
+    }));
+
+    await Notification.insertMany(notificationDocs, { ordered: false }).catch(err => {
+      console.error('Error storing broadcast notifications:', err.message);
+    });
+
+    // Update badge counts
+    await User.updateMany(
+      { _id: { $in: batch } },
+      { $inc: { 'badges.unreadNotifications': 1 } }
+    );
+  }
+
+  console.log(`✅ Broadcast complete: ${totalDelivered} delivered, ${totalFailed} failed`);
+
+  res.status(200).json({
+    success: true,
+    message: 'Broadcast notification sent successfully',
+    data: {
+      targetAudience: targetAudience || 'all',
+      totalUsers: userIds.length,
+      delivered: totalDelivered,
+      failed: totalFailed
+    }
+  });
+});
+
+/**
  * @desc    Send test notification
  * @route   POST /api/v1/notifications/test
  * @access  Private
