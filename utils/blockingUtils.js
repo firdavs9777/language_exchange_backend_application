@@ -1,44 +1,61 @@
 /**
  * Blocking Utility Functions
- * 
+ *
  * Centralizes blocking logic for use across the application.
  * Ensures blocked users can't see each other's content.
  */
 
 const User = require('../models/User');
+const cache = require('../services/cacheService');
+
+// Cache TTL for blocked users (2 minutes - short to catch new blocks quickly)
+const BLOCKED_CACHE_TTL = 120;
 
 /**
  * Get all blocked user IDs for a user (both directions)
+ * Uses caching to reduce database queries
  * @param {string} userId - Current user's ID
  * @returns {Promise<string[]>} - Array of user IDs to exclude
  */
 const getBlockedUserIds = async (userId) => {
   if (!userId) return [];
-  
-  try {
-    const user = await User.findById(userId)
-      .select('blockedUsers blockedBy')
-      .lean();
-    
-    if (!user) return [];
-    
-    // Users this user has blocked
-    const blockedByMe = (user.blockedUsers || []).map(b => 
-      b.userId ? b.userId.toString() : b.toString()
-    );
-    
-    // Users who have blocked this user
-    const blockedMe = (user.blockedBy || []).map(b => 
-      b.userId ? b.userId.toString() : b.toString()
-    );
-    
-    // Combine and remove duplicates
-    const allBlocked = [...new Set([...blockedByMe, ...blockedMe])];
-    
-    return allBlocked;
-  } catch (error) {
-    console.error('Error getting blocked user IDs:', error);
-    return [];
+
+  const cacheKey = `blocked:${userId}`;
+
+  return cache.get(cacheKey, async () => {
+    try {
+      const user = await User.findById(userId)
+        .select('blockedUsers blockedBy')
+        .lean();
+
+      if (!user) return [];
+
+      // Users this user has blocked
+      const blockedByMe = (user.blockedUsers || []).map(b =>
+        b.userId ? b.userId.toString() : b.toString()
+      );
+
+      // Users who have blocked this user
+      const blockedMe = (user.blockedBy || []).map(b =>
+        b.userId ? b.userId.toString() : b.toString()
+      );
+
+      // Combine and remove duplicates
+      return [...new Set([...blockedByMe, ...blockedMe])];
+    } catch (error) {
+      console.error('Error getting blocked user IDs:', error);
+      return [];
+    }
+  }, BLOCKED_CACHE_TTL);
+};
+
+/**
+ * Invalidate blocked user cache when blocking status changes
+ * @param {string} userId - User whose cache should be invalidated
+ */
+const invalidateBlockedCache = (userId) => {
+  if (userId) {
+    cache.invalidate(`blocked:${userId}`);
   }
 };
 
@@ -142,6 +159,7 @@ module.exports = {
   checkBlockStatus,
   addBlockingFilter,
   filterBlockedItems,
-  attachBlockedIds
+  attachBlockedIds,
+  invalidateBlockedCache
 };
 

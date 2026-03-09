@@ -1,6 +1,8 @@
 const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
+const { invalidateBlockedCache } = require('../utils/blockingUtils');
+const { invalidateUserCache } = require('../socket/socketHandler');
 
 /**
  * @desc    Block a user
@@ -53,6 +55,12 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
     await targetUser.save();
   }
 
+  // Invalidate caches for both users
+  invalidateBlockedCache(currentUserId.toString());
+  invalidateBlockedCache(userId);
+  invalidateUserCache(currentUserId.toString());
+  invalidateUserCache(userId);
+
   res.status(200).json({
     success: true,
     message: 'User blocked successfully',
@@ -94,6 +102,12 @@ exports.unblockUser = asyncHandler(async (req, res, next) => {
     );
     await targetUser.save();
   }
+
+  // Invalidate caches for both users
+  invalidateBlockedCache(currentUserId.toString());
+  invalidateBlockedCache(userId);
+  invalidateUserCache(currentUserId.toString());
+  invalidateUserCache(userId);
 
   res.status(200).json({
     success: true,

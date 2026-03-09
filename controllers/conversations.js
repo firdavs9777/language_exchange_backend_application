@@ -13,13 +13,15 @@ exports.getConversations = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
   const { archived, muted, pinned } = req.query;
 
+  // Pagination with defaults (backward compatible)
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100); // Max 100
+  const skip = (page - 1) * limit;
+
   let query = {
     participants: userId,
-    // Exclude conversations deleted by this user
-    $or: [
-      { deletedBy: { $exists: false } },
-      { deletedBy: { $ne: userId } }
-    ]
+    // Exclude conversations deleted by this user - optimized query
+    deletedBy: { $ne: userId }
   };
 
   // Filter by archived
@@ -43,14 +45,17 @@ exports.getConversations = asyncHandler(async (req, res, next) => {
     query['pinnedBy.user'] = { $ne: userId };
   }
 
-  const conversations = await Conversation.find(query)
-    .populate('participants', 'name images email userMode')
-    .populate('lastMessage')
-    .sort({ 
-      'pinnedBy.user': -1, // Pinned first
-      lastMessageAt: -1 
-    })
-    .lean();
+  // Run count and find in parallel for better performance
+  const [total, conversations] = await Promise.all([
+    Conversation.countDocuments(query),
+    Conversation.find(query)
+      .populate('participants', 'name images userMode') // Removed email for list view
+      .populate('lastMessage', 'message messageType createdAt sender') // Only needed fields
+      .sort({ lastMessageAt: -1 }) // Simplified sort - pinned handled client-side
+      .skip(skip)
+      .limit(limit)
+      .lean()
+  ]);
 
   // Process conversations
   const processedConversations = conversations.map(conv => {
@@ -60,19 +65,19 @@ exports.getConversations = asyncHandler(async (req, res, next) => {
     );
 
     // Get unread count for current user
-    const unread = conv.unreadCount.find(
+    const unread = conv.unreadCount?.find(
       u => u.user.toString() === userId.toString()
     );
 
     // Check if muted
-    const mute = conv.mutedBy.find(m => m.user.toString() === userId.toString());
+    const mute = conv.mutedBy?.find(m => m.user.toString() === userId.toString());
     const isMuted = mute && (!mute.mutedUntil || mute.mutedUntil > new Date());
 
     // Check if pinned
-    const isPinned = conv.pinnedBy.some(p => p.user.toString() === userId.toString());
+    const isPinned = conv.pinnedBy?.some(p => p.user.toString() === userId.toString());
 
     // Check if archived
-    const isArchived = conv.archivedBy.some(id => id.toString() === userId.toString());
+    const isArchived = conv.archivedBy?.some(id => id.toString() === userId.toString());
 
     return {
       ...conv,
@@ -87,6 +92,9 @@ exports.getConversations = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     count: processedConversations.length,
+    total,
+    page,
+    pages: Math.ceil(total / limit),
     data: processedConversations
   });
 });

@@ -438,30 +438,42 @@ const updateOnlineCache = (userId) => {
 };
 
 /**
- * Send queued offline messages
+ * Send queued offline messages (batched for performance)
  */
 const sendQueuedMessages = async (socket, userId) => {
   try {
     if (!offlineMessageQueue.has(userId)) {
       return;
     }
-    
+
     const queuedMessages = offlineMessageQueue.get(userId) || [];
-    
+
     if (queuedMessages.length === 0) {
       return;
     }
-    
+
     console.log(`📬 Sending ${queuedMessages.length} queued message(s) to user ${userId}`);
-    
-    for (const msgData of queuedMessages) {
-      socket.emit('newMessage', msgData);
-      await new Promise(resolve => setTimeout(resolve, 100)); // Throttle
+
+    // Send in batches for better performance
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < queuedMessages.length; i += BATCH_SIZE) {
+      const batch = queuedMessages.slice(i, i + BATCH_SIZE);
+
+      // Emit batch as array for efficient processing
+      socket.emit('queuedMessages', batch);
+
+      // Also emit individually for backward compatibility
+      batch.forEach(msgData => socket.emit('newMessage', msgData));
+
+      // Small delay between batches (not individual messages)
+      if (i + BATCH_SIZE < queuedMessages.length) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
     }
-    
+
     // Clear queue
     offlineMessageQueue.delete(userId);
-    
+
   } catch (error) {
     console.error('❌ Error sending queued messages:', error);
   }
@@ -480,7 +492,7 @@ const sendOnlineUsers = (socket) => {
         lastSeen: u.lastSeen,
         deviceCount: u.deviceCount
       }));
-    
+
     socket.emit('onlineUsers', onlineUsers);
     console.log(`📋 Sent ${onlineUsers.length} online users to ${socket.user.id}`);
   } catch (error) {

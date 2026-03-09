@@ -5,6 +5,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const User = require("../models/User")
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const mongoose = require('mongoose');
+const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 /**
  * @desc    Create a new conversation room between users
@@ -109,21 +110,17 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
   exports.getMessages = asyncHandler(async (req, res, next) => {
     const userId = req.user?._id;
     let query = { isDeleted: { $ne: true } };
-    
+
     // Pagination
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
     const actualLimit = Math.min(limit, 100); // Max 100 per page
-    
-    // If user is authenticated, filter out blocked users
+
+    // If user is authenticated, filter out blocked users (using cached lookup)
     if (userId) {
-      const user = await User.findById(userId).select('blockedUsers blockedBy');
-      if (user) {
-        const blockedUserIds = [
-          ...user.blockedUsers.map(b => b.userId.toString()),
-          ...user.blockedBy.map(b => b.userId.toString())
-        ];
+      const blockedUserIds = await getBlockedUserIds(userId);
+      if (blockedUserIds.length > 0) {
         query.$and = [
           { sender: { $nin: blockedUserIds } },
           { receiver: { $nin: blockedUserIds } }

@@ -37,13 +37,13 @@ exports.addCorrection = asyncHandler(async (req, res, next) => {
   // Check if conversation allows corrections
   const conversation = await Conversation.findOne({
     participants: { $all: [message.sender, correctorId] }
-  });
+  }).lean();
 
   if (conversation && conversation.languageSettings && !conversation.languageSettings.enableCorrections) {
     return next(new ErrorResponse('Corrections are disabled for this conversation', 403));
   }
 
-  // Add correction
+  // Add correction and populate in one operation
   await message.addCorrection(
     correctorId,
     message.message,
@@ -220,8 +220,11 @@ exports.sendDisappearingMessage = asyncHandler(async (req, res, next) => {
 
   const newMessage = await Message.create(messageData);
 
-  await newMessage.populate('sender', 'name images userMode');
-  await newMessage.populate('receiver', 'name images userMode');
+  // Populate sender and receiver in parallel
+  await newMessage.populate([
+    { path: 'sender', select: 'name images userMode' },
+    { path: 'receiver', select: 'name images userMode' }
+  ]);
 
   // Notify receiver
   const io = req.app.get('io');
@@ -562,8 +565,11 @@ exports.sendVideoMessage = asyncHandler(async (req, res, next) => {
   await conversation.updateUnreadCount(receiver, 1);
   await conversation.save();
 
-  await message.populate('sender', 'name images userMode');
-  await message.populate('receiver', 'name images userMode');
+  // Populate sender and receiver in parallel
+  await message.populate([
+    { path: 'sender', select: 'name images userMode' },
+    { path: 'receiver', select: 'name images userMode' }
+  ]);
 
   // Notify receiver via socket
   const io = req.app.get('io');
@@ -707,8 +713,11 @@ exports.sendVoiceMessage = asyncHandler(async (req, res, next) => {
   await conversation.updateUnreadCount(receiver, 1);
   await conversation.save();
 
-  await message.populate('sender', 'name images userMode');
-  await message.populate('receiver', 'name images userMode');
+  // Populate sender and receiver in parallel
+  await message.populate([
+    { path: 'sender', select: 'name images userMode' },
+    { path: 'receiver', select: 'name images userMode' }
+  ]);
 
   // Notify both sender and receiver via socket
   const io = req.app.get('io');
