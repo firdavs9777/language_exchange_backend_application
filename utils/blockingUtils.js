@@ -52,44 +52,57 @@ const getBlockedUserIds = async (userId) => {
 /**
  * Invalidate blocked user cache when blocking status changes
  * @param {string} userId - User whose cache should be invalidated
+ * @param {string} otherUserId - Optional other user to invalidate block status cache
  */
-const invalidateBlockedCache = (userId) => {
+const invalidateBlockedCache = (userId, otherUserId = null) => {
   if (userId) {
     cache.invalidate(`blocked:${userId}`);
+    // Also invalidate block status cache between these users
+    if (otherUserId) {
+      const sortedIds = [userId.toString(), otherUserId.toString()].sort();
+      cache.invalidate(`blockStatus:${sortedIds[0]}:${sortedIds[1]}`);
+    }
   }
 };
 
 /**
  * Check if two users are blocking each other
+ * Uses caching to reduce database queries (30 second TTL)
  * @param {string} userId1 - First user's ID
  * @param {string} userId2 - Second user's ID
  * @returns {Promise<{isBlocked: boolean, blockedBy: string|null}>}
  */
 const checkBlockStatus = async (userId1, userId2) => {
-  try {
-    const [user1, user2] = await Promise.all([
-      User.findById(userId1).select('blockedUsers').lean(),
-      User.findById(userId2).select('blockedUsers').lean()
-    ]);
-    
-    const user1BlockedUser2 = (user1?.blockedUsers || []).some(
-      b => (b.userId || b).toString() === userId2.toString()
-    );
-    
-    const user2BlockedUser1 = (user2?.blockedUsers || []).some(
-      b => (b.userId || b).toString() === userId1.toString()
-    );
-    
-    return {
-      isBlocked: user1BlockedUser2 || user2BlockedUser1,
-      blockedBy: user1BlockedUser2 ? userId1 : (user2BlockedUser1 ? userId2 : null),
-      iBlockedThem: user1BlockedUser2,
-      theyBlockedMe: user2BlockedUser1
-    };
-  } catch (error) {
-    console.error('Error checking block status:', error);
-    return { isBlocked: false, blockedBy: null, iBlockedThem: false, theyBlockedMe: false };
-  }
+  // Sort IDs to create consistent cache key regardless of order
+  const sortedIds = [userId1.toString(), userId2.toString()].sort();
+  const cacheKey = `blockStatus:${sortedIds[0]}:${sortedIds[1]}`;
+
+  return cache.get(cacheKey, async () => {
+    try {
+      const [user1, user2] = await Promise.all([
+        User.findById(userId1).select('blockedUsers').lean(),
+        User.findById(userId2).select('blockedUsers').lean()
+      ]);
+
+      const user1BlockedUser2 = (user1?.blockedUsers || []).some(
+        b => (b.userId || b).toString() === userId2.toString()
+      );
+
+      const user2BlockedUser1 = (user2?.blockedUsers || []).some(
+        b => (b.userId || b).toString() === userId1.toString()
+      );
+
+      return {
+        isBlocked: user1BlockedUser2 || user2BlockedUser1,
+        blockedBy: user1BlockedUser2 ? userId1 : (user2BlockedUser1 ? userId2 : null),
+        iBlockedThem: user1BlockedUser2,
+        theyBlockedMe: user2BlockedUser1
+      };
+    } catch (error) {
+      console.error('Error checking block status:', error);
+      return { isBlocked: false, blockedBy: null, iBlockedThem: false, theyBlockedMe: false };
+    }
+  }, 30); // 30 second TTL - short for responsiveness
 };
 
 /**

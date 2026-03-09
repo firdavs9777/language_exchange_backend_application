@@ -58,12 +58,14 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    // Get blocked users
-    const blockedUserIds = Array.from(await getBlockedUserIds(userId));
+    // Get blocked users and following list in parallel (both cached)
+    const [blockedUserIds, user] = await Promise.all([
+      getBlockedUserIds(userId),
+      User.findById(userId).select('following').lean()
+    ]);
 
-    // Get users that current user is following
-    const user = await User.findById(userId).populate('following', '_id');
-    let followingIds = user.following?.map(following => following._id.toString()) || [];
+    // Extract following IDs (already ObjectIds, no populate needed)
+    let followingIds = (user?.following || []).map(id => id.toString());
 
     // Filter out blocked users from following list
     followingIds = followingIds.filter(id => !blockedUserIds.includes(id));
@@ -75,12 +77,13 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
 
     // Get active stories from people user is following + own stories
     const stories = await Story.find({
-      user: { $in: followingIds, $nin: blockedUserIds },
+      user: { $in: followingIds },
       isActive: true,
       expiresAt: { $gt: now }
     })
-    .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
-    .sort({ user: 1, createdAt: 1 });
+    .populate('user', 'name images bio native_language language_to_learn') // Only essential fields
+    .sort({ user: 1, createdAt: 1 })
+    .lean();
 
     // Group stories by user using helper
     const storiesFeed = groupStoriesByUser(stories, userId, blockedUserIds);

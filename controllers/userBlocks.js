@@ -55,9 +55,9 @@ exports.blockUser = asyncHandler(async (req, res, next) => {
     await targetUser.save();
   }
 
-  // Invalidate caches for both users
-  invalidateBlockedCache(currentUserId.toString());
-  invalidateBlockedCache(userId);
+  // Invalidate caches for both users (including block status cache)
+  invalidateBlockedCache(currentUserId.toString(), userId);
+  invalidateBlockedCache(userId, currentUserId.toString());
   invalidateUserCache(currentUserId.toString());
   invalidateUserCache(userId);
 
@@ -103,9 +103,9 @@ exports.unblockUser = asyncHandler(async (req, res, next) => {
     await targetUser.save();
   }
 
-  // Invalidate caches for both users
-  invalidateBlockedCache(currentUserId.toString());
-  invalidateBlockedCache(userId);
+  // Invalidate caches for both users (including block status cache)
+  invalidateBlockedCache(currentUserId.toString(), userId);
+  invalidateBlockedCache(userId, currentUserId.toString());
   invalidateUserCache(currentUserId.toString());
   invalidateUserCache(userId);
 

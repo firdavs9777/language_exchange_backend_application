@@ -10,6 +10,11 @@ const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../u
 //@access Public
 
 exports.getComments = asyncHandler(async (req, res, next) => {
+    // Pagination (backward compatible - defaults to all if not specified)
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100); // Max 100
+    const skip = (page - 1) * limit;
+
     // Get blocked users if authenticated
     let blockedUserIds = [];
     if (req.user) {
@@ -26,28 +31,36 @@ exports.getComments = asyncHandler(async (req, res, next) => {
         query = addBlockingFilter(query, 'user', blockedUserIds);
     }
 
-    let comments = await Comment.find(query)
-        .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
-        .sort({ createdAt: -1 });
+    // Run count and find in parallel
+    const [total, comments] = await Promise.all([
+        Comment.countDocuments(query),
+        Comment.find(query)
+            .populate('user', 'name images') // Only essential fields for list view
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean()
+    ]);
 
     // Extract user images and map them to URLs
-    comments = comments.map(comment => {
+    const processedComments = comments.map(comment => {
         const userImages = comment.user?.images || [];
-        const imageUrls = userImages.map(image => image);
-
         return {
-            ...comment._doc,
+            ...comment,
             user: {
-                ...comment.user?._doc,
-                imageUrls
+                ...comment.user,
+                imageUrls: userImages
             }
         };
     });
 
     res.status(200).json({
         success: true,
-        count: comments.length,
-        data: comments
+        count: processedComments.length,
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+        data: processedComments
     });
 });
 

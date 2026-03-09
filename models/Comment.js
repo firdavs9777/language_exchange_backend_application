@@ -23,4 +23,9 @@ const CommentSchema = new mongoose.Schema({
   imageUrl: { type: String },
 });
 
+// Indexes for performance
+CommentSchema.index({ moment: 1, createdAt: -1 }); // For finding moment's comments
+CommentSchema.index({ user: 1, createdAt: -1 }); // For finding user's comments
+CommentSchema.index({ moment: 1, user: 1 }); // For checking user's comment on moment
+
 module.exports = mongoose.model('Comment', CommentSchema);
