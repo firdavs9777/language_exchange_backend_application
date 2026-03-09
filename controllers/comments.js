@@ -26,6 +26,11 @@ exports.getComments = asyncHandler(async (req, res, next) => {
         query.moment = req.params.momentId;
     }
 
+    // Only return top-level comments (not replies) unless explicitly requested
+    if (req.query.includeReplies !== 'true') {
+        query.parentComment = null;
+    }
+
     // Add blocking filter to exclude comments from blocked users
     if (blockedUserIds.length > 0) {
         query = addBlockingFilter(query, 'user', blockedUserIds);
@@ -157,7 +162,26 @@ exports.createComment = asyncHandler(async (req, res, next) => {
             }
         }
 
+        // Handle reply to parent comment
+        if (req.body.parentComment) {
+            const parentComment = await Comment.findById(req.body.parentComment);
+            if (!parentComment) {
+                return next(new ErrorResponse('Parent comment not found', 404));
+            }
+            // Ensure parent belongs to same moment
+            if (parentComment.moment.toString() !== req.params.momentId) {
+                return next(new ErrorResponse('Parent comment does not belong to this moment', 400));
+            }
+        }
+
         const comment = await Comment.create(req.body);
+
+        // If this is a reply, increment parent's reply count
+        if (req.body.parentComment) {
+            await Comment.findByIdAndUpdate(req.body.parentComment, {
+                $inc: { replyCount: 1 }
+            });
+        }
 
         // Increment comment count after successful creation
         await user.incrementCommentCount();
@@ -194,16 +218,140 @@ exports.createComment = asyncHandler(async (req, res, next) => {
 });
 
 
-//@desc PUT UPDATE comment
-//@route PUT /api/v1/moments/:momentId/comments/:id
-//@access Private
-// exports.updateComment = asyncHandler(async (req, res, next) => {
-//     const comment = await Comment.create(req.body);
-//     res.status(200).json({
-//       success: true,
-//       data: comment
-//     });
-//   });
+// @desc    Update/edit comment
+// @route   PUT /api/v1/moments/:momentId/comments/:id
+// @access  Private (owner only)
+exports.updateComment = asyncHandler(async (req, res, next) => {
+    const commentId = req.params.id || req.params.commentId;
+    const comment = await Comment.findById(commentId);
+
+    if (!comment) {
+        return next(new ErrorResponse('Comment not found', 404));
+    }
+
+    // Only the comment owner can edit
+    if (comment.user.toString() !== req.user._id.toString()) {
+        return next(new ErrorResponse('Not authorized to edit this comment', 403));
+    }
+
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+        return next(new ErrorResponse('Comment text is required', 400));
+    }
+
+    if (text.length > 500) {
+        return next(new ErrorResponse('Comment text cannot exceed 500 characters', 400));
+    }
+
+    comment.text = text.trim();
+    comment.isEdited = true;
+    comment.updatedAt = new Date();
+    await comment.save();
+
+    // Populate user for response
+    await comment.populate('user', 'name images');
+
+    const userImages = comment.user?.images || [];
+    const responseComment = {
+        ...comment._doc,
+        user: {
+            ...comment.user._doc,
+            imageUrls: userImages
+        }
+    };
+
+    res.status(200).json({
+        success: true,
+        data: responseComment
+    });
+});
+
+// @desc    Like/unlike a comment
+// @route   POST /api/v1/moments/:momentId/comments/:id/like
+// @access  Private
+exports.likeComment = asyncHandler(async (req, res, next) => {
+    const commentId = req.params.id || req.params.commentId;
+    const userId = req.user._id;
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+        return next(new ErrorResponse('Comment not found', 404));
+    }
+
+    const alreadyLiked = comment.likedUsers.some(
+        id => id.toString() === userId.toString()
+    );
+
+    if (alreadyLiked) {
+        // Unlike
+        comment.likedUsers = comment.likedUsers.filter(
+            id => id.toString() !== userId.toString()
+        );
+        comment.likeCount = Math.max(0, comment.likedUsers.length);
+    } else {
+        // Like
+        comment.likedUsers.push(userId);
+        comment.likeCount = comment.likedUsers.length;
+    }
+
+    await comment.save();
+
+    res.status(200).json({
+        success: true,
+        data: {
+            isLiked: !alreadyLiked,
+            likeCount: comment.likeCount,
+        }
+    });
+});
+
+// @desc    Get replies for a comment
+// @route   GET /api/v1/moments/:momentId/comments/:id/replies
+// @access  Public
+exports.getReplies = asyncHandler(async (req, res, next) => {
+    const parentId = req.params.id || req.params.commentId;
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+    const skip = (page - 1) * limit;
+
+    // Get blocked users if authenticated
+    let blockedUserIds = [];
+    if (req.user) {
+        blockedUserIds = await getBlockedUserIds(req.user._id);
+    }
+
+    let query = { parentComment: parentId };
+    if (blockedUserIds.length > 0) {
+        query = addBlockingFilter(query, 'user', blockedUserIds);
+    }
+
+    const [total, replies] = await Promise.all([
+        Comment.countDocuments(query),
+        Comment.find(query)
+            .populate('user', 'name images')
+            .sort({ createdAt: 1 }) // oldest first for replies
+            .skip(skip)
+            .limit(limit)
+            .lean()
+    ]);
+
+    const processedReplies = replies.map(reply => {
+        const userImages = reply.user?.images || [];
+        return {
+            ...reply,
+            user: { ...reply.user, imageUrls: userImages }
+        };
+    });
+
+    res.status(200).json({
+        success: true,
+        count: processedReplies.length,
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+        data: processedReplies
+    });
+});
 
 // @desc DELETE Delete comment
 // @route DELETE /api/v1/moments/:momentId/comments/:id
