@@ -1500,4 +1500,10 @@ UserSchema.index({ isOnline: 1, userMode: 1, lastSeen: -1 });
 // Index for email lookup (login)
 UserSchema.index({ email: 1 });
 
+// Community feature indexes
+UserSchema.index({ lastActive: -1 }); // For online status filtering
+UserSchema.index({ topics: 1 }); // For topic-based user discovery
+UserSchema.index({ native_language: 1, language_to_learn: 1 }); // For language matching
+UserSchema.index({ birth_year: 1 }); // For age filtering
+
 module.exports = mongoose.model('User', UserSchema);

@@ -4,6 +4,9 @@ const User = require('../models/User');
 const Wave = require('../models/Wave');
 const Topic = require('../models/Topic');
 const notificationService = require('../services/notificationService');
+const { getBlockedUserIds } = require('../utils/blockingUtils');
+const cache = require('../services/cacheService');
+const mongoose = require('mongoose');
 
 // ============================================
 // NEARBY USERS
@@ -52,16 +55,15 @@ exports.getNearbyUsers = asyncHandler(async (req, res, next) => {
   const limitNum = Math.min(Math.max(parseInt(limit) || 50, 1), 100);
   const offsetNum = Math.max(parseInt(offset) || 0, 0);
 
-  // Get current user for blocking check
-  const currentUser = await User.findById(userId).select('blockedUsers blockedBy');
-  const blockedUserIds = [
-    ...(currentUser?.blockedUsers || []),
-    ...(currentUser?.blockedBy || [])
-  ].map(id => id.toString());
+  // Get blocked user IDs (cached for performance)
+  const blockedUserIds = await getBlockedUserIds(userId);
 
   // Build match criteria
   const matchCriteria = {
-    _id: { $ne: userId, $nin: blockedUserIds.map(id => require('mongoose').Types.ObjectId(id)) },
+    _id: {
+      $ne: new mongoose.Types.ObjectId(userId),
+      ...(blockedUserIds.length > 0 && { $nin: blockedUserIds.map(id => new mongoose.Types.ObjectId(id)) })
+    },
     'location.coordinates': { $exists: true, $ne: [0, 0] }
   };
 
@@ -120,48 +122,48 @@ exports.getNearbyUsers = asyncHandler(async (req, res, next) => {
     });
   }
 
-  // Get total count before pagination
-  const countPipeline = [...pipeline, { $count: 'total' }];
-  const countResult = await User.aggregate(countPipeline);
-  const total = countResult[0]?.total || 0;
-
-  // Add pagination
-  pipeline.push(
-    { $skip: offsetNum },
-    { $limit: limitNum }
-  );
-
-  // Project only needed fields
+  // Use $facet to get both count and results in one query (more efficient)
   pipeline.push({
-    $project: {
-      _id: 1,
-      name: 1,
-      images: 1,
-      location: {
-        type: '$location.type',
-        coordinates: '$location.coordinates',
-        city: '$location.city',
-        country: '$location.country'
-      },
-      distance: { $round: ['$distance', 2] },
-      native_language: 1,
-      language_to_learn: 1,
-      gender: 1,
-      bio: 1,
-      isOnline: {
-        $cond: {
-          if: { $gte: ['$lastActive', new Date(Date.now() - 5 * 60 * 1000)] },
-          then: true,
-          else: false
+    $facet: {
+      metadata: [{ $count: 'total' }],
+      data: [
+        { $skip: offsetNum },
+        { $limit: limitNum },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            images: { $slice: ['$images', 3] }, // Limit to first 3 images for performance
+            location: {
+              type: '$location.type',
+              coordinates: '$location.coordinates',
+              city: '$location.city',
+              country: '$location.country'
+            },
+            distance: { $round: ['$distance', 2] },
+            native_language: 1,
+            language_to_learn: 1,
+            gender: 1,
+            bio: 1,
+            isOnline: {
+              $cond: {
+                if: { $gte: ['$lastActive', new Date(Date.now() - 5 * 60 * 1000)] },
+                then: true,
+                else: false
+              }
+            },
+            lastSeen: '$lastActive',
+            level: 1,
+            topics: 1
+          }
         }
-      },
-      lastSeen: '$lastActive',
-      level: 1,
-      topics: 1
+      ]
     }
   });
 
-  const users = await User.aggregate(pipeline);
+  const result = await User.aggregate(pipeline);
+  const total = result[0]?.metadata[0]?.total || 0;
+  const users = result[0]?.data || [];
 
   res.status(200).json({
     success: true,
@@ -196,37 +198,41 @@ exports.sendWave = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Cannot wave at yourself', 400));
   }
 
-  // Check if target user exists
-  const targetUser = await User.findById(targetUserId).select('_id blockedUsers');
+  // Run validation queries in parallel for better performance
+  const [targetUser, recentWave] = await Promise.all([
+    User.findById(targetUserId).select('_id blockedUsers').lean(),
+    Wave.findOne({
+      from: fromUserId,
+      to: targetUserId,
+      createdAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+    }).lean()
+  ]);
+
   if (!targetUser) {
     return next(new ErrorResponse('User not found', 404));
   }
 
   // Check if current user is blocked by target
-  if (targetUser.blockedUsers?.includes(fromUserId)) {
+  const isBlocked = targetUser.blockedUsers?.some(
+    b => (b.userId || b).toString() === fromUserId
+  );
+  if (isBlocked) {
     return next(new ErrorResponse('Cannot wave to this user', 403));
   }
-
-  // Check for existing recent wave (prevent spam)
-  const recentWave = await Wave.findOne({
-    from: fromUserId,
-    to: targetUserId,
-    createdAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-  });
 
   if (recentWave) {
     return next(new ErrorResponse('You already waved at this user recently', 429));
   }
 
-  // Create wave
-  const wave = await Wave.create({
-    from: fromUserId,
-    to: targetUserId,
-    message: message?.substring(0, 100)
-  });
-
-  // Check if mutual wave exists
-  const isMutual = await Wave.checkMutualWave(fromUserId, targetUserId);
+  // Create wave and check mutual in parallel
+  const [wave, isMutual] = await Promise.all([
+    Wave.create({
+      from: fromUserId,
+      to: targetUserId,
+      message: message?.substring(0, 100)
+    }),
+    Wave.checkMutualWave(fromUserId, targetUserId)
+  ]);
 
   // Send push notification to target user
   notificationService.sendWave(
@@ -335,16 +341,18 @@ exports.markWavesAsRead = asyncHandler(async (req, res, next) => {
 exports.getTopics = asyncHandler(async (req, res, next) => {
   const { category, lang = 'en' } = req.query;
 
-  const filter = { isActive: true };
-  if (category) {
-    filter.category = category;
-  }
+  // Cache topics for 1 hour (they rarely change)
+  const cacheKey = `topics:${category || 'all'}`;
 
-  const topics = await Topic.find(filter)
-    .sort({ order: 1 })
-    .lean();
+  const topics = await cache.get(cacheKey, async () => {
+    const filter = { isActive: true };
+    if (category) {
+      filter.category = category;
+    }
+    return Topic.find(filter).sort({ order: 1 }).lean();
+  }, 3600); // 1 hour TTL
 
-  // Add localized names
+  // Add localized names (done outside cache since it depends on request lang)
   const localizedTopics = topics.map(topic => ({
     id: topic.topicId,
     name: topic.localizedNames?.[lang] || topic.name,
@@ -374,12 +382,8 @@ exports.getTopicUsers = asyncHandler(async (req, res, next) => {
   const limitNum = Math.min(Math.max(1, parseInt(limit)), 50);
   const skip = (pageNum - 1) * limitNum;
 
-  // Get current user for blocking check
-  const currentUser = await User.findById(userId).select('blockedUsers blockedBy');
-  const blockedUserIds = [
-    ...(currentUser?.blockedUsers || []),
-    ...(currentUser?.blockedBy || [])
-  ].map(id => id.toString());
+  // Get blocked user IDs (cached for performance)
+  const blockedUserIds = await getBlockedUserIds(userId);
 
   const filter = {
     _id: { $ne: userId },
@@ -388,7 +392,7 @@ exports.getTopicUsers = asyncHandler(async (req, res, next) => {
 
   // Exclude blocked users
   if (blockedUserIds.length > 0) {
-    filter._id.$nin = blockedUserIds;
+    filter._id = { $ne: userId, $nin: blockedUserIds };
   }
 
   const [users, total] = await Promise.all([
