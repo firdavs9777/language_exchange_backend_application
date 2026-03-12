@@ -28,7 +28,7 @@ We've been listening to your feedback and working hard to make BananaTalk the be
 
 Update now and let us know what you think! Your feedback means everything to us.`,
   ctaText: 'Try It Now',
-  ctaUrl: 'https://bananatalk.com',
+  ctaUrl: 'https://banatalk.com',
   iosUrl: 'https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146',
   androidUrl: 'https://play.google.com/store/apps/details?id=com.bananatalk.app'
 };

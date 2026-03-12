@@ -23,6 +23,7 @@ const { startLearningJobs } = require('./learningJobs');
 const { runSubscriptionExpiryJob } = require('./subscriptionExpiryJob');
 const { runAdminReportJob } = require('./adminReportJob');
 const { runWebVisitReport } = require('./webVisitReportJob');
+const { runPromotionalEmailJob } = require('./promotionalEmailJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -276,6 +277,27 @@ const scheduleWebVisitReport = () => {
 };
 
 /**
+ * Schedule weekly promotional email (Sundays at 9:00 AM KST)
+ */
+const schedulePromotionalEmail = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled promotional email...');
+    try {
+      await runPromotionalEmailJob();
+    } catch (error) {
+      console.error('Scheduled promotional email failed:', error);
+    }
+    // Schedule next run (7 days from now)
+    setTimeout(runJob, 7 * 24 * 60 * 60 * 1000);
+  };
+
+  // Schedule first run (next Sunday at 9 AM KST)
+  const msUntilNextRun = getMillisecondsUntil(9, 0, 0); // 9:00 AM Sunday
+  console.log(`📅 Promotional email scheduled in ${Math.round(msUntilNextRun / 1000 / 60 / 60)} hours`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
  * Start all scheduled jobs
  */
 const startScheduler = () => {
@@ -306,6 +328,9 @@ const startScheduler = () => {
 
   // Web visit weekly report (Mondays at 8:00 AM)
   scheduleWebVisitReport();
+
+  // Promotional email (Sundays at 9:00 AM KST)
+  schedulePromotionalEmail();
 
   // Learning/gamification jobs
   startLearningJobs();
@@ -351,6 +376,9 @@ const runAllJobsNow = async () => {
     console.log('\n🔟 Running web visit report...');
     await runWebVisitReport();
 
+    console.log('\n1️⃣1️⃣ Running promotional email...');
+    await runPromotionalEmailJob();
+
     console.log('\n✅ All jobs completed!');
   } catch (error) {
     console.error('Error running jobs:', error);
@@ -369,6 +397,7 @@ module.exports = {
   scheduleNotificationCleanup,
   scheduleSubscriptionExpiry,
   scheduleAdminReport,
-  scheduleWebVisitReport
+  scheduleWebVisitReport,
+  schedulePromotionalEmail
 };
 
