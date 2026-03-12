@@ -241,6 +241,30 @@ exports.sendAdminDailyReport = async (adminEmail, stats) => {
 };
 
 /**
+ * Send promotional email
+ */
+exports.sendPromotionalEmail = async (user, promoData) => {
+  try {
+    // Skip if user has email notifications disabled
+    if (user.privacySettings?.emailNotifications === false) {
+      return { success: false, reason: 'notifications_disabled' };
+    }
+
+    const template = templates.promotionalEmail(user.name || 'Friend', promoData);
+    await sendEmail({
+      email: user.email,
+      subject: template.subject,
+      message: template.text,
+      html: template.html
+    });
+    return { success: true };
+  } catch (error) {
+    console.error(`❌ Failed to send promo email to ${user.email}:`, error.message);
+    return { success: false, reason: error.message };
+  }
+};
+
+/**
  * Send new user notification to admin
  */
 exports.sendNewUserNotification = async (adminEmail, user) => {

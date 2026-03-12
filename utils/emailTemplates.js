@@ -930,5 +930,72 @@ Photos: ${images.length > 0 ? images.join('\n') : 'None'}`
   };
 };
 
+/**
+ * Promotional email template
+ */
+exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl, androidUrl }) => {
+  const content = `
+    <tr>
+      <td style="background: linear-gradient(135deg, #FFD93D 0%, #FF6B6B 50%, #6BCB77 100%); padding: 50px 40px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.2);">🍌 ${title}</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 30px;">
+        <p style="font-size: 18px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi <strong>${userName}</strong>! 👋
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          ${message}
+        </p>
+
+        ${ctaText && ctaUrl ? `
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+          <tr>
+            <td align="center">
+              <a href="${ctaUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
+                ${ctaText} →
+              </a>
+            </td>
+          </tr>
+        </table>
+        ` : ''}
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #f8f9ff 0%, #fff5f5 100%); border-radius: 12px; padding: 25px; margin: 25px 0;">
+          <tr>
+            <td style="text-align: center;">
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download BananaTalk</h3>
+              <table cellpadding="0" cellspacing="0" style="margin: 0 auto;">
+                <tr>
+                  <td style="padding: 0 10px;">
+                    <a href="${iosUrl}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      🍎 App Store
+                    </a>
+                  </td>
+                  <td style="padding: 0 10px;">
+                    <a href="${androidUrl}" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      🤖 Google Play
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+
+        <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
+          See you on ${APP_NAME}! 🍌✨
+        </p>
+      </td>
+    </tr>
+  `;
+
+  return {
+    subject: `🍌 ${title}`,
+    html: baseTemplate(content, '#FFD93D'),
+    text: `Hi ${userName}! ${message}\n\nDownload BananaTalk:\niOS: ${iosUrl}\nAndroid: ${androidUrl}`
+  };
+};
+
 module.exports = exports;
 
