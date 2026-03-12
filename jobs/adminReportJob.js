@@ -18,24 +18,24 @@ const emailService = require('../services/emailService');
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'bananatalkmain@gmail.com';
 
 /**
- * Get date boundaries for today
+ * Get date boundaries for today (UTC-based for consistency)
  */
 const getTodayBoundaries = () => {
   const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  // Use UTC to avoid timezone issues
+  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const endOfDay = new Date(startOfDay);
-  endOfDay.setDate(endOfDay.getDate() + 1);
+  endOfDay.setUTCDate(endOfDay.getUTCDate() + 1);
   return { startOfDay, endOfDay };
 };
 
 /**
- * Get date boundaries for this week (last 7 days)
+ * Get date boundaries for this week (last 7 days, UTC-based)
  */
 const getWeekBoundaries = () => {
   const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setDate(startOfWeek.getDate() - 7);
-  startOfWeek.setHours(0, 0, 0, 0);
+  const startOfWeek = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  startOfWeek.setUTCDate(startOfWeek.getUTCDate() - 7);
   return { startOfWeek, endOfWeek: now };
 };
 

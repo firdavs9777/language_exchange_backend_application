@@ -1440,11 +1440,11 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
 
     // Try to find existing user by Google ID
     let user = await User.findOne({ googleId });
-    
+
     // If not found by Google ID, try by email
     if (!user && email) {
       user = await User.findOne({ email });
-      
+
       // If user exists with this email, link Google account
       if (user) {
         user.googleId = googleId;
@@ -1454,7 +1454,7 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
         await user.save();
       }
     }
-    
+
     // If still no user, create new one
     if (!user) {
       // Generate unique username
@@ -1520,9 +1520,9 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
       email: user.email,
       ipAddress: deviceInfo.ipAddress
     });
-    
+
     sendTokenResponse(user, 200, res, req, deviceInfo);
-    
+
   } catch (error) {
     logSecurityEvent('GOOGLE_MOBILE_AUTH_FAILED', {
       error: error.message,
