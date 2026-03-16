@@ -309,23 +309,35 @@ exports.inactivityReminder = (userName, daysSinceActive = 7) => {
           </tr>
         </table>
         
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
           <tr>
             <td align="center">
-              <a href="https://banatalk.com/feed" style="display: inline-block; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                See What's New ✨
-              </a>
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download BananaTalk</h3>
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-right: 10px;">
+                    <a href="https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      🍎 App Store
+                    </a>
+                  </td>
+                  <td style="padding-left: 10px;">
+                    <a href="https://play.google.com/store/apps/details?id=com.bananatalk.app" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      🤖 Google Play
+                    </a>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
       </td>
     </tr>
   `;
-  
+
   return {
     subject: `👋 ${userName}, we miss you on ${APP_NAME}!`,
     html: baseTemplate(content, '#f5576c'),
-    text: `Hi ${userName}, we haven't seen you on ${APP_NAME} for ${daysSinceActive} days. Come back and see what you've missed!`
+    text: `Hi ${userName}, we haven't seen you on ${APP_NAME} for ${daysSinceActive} days. Come back and see what you've missed!\n\nDownload BananaTalk:\niOS: https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146\nAndroid: https://play.google.com/store/apps/details?id=com.bananatalk.app`
   };
 };
 
