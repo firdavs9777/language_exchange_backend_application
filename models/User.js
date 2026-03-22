@@ -394,9 +394,7 @@ role: {
   },
   bio: {
     type: String,
-    required: function() {
-      return !this.googleId && !this.facebookId && !this.appleId;
-    }
+    default: ''
   },
   birth_year: {
     type: String,
@@ -418,9 +416,7 @@ role: {
   },
   images: {
     type: [String],
-    required: function() {
-      return !this.googleId && !this.facebookId && !this.appleId;
-    }
+    default: []
   },
   followers: {
     type: [mongoose.Schema.Types.ObjectId],

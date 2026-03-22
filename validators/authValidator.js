@@ -31,9 +31,9 @@ exports.registerValidation = [
     .isIn(['male', 'female', 'other']).withMessage('Gender must be male, female, or other'),
   
   body('bio')
+    .optional()
     .trim()
-    .notEmpty().withMessage('Bio is required')
-    .isLength({ min: 10, max: 500 }).withMessage('Bio must be between 10 and 500 characters'),
+    .isLength({ max: 500 }).withMessage('Bio must be 500 characters or less'),
   
   body('birth_year')
     .notEmpty().withMessage('Birth year is required')
@@ -56,10 +56,12 @@ exports.registerValidation = [
     .notEmpty().withMessage('Language to learn is required'),
   
   body('location')
-    .notEmpty().withMessage('Location is required')
+    .optional()
     .custom((value) => {
-      if (!value.coordinates || !Array.isArray(value.coordinates) || value.coordinates.length !== 2) {
-        throw new Error('Location must have valid coordinates');
+      if (value && value.coordinates) {
+        if (!Array.isArray(value.coordinates) || value.coordinates.length !== 2) {
+          throw new Error('Location must have valid coordinates');
+        }
       }
       return true;
     }),

@@ -378,8 +378,8 @@ exports.register = asyncHandler(async (req, res, next) => {
     termsAccepted
   } = req.body;
 
-  // Validate required fields
-  if (!email || !password || !name || !gender || !bio || !birth_year || !birth_month || !birth_day || !native_language || !language_to_learn || !location) {
+  // Validate required fields (bio, images, location are now optional to reduce registration friction)
+  if (!email || !password || !name || !gender || !birth_year || !birth_month || !birth_day || !native_language || !language_to_learn) {
     return next(new ErrorResponse('Please provide all required fields', 400));
   }
 
@@ -415,16 +415,16 @@ exports.register = asyncHandler(async (req, res, next) => {
   user.username = username;
   user.gender = gender;
   user.password = password; // Will be hashed by pre-save middleware
-  user.bio = bio;
+  if (bio) user.bio = bio;
   user.birth_year = birth_year;
   user.birth_month = birth_month;
   user.birth_day = birth_day;
   user.images = userImages;
   user.native_language = native_language;
   user.language_to_learn = language_to_learn;
-  user.location = location;
+  if (location) user.location = location;
   user.isRegistrationComplete = true;  // MARK AS COMPLETE
-  user.profileCompleted = true;  // All required fields collected during email registration
+  user.profileCompleted = true;  // Core required fields collected during email registration
 
   // Optional fields
   if (mbti) user.mbti = mbti;
