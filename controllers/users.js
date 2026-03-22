@@ -9,8 +9,8 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
-const USER_PUBLIC_FIELDS = 'name username bio images native_language language_to_learn level streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
-const USER_LIST_FIELDS = 'name username images native_language language_to_learn level userMode location followers following isOnline lastActive gender birth_year birth_month birth_day bio vipSubscription.isActive topics';
+const USER_PUBLIC_FIELDS = 'name username bio images native_language language_to_learn level languageLevel streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
+const USER_LIST_FIELDS = 'name username images native_language language_to_learn level languageLevel userMode location followers following isOnline lastActive gender birth_year birth_month birth_day bio vipSubscription.isActive topics createdAt';
 
 
 
@@ -174,9 +174,9 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     query['location.country'] = { $regex: new RegExp(req.query.country, 'i') };
   }
 
-  // Language level filter
+  // Language level filter (CEFR: A1-C2)
   if (req.query.languageLevel) {
-    query.level = req.query.languageLevel.toUpperCase();
+    query.languageLevel = req.query.languageLevel.toUpperCase();
   }
 
   // Server-side search filter (search in name, username, bio, languages)
