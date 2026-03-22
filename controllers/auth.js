@@ -216,28 +216,23 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
       // Note: Admin notification will be sent when user completes their profile
     } else {
       // Existing user - check if profile is actually complete but flag wasn't set
-      // This handles users who completed their profile but profileCompleted wasn't updated
+      // Core requirements: gender, birth year, both languages
+      // Bio, images, location are optional — don't block login for them
       if (!user.profileCompleted) {
-        const hasRealName = user.name && user.name !== 'Apple User' && user.name !== 'Google User' && user.name.trim().length > 0;
-        const hasRealBirthYear = user.birth_year && user.birth_year !== '2000';
-        const hasImages = user.images && user.images.length >= 2; // Require at least 2 images
-        const hasRealGender = user.gender && user.gender !== 'other';
-        const hasRealBio = user.bio && user.bio.length >= 10 && !user.bio.includes('I joined using');
-        // NEW: Require location
-        const hasLocation = user.location && user.location.city && user.location.country;
-        // NEW: Require proper language selection (not defaults)
+        const hasRealGender = user.gender && user.gender.length > 0;
+        const hasRealBirthYear = user.birth_year && user.birth_year.length > 0;
         const hasRealLanguages = user.native_language && user.language_to_learn &&
+          user.native_language.length > 0 && user.language_to_learn.length > 0 &&
           user.native_language !== user.language_to_learn;
 
-        // STRICTER: Require ALL critical fields (location, languages, images, bio, gender, birthdate)
-        const criticalFieldsComplete = hasLocation && hasRealLanguages && hasImages && hasRealBio && hasRealGender && hasRealBirthYear;
+        const coreFieldsComplete = hasRealGender && hasRealBirthYear && hasRealLanguages;
 
-        if (criticalFieldsComplete) {
-          console.log(`🔧 Auto-completing profile for existing user ${user._id} - all critical fields present`);
+        if (coreFieldsComplete) {
+          console.log(`🔧 Auto-completing profile for existing user ${user._id} - core fields present`);
           user.profileCompleted = true;
           await user.save();
         } else {
-          console.log(`⚠️ Profile incomplete for ${user._id}: location=${hasLocation}, languages=${hasRealLanguages}, images=${hasImages}, bio=${hasRealBio}, gender=${hasRealGender}, birthYear=${hasRealBirthYear}`);
+          console.log(`⚠️ Profile incomplete for ${user._id}: gender=${hasRealGender}, birthYear=${hasRealBirthYear}, languages=${hasRealLanguages}`);
         }
       }
     }
@@ -1223,23 +1218,16 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
   // Otherwise auto-set based on required fields being present
   if (profileCompleted === true) {
     fieldsToUpdate.profileCompleted = true;
-  } else if (native_language && language_to_learn && gender && birth_year && birth_month && birth_day) {
-    // Auto-set profileCompleted only if ALL critical fields are present
-    // Including location, proper bio, and at least 2 images
-    const effectiveLocation = location || userBeforeUpdate?.location;
-    const effectiveImages = images || userBeforeUpdate?.images || [];
-    const effectiveBio = bio || userBeforeUpdate?.bio || '';
-
-    const hasLocation = effectiveLocation && effectiveLocation.city && effectiveLocation.country;
-    const hasEnoughImages = effectiveImages.length >= 2;
-    const hasRealBio = effectiveBio.length >= 10 && !effectiveBio.includes('I joined using');
+  } else if (native_language && language_to_learn && gender && birth_year) {
+    // Auto-set profileCompleted when core fields are present
+    // Bio, images, location are optional — don't block profile completion
     const hasRealLanguages = native_language !== language_to_learn;
 
-    if (hasLocation && hasEnoughImages && hasRealBio && hasRealLanguages) {
+    if (hasRealLanguages) {
       fieldsToUpdate.profileCompleted = true;
       console.log(`✅ Profile auto-completed for user ${req.user.id}`);
     } else {
-      console.log(`⚠️ Profile NOT auto-completed for ${req.user.id}: location=${hasLocation}, images=${hasEnoughImages}, bio=${hasRealBio}, languages=${hasRealLanguages}`);
+      console.log(`⚠️ Profile NOT auto-completed for ${req.user.id}: same language selected for both`);
     }
   }
 
@@ -1489,27 +1477,23 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
       // Note: Admin notification will be sent when user completes their profile
     } else {
       // Existing user - check if profile is actually complete but flag wasn't set
+      // Core requirements: gender, birth year, both languages
+      // Bio, images, location are optional — don't block login for them
       if (!user.profileCompleted) {
-        const hasRealName = user.name && user.name !== 'Apple User' && user.name !== 'Google User' && user.name !== 'User' && user.name.trim().length > 0;
-        const hasRealBirthYear = user.birth_year && user.birth_year !== '2000';
-        const hasImages = user.images && user.images.length >= 2; // Require at least 2 images
-        const hasRealGender = user.gender && user.gender !== 'other';
-        const hasRealBio = user.bio && user.bio.length >= 10 && !user.bio.includes('I joined using');
-        // NEW: Require location
-        const hasLocation = user.location && user.location.city && user.location.country;
-        // NEW: Require proper language selection (not defaults)
+        const hasRealGender = user.gender && user.gender.length > 0;
+        const hasRealBirthYear = user.birth_year && user.birth_year.length > 0;
         const hasRealLanguages = user.native_language && user.language_to_learn &&
+          user.native_language.length > 0 && user.language_to_learn.length > 0 &&
           user.native_language !== user.language_to_learn;
 
-        // STRICTER: Require ALL critical fields (location, languages, images, bio, gender, birthdate)
-        const criticalFieldsComplete = hasLocation && hasRealLanguages && hasImages && hasRealBio && hasRealGender && hasRealBirthYear;
+        const coreFieldsComplete = hasRealGender && hasRealBirthYear && hasRealLanguages;
 
-        if (criticalFieldsComplete) {
-          console.log(`🔧 Auto-completing profile for existing user ${user._id} - all critical fields present`);
+        if (coreFieldsComplete) {
+          console.log(`🔧 Auto-completing profile for existing user ${user._id} - core fields present`);
           user.profileCompleted = true;
           await user.save();
         } else {
-          console.log(`⚠️ Profile incomplete for ${user._id}: location=${hasLocation}, languages=${hasRealLanguages}, images=${hasImages}, bio=${hasRealBio}, gender=${hasRealGender}, birthYear=${hasRealBirthYear}`);
+          console.log(`⚠️ Profile incomplete for ${user._id}: gender=${hasRealGender}, birthYear=${hasRealBirthYear}, languages=${hasRealLanguages}`);
         }
       }
     }
