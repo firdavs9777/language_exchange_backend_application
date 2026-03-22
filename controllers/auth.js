@@ -1582,8 +1582,103 @@ exports.deleteAccount = asyncHandler(async (req, res, next) => {
       deletedAt: new Date()
     });
 
+    const userId = req.user.id;
+
+    // --- Apple token revocation (REQUIRED by Apple for App Store compliance) ---
+    if (user.appleId) {
+      try {
+        const appleSignin = require('apple-signin-auth');
+        // Apple requires revoking the refresh token on account deletion
+        // We need APPLE_CLIENT_SECRET env var for this
+        if (process.env.APPLE_CLIENT_SECRET) {
+          await appleSignin.revokeAuthorizationToken(process.env.APPLE_CLIENT_SECRET, {
+            clientId: process.env.APPLE_BUNDLE_ID || 'com.banatalk.app',
+            tokenTypeHint: 'access_token',
+          });
+        }
+        console.log(`✅ Apple token revoked for user ${userId}`);
+      } catch (appleErr) {
+        // Don't block deletion if Apple revocation fails
+        console.error('⚠️ Apple token revocation failed (non-blocking):', appleErr.message);
+      }
+    }
+
+    // --- Google token revocation ---
+    if (user.googleId) {
+      try {
+        // Google tokens are short-lived and we don't store refresh tokens,
+        // so revoking server-side isn't possible without stored tokens.
+        // The Flutter app handles Google sign-out + disconnect client-side.
+        console.log(`ℹ️ Google user ${userId} — client-side disconnect expected`);
+      } catch (googleErr) {
+        console.error('⚠️ Google cleanup note:', googleErr.message);
+      }
+    }
+
+    // --- Cascade delete related user data ---
+    const mongoose = require('mongoose');
+
+    // Load models for cleanup (only if they exist)
+    const modelsToClean = [
+      { name: 'Message', query: { $or: [{ sender: userId }, { receiver: userId }] } },
+      { name: 'Conversation', query: { participants: userId } },
+      { name: 'Moment', query: { user: userId } },
+      { name: 'Comment', query: { user: userId } },
+      { name: 'Story', query: { user: userId } },
+      { name: 'StoryHighlight', query: { user: userId } },
+      { name: 'Notification', query: { $or: [{ user: userId }, { sender: userId }] } },
+      { name: 'ProfileVisit', query: { $or: [{ visitor: userId }, { visited: userId }] } },
+      { name: 'UserInteraction', query: { $or: [{ user: userId }, { targetUser: userId }] } },
+      { name: 'Wave', query: { $or: [{ sender: userId }, { receiver: userId }] } },
+      { name: 'LearningProgress', query: { user: userId } },
+      { name: 'LessonProgress', query: { user: userId } },
+      { name: 'QuizAttempt', query: { user: userId } },
+      { name: 'AIConversation', query: { user: userId } },
+      { name: 'AIGeneratedQuiz', query: { user: userId } },
+      { name: 'Vocabulary', query: { user: userId } },
+      { name: 'PronunciationAttempt', query: { user: userId } },
+      { name: 'GrammarFeedback', query: { user: userId } },
+      { name: 'Report', query: { $or: [{ reporter: userId }, { reported: userId }] } },
+      { name: 'Poll', query: { creator: userId } },
+    ];
+
+    const cleanupResults = await Promise.allSettled(
+      modelsToClean.map(async ({ name, query }) => {
+        try {
+          const Model = mongoose.model(name);
+          const result = await Model.deleteMany(query);
+          return { name, deleted: result.deletedCount };
+        } catch (err) {
+          // Model may not exist or query field may differ — skip silently
+          return { name, skipped: true, reason: err.message };
+        }
+      })
+    );
+
+    // Remove user from other users' followers/following lists
+    try {
+      await User.updateMany(
+        { followers: userId },
+        { $pull: { followers: userId } }
+      );
+      await User.updateMany(
+        { following: userId },
+        { $pull: { following: userId } }
+      );
+    } catch (err) {
+      console.error('⚠️ Follower cleanup error (non-blocking):', err.message);
+    }
+
+    // Log cleanup summary
+    const deletedCounts = cleanupResults
+      .filter(r => r.status === 'fulfilled' && r.value.deleted > 0)
+      .map(r => `${r.value.name}: ${r.value.deleted}`);
+    if (deletedCounts.length > 0) {
+      console.log(`🧹 Cascade cleanup for ${userId}: ${deletedCounts.join(', ')}`);
+    }
+
     // Delete user account
-    await User.findByIdAndDelete(req.user.id);
+    await User.findByIdAndDelete(userId);
 
     // Clear cookie
     res.cookie('token', 'none', {
