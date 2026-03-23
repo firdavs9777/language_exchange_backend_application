@@ -154,7 +154,9 @@ exports.getNearbyUsers = asyncHandler(async (req, res, next) => {
             },
             lastSeen: '$lastActive',
             level: 1,
-            topics: 1
+            topics: 1,
+            privacySettings: 1,
+            birth_year: 1
           }
         }
       ]

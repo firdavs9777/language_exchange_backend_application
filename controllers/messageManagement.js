@@ -2,7 +2,7 @@ const asyncHandler = require('../middleware/async');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
-const { deleteMediaFile } = require('./mediaUpload');
+const deleteFromSpaces = require('../utils/deleteFromSpaces');
 
 /**
  * @desc    Edit a message
@@ -129,9 +129,13 @@ exports.deleteMessage = asyncHandler(async (req, res, next) => {
     msg.deletedFor = [msg.sender, msg.receiver];
     msg.message = 'This message was deleted';
     
-    // Delete media files
+    // Delete media files from S3
     if (msg.media && msg.media.url) {
-      await deleteMediaFile(msg.media.url);
+      await deleteFromSpaces(msg.media.url);
+      // Also delete thumbnail if exists
+      if (msg.media.thumbnail) {
+        await deleteFromSpaces(msg.media.thumbnail);
+      }
     }
     
     await msg.save();

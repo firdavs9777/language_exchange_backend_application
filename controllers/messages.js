@@ -930,6 +930,10 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
     if (!message) return next(new ErrorResponse(`Message not found with id of ${req.params.id}`, 404));
     if (message.media && message.media.url && /^https?:\/\/.*digitaloceanspaces\.com\//.test(message.media.url)) {
       await deleteFromSpaces(message.media.url);
+      // Also delete thumbnail if exists
+      if (message.media.thumbnail && /^https?:\/\/.*digitaloceanspaces\.com\//.test(message.media.thumbnail)) {
+        await deleteFromSpaces(message.media.thumbnail);
+      }
     }
     res.status(200).json({ success: true, data: {}, message: 'Message Deleted' });
   })

@@ -205,6 +205,27 @@ exports.aiRateLimiter = (feature) => {
 };
 
 /**
+ * Rate limiter for message sending (prevents spam)
+ * 60 messages per minute per user
+ */
+exports.messageLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 60, // 60 messages per minute
+  message: {
+    success: false,
+    error: 'Too many messages sent. Please slow down.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return req.user ? `msg:${req.user.id}` : `msg:${req.ip}`;
+  },
+  skip: (req) => {
+    return req.user?.role === 'admin';
+  }
+});
+
+/**
  * Rate limiter for social interactions (likes, shares, reports, follows)
  * Prevents spam while allowing normal usage
  */

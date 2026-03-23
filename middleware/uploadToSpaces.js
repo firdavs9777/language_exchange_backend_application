@@ -41,6 +41,19 @@ const ALLOWED_AUDIO_TYPES = [
   'audio/mp4',        // .m4a (AAC in MP4 container)
   'audio/x-m4a'       // .m4a (alternative)
 ];
+const ALLOWED_DOCUMENT_TYPES = [
+  'application/pdf',                                                          // .pdf
+  'application/msword',                                                       // .doc
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',   // .docx
+  'application/vnd.ms-excel',                                                 // .xls
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',         // .xlsx
+  'application/vnd.ms-powerpoint',                                            // .ppt
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+  'text/plain',                                                               // .txt
+  'text/csv',                                                                 // .csv
+  'application/zip',                                                          // .zip
+  'application/x-zip-compressed',                                             // .zip (alternative)
+];
 
 // Upload to Spaces
 const uploadToSpaces = multer({
@@ -60,9 +73,10 @@ const uploadToSpaces = multer({
     const isImage = ALLOWED_IMAGE_TYPES.includes(file.mimetype);
     const isVideo = ALLOWED_VIDEO_TYPES.includes(file.mimetype);
     const isAudio = ALLOWED_AUDIO_TYPES.includes(file.mimetype);
+    const isDocument = ALLOWED_DOCUMENT_TYPES.includes(file.mimetype);
 
-    if (!isImage && !isVideo && !isAudio) {
-      return cb(new Error('File type not allowed! Supported: Images (JPG, PNG, GIF, WebP), Videos (MP4, MOV, AVI, WebM), Audio (MP3, AAC, M4A)'));
+    if (!isImage && !isVideo && !isAudio && !isDocument) {
+      return cb(new Error('File type not allowed! Supported: Images (JPG, PNG, GIF, WebP), Videos (MP4, MOV, AVI, WebM), Audio (MP3, AAC, M4A), Documents (PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, CSV, ZIP)'));
     }
 
     cb(null, true);
@@ -116,5 +130,6 @@ module.exports = {
   BUCKET_URL,
   ALLOWED_IMAGE_TYPES,
   ALLOWED_VIDEO_TYPES,
-  ALLOWED_AUDIO_TYPES
+  ALLOWED_AUDIO_TYPES,
+  ALLOWED_DOCUMENT_TYPES
 };

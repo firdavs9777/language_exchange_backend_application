@@ -452,12 +452,32 @@ const sendQueuedMessages = async (socket, userId) => {
       return;
     }
 
-    console.log(`📬 Sending ${queuedMessages.length} queued message(s) to user ${userId}`);
+    // Filter out messages from blocked users before delivering
+    const user = await getCachedUser(userId);
+    let filteredMessages = queuedMessages;
+    if (user) {
+      const blockedUsers = (user.blockedUsers || []).map(id => id.toString());
+      const blockedBy = (user.blockedBy || []).map(id => id.toString());
+      const blockedSet = new Set([...blockedUsers, ...blockedBy]);
+
+      if (blockedSet.size > 0) {
+        filteredMessages = queuedMessages.filter(msgData => {
+          const senderId = msgData?.senderId || msgData?.message?.sender?._id?.toString() || msgData?.message?.sender?.toString();
+          return !senderId || !blockedSet.has(senderId);
+        });
+        const dropped = queuedMessages.length - filteredMessages.length;
+        if (dropped > 0) {
+          console.log(`🚫 Dropped ${dropped} queued message(s) from blocked users for ${userId}`);
+        }
+      }
+    }
+
+    console.log(`📬 Sending ${filteredMessages.length} queued message(s) to user ${userId}`);
 
     // Send in batches for better performance
     const BATCH_SIZE = 10;
-    for (let i = 0; i < queuedMessages.length; i += BATCH_SIZE) {
-      const batch = queuedMessages.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < filteredMessages.length; i += BATCH_SIZE) {
+      const batch = filteredMessages.slice(i, i + BATCH_SIZE);
 
       // Emit batch as array for efficient processing
       socket.emit('queuedMessages', batch);
@@ -466,7 +486,7 @@ const sendQueuedMessages = async (socket, userId) => {
       batch.forEach(msgData => socket.emit('newMessage', msgData));
 
       // Small delay between batches (not individual messages)
-      if (i + BATCH_SIZE < queuedMessages.length) {
+      if (i + BATCH_SIZE < filteredMessages.length) {
         await new Promise(resolve => setTimeout(resolve, 50));
       }
     }

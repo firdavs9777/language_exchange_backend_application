@@ -24,12 +24,17 @@ const advancedMessages = require('../controllers/advancedMessages');
 
 const router = express.Router();
 const { protect, authorize } = require('../middleware/auth');
-const { searchLimiter } = require('../middleware/rateLimiter');
+const { searchLimiter, messageLimiter } = require('../middleware/rateLimiter');
+const { validate } = require('../middleware/validation');
+const { createMessageValidation, conversationValidation, replyMessageValidation, forwardMessageValidation, editMessageValidation } = require('../validators/messageValidator');
 
 // ========== BASIC MESSAGE ROUTES ==========
 router.route('/').get(protect, getMessages).post(
-  protect, 
-  checkMessageLimit, 
+  protect,
+  messageLimiter,
+  createMessageValidation,
+  validate,
+  checkMessageLimit,
   uploadSingle('attachment', 'bananatalk/messages'),
   createMessage
 );
@@ -77,8 +82,8 @@ router.route('/bookmarks').get(protect, advancedMessages.getBookmarks);
 const messageManagement = require('../controllers/messageManagement');
 const messageReactions = require('../controllers/messageReactions');
 
-router.route('/:id/reply').post(protect, messageManagement.replyToMessage);
-router.route('/:id/forward').post(protect, messageManagement.forwardMessage);
+router.route('/:id/reply').post(protect, messageLimiter, replyMessageValidation, validate, messageManagement.replyToMessage);
+router.route('/:id/forward').post(protect, messageLimiter, forwardMessageValidation, validate, messageManagement.forwardMessage);
 router.route('/:id/pin').post(protect, messageManagement.pinMessage);
 router.route('/:id/replies').get(protect, messageManagement.getMessageReplies);
 router.route('/:id/reactions').get(protect, messageReactions.getMessageReactions).post(protect, messageReactions.addReaction);
@@ -100,10 +105,10 @@ router.route('/:id/bookmark').post(protect, advancedMessages.bookmarkMessage).de
 router.route('/:id/trigger-destruct').post(protect, advancedMessages.triggerDestruct);
 
 // ========== BASIC ID ROUTES (must be last) ==========
-router.route('/:id').get(protect, getMessage).put(protect, messageManagement.editMessage).delete(protect, messageManagement.deleteMessage);
+router.route('/:id').get(protect, getMessage).put(protect, editMessageValidation, validate, messageManagement.editMessage).delete(protect, messageManagement.deleteMessage);
 router.route('/user/:userId').get(protect, getUserMessages);
 router.route('/senders/:userId').get(protect, getUserSenders);
-router.route('/conversation/:senderId/:receiverId').get(protect, getConversation);
+router.route('/conversation/:senderId/:receiverId').get(protect, conversationValidation, validate, getConversation);
 router.route('/from/:userId').get(protect, getMessagesFromUser);
 
 module.exports = router;
