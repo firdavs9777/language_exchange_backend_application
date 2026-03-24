@@ -133,6 +133,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       Message.find(query)
         .populate('sender', 'name username images userMode')
         .populate('receiver', 'name username images userMode')
+        .populate('corrections.corrector', 'name images')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(actualLimit)
@@ -162,6 +163,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
     const message = await Message.findById(req.params.id)
       .populate('sender', 'name username images userMode')
       .populate('receiver', 'name username images userMode')
+      .populate('corrections.corrector', 'name images')
       .lean();
 
     if (!message) {
@@ -212,12 +214,13 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       Message.find(query)
         .populate('sender', 'name username images userMode')
         .populate('receiver', 'name username images userMode')
+        .populate('corrections.corrector', 'name images')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(actualLimit)
         .lean()
     ]);
-  
+
     // Transform the messages to include image URLs
     const messagesWithImageUrls = messages.map(message => {
       // Ensure sender and receiver are not null
@@ -505,6 +508,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       Message.find(query)
         .populate('sender', 'name username images userMode')
         .populate('receiver', 'name username images userMode')
+        .populate('corrections.corrector', 'name images')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(actualLimit)
@@ -844,6 +848,7 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
           select: '_id message sender',
           populate: { path: 'sender', select: '_id name images' }
         })
+        .populate('corrections.corrector', 'name images')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(actualLimit)

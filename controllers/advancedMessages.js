@@ -56,13 +56,18 @@ exports.addCorrection = asyncHandler(async (req, res, next) => {
 
   await message.populate('corrections.corrector', 'name images');
 
-  // Notify message sender via socket
+  // Notify both message sender and corrector via socket
   const io = req.app.get('io');
   if (io) {
-    io.to(`user_${message.sender}`).emit('messageCorrection', {
+    const correctionData = {
       messageId: message._id,
       correction: message.corrections[message.corrections.length - 1]
-    });
+    };
+    io.to(`user_${message.sender}`).emit('messageCorrection', correctionData);
+    // Also notify the corrector so they see it immediately
+    if (message.sender.toString() !== correctorId.toString()) {
+      io.to(`user_${correctorId}`).emit('messageCorrection', correctionData);
+    }
   }
 
   res.status(200).json({
