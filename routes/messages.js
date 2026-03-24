@@ -32,10 +32,10 @@ const { createMessageValidation, conversationValidation, replyMessageValidation,
 router.route('/').get(protect, getMessages).post(
   protect,
   messageLimiter,
+  uploadSingle('attachment', 'bananatalk/messages'), // Must parse multipart/form-data BEFORE validation
   createMessageValidation,
   validate,
   checkMessageLimit,
-  uploadSingle('attachment', 'bananatalk/messages'),
   createMessage
 );
 router.route('/search').get(protect, searchLimiter, searchMessages);
