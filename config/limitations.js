@@ -44,6 +44,9 @@ module.exports = {
     ttsPerHour: 10,
     sttPerHour: 5,
 
+    // Translation (daily chat translations)
+    translationsPerDay: 5,
+
     // Learning
     vocabularyLimit: 50,
     lessonsPerDay: 3,
@@ -91,6 +94,9 @@ module.exports = {
     aiPronunciationPerHour: 30,
     ttsPerHour: 50,
     sttPerHour: 20,
+
+    // Translation (daily chat translations)
+    translationsPerDay: 5,
 
     // Learning
     vocabularyLimit: 500,
@@ -143,6 +149,9 @@ module.exports = {
     aiPronunciationPerHour: 500,
     ttsPerHour: 1000,
     sttPerHour: 500,
+
+    // Translation - Unlimited
+    translationsPerDay: -1,
 
     // Learning - Unlimited
     vocabularyLimit: -1,

@@ -150,13 +150,26 @@ exports.translateMessage = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Message has no text to translate', 400));
   }
 
-  // Check if translation already exists in message cache
+  // Check if translation already exists in message cache (free — doesn't count toward limit)
   const existingTranslation = message.getTranslation(targetLanguage);
   if (existingTranslation && existingTranslation.breakdown) {
     return res.status(200).json({
       success: true,
       data: existingTranslation,
       cached: true
+    });
+  }
+
+  // Check daily translation limit for non-VIP users
+  const user = await User.findById(userId);
+  const translationCheck = user.canTranslate();
+  if (!translationCheck.allowed) {
+    return res.status(403).json({
+      success: false,
+      error: 'TRANSLATION_LIMIT_REACHED',
+      message: 'You have reached your daily translation limit. Upgrade to VIP for unlimited translations!',
+      limit: translationCheck.limit,
+      remaining: 0
     });
   }
 
@@ -208,9 +221,16 @@ exports.translateMessage = asyncHandler(async (req, res, next) => {
       await message.save();
     }
 
+    // Increment daily translation count for non-VIP users
+    await user.incrementTranslationCount();
+
+    const updatedCheck = user.canTranslate();
+
     res.status(200).json({
       success: true,
-      data: translationData
+      data: translationData,
+      remaining: updatedCheck.remaining,
+      limit: updatedCheck.limit
     });
   } catch (error) {
     console.error('Translation error:', error.message);

@@ -347,6 +347,14 @@ role: {
     lastProfileViewReset: {
       type: Date,
       default: Date.now
+    },
+    translationsToday: {
+      type: Number,
+      default: 0
+    },
+    lastTranslationReset: {
+      type: Date,
+      default: Date.now
     }
   },
   // Regular user limitations
@@ -388,6 +396,14 @@ role: {
       default: 0
     },
     lastProfileViewReset: {
+      type: Date,
+      default: Date.now
+    },
+    translationsToday: {
+      type: Number,
+      default: 0
+    },
+    lastTranslationReset: {
       type: Date,
       default: Date.now
     }
@@ -964,6 +980,54 @@ UserSchema.methods.generateEmailChangeCode = function(newEmail) {
 UserSchema.methods.isVIP = function() {
   return this.userMode === 'vip' && this.vipSubscription.isActive &&
          this.vipSubscription.endDate > Date.now();
+};
+
+// Check if user can translate (daily limit for non-VIP)
+UserSchema.methods.canTranslate = function() {
+  const LIMITS = require('../config/limitations');
+
+  if (this.userMode === 'vip') return { allowed: true, remaining: -1 };
+
+  const limits = LIMITS[this.userMode] || LIMITS.regular;
+  if (limits.translationsPerDay === -1) return { allowed: true, remaining: -1 };
+
+  const now = new Date();
+  const limitsObj = this.userMode === 'visitor' ? this.visitorLimitations : this.regularUserLimitations;
+  const lastReset = new Date(limitsObj.lastTranslationReset || 0);
+
+  // Reset counter if it's a new day
+  if (now.getDate() !== lastReset.getDate() ||
+      now.getMonth() !== lastReset.getMonth() ||
+      now.getFullYear() !== lastReset.getFullYear()) {
+    limitsObj.translationsToday = 0;
+    limitsObj.lastTranslationReset = now;
+  }
+
+  const remaining = limits.translationsPerDay - limitsObj.translationsToday;
+  return {
+    allowed: remaining > 0,
+    remaining,
+    limit: limits.translationsPerDay
+  };
+};
+
+// Increment translation count
+UserSchema.methods.incrementTranslationCount = function() {
+  if (this.userMode === 'vip') return Promise.resolve(this);
+
+  const now = new Date();
+  const limitsObj = this.userMode === 'visitor' ? this.visitorLimitations : this.regularUserLimitations;
+  const lastReset = new Date(limitsObj.lastTranslationReset || 0);
+
+  if (now.getDate() !== lastReset.getDate() ||
+      now.getMonth() !== lastReset.getMonth() ||
+      now.getFullYear() !== lastReset.getFullYear()) {
+    limitsObj.translationsToday = 0;
+    limitsObj.lastTranslationReset = now;
+  }
+
+  limitsObj.translationsToday += 1;
+  return this.save();
 };
 
 // Check if user is visitor
