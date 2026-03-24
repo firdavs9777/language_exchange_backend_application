@@ -10,13 +10,13 @@ const {
 const advancedResults = require('../middleware/advancedResults');
 const { protect, authorize, authorizeComment} = require('../middleware/auth');
 const { checkCommentLimit } = require('../middleware/checkLimitations');
-const { uploadSingle } = require('../middleware/uploadToSpaces');
+const { uploadSingleCompressed } = require('../middleware/uploadToSpaces');
 const router = express.Router({mergeParams: true});
 
 router
   .route('/')
   .get(advancedResults(Comment, { path: 'moment', select:'name description'}), getComments)
-  .post(protect, checkCommentLimit, uploadSingle('image', 'bananatalk/comments'), createComment);
+  .post(protect, checkCommentLimit, uploadSingleCompressed('image', 'bananatalk/comments'), createComment);
 
 router.route('/:id')
   .get(getComment)

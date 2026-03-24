@@ -38,7 +38,7 @@ const advancedResults = require('../middleware/advancedResults');
 const { protect, authorize } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const { updatePrivacySettingsValidation } = require('../validators/privacyValidator');
-const { uploadSingle, uploadMultiple } = require('../middleware/uploadToSpaces'); // ADD uploadMultiple
+const { uploadSingleCompressed, uploadMultipleCompressed } = require('../middleware/uploadToSpaces');
 const { interactionLimiter } = require('../middleware/rateLimiter');
 const router = express.Router({ mergeParams: true });
 
@@ -87,19 +87,19 @@ router.route('/:userId/following').get(protect, getFollowing);
 // Profile picture routes (dedicated endpoints for main profile picture)
 router
   .route('/:id/profile-picture')
-  .put(protect, uploadSingle('photo', 'bananatalk/profiles'), updateProfilePicture)
+  .put(protect, uploadSingleCompressed('photo', 'bananatalk/profiles'), updateProfilePicture)
   .delete(protect, removeProfilePicture);
 
 // Single photo upload route
 router
   .route('/:id/photo')
-  .put(protect, uploadSingle('photo', 'bananatalk/profiles'), userPhotoUpload);
+  .put(protect, uploadSingleCompressed('photo', 'bananatalk/profiles'), userPhotoUpload);
 
 // Multiple photos upload route (NEW)
 // Note: maxCount is 6 to match Flutter registration which allows 2-6 images
 router
   .route('/:id/photos')
-  .post(protect, uploadMultiple('photos', 6, 'bananatalk/profiles'), uploadMultiplePhotos);
+  .post(protect, uploadMultipleCompressed('photos', 6, 'bananatalk/profiles'), uploadMultiplePhotos);
 
 // Delete photo at specific index
 router

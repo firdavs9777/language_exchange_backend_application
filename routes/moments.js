@@ -26,7 +26,7 @@ const {
 const { validate } = require('../middleware/validation');
 const { createMomentValidation, updateMomentValidation } = require('../validators/momentValidator');
 const { checkMomentLimit } = require('../middleware/checkLimitations');
-const { uploadMultiple } = require('../middleware/uploadToSpaces');
+const { uploadMultipleCompressed } = require('../middleware/uploadToSpaces');
 const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVideoToSpaces');
 const commentRouter = require('./comment');
 const router = express.Router();
@@ -60,7 +60,7 @@ router.route('/:id').delete(protect, deleteMoment);
 // Photo upload
 router.route('/:id/photo').put(
   protect,
-  uploadMultiple('file', 10, 'bananatalk/moments'),
+  uploadMultipleCompressed('file', 10, 'bananatalk/moments'),
   momentPhotoUpload
 );
 

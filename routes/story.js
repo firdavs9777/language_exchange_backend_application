@@ -48,7 +48,7 @@ const {
   removeCloseFriend
 } = require('../controllers/stories');
 const { checkStoryLimit } = require('../middleware/checkLimitations');
-const { uploadMultiple } = require('../middleware/uploadToSpaces');
+const { uploadMultipleCompressed } = require('../middleware/uploadToSpaces');
 const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVideoToSpaces');
 
 const advancedResults = require('../middleware/advancedResults');
@@ -91,7 +91,7 @@ router.route('/highlights/:id/stories/:storyId')
 
 // ========== CREATE STORY ==========
 router.route('/')
-  .post(protect, checkStoryLimit, uploadMultiple('media', 5, 'bananatalk/stories'), createStory);
+  .post(protect, checkStoryLimit, uploadMultipleCompressed('media', 5, 'bananatalk/stories'), createStory);
 
 // ========== CREATE VIDEO STORY (YouTube-style, max 10 minutes) ==========
 router.route('/video')

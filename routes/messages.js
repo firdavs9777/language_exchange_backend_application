@@ -16,7 +16,7 @@ const {
 const { searchMessages } = require('../controllers/messageSearch');
 const advancedResults = require('../middleware/advancedResults');
 const { checkMessageLimit } = require('../middleware/checkLimitations');
-const { uploadSingle } = require('../middleware/uploadToSpaces');
+const { uploadSingle, uploadSingleCompressed } = require('../middleware/uploadToSpaces');
 const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVideoToSpaces');
 
 // Advanced message features controller
@@ -32,7 +32,7 @@ const { createMessageValidation, conversationValidation, replyMessageValidation,
 router.route('/').get(protect, getMessages).post(
   protect,
   messageLimiter,
-  uploadSingle('attachment', 'bananatalk/messages'), // Must parse multipart/form-data BEFORE validation
+  uploadSingleCompressed('attachment', 'bananatalk/messages'), // Compress images for slow connections
   createMessageValidation,
   validate,
   checkMessageLimit,

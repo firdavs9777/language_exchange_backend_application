@@ -1,11 +1,16 @@
 const multer = require('multer');
 const multerS3 = require('multer-s3');
+const sharp = require('sharp');
 const s3 = require('../config/spaces');
 
 // Bucket configuration
 const BUCKET_NAME = 'my-projects-media';
 const BUCKET_REGION = 'sfo3';
 const BUCKET_URL = `https://${BUCKET_NAME}.${BUCKET_REGION}.digitaloceanspaces.com`;
+
+// Image compression settings
+const CHAT_IMAGE_MAX_WIDTH = 1200;
+const CHAT_IMAGE_QUALITY = 90; // High quality, still saves ~50% file size
 
 /**
  * Fix malformed S3 URLs from multer-s3
@@ -131,5 +136,187 @@ module.exports = {
   ALLOWED_IMAGE_TYPES,
   ALLOWED_VIDEO_TYPES,
   ALLOWED_AUDIO_TYPES,
-  ALLOWED_DOCUMENT_TYPES
+  ALLOWED_DOCUMENT_TYPES,
+
+  /**
+   * Upload with image compression for chat messages
+   * Compresses images to reduce file size for slow connections
+   * Non-image files are uploaded without modification
+   */
+  uploadSingleCompressed: (fieldName, folder = 'bananatalk') => {
+    // Use memory storage for compression
+    const memoryUpload = multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: VIDEO_MAX_SIZE },
+      fileFilter: (req, file, cb) => {
+        const isImage = ALLOWED_IMAGE_TYPES.includes(file.mimetype);
+        const isVideo = ALLOWED_VIDEO_TYPES.includes(file.mimetype);
+        const isAudio = ALLOWED_AUDIO_TYPES.includes(file.mimetype);
+        const isDocument = ALLOWED_DOCUMENT_TYPES.includes(file.mimetype);
+
+        if (!isImage && !isVideo && !isAudio && !isDocument) {
+          return cb(new Error('File type not allowed!'));
+        }
+        cb(null, true);
+      }
+    });
+
+    return (req, res, next) => {
+      memoryUpload.single(fieldName)(req, res, async (err) => {
+        if (err) return next(err);
+        if (!req.file) return next();
+
+        try {
+          const file = req.file;
+          const isImage = ALLOWED_IMAGE_TYPES.includes(file.mimetype);
+          let buffer = file.buffer;
+          let contentType = file.mimetype;
+          let fileName = `${folder}/${Date.now()}-${file.originalname}`;
+
+          // Compress images only (skip GIFs to preserve animation)
+          if (isImage && file.mimetype !== 'image/gif') {
+            const image = sharp(buffer);
+            const metadata = await image.metadata();
+
+            // Resize if wider than max width
+            if (metadata.width > CHAT_IMAGE_MAX_WIDTH) {
+              image.resize(CHAT_IMAGE_MAX_WIDTH, null, {
+                withoutEnlargement: true,
+                fit: 'inside'
+              });
+            }
+
+            // Compress to JPEG for better compression (except PNGs with transparency)
+            if (file.mimetype === 'image/png') {
+              buffer = await image.png({ quality: CHAT_IMAGE_QUALITY, compressionLevel: 9 }).toBuffer();
+            } else {
+              buffer = await image.jpeg({ quality: CHAT_IMAGE_QUALITY, progressive: true }).toBuffer();
+              contentType = 'image/jpeg';
+              fileName = fileName.replace(/\.(png|webp)$/i, '.jpg');
+            }
+
+            console.log(`📸 Compressed image: ${file.originalname} (${(file.size / 1024).toFixed(1)}KB → ${(buffer.length / 1024).toFixed(1)}KB)`);
+          }
+
+          // Upload to S3/Spaces
+          const uploadParams = {
+            Bucket: BUCKET_NAME,
+            Key: fileName,
+            Body: buffer,
+            ACL: 'public-read',
+            ContentType: contentType
+          };
+
+          const result = await s3.upload(uploadParams).promise();
+
+          // Set file properties like multer-s3 does
+          req.file.location = result.Location || `${BUCKET_URL}/${fileName}`;
+          req.file.key = fileName;
+          req.file.size = buffer.length;
+          req.file.mimetype = contentType;
+
+          // Fix URL if needed
+          fixS3Url(req.file);
+
+          next();
+        } catch (compressError) {
+          console.error('❌ Image compression error:', compressError);
+          // Fall back to original file if compression fails
+          next(compressError);
+        }
+      });
+    };
+  },
+
+  /**
+   * Upload multiple files with image compression
+   * Compresses images to reduce file size for slow connections
+   * Non-image files are uploaded without modification
+   */
+  uploadMultipleCompressed: (fieldName, maxCount = 5, folder = 'bananatalk') => {
+    const memoryUpload = multer({
+      storage: multer.memoryStorage(),
+      limits: { fileSize: VIDEO_MAX_SIZE },
+      fileFilter: (req, file, cb) => {
+        const isImage = ALLOWED_IMAGE_TYPES.includes(file.mimetype);
+        const isVideo = ALLOWED_VIDEO_TYPES.includes(file.mimetype);
+        const isAudio = ALLOWED_AUDIO_TYPES.includes(file.mimetype);
+        const isDocument = ALLOWED_DOCUMENT_TYPES.includes(file.mimetype);
+
+        if (!isImage && !isVideo && !isAudio && !isDocument) {
+          return cb(new Error('File type not allowed!'));
+        }
+        cb(null, true);
+      }
+    });
+
+    return (req, res, next) => {
+      memoryUpload.array(fieldName, maxCount)(req, res, async (err) => {
+        if (err) return next(err);
+        if (!req.files || req.files.length === 0) return next();
+
+        try {
+          const uploadedFiles = [];
+
+          for (const file of req.files) {
+            const isImage = ALLOWED_IMAGE_TYPES.includes(file.mimetype);
+            let buffer = file.buffer;
+            let contentType = file.mimetype;
+            let fileName = `${folder}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}-${file.originalname}`;
+
+            // Compress images only (skip GIFs to preserve animation)
+            if (isImage && file.mimetype !== 'image/gif') {
+              const image = sharp(buffer);
+              const metadata = await image.metadata();
+
+              if (metadata.width > CHAT_IMAGE_MAX_WIDTH) {
+                image.resize(CHAT_IMAGE_MAX_WIDTH, null, {
+                  withoutEnlargement: true,
+                  fit: 'inside'
+                });
+              }
+
+              if (file.mimetype === 'image/png') {
+                buffer = await image.png({ quality: CHAT_IMAGE_QUALITY, compressionLevel: 9 }).toBuffer();
+              } else {
+                buffer = await image.jpeg({ quality: CHAT_IMAGE_QUALITY, progressive: true }).toBuffer();
+                contentType = 'image/jpeg';
+                fileName = fileName.replace(/\.(png|webp)$/i, '.jpg');
+              }
+
+              console.log(`📸 Compressed image: ${file.originalname} (${(file.size / 1024).toFixed(1)}KB → ${(buffer.length / 1024).toFixed(1)}KB)`);
+            }
+
+            // Upload to S3/Spaces
+            const uploadParams = {
+              Bucket: BUCKET_NAME,
+              Key: fileName,
+              Body: buffer,
+              ACL: 'public-read',
+              ContentType: contentType
+            };
+
+            const result = await s3.upload(uploadParams).promise();
+
+            const uploadedFile = {
+              ...file,
+              location: result.Location || `${BUCKET_URL}/${fileName}`,
+              key: fileName,
+              size: buffer.length,
+              mimetype: contentType
+            };
+
+            fixS3Url(uploadedFile);
+            uploadedFiles.push(uploadedFile);
+          }
+
+          req.files = uploadedFiles;
+          next();
+        } catch (compressError) {
+          console.error('❌ Image compression error:', compressError);
+          next(compressError);
+        }
+      });
+    };
+  }
 };
