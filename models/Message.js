@@ -147,13 +147,20 @@ const MessageSchema = new mongoose.Schema({
   translations: [{
     language: String, // ISO language code (e.g., 'ko', 'en', 'ja')
     translatedText: String,
+    transliteration: String, // Pronunciation in Latin script (e.g., pinyin, romaji)
+    breakdown: [{ // Word-by-word breakdown (HelloTalk style)
+      word: String,
+      meaning: String,
+      pronunciation: String,
+      partOfSpeech: String
+    }],
     translatedAt: {
       type: Date,
       default: Date.now
     },
     provider: {
       type: String,
-      enum: ['google', 'deepl', 'papago', null],
+      enum: ['google', 'deepl', 'papago', 'openai', null],
       default: null
     }
   }],

@@ -94,9 +94,11 @@ router.route('/:id/correct').post(protect, advancedMessages.addCorrection);
 router.route('/:id/corrections').get(protect, advancedMessages.getCorrections);
 router.route('/:id/corrections/:correctionId/accept').put(protect, advancedMessages.acceptCorrection);
 
-// Translations
+// Translations (HelloTalk/Tandem style with word breakdown)
 router.route('/:id/translate').post(protect, advancedMessages.translateMessage);
 router.route('/:id/translations').get(protect, advancedMessages.getTranslations);
+router.route('/:id/tts').post(protect, advancedMessages.getMessageTTS);
+router.route('/:id/vocabulary').post(protect, advancedMessages.saveToVocabulary);
 
 // Bookmarks per message
 router.route('/:id/bookmark').post(protect, advancedMessages.bookmarkMessage).delete(protect, advancedMessages.removeBookmark);

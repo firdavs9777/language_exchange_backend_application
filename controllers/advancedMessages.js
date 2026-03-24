@@ -3,9 +3,12 @@ const Message = require('../models/Message');
 const Poll = require('../models/Poll');
 const User = require('../models/User');
 const Conversation = require('../models/Conversation');
+const Vocabulary = require('../models/Vocabulary');
 const ErrorResponse = require('../utils/errorResponse');
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getVideoMetadata, isValidDuration, MAX_VIDEO_DURATION } = require('../utils/videoUtils');
+const { getEnhancedTranslation } = require('../services/aiTranslationService');
+const { generateTTS } = require('../services/speechService');
 
 // ========== MESSAGE CORRECTIONS (HelloTalk Style) ==========
 
@@ -116,16 +119,17 @@ exports.acceptCorrection = asyncHandler(async (req, res, next) => {
   });
 });
 
-// ========== MESSAGE TRANSLATION ==========
+// ========== MESSAGE TRANSLATION (HelloTalk Style) ==========
 
 /**
- * @desc    Translate a message
+ * @desc    Translate a message with word-by-word breakdown (HelloTalk/Tandem style)
  * @route   POST /api/v1/messages/:id/translate
  * @access  Private
  */
 exports.translateMessage = asyncHandler(async (req, res, next) => {
-  const { targetLanguage } = req.body;
+  const { targetLanguage, sourceLanguage } = req.body;
   const messageId = req.params.id;
+  const userId = req.user._id;
 
   if (!targetLanguage) {
     return next(new ErrorResponse('Target language is required', 400));
@@ -141,9 +145,9 @@ exports.translateMessage = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Message has no text to translate', 400));
   }
 
-  // Check if translation already exists
+  // Check if translation already exists in message cache
   const existingTranslation = message.getTranslation(targetLanguage);
-  if (existingTranslation) {
+  if (existingTranslation && existingTranslation.breakdown) {
     return res.status(200).json({
       success: true,
       data: existingTranslation,
@@ -151,21 +155,173 @@ exports.translateMessage = asyncHandler(async (req, res, next) => {
     });
   }
 
-  // TODO: Integrate with translation API (Google Translate, DeepL, Papago)
-  // For now, return a placeholder
-  const translatedText = `[Translation to ${targetLanguage}]: ${message.message}`;
+  try {
+    // Get enhanced translation with word breakdown using AI
+    const translationResult = await getEnhancedTranslation({
+      text: message.message,
+      sourceLanguage: sourceLanguage || 'auto',
+      targetLanguage,
+      userId,
+      includeBreakdown: true,
+      includeGrammar: true,
+      includeIdioms: true
+    });
 
-  await message.addTranslation(targetLanguage, translatedText, null);
-
-  res.status(200).json({
-    success: true,
-    data: {
+    // Format response in HelloTalk style
+    const translationData = {
       language: targetLanguage,
-      translatedText,
-      translatedAt: new Date()
-    },
-    cached: false
-  });
+      translatedText: translationResult.translation,
+      transliteration: translationResult.breakdown
+        ?.map(w => w.notes || '')
+        .filter(Boolean)
+        .join(' ') || null,
+      breakdown: translationResult.breakdown?.map(word => ({
+        word: word.original,
+        meaning: word.translated,
+        pronunciation: word.notes || null,
+        partOfSpeech: word.partOfSpeech || null
+      })) || [],
+      alternatives: translationResult.alternatives || [],
+      grammar: translationResult.grammar || [],
+      idioms: translationResult.idioms || [],
+      cultural: translationResult.cultural || null,
+      translatedAt: new Date(),
+      cached: translationResult.cached || false
+    };
+
+    // Save to message for future quick access
+    await message.addTranslation(targetLanguage, translationResult.translation, 'openai');
+
+    // Also update with full breakdown data
+    const translationIndex = message.translations.findIndex(t => t.language === targetLanguage);
+    if (translationIndex !== -1) {
+      message.translations[translationIndex] = {
+        ...message.translations[translationIndex],
+        breakdown: translationData.breakdown,
+        transliteration: translationData.transliteration
+      };
+      await message.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      data: translationData
+    });
+  } catch (error) {
+    console.error('Translation error:', error.message);
+    return next(new ErrorResponse('Translation failed. Please try again.', 500));
+  }
+});
+
+/**
+ * @desc    Get TTS audio for a message
+ * @route   POST /api/v1/messages/:id/tts
+ * @access  Private
+ */
+exports.getMessageTTS = asyncHandler(async (req, res, next) => {
+  const { language, speed = 1.0 } = req.body;
+  const messageId = req.params.id;
+  const userId = req.user._id;
+
+  const message = await Message.findById(messageId);
+
+  if (!message) {
+    return next(new ErrorResponse('Message not found', 404));
+  }
+
+  if (!message.message) {
+    return next(new ErrorResponse('Message has no text for TTS', 400));
+  }
+
+  try {
+    const ttsResult = await generateTTS({
+      text: message.message,
+      language: language || 'en',
+      speed,
+      sourceType: 'message',
+      userId
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        audioUrl: ttsResult.audioUrl,
+        duration: ttsResult.duration,
+        cached: ttsResult.cached
+      }
+    });
+  } catch (error) {
+    console.error('TTS error:', error.message);
+    return next(new ErrorResponse('Failed to generate audio. Please try again.', 500));
+  }
+});
+
+/**
+ * @desc    Save a word from message to vocabulary
+ * @route   POST /api/v1/messages/:id/vocabulary
+ * @access  Private
+ */
+exports.saveToVocabulary = asyncHandler(async (req, res, next) => {
+  const { word, translation, pronunciation, language, partOfSpeech } = req.body;
+  const messageId = req.params.id;
+  const userId = req.user._id;
+
+  if (!word || !translation) {
+    return next(new ErrorResponse('Word and translation are required', 400));
+  }
+
+  const message = await Message.findById(messageId);
+  if (!message) {
+    return next(new ErrorResponse('Message not found', 404));
+  }
+
+  // Get user's native language
+  const user = await User.findById(userId).select('nativeLanguage');
+
+  try {
+    // Check if word already exists in user's vocabulary
+    let vocabulary = await Vocabulary.findOne({ user: userId, word: word.toLowerCase().trim() });
+
+    if (vocabulary) {
+      return res.status(200).json({
+        success: true,
+        data: vocabulary,
+        message: 'Word already in your vocabulary'
+      });
+    }
+
+    // Create new vocabulary entry
+    vocabulary = await Vocabulary.create({
+      user: userId,
+      word: word.trim(),
+      translation: translation.trim(),
+      language: language || 'unknown',
+      nativeLanguage: user?.nativeLanguage || 'en',
+      pronunciation: pronunciation || null,
+      partOfSpeech: partOfSpeech || 'other',
+      context: {
+        source: 'conversation',
+        messageId: message._id,
+        originalSentence: message.message
+      }
+    });
+
+    res.status(201).json({
+      success: true,
+      data: vocabulary,
+      message: 'Word saved to vocabulary'
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      // Duplicate key error
+      return res.status(200).json({
+        success: true,
+        message: 'Word already in your vocabulary'
+      });
+    }
+    console.error('Save vocabulary error:', error.message);
+    return next(new ErrorResponse('Failed to save word. Please try again.', 500));
+  }
 });
 
 /**
