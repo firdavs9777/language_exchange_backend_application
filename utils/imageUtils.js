@@ -4,6 +4,27 @@
  */
 
 /**
+ * Convert DigitalOcean Spaces URL to CDN URL
+ * Converts: https://bucket.region.digitaloceanspaces.com/...
+ * To:       https://bucket.region.cdn.digitaloceanspaces.com/...
+ */
+exports.toCdnUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+
+  // Already a CDN URL
+  if (url.includes('.cdn.digitaloceanspaces.com')) {
+    return url;
+  }
+
+  // Convert non-CDN Spaces URL to CDN URL
+  if (url.includes('.digitaloceanspaces.com')) {
+    return url.replace('.digitaloceanspaces.com', '.cdn.digitaloceanspaces.com');
+  }
+
+  return url;
+};
+
+/**
  * Get full image URL from path
  * @param {Object} req - Express request object
  * @param {String} imagePath - Image path (relative or absolute)
@@ -11,12 +32,12 @@
  */
 exports.getImageUrl = (req, imagePath) => {
   if (!imagePath) return null;
-  
-  // If already a full URL, return as is
+
+  // If already a full URL, convert to CDN if needed and return
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    return imagePath;
+    return exports.toCdnUrl(imagePath);
   }
-  
+
   // Generate full URL from relative path
   return `${req.protocol}://${req.get('host')}/uploads/${imagePath}`;
 };

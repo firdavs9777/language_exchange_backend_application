@@ -6,7 +6,8 @@ const s3 = require('../config/spaces');
 // Bucket configuration
 const BUCKET_NAME = 'my-projects-media';
 const BUCKET_REGION = 'sfo3';
-const BUCKET_URL = `https://${BUCKET_NAME}.${BUCKET_REGION}.digitaloceanspaces.com`;
+// Use CDN URL for faster global delivery
+const BUCKET_URL = `https://${BUCKET_NAME}.${BUCKET_REGION}.cdn.digitaloceanspaces.com`;
 
 // Image compression settings
 const CHAT_IMAGE_MAX_WIDTH = 1200;
