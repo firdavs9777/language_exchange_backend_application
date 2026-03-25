@@ -253,10 +253,12 @@ exports.getRecommendations = asyncHandler(async (req, res, next) => {
  * @desc    Get quick matches (fast, lightweight recommendations)
  * @route   GET /api/v1/matching/quick
  * @access  Private
+ * @query   {number} limit - Max results (default: 10)
+ * @query   {string} timeframe - 'online' (5min), 'recent' (1hr), 'today' (24hr) - default: 'recent'
  */
 exports.getQuickMatches = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
-  const { limit = 10 } = req.query;
+  const { limit = 10, timeframe = 'recent' } = req.query;
 
   const currentUser = await User.findById(userId).select('native_language language_to_learn');
 
@@ -268,23 +270,66 @@ exports.getQuickMatches = asyncHandler(async (req, res, next) => {
   const blockedIds = await getBlockedUserIds(userId);
   const excludeIds = [userId, ...blockedIds].map(id => new mongoose.Types.ObjectId(id));
 
-  // Simple query for complementary language partners who are online
-  const matches = await User.find({
+  // Timeframe options
+  const timeframes = {
+    online: 5 * 60 * 1000,      // 5 minutes
+    recent: 60 * 60 * 1000,     // 1 hour
+    today: 24 * 60 * 60 * 1000  // 24 hours
+  };
+  const activeWindow = timeframes[timeframe] || timeframes.recent;
+
+  // First try: Perfect language match (complementary partners)
+  let matches = await User.find({
     _id: { $nin: excludeIds },
     isRegistrationComplete: true,
     native_language: currentUser.language_to_learn,
     language_to_learn: currentUser.native_language,
-    lastActive: { $gte: new Date(Date.now() - 15 * 60 * 1000) } // Online in last 15 min
+    lastActive: { $gte: new Date(Date.now() - activeWindow) }
   })
-    .select('name username images native_language language_to_learn lastActive location.country')
+    .select('name username images native_language language_to_learn lastActive location.country bio')
     .sort({ lastActive: -1 })
     .limit(parseInt(limit))
     .lean();
 
+  // Fallback: If no perfect matches, find users who speak the language user wants to learn
+  if (matches.length < parseInt(limit)) {
+    const remainingLimit = parseInt(limit) - matches.length;
+    const matchedIds = matches.map(m => m._id);
+
+    const fallbackMatches = await User.find({
+      _id: { $nin: [...excludeIds, ...matchedIds] },
+      isRegistrationComplete: true,
+      native_language: currentUser.language_to_learn,
+      lastActive: { $gte: new Date(Date.now() - activeWindow) }
+    })
+      .select('name username images native_language language_to_learn lastActive location.country bio')
+      .sort({ lastActive: -1 })
+      .limit(remainingLimit)
+      .lean();
+
+    matches = [...matches, ...fallbackMatches];
+  }
+
+  // Second fallback: Any recently active users (for new apps with small user base)
+  if (matches.length === 0) {
+    matches = await User.find({
+      _id: { $nin: excludeIds },
+      isRegistrationComplete: true,
+      lastActive: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // Active in last 24 hours
+    })
+      .select('name username images native_language language_to_learn lastActive location.country bio')
+      .sort({ lastActive: -1 })
+      .limit(parseInt(limit))
+      .lean();
+  }
+
   const formattedMatches = matches.map(user => ({
     ...user,
     avatar: user.images?.[0],
-    isOnline: user.lastActive >= new Date(Date.now() - 5 * 60 * 1000)
+    isOnline: user.lastActive >= new Date(Date.now() - 5 * 60 * 1000),
+    matchType: user.native_language === currentUser.language_to_learn &&
+               user.language_to_learn === currentUser.native_language
+               ? 'perfect' : 'partial'
   }));
 
   res.status(200).json({
