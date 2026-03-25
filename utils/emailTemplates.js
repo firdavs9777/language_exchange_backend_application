@@ -617,128 +617,229 @@ exports.vipSubscriptionEmail = (userName, plan, endDate) => {
 // ===================== ADMIN EMAILS =====================
 
 /**
- * Daily admin report email
+ * Enhanced Daily admin report email
  */
 exports.adminDailyReportEmail = (stats) => {
+  // Helper to format numbers
+  const formatNum = (n) => (n || 0).toLocaleString();
+
+  // Helper to format growth indicator
+  const growthIndicator = (rate) => {
+    if (rate > 0) return `<span style="color: #11998e;">+${rate}%</span>`;
+    if (rate < 0) return `<span style="color: #f5576c;">${rate}%</span>`;
+    return `<span style="color: #888;">0%</span>`;
+  };
+
+  // Format demographics list
+  const formatList = (items, limit = 5) => {
+    if (!items || items.length === 0) return '<em style="color: #888;">No data</em>';
+    return items.slice(0, limit).map(item =>
+      `<span style="display: inline-block; background: #f0f0f0; padding: 4px 10px; border-radius: 12px; margin: 3px; font-size: 13px;">${item._id || 'Unknown'}: ${item.count}</span>`
+    ).join('');
+  };
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Daily Admin Report</h1>
-        <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 10px 0 0 0;">${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">Daily Admin Report</h1>
+        <p style="color: rgba(255,255,255,0.9); font-size: 15px; margin: 10px 0 0 0;">${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
       </td>
     </tr>
     <tr>
-      <td style="padding: 40px 30px;">
-        <h2 style="color: #1e3c72; margin: 0 0 25px 0; font-size: 22px;">User Statistics</h2>
+      <td style="padding: 30px;">
 
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 25px 0;">
+        <!-- Backend Health -->
+        ${stats.backendHealth ? `
+        <h2 style="color: #1e3c72; margin: 0 0 15px 0; font-size: 18px;">Server Health</h2>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); border-radius: 10px; padding: 15px; margin-bottom: 20px;">
           <tr>
-            <td width="50%" style="padding: 10px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 25px; text-align: center;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.totalUsers || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Total Users</p>
-              </div>
-            </td>
-            <td width="50%" style="padding: 10px;">
-              <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 12px; padding: 25px; text-align: center;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.newUsersToday || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">New Users Today</p>
-              </div>
+            <td style="color: #fff; padding: 8px;">
+              <strong>Uptime:</strong> ${stats.backendHealth.uptime} &nbsp;|&nbsp;
+              <strong>Memory:</strong> ${stats.backendHealth.memory?.heapUsed} / ${stats.backendHealth.memory?.heapTotal} &nbsp;|&nbsp;
+              <strong>CPU Load:</strong> ${stats.backendHealth.cpu?.loadAvg1m} &nbsp;|&nbsp;
+              <strong>DB Connections:</strong> ${stats.backendHealth.database?.connections || 'N/A'}
             </td>
           </tr>
-          <tr>
-            <td width="50%" style="padding: 10px;">
-              <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; padding: 25px; text-align: center;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.newUsersThisWeek || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">New Users This Week</p>
-              </div>
-            </td>
-            <td width="50%" style="padding: 10px;">
-              <div style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); border-radius: 12px; padding: 25px; text-align: center;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.activeUsersToday || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Active Users Today</p>
-              </div>
-            </td>
-          </tr>
-        </table>
-
-        <h2 style="color: #1e3c72; margin: 30px 0 20px 0; font-size: 22px;">Subscription Stats</h2>
-
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9ff; border-radius: 12px; padding: 20px; margin: 15px 0;">
-          <tr>
-            <td>
-              <table width="100%" cellpadding="8" cellspacing="0">
-                <tr>
-                  <td style="font-size: 15px; color: #555;">Total VIP Users:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.totalVipUsers || 0}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 15px; color: #555;">New VIP Today:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.newVipToday || 0}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 15px; color: #555;">Expiring in 7 days:</td>
-                  <td style="font-size: 15px; color: #f7971e; font-weight: bold; text-align: right;">${stats.expiringVipSoon || 0}</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-
-        <h2 style="color: #1e3c72; margin: 30px 0 20px 0; font-size: 22px;">Content Stats</h2>
-
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fff4; border-radius: 12px; padding: 20px; margin: 15px 0;">
-          <tr>
-            <td>
-              <table width="100%" cellpadding="8" cellspacing="0">
-                <tr>
-                  <td style="font-size: 15px; color: #555;">Messages Sent Today:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.messagesToday || 0}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 15px; color: #555;">Moments Created Today:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.momentsToday || 0}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 15px; color: #555;">Stories Posted Today:</td>
-                  <td style="font-size: 15px; color: #333; font-weight: bold; text-align: right;">${stats.storiesToday || 0}</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-
-        ${stats.newUsersList && stats.newUsersList.length > 0 ? `
-        <h2 style="color: #1e3c72; margin: 30px 0 20px 0; font-size: 22px;">New Users Today</h2>
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
-          <tr style="background-color: #f5f5f5;">
-            <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Name</td>
-            <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Username</td>
-            <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Email</td>
-            <td style="padding: 12px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Joined</td>
-          </tr>
-          ${stats.newUsersList.map(user => `
-          <tr>
-            <td style="padding: 12px; color: #555; border-bottom: 1px solid #f0f0f0;">${user.name}</td>
-            <td style="padding: 12px; color: #11998e; border-bottom: 1px solid #f0f0f0;">@${user.username || 'N/A'}</td>
-            <td style="padding: 12px; color: #555; border-bottom: 1px solid #f0f0f0;">${user.email}</td>
-            <td style="padding: 12px; color: #555; border-bottom: 1px solid #f0f0f0;">${new Date(user.createdAt).toLocaleTimeString()}</td>
-          </tr>
-          `).join('')}
         </table>
         ` : ''}
 
-        <p style="font-size: 14px; color: #888888; text-align: center; margin: 30px 0 0 0;">
-          This is an automated daily report for ${APP_NAME} administrators.
+        <!-- User Stats Grid -->
+        <h2 style="color: #1e3c72; margin: 0 0 15px 0; font-size: 18px;">User Statistics</h2>
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px;">
+          <tr>
+            <td width="25%" style="padding: 5px;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 15px; text-align: center;">
+                <p style="margin: 0; font-size: 28px; font-weight: bold; color: #ffffff;">${formatNum(stats.users?.registered || stats.totalUsers)}</p>
+                <p style="margin: 3px 0 0 0; font-size: 11px; color: rgba(255,255,255,0.9);">Total Users</p>
+              </div>
+            </td>
+            <td width="25%" style="padding: 5px;">
+              <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 10px; padding: 15px; text-align: center;">
+                <p style="margin: 0; font-size: 28px; font-weight: bold; color: #ffffff;">${formatNum(stats.users?.newToday || stats.newUsersToday)}</p>
+                <p style="margin: 3px 0 0 0; font-size: 11px; color: rgba(255,255,255,0.9);">New Today</p>
+              </div>
+            </td>
+            <td width="25%" style="padding: 5px;">
+              <div style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); border-radius: 10px; padding: 15px; text-align: center;">
+                <p style="margin: 0; font-size: 28px; font-weight: bold; color: #ffffff;">${formatNum(stats.users?.activeToday || stats.activeUsersToday)}</p>
+                <p style="margin: 3px 0 0 0; font-size: 11px; color: rgba(255,255,255,0.9);">Active Today</p>
+              </div>
+            </td>
+            <td width="25%" style="padding: 5px;">
+              <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 10px; padding: 15px; text-align: center;">
+                <p style="margin: 0; font-size: 28px; font-weight: bold; color: #ffffff;">${stats.users?.retentionRate || 0}%</p>
+                <p style="margin: 3px 0 0 0; font-size: 11px; color: rgba(255,255,255,0.9);">Retention</p>
+              </div>
+            </td>
+          </tr>
+        </table>
+
+        <!-- User Details Table -->
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9ff; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+          <tr><td>
+            <table width="100%" cellpadding="6" cellspacing="0" style="font-size: 13px;">
+              <tr>
+                <td style="color: #555;">New Yesterday:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.users?.newYesterday)}</td>
+                <td style="color: #555; padding-left: 20px;">This Week:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.users?.newThisWeek || stats.newUsersThisWeek)}</td>
+              </tr>
+              <tr>
+                <td style="color: #555;">Active This Week:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.users?.activeThisWeek)}</td>
+                <td style="color: #555; padding-left: 20px;">This Month:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.users?.activeThisMonth)}</td>
+              </tr>
+              <tr>
+                <td style="color: #555;">Incomplete Registrations:</td>
+                <td style="color: #f7971e; font-weight: bold; text-align: right;">${formatNum(stats.users?.incompleteRegistrations)}</td>
+                <td style="color: #555; padding-left: 20px;">Growth Rate:</td>
+                <td style="font-weight: bold; text-align: right;">${growthIndicator(stats.users?.growthRate)}</td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- VIP Stats -->
+        <h2 style="color: #1e3c72; margin: 0 0 15px 0; font-size: 18px;">VIP Subscriptions</h2>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff8e1; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+          <tr><td>
+            <table width="100%" cellpadding="6" cellspacing="0" style="font-size: 13px;">
+              <tr>
+                <td style="color: #555;">Total VIP:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.vip?.totalVip || stats.totalVipUsers)}</td>
+                <td style="color: #555; padding-left: 20px;">Conversion Rate:</td>
+                <td style="color: #11998e; font-weight: bold; text-align: right;">${stats.vip?.conversionRate || 0}%</td>
+              </tr>
+              <tr>
+                <td style="color: #555;">New VIP Today:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.vip?.newVipToday || stats.newVipToday)}</td>
+                <td style="color: #555; padding-left: 20px;">New This Week:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.vip?.newVipThisWeek)}</td>
+              </tr>
+              <tr>
+                <td style="color: #555;">Expiring in 7 Days:</td>
+                <td style="color: #f7971e; font-weight: bold; text-align: right;">${formatNum(stats.vip?.expiringIn7Days || stats.expiringVipSoon)}</td>
+                <td style="color: #555; padding-left: 20px;">Expired This Week:</td>
+                <td style="color: #f5576c; font-weight: bold; text-align: right;">${formatNum(stats.vip?.expiredThisWeek)}</td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- Engagement Stats -->
+        <h2 style="color: #1e3c72; margin: 0 0 15px 0; font-size: 18px;">Engagement</h2>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fff4; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+          <tr><td>
+            <table width="100%" cellpadding="6" cellspacing="0" style="font-size: 13px;">
+              <tr>
+                <td style="color: #555;">Messages Today:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.engagement?.messages?.today || stats.messagesToday)}</td>
+                <td style="color: #555; padding-left: 20px;">Per Active User:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${stats.engagement?.messages?.perActiveUser || 0}</td>
+              </tr>
+              <tr>
+                <td style="color: #555;">Messages This Week:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.engagement?.messages?.thisWeek)}</td>
+                <td style="color: #555; padding-left: 20px;">Total Messages:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.engagement?.messages?.total)}</td>
+              </tr>
+              <tr>
+                <td style="color: #555;">Calls Today:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.engagement?.calls?.callsToday)}</td>
+                <td style="color: #555; padding-left: 20px;">Avg Duration:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${stats.engagement?.calls?.avgCallDuration || 0}s</td>
+              </tr>
+              <tr>
+                <td style="color: #555;">Moments Today:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.engagement?.content?.momentsToday || stats.momentsToday)}</td>
+                <td style="color: #555; padding-left: 20px;">Stories Today:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.engagement?.content?.storiesToday || stats.storiesToday)}</td>
+              </tr>
+              <tr>
+                <td style="color: #555;">New Conversations:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.engagement?.conversations?.newToday)}</td>
+                <td style="color: #555; padding-left: 20px;">Voice Rooms Active:</td>
+                <td style="color: #333; font-weight: bold; text-align: right;">${formatNum(stats.engagement?.voiceRooms?.activeRooms)}</td>
+              </tr>
+            </table>
+          </td></tr>
+        </table>
+
+        <!-- Demographics -->
+        ${stats.demographics ? `
+        <h2 style="color: #1e3c72; margin: 0 0 15px 0; font-size: 18px;">User Demographics</h2>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #faf5ff; border-radius: 10px; padding: 15px; margin-bottom: 20px;">
+          <tr><td>
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #555;"><strong>Top Native Languages:</strong></p>
+            <p style="margin: 0 0 12px 0;">${formatList(stats.demographics.byNativeLanguage)}</p>
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #555;"><strong>Top Learning Languages:</strong></p>
+            <p style="margin: 0 0 12px 0;">${formatList(stats.demographics.byLearningLanguage)}</p>
+            <p style="margin: 0 0 8px 0; font-size: 13px; color: #555;"><strong>Top Countries:</strong></p>
+            <p style="margin: 0;">${formatList(stats.demographics.byCountry)}</p>
+          </td></tr>
+        </table>
+        ` : ''}
+
+        <!-- New Users List -->
+        ${stats.newUsersList && stats.newUsersList.length > 0 ? `
+        <h2 style="color: #1e3c72; margin: 0 0 15px 0; font-size: 18px;">New Users Today (${stats.newUsersList.length})</h2>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; font-size: 12px;">
+          <tr style="background-color: #f5f5f5;">
+            <td style="padding: 10px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Name</td>
+            <td style="padding: 10px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Email</td>
+            <td style="padding: 10px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Languages</td>
+            <td style="padding: 10px; font-weight: bold; color: #333; border-bottom: 1px solid #e0e0e0;">Status</td>
+          </tr>
+          ${stats.newUsersList.map(user => `
+          <tr>
+            <td style="padding: 8px; color: #555; border-bottom: 1px solid #f0f0f0;">${user.name}${user.username ? ` <span style="color: #11998e;">@${user.username}</span>` : ''}</td>
+            <td style="padding: 8px; color: #555; border-bottom: 1px solid #f0f0f0;">${user.email}</td>
+            <td style="padding: 8px; color: #555; border-bottom: 1px solid #f0f0f0;">${user.native_language || '?'} → ${user.language_to_learn || '?'}</td>
+            <td style="padding: 8px; border-bottom: 1px solid #f0f0f0;">${user.isRegistrationComplete ? '<span style="color: #11998e;">Complete</span>' : '<span style="color: #f7971e;">Incomplete</span>'}</td>
+          </tr>
+          `).join('')}
+        </table>
+        ` : '<p style="color: #888; font-style: italic;">No new users today.</p>'}
+
+        <p style="font-size: 12px; color: #888888; text-align: center; margin: 25px 0 0 0;">
+          Generated at ${new Date().toLocaleString()} | ${APP_NAME} Admin Report
         </p>
       </td>
     </tr>
   `;
 
   return {
-    subject: `[${APP_NAME}] Daily Report - ${new Date().toLocaleDateString()}`,
+    subject: `[${APP_NAME}] Daily Report - ${new Date().toLocaleDateString()} | ${formatNum(stats.users?.newToday || stats.newUsersToday)} new users`,
     html: baseTemplate(content, '#1e3c72'),
-    text: `${APP_NAME} Daily Report - Total Users: ${stats.totalUsers}, New Users Today: ${stats.newUsersToday}, Active Users: ${stats.activeUsersToday}`
+    text: `${APP_NAME} Daily Report
+Total Users: ${formatNum(stats.users?.registered || stats.totalUsers)}
+New Users Today: ${formatNum(stats.users?.newToday || stats.newUsersToday)}
+Active Users: ${formatNum(stats.users?.activeToday || stats.activeUsersToday)}
+Retention Rate: ${stats.users?.retentionRate || 0}%
+VIP Users: ${formatNum(stats.vip?.totalVip || stats.totalVipUsers)}
+Messages Today: ${formatNum(stats.engagement?.messages?.today || stats.messagesToday)}
+Server Uptime: ${stats.backendHealth?.uptime || 'N/A'}`
   };
 };
 

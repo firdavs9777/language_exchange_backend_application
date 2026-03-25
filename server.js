@@ -46,6 +46,8 @@ const speech = require('./routes/speech');
 const aiTranslation = require('./routes/aiTranslation');
 const lessonBuilder = require('./routes/lessonBuilder');
 const calls = require('./routes/calls');
+const leaderboard = require('./routes/leaderboard');
+const matching = require('./routes/matching');
 
 // Initialize Express app
 const app = express();
@@ -277,6 +279,8 @@ app.use('/api/v1/grammar-feedback', grammarFeedback);
 app.use('/api/v1/speech', speech);
 app.use('/api/v1/translate', aiTranslation);
 app.use('/api/v1/calls', calls);
+app.use('/api/v1/leaderboard', leaderboard);
+app.use('/api/v1/matching', matching);
 app.use('/api/v1/analytics', require('./routes/analytics'));
 
 // Error request logger (logs failed requests)
