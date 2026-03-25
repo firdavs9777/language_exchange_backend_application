@@ -1,10 +1,10 @@
 /**
  * Call Service
- * Handles call business logic and Xirsys integration
+ * Handles call business logic and TURN server integration
  */
 
 const Call = require('../models/Call');
-const { getIceServers } = require('../config/xirsys');
+const { getIceServers } = require('../config/turnServer');
 
 // Cache ICE servers for 5 minutes to reduce API calls
 let cachedIceServers = null;
