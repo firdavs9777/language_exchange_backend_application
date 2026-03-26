@@ -39,8 +39,7 @@ const callSchema = new mongoose.Schema({
   },
   endReason: {
     type: String,
-    enum: ['completed', 'caller_ended', 'receiver_ended', 'missed', 'rejected', 'failed', 'busy', 'timeout', 'disconnect'],
-    default: null
+    enum: ['completed', 'caller_ended', 'receiver_ended', 'missed', 'rejected', 'failed', 'busy', 'timeout', 'disconnect']
   }
 }, {
   timestamps: true

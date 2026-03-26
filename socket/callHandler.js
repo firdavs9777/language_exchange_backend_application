@@ -52,17 +52,10 @@ const registerCallHandlers = (socket, io) => {
         });
       }
 
-      // Check if recipient is online
       const recipientRoom = `user_${targetUserId}`;
       const recipientSockets = await io.in(recipientRoom).fetchSockets();
-      
-      if (recipientSockets.length === 0) {
-        return callback({
-          status: 'error',
-          error: 'User is offline'
-        });
-      }
-      
+      const isRecipientOnline = recipientSockets.length > 0;
+
       // Check if user is already in a call
       for (const [callId, callData] of activeCalls.entries()) {
         if (callData.participants.includes(userId) || callData.participants.includes(targetUserId)) {
@@ -72,7 +65,7 @@ const registerCallHandlers = (socket, io) => {
           });
         }
       }
-      
+
       // Create call record
       const call = await Call.create({
         participants: [userId, targetUserId],
@@ -112,7 +105,7 @@ const registerCallHandlers = (socket, io) => {
               reason: 'No answer'
             });
 
-            // Notify recipient
+            // Notify recipient (if they came online)
             io.to(recipientRoom).emit('call:missed', {
               callId: call._id,
               caller: {
@@ -149,19 +142,21 @@ const registerCallHandlers = (socket, io) => {
 
       callTimeouts.set(call._id.toString(), timeoutId);
 
-      // Notify recipient
-      io.to(recipientRoom).emit('call:incoming', {
-        callId: call._id,
-        caller: {
-          _id: caller._id,
-          name: caller.name,
-          profilePicture: caller.profilePicture
-        },
-        callType: callType,
-        iceServers
-      });
+      // Notify recipient via socket if online
+      if (isRecipientOnline) {
+        io.to(recipientRoom).emit('call:incoming', {
+          callId: call._id,
+          caller: {
+            _id: caller._id,
+            name: caller.name,
+            profilePicture: caller.profilePicture
+          },
+          callType: callType,
+          iceServers
+        });
+      }
 
-      // Send push notification for incoming call
+      // Always send push notification — wakes up the app even if offline
       sendToUser(
         targetUserId,
         {
@@ -272,6 +267,7 @@ const registerCallHandlers = (socket, io) => {
         // Reject call
         call.status = 'rejected';
         call.endTime = new Date();
+        call.endReason = 'rejected';
         await call.save();
         
         activeCalls.delete(callId);
@@ -399,6 +395,7 @@ const registerCallHandlers = (socket, io) => {
 
       call.status = 'ended';
       call.endTime = new Date();
+      call.endReason = call.initiator.toString() === userId ? 'caller_ended' : 'receiver_ended';
       // Calculate duration from when call was answered, not when it started ringing
       const durationStart = call.answeredAt || call.startTime;
       call.duration = Math.floor((call.endTime - durationStart) / 1000);
@@ -713,10 +710,11 @@ const registerCallHandlers = (socket, io) => {
       
       call.status = 'missed';
       call.endTime = new Date();
+      call.endReason = 'missed';
       await call.save();
-      
+
       activeCalls.delete(callId);
-      
+
       console.log(`📵 Call missed: ${callId}`);
       
     } catch (error) {
@@ -741,7 +739,8 @@ const registerCallHandlers = (socket, io) => {
         // End the call
         Call.findByIdAndUpdate(callId, {
           status: 'ended',
-          endTime: new Date()
+          endTime: new Date(),
+          endReason: 'disconnect'
         }).catch(err => console.error('Error ending call on disconnect:', err));
         
         // Notify other participant
