@@ -220,13 +220,13 @@ exports.newLoginEmail = (userName, deviceInfo = {}) => {
 };
 
 /**
- * Account deactivation warning (before deletion)
+ * Account inactivity follow-up (friendly reminder)
  */
 exports.accountDeactivationWarning = (userName, daysRemaining = 30) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">We Miss You! 😢</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">We Really Miss You! 💕</h1>
       </td>
     </tr>
     <tr>
@@ -235,44 +235,56 @@ exports.accountDeactivationWarning = (userName, daysRemaining = 30) => {
           Hi <strong>${userName}</strong>,
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          We noticed you haven't been active on ${APP_NAME} for a while. We miss having you in our community! 
+          It's been a while since we've seen you on ${APP_NAME}. Your language exchange friends are waiting!
         </p>
-        
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff5f5; border: 2px solid #ff6b6b; border-radius: 8px; padding: 20px; margin: 25px 0;">
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff5f5; border: 2px solid #f5576c; border-radius: 8px; padding: 20px; margin: 25px 0;">
           <tr>
             <td align="center">
-              <p style="margin: 0; font-size: 16px; color: #c92a2a;">
-                ⚠️ Your account will be deactivated in <strong>${daysRemaining} days</strong> due to inactivity.
+              <p style="margin: 0; font-size: 16px; color: #f5576c;">
+                🌟 Your profile is still active and your connections are waiting to hear from you!
               </p>
             </td>
           </tr>
         </table>
-        
+
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          To keep your account active, simply log in before the deactivation date.
+          Come back and continue your language learning journey. There's so much happening in the community!
         </p>
-        
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
           <tr>
             <td align="center">
-              <a href="https://banatalk.com/login" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                Come Back & Say Hi! 👋
-              </a>
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Open BanaTalk</h3>
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-right: 10px;">
+                    <a href="https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      🍎 App Store
+                    </a>
+                  </td>
+                  <td style="padding-left: 10px;">
+                    <a href="https://play.google.com/store/apps/details?id=com.bananatalk.app" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      🤖 Google Play
+                    </a>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
-        
+
         <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
           Your language learning journey is waiting for you! 🌍📚
         </p>
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `😢 We Miss You, ${userName}! Your ${APP_NAME} Account`,
-    html: baseTemplate(content, '#ff6b6b'),
-    text: `Hi ${userName}, we noticed you haven't been active on ${APP_NAME}. Your account will be deactivated in ${daysRemaining} days. Log in to keep your account active!`
+    subject: `💕 ${userName}, Your Friends on ${APP_NAME} Miss You!`,
+    html: baseTemplate(content, '#f5576c'),
+    text: `Hi ${userName}, we noticed you haven't been active on ${APP_NAME} for a while. Your language exchange friends are waiting! Come back and continue your journey.`
   };
 };
 
