@@ -57,13 +57,13 @@ exports.recordProfileVisit = asyncHandler(async (req, res, next) => {
       'profileStats.lastVisitorUpdate': new Date()
     });
 
-    // Send notification if profile owner is VIP and has notifications enabled
-    if (profileOwner.isVIP && profileOwner.isVIP()) {
-      notificationService.sendProfileVisit(
-        profileOwnerId,
-        visitorId
-      ).catch(err => console.error('Profile visit notification failed:', err));
-    }
+    // Profile visit notifications disabled - not useful for users
+    // if (profileOwner.isVIP && profileOwner.isVIP()) {
+    //   notificationService.sendProfileVisit(
+    //     profileOwnerId,
+    //     visitorId
+    //   ).catch(err => console.error('Profile visit notification failed:', err));
+    // }
   }
 
   res.status(200).json({
