@@ -2,7 +2,7 @@ const asyncHandler = require('../middleware/async');
 const ProfileVisit = require('../models/ProfileVisit');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
-const notificationService = require('../services/notificationService');
+// const notificationService = require('../services/notificationService'); // Disabled - profile visit notifications not needed
 
 /**
  * @desc    Record a profile visit

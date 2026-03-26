@@ -5,7 +5,8 @@ const BUCKET_NAME = process.env.SPACES_BUCKET || 'my-projects-media';
 /**
  * Extract the S3 object key from various URL formats
  * Handles:
- * - CDN URLs: https://my-projects-media.sfo3.cdn.digitaloceanspaces.com/key
+ * - Cloudflare CDN: https://media.banatalk.com/key
+ * - DO CDN URLs: https://my-projects-media.sfo3.cdn.digitaloceanspaces.com/key
  * - Direct URLs: https://my-projects-media.sfo3.digitaloceanspaces.com/key
  * - AWS URLs: https://bucket.s3.amazonaws.com/key
  *
@@ -17,19 +18,23 @@ function getKeyFromSpacesUrl(url) {
     return null;
   }
 
-  // Pattern 1: CDN URL - https://bucket.region.cdn.digitaloceanspaces.com/key
+  // Pattern 1: Cloudflare CDN URL - https://media.banatalk.com/key
+  const cloudflareMatch = url.match(/media\.banatalk\.com\/(.+)$/);
+  if (cloudflareMatch) return cloudflareMatch[1];
+
+  // Pattern 2: DO CDN URL - https://bucket.region.cdn.digitaloceanspaces.com/key
   const cdnMatch = url.match(/\.cdn\.digitaloceanspaces\.com\/(.+)$/);
   if (cdnMatch) return cdnMatch[1];
 
-  // Pattern 2: Direct Spaces URL - https://bucket.region.digitaloceanspaces.com/key
+  // Pattern 3: Direct Spaces URL - https://bucket.region.digitaloceanspaces.com/key
   const directMatch = url.match(/digitaloceanspaces\.com\/(.+)$/);
   if (directMatch) return directMatch[1];
 
-  // Pattern 3: AWS S3 URL - https://bucket.s3.amazonaws.com/key
+  // Pattern 4: AWS S3 URL - https://bucket.s3.amazonaws.com/key
   const awsMatch = url.match(/\.amazonaws\.com\/(.+)$/);
   if (awsMatch) return awsMatch[1];
 
-  // Pattern 4: Just a key (no URL prefix)
+  // Pattern 5: Just a key (no URL prefix)
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     return url;
   }
