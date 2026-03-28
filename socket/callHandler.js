@@ -238,6 +238,7 @@ const registerCallHandlers = (socket, io) => {
 
         // Accept call
         call.status = 'active';
+        call.answeredAt = new Date();
         await call.save();
         
         if (callData) {
@@ -794,12 +795,18 @@ async function createCallMessage(call, io) {
     const sender = populatedCall.initiator.toString() === user1._id.toString() ? user1 : user2;
     const receiver = sender._id.toString() === user1._id.toString() ? user2 : user1;
 
+    // Use answeredAt for accurate duration (excludes ring time)
+    const actualDuration = populatedCall.answeredAt && populatedCall.endTime
+      ? Math.round((new Date(populatedCall.endTime) - new Date(populatedCall.answeredAt)) / 1000)
+      : populatedCall.duration || 0;
+
     const callData = {
       _id: populatedCall._id.toString(),
       type: populatedCall.type,
       status: populatedCall.status,
-      duration: populatedCall.duration || 0,
+      duration: actualDuration,
       startTime: populatedCall.startTime,
+      answeredAt: populatedCall.answeredAt,
       endTime: populatedCall.endTime,
       initiator: populatedCall.initiator.toString(),
       participants: populatedCall.participants.map(p => ({
