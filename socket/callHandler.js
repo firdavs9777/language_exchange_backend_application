@@ -1,5 +1,6 @@
 const Call = require('../models/Call');
 const User = require('../models/User');
+const Message = require('../models/Message');
 const callService = require('../services/callService');
 const { sendToUser } = require('../services/fcmService');
 
@@ -129,6 +130,9 @@ const registerCallHandlers = (socket, io) => {
                 callerName: caller.name
               }
             ).catch(err => console.error('FCM error:', err.message));
+
+            // Create a missed call message in the chat
+            createCallMessage(call, io);
 
             console.log(`⏰ Call timeout: ${call._id}`);
           }
@@ -291,8 +295,11 @@ const registerCallHandlers = (socket, io) => {
         }
         
         console.log(`❌ Call rejected: ${callId}`);
+
+        // Create a rejected call message in the chat
+        createCallMessage(call, io);
       }
-      
+
     } catch (error) {
       console.error('❌ Call answer error:', error.message);
       if (callback) {
@@ -436,6 +443,9 @@ const registerCallHandlers = (socket, io) => {
       }
       
       console.log(`✅ Call ended: ${callId} (${call.duration}s)`);
+
+      // Create a call record message in the chat
+      createCallMessage(call, io);
 
     } catch (error) {
       console.error('❌ Call end error:', error.message);
@@ -720,7 +730,10 @@ const registerCallHandlers = (socket, io) => {
       activeCalls.delete(callId);
 
       console.log(`📵 Call missed: ${callId}`);
-      
+
+      // Create a missed call message in the chat
+      createCallMessage(call, io);
+
     } catch (error) {
       console.error('❌ Call missed error:', error);
     }
@@ -765,6 +778,62 @@ const registerCallHandlers = (socket, io) => {
     return originalDisconnect.apply(this, args);
   };
 };
+
+/**
+ * Create a call record message in the chat between two participants.
+ * This makes call history appear inline in the conversation.
+ */
+async function createCallMessage(call, io) {
+  try {
+    const populatedCall = await Call.findById(call._id).populate('participants', 'name profilePicture image');
+    if (!populatedCall || populatedCall.participants.length < 2) return;
+
+    const [user1, user2] = populatedCall.participants;
+
+    // Create message from initiator to the other participant
+    const sender = populatedCall.initiator.toString() === user1._id.toString() ? user1 : user2;
+    const receiver = sender._id.toString() === user1._id.toString() ? user2 : user1;
+
+    const callData = {
+      _id: populatedCall._id.toString(),
+      type: populatedCall.type,
+      status: populatedCall.status,
+      duration: populatedCall.duration || 0,
+      startTime: populatedCall.startTime,
+      endTime: populatedCall.endTime,
+      initiator: populatedCall.initiator.toString(),
+      participants: populatedCall.participants.map(p => ({
+        _id: p._id.toString(),
+        name: p.name,
+        profilePicture: p.profilePicture || p.image,
+      })),
+    };
+
+    const msg = await Message.create({
+      sender: sender._id,
+      receiver: receiver._id,
+      message: null,
+      messageType: 'call',
+      media: { callData },
+    });
+
+    // Populate sender/receiver for the socket event
+    const populated = await Message.findById(msg._id)
+      .populate('sender', 'name email profilePicture image')
+      .populate('receiver', 'name email profilePicture image')
+      .lean();
+
+    if (populated) {
+      // Notify both participants so the bubble appears in real-time
+      io.to(`user_${sender._id.toString()}`).emit('newMessage', { message: populated });
+      io.to(`user_${receiver._id.toString()}`).emit('newMessage', { message: populated });
+    }
+
+    console.log(`💬 Call message created for call ${call._id}`);
+  } catch (err) {
+    console.error('❌ Failed to create call message:', err.message);
+  }
+}
 
 /**
  * Get active calls info (for debugging)

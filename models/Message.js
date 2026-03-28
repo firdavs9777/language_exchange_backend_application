@@ -86,6 +86,10 @@ const MessageSchema = new mongoose.Schema({
       longitude: Number,
       address: String,
       placeName: String
+    },
+    // For call record messages
+    callData: {
+      type: mongoose.Schema.Types.Mixed
     }
   },
   
@@ -181,7 +185,7 @@ const MessageSchema = new mongoose.Schema({
   // Message type for special messages
   messageType: {
     type: String,
-    enum: ['text', 'media', 'voice', 'poll', 'location', 'contact', 'sticker', 'system'],
+    enum: ['text', 'media', 'voice', 'poll', 'location', 'contact', 'sticker', 'system', 'call'],
     default: 'text'
   },
   reactions: [{
