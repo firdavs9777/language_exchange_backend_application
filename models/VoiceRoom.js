@@ -18,10 +18,10 @@ const VoiceRoomSchema = new mongoose.Schema({
     trim: true,
     maxlength: [500, 'Description cannot exceed 500 characters']
   },
-  // Topic/category
+  // Topic/category - accepts any topic string from the app
   topic: {
     type: String,
-    enum: ['language_exchange', 'casual_chat', 'study_group', 'pronunciation', 'debate', 'storytelling', 'other'],
+    trim: true,
     default: 'language_exchange'
   },
   // Primary language for the room
