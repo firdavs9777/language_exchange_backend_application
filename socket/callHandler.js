@@ -814,7 +814,7 @@ async function createCallMessage(call, io) {
       receiver: receiver._id,
       message: null,
       messageType: 'call',
-      media: { callData },
+      media: { type: 'call', callData },
     });
 
     // Populate sender/receiver for the socket event
