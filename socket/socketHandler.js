@@ -1798,11 +1798,19 @@ const registerCorrectionHandlers = (socket, io) => {
       const newCorrection = message.corrections[message.corrections.length - 1];
       
       // Notify message sender
-      io.to(`user_${message.sender}`).emit('newCorrection', {
+      io.to(`user_${message.sender}`).emit('messageCorrection', {
         messageId,
         correction: newCorrection,
         correctorId: userId
       });
+      // Also notify the corrector so they see it immediately
+      if (message.sender.toString() !== userId) {
+        io.to(`user_${userId}`).emit('messageCorrection', {
+          messageId,
+          correction: newCorrection,
+          correctorId: userId
+        });
+      }
       
       if (callback) {
         callback({

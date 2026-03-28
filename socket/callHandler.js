@@ -143,6 +143,7 @@ const registerCallHandlers = (socket, io) => {
       callTimeouts.set(call._id.toString(), timeoutId);
 
       // Notify recipient via socket if online
+      console.log(`📞 Recipient ${targetUserId} online: ${isRecipientOnline}, room: ${recipientRoom}, sockets: ${recipientSockets.length}`);
       if (isRecipientOnline) {
         io.to(recipientRoom).emit('call:incoming', {
           callId: call._id,
@@ -154,6 +155,9 @@ const registerCallHandlers = (socket, io) => {
           callType: callType,
           iceServers
         });
+        console.log(`📞 Emitted call:incoming to ${recipientRoom}`);
+      } else {
+        console.log(`📞 Recipient offline, only sending push notification`);
       }
 
       // Always send push notification — wakes up the app even if offline
