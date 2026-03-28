@@ -153,14 +153,29 @@ const registerVoiceRoomHandlers = (socket, io) => {
       // Leave socket room
       socket.leave(`voiceroom_${roomId}`);
 
+      // Update database — remove participant and handle host transfer/room ending
+      const room = await VoiceRoom.findById(roomId);
+      if (room && room.hasParticipant(userId)) {
+        await room.removeParticipant(userId);
+      }
+
       // Update cache
       removeParticipantFromCache(roomId, userId);
+
+      // Check if room ended (host left with no one to transfer to)
+      const roomEnded = room && room.status === 'ended';
 
       // Notify others
       socket.to(`voiceroom_${roomId}`).emit('voiceroom:user_left', {
         roomId,
-        userId
+        userId,
+        roomEnded
       });
+
+      if (roomEnded) {
+        clearRoomCache(roomId);
+        io.emit('voiceroom:ended', { roomId });
+      }
 
     } catch (error) {
       socket.emit('voiceroom:error', { message: error.message });
