@@ -235,7 +235,10 @@ exports.replyToMessage = asyncHandler(async (req, res, next) => {
   }
 
   // Check block status
-  if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
+  const hasBlocked = senderUser.isBlocked(receiver);
+  const isBlockedBy = senderUser.isBlockedBy(receiver);
+  if (hasBlocked || isBlockedBy) {
+    console.log(`🚫 Reply block check failed: sender=${userId}, receiver=${receiver}, hasBlocked=${hasBlocked}, isBlockedBy=${isBlockedBy}, blockedUsers=${JSON.stringify(senderUser.blockedUsers.map(b => b.userId.toString()))}, blockedBy=${JSON.stringify(senderUser.blockedBy.map(b => b.userId.toString()))}`);
     return next(new ErrorResponse('Cannot send message to this user', 403));
   }
 

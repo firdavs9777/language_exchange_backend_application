@@ -567,7 +567,10 @@ exports.createMessage = asyncHandler(async (req, res, next) => {
   const senderUser = req.limitationUser || await User.findById(sender);
   if (!senderUser) return next(new ErrorResponse('Sender user not found', 404));
   
-  if (senderUser.isBlocked(receiver) || senderUser.isBlockedBy(receiver)) {
+  const hasBlocked = senderUser.isBlocked(receiver);
+  const isBlockedBy = senderUser.isBlockedBy(receiver);
+  if (hasBlocked || isBlockedBy) {
+    console.log(`🚫 Block check failed: sender=${sender}, receiver=${receiver}, hasBlocked=${hasBlocked}, isBlockedBy=${isBlockedBy}, blockedUsers=${JSON.stringify(senderUser.blockedUsers.map(b => b.userId.toString()))}, blockedBy=${JSON.stringify(senderUser.blockedBy.map(b => b.userId.toString()))}`);
     return next(new ErrorResponse('Cannot send message to this user', 403));
   }
 
