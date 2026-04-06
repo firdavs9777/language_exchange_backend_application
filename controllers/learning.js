@@ -467,13 +467,15 @@ exports.getVocabularyStats = asyncHandler(async (req, res, next) => {
  */
 exports.getLessons = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
-  const { language, level, category, page = 1, limit = 50 } = req.query;
+  const { language, sourceLanguage, level, category, page = 1, limit = 50 } = req.query;
 
-  const user = await User.findById(userId).select('language_to_learn');
+  const user = await User.findById(userId).select('language_to_learn native_language');
   const targetLanguage = language || user?.language_to_learn;
+  const nativeLanguage = sourceLanguage || user?.native_language;
 
   const result = await Lesson.getLessons({
     language: targetLanguage,
+    sourceLanguage: nativeLanguage,
     level,
     category,
     limit: parseInt(limit),
@@ -516,13 +518,14 @@ exports.getLessons = asyncHandler(async (req, res, next) => {
  */
 exports.getRecommendedLessons = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
-  const { language } = req.query;
+  const { language, sourceLanguage } = req.query;
 
-  const user = await User.findById(userId).select('language_to_learn learningStats');
+  const user = await User.findById(userId).select('language_to_learn native_language learningStats');
   const targetLanguage = language || user?.language_to_learn;
+  const nativeLanguage = sourceLanguage || user?.native_language;
   const userLevel = user?.learningStats?.proficiencyLevel || 'A1';
 
-  const recommended = await Lesson.getRecommended(userId, targetLanguage, userLevel);
+  const recommended = await Lesson.getRecommended(userId, targetLanguage, userLevel, 5, nativeLanguage);
 
   res.status(200).json({
     success: true,
@@ -537,12 +540,13 @@ exports.getRecommendedLessons = asyncHandler(async (req, res, next) => {
  */
 exports.getCurriculum = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
-  const { language, level } = req.query;
+  const { language, sourceLanguage, level } = req.query;
 
-  const user = await User.findById(userId).select('language_to_learn');
+  const user = await User.findById(userId).select('language_to_learn native_language');
   const targetLanguage = language || user?.language_to_learn;
+  const nativeLanguage = sourceLanguage || user?.native_language;
 
-  const curriculum = await Lesson.getCurriculum(targetLanguage, level);
+  const curriculum = await Lesson.getCurriculum(targetLanguage, level, nativeLanguage);
 
   res.status(200).json({
     success: true,

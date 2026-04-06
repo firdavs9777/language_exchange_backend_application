@@ -92,10 +92,18 @@ const LessonSchema = new mongoose.Schema({
     index: true
   },
 
-  // Target language
+  // Target language (the language being learned)
   language: {
     type: String,
     required: true,
+    index: true
+  },
+
+  // Source language (learner's native language for explanations)
+  // null = universal lesson (shown to all native speakers)
+  sourceLanguage: {
+    type: String,
+    default: null,
     index: true
   },
 
@@ -253,8 +261,8 @@ const LessonSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Indexes
-LessonSchema.index({ language: 1, level: 1, category: 1, isPublished: 1 });
-LessonSchema.index({ language: 1, 'unit.number': 1, orderInUnit: 1 });
+LessonSchema.index({ sourceLanguage: 1, language: 1, level: 1, category: 1, isPublished: 1 });
+LessonSchema.index({ sourceLanguage: 1, language: 1, 'unit.number': 1, orderInUnit: 1 });
 LessonSchema.index({ tags: 1 });
 LessonSchema.index({ 'aiGenerated.isAIGenerated': 1, createdAt: -1 });
 
@@ -276,6 +284,7 @@ LessonSchema.pre('save', function(next) {
 LessonSchema.statics.getLessons = async function(options = {}) {
   const {
     language,
+    sourceLanguage,
     level,
     category,
     isPremium,
@@ -285,6 +294,14 @@ LessonSchema.statics.getLessons = async function(options = {}) {
 
   const filter = { isPublished: true };
   if (language) filter.language = language;
+  // Match pair-specific lessons OR universal (null sourceLanguage) lessons
+  if (sourceLanguage) {
+    filter.$or = [
+      { sourceLanguage: sourceLanguage },
+      { sourceLanguage: null },
+      { sourceLanguage: { $exists: false } }
+    ];
+  }
   if (level) filter.level = level;
   if (category) filter.category = category;
   if (isPremium !== undefined) filter.isPremium = isPremium;
@@ -310,8 +327,15 @@ LessonSchema.statics.getLessons = async function(options = {}) {
 /**
  * Get lesson curriculum grouped by units
  */
-LessonSchema.statics.getCurriculum = async function(language, level = null) {
+LessonSchema.statics.getCurriculum = async function(language, level = null, sourceLanguage = null) {
   const filter = { language, isPublished: true };
+  if (sourceLanguage) {
+    filter.$or = [
+      { sourceLanguage: sourceLanguage },
+      { sourceLanguage: null },
+      { sourceLanguage: { $exists: false } }
+    ];
+  }
   if (level) filter.level = level;
 
   const lessons = await this.find(filter)
@@ -349,7 +373,7 @@ LessonSchema.statics.getCurriculum = async function(language, level = null) {
 /**
  * Get recommended lessons for user
  */
-LessonSchema.statics.getRecommended = async function(userId, language, level, limit = 5) {
+LessonSchema.statics.getRecommended = async function(userId, language, level, limit = 5, sourceLanguage = null) {
   const LessonProgress = mongoose.model('LessonProgress');
 
   // Get completed lesson IDs
@@ -373,12 +397,20 @@ LessonSchema.statics.getRecommended = async function(userId, language, level, li
   const excludeIds = [...completedLessons, ...inProgressIds];
 
   // Get new lessons at user's level
-  const newLessons = await this.find({
+  const newFilter = {
     _id: { $nin: excludeIds },
     language,
     level,
     isPublished: true
-  })
+  };
+  if (sourceLanguage) {
+    newFilter.$or = [
+      { sourceLanguage: sourceLanguage },
+      { sourceLanguage: null },
+      { sourceLanguage: { $exists: false } }
+    ];
+  }
+  const newLessons = await this.find(newFilter)
     .select('title slug level category topic icon xpReward estimatedMinutes isPremium')
     .sort({ 'unit.number': 1, orderInUnit: 1 })
     .limit(limit - inProgressIds.length)

@@ -543,6 +543,9 @@ MessageSchema.index({ receiver: 1, createdAt: -1 });
 // Index for deleted messages filtering
 MessageSchema.index({ isDeleted: 1, createdAt: -1 });
 
+// Text index for full-text message search
+MessageSchema.index({ message: 'text', 'media.fileName': 'text' });
+
 // Optimized indexes for conversation queries with $or
 // Covers: { sender: X, receiver: Y, isDeleted: { $ne: true } }
 MessageSchema.index({ sender: 1, receiver: 1, isDeleted: 1, createdAt: -1 });

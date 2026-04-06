@@ -35,13 +35,14 @@ exports.searchMessages = asyncHandler(async (req, res, next) => {
     isDeleted: { $ne: true } // Exclude deleted messages
   };
 
-  // Text search
+  // Text search — use MongoDB $text index for message field, regex fallback for fileName
   if (q && q.trim().length > 0) {
+    const searchTerm = q.trim();
     query.$and = query.$and || [];
     query.$and.push({
       $or: [
-        { message: { $regex: q.trim(), $options: 'i' } },
-        { 'media.fileName': { $regex: q.trim(), $options: 'i' } }
+        { $text: { $search: searchTerm } },
+        { 'media.fileName': { $regex: searchTerm, $options: 'i' } }
       ]
     });
   }
