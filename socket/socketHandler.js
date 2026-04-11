@@ -635,7 +635,7 @@ const registerMessageHandlers = (socket, io) => {
 
       // ========== PHASE 3: CREATE MESSAGE & IMMEDIATE ACK ==========
       // Create message first - this is the critical path
-      const validMessageTypes = ['text', 'sticker'];
+      const validMessageTypes = ['text', 'sticker', 'gif'];
       const msgType = validMessageTypes.includes(data?.messageType) ? data.messageType : 'text';
 
       const newMessage = await Message.create({

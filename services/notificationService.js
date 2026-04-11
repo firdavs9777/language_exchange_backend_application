@@ -83,7 +83,11 @@ const sendChatMessage = async (recipientId, senderId, message) => {
 
     // Get message preview (handle different message types)
     let messagePreview = '';
-    if (message.text) {
+    if (message.messageType === 'gif') {
+      messagePreview = '🎬 GIF';
+    } else if (message.messageType === 'sticker') {
+      messagePreview = '🏷️ Sticker';
+    } else if (message.text) {
       messagePreview = message.text;
     } else if (message.voiceMessageUrl) {
       messagePreview = '🎤 Voice message';

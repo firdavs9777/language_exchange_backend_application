@@ -107,7 +107,7 @@ exports.searchMessages = asyncHandler(async (req, res, next) => {
     Message.find(query)
       .populate('sender', 'name images userMode')
       .populate('receiver', 'name images userMode')
-      .populate('replyTo', 'message sender')
+      .populate('replyTo', 'message sender messageType')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(actualLimit)

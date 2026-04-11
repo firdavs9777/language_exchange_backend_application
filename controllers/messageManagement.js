@@ -278,7 +278,7 @@ exports.replyToMessage = asyncHandler(async (req, res, next) => {
   // Populate reply information (also populate replyTo.sender for display)
   await replyMessage.populate({
     path: 'replyTo',
-    select: '_id message sender',
+    select: '_id message sender messageType',
     populate: { path: 'sender', select: '_id name images' }
   });
   await replyMessage.populate('sender', '_id name images userMode');

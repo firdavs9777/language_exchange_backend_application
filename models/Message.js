@@ -185,7 +185,7 @@ const MessageSchema = new mongoose.Schema({
   // Message type for special messages
   messageType: {
     type: String,
-    enum: ['text', 'media', 'voice', 'poll', 'location', 'contact', 'sticker', 'system', 'call'],
+    enum: ['text', 'media', 'voice', 'poll', 'location', 'contact', 'sticker', 'system', 'call', 'gif'],
     default: 'text'
   },
   reactions: [{

@@ -618,7 +618,7 @@ exports.createMessage = asyncHandler(async (req, res, next) => {
     return next(formatLimitError('messages', current, max, nextReset));
   }
   
-  const validMessageTypes = ['text', 'media', 'voice', 'sticker', 'poll', 'location', 'contact', 'system'];
+  const validMessageTypes = ['text', 'media', 'voice', 'sticker', 'poll', 'location', 'contact', 'system', 'gif'];
   const requestedType = req.body.type || req.body.messageType || 'text';
 
   const messageData = {
@@ -703,7 +703,7 @@ exports.createMessage = asyncHandler(async (req, res, next) => {
   await newMessage.populate('sender', 'name username images userMode');
   await newMessage.populate('receiver', 'name username images userMode');
   if (newMessage.replyTo) {
-    await newMessage.populate('replyTo', 'message sender');
+    await newMessage.populate('replyTo', 'message sender messageType');
   }
   
   // ✨ NEW: Real-time Socket.IO notification

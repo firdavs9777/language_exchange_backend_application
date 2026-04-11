@@ -16,12 +16,12 @@ exports.createMessageValidation = [
 
   body('type')
     .optional()
-    .isIn(['text', 'media', 'voice', 'sticker', 'poll', 'location', 'contact', 'system'])
+    .isIn(['text', 'media', 'voice', 'sticker', 'poll', 'location', 'contact', 'system', 'gif'])
     .withMessage('Invalid message type'),
 
   body('messageType')
     .optional()
-    .isIn(['text', 'media', 'voice', 'sticker', 'poll', 'location', 'contact', 'system'])
+    .isIn(['text', 'media', 'voice', 'sticker', 'poll', 'location', 'contact', 'system', 'gif'])
     .withMessage('Invalid message type'),
 
   body('location')
