@@ -206,6 +206,39 @@ exports.createComment = asyncHandler(async (req, res, next) => {
             ).catch(err => console.error('Comment notification failed:', err));
         }
 
+        // Send notification to parent comment author (if replying)
+        if (req.body.parentComment) {
+            const parentCommentDoc = await Comment.findById(req.body.parentComment);
+            if (parentCommentDoc && parentCommentDoc.user.toString() !== req.user.id) {
+                const notificationService = require('../services/notificationService');
+                if (notificationService.sendCommentReply) {
+                    notificationService.sendCommentReply(
+                        parentCommentDoc.user.toString(),
+                        req.user.id,
+                        moment._id,
+                        comment.text
+                    ).catch(err => console.error('Reply notification failed:', err));
+                }
+            }
+        }
+
+        // Send notifications to mentioned users
+        if (req.body.mentions && req.body.mentions.length > 0) {
+            const notificationService = require('../services/notificationService');
+            for (const mention of req.body.mentions) {
+                if (mention.user && mention.user.toString() !== req.user.id) {
+                    if (notificationService.sendCommentMention) {
+                        notificationService.sendCommentMention(
+                            mention.user.toString(),
+                            req.user.id,
+                            moment._id,
+                            comment.text
+                        ).catch(err => console.error('Mention notification failed:', err));
+                    }
+                }
+            }
+        }
+
         res.status(200).json({
             success: true,
             data: comment,
@@ -302,6 +335,120 @@ exports.likeComment = asyncHandler(async (req, res, next) => {
             isLiked: !alreadyLiked,
             likeCount: comment.likeCount,
         }
+    });
+});
+
+// @desc    React to a comment with emoji
+// @route   POST /api/v1/moments/:momentId/comments/:id/react
+// @access  Private
+exports.reactToComment = asyncHandler(async (req, res, next) => {
+    const commentId = req.params.id || req.params.commentId;
+    const userId = req.user._id;
+    const { emoji } = req.body;
+
+    if (!emoji) {
+        return next(new ErrorResponse('Emoji is required', 400));
+    }
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+        return next(new ErrorResponse('Comment not found', 404));
+    }
+
+    if (!comment.reactions) comment.reactions = [];
+
+    const existingIndex = comment.reactions.findIndex(
+        r => r.user.toString() === userId.toString()
+    );
+
+    if (existingIndex !== -1) {
+        if (comment.reactions[existingIndex].emoji === emoji) {
+            comment.reactions.splice(existingIndex, 1);
+        } else {
+            comment.reactions[existingIndex].emoji = emoji;
+            comment.reactions[existingIndex].createdAt = new Date();
+        }
+    } else {
+        comment.reactions.push({ user: userId, emoji, createdAt: new Date() });
+    }
+
+    comment.reactionCount = comment.reactions.length;
+    await comment.save();
+
+    // Send notification (if not self-reaction)
+    const commentOwnerId = comment.user.toString();
+    if (userId.toString() !== commentOwnerId) {
+        const notificationService = require('../services/notificationService');
+        if (notificationService.sendCommentReaction) {
+            notificationService.sendCommentReaction(
+                commentOwnerId, userId.toString(), comment.moment, emoji
+            ).catch(err => console.error('Comment reaction notification failed:', err));
+        }
+    }
+
+    res.status(200).json({
+        success: true,
+        data: {
+            reactions: comment.reactions,
+            reactionCount: comment.reactionCount
+        }
+    });
+});
+
+// @desc    Remove reaction from comment
+// @route   DELETE /api/v1/moments/:momentId/comments/:id/react
+// @access  Private
+exports.unreactToComment = asyncHandler(async (req, res, next) => {
+    const commentId = req.params.id || req.params.commentId;
+    const userId = req.user._id;
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+        return next(new ErrorResponse('Comment not found', 404));
+    }
+
+    if (!comment.reactions) comment.reactions = [];
+
+    comment.reactions = comment.reactions.filter(
+        r => r.user.toString() !== userId.toString()
+    );
+    comment.reactionCount = comment.reactions.length;
+    await comment.save();
+
+    res.status(200).json({
+        success: true,
+        data: {
+            reactions: comment.reactions,
+            reactionCount: comment.reactionCount
+        }
+    });
+});
+
+// @desc    Upload image to comment
+// @route   PUT /api/v1/moments/:momentId/comments/:id/image
+// @access  Private
+exports.uploadCommentImage = asyncHandler(async (req, res, next) => {
+    const commentId = req.params.id || req.params.commentId;
+    const comment = await Comment.findById(commentId);
+
+    if (!comment) {
+        return next(new ErrorResponse('Comment not found', 404));
+    }
+
+    if (comment.user.toString() !== req.user._id.toString()) {
+        return next(new ErrorResponse('Not authorized', 403));
+    }
+
+    if (!req.file) {
+        return next(new ErrorResponse('Please upload an image', 400));
+    }
+
+    comment.imageUrl = req.file.location;
+    await comment.save();
+
+    res.status(200).json({
+        success: true,
+        data: { imageUrl: comment.imageUrl }
     });
 });
 

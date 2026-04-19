@@ -52,13 +52,13 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
   }
 
   // Build query based on privacy and user
-  let query = { privacy: 'public' };
+  let query = { privacy: 'public', isDeleted: { $ne: true } };
 
   // If user is logged in, they can see their own posts
   if (req.user) {
     // Exclude blocked users from both conditions
-    const publicQuery = { privacy: 'public' };
-    const ownPostsQuery = { user: req.user._id };
+    const publicQuery = { privacy: 'public', isDeleted: { $ne: true } };
+    const ownPostsQuery = { user: req.user._id, isDeleted: { $ne: true } };
     
     // Apply blocking filter to public posts
     if (blockedUserIds.length > 0) {
@@ -125,7 +125,7 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
  * @access  Public
  */
 exports.getMoment = asyncHandler(async (req, res, next) => {
-  const moment = await Moment.findById(req.params.id)
+  const moment = await Moment.findOne({ _id: req.params.id, isDeleted: { $ne: true } })
     .populate('user', USER_FIELDS)
     .populate({
       path: 'comments',
@@ -213,7 +213,7 @@ exports.getUserMoments = asyncHandler(async (req, res, next) => {
   }
 
   // Build query - show all user moments if viewing own profile, otherwise only public
-  let query = { user: targetUserId };
+  let query = { user: targetUserId, isDeleted: { $ne: true } };
   
   // If not viewing own profile, only show public moments
   if (!req.user || req.user._id.toString() !== targetUserId) {
@@ -267,7 +267,7 @@ exports.getUserMoments = asyncHandler(async (req, res, next) => {
  */
 exports.createMoment = asyncHandler(async (req, res, next) => {
   const {
-    title,
+    title, // Accepted for backward compat but not required
     description,
     mood,
     tags,
@@ -275,7 +275,8 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
     language,
     privacy,
     location,
-    scheduledFor
+    scheduledFor,
+    backgroundColor
   } = req.body;
 
   // Use authenticated user instead of body user (security)
@@ -318,7 +319,7 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
 
   // Create moment data
   const momentData = {
-    title,
+    title: title || '', // Optional, kept for backward compat
     description,
     user: userId,
     mood: mood || '',
@@ -326,7 +327,8 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
     category: category || 'general',
     language: language || 'en',
     privacy: privacy || 'public',
-    scheduledFor: scheduledFor || null
+    scheduledFor: scheduledFor || null,
+    backgroundColor: backgroundColor || ''
   };
 
   // If images were uploaded via multer-s3, add their CDN URLs
@@ -359,7 +361,7 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
   notificationService.sendFollowerMoment(
     userId.toString(),
     moment._id.toString(),
-    description || title || ''
+    description || ''
   ).catch(err => console.error('Follower moment notification failed:', err));
 
   // Populate user for response
@@ -1159,7 +1161,7 @@ exports.translateMoment = asyncHandler(async (req, res, next) => {
   }
 
   // Get source text (description or title)
-  const sourceText = moment.description || moment.title || '';
+  const sourceText = moment.description || '';
   if (!sourceText.trim()) {
     return next(new ErrorResponse('Moment has no text to translate', 400));
   }

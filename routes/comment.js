@@ -4,8 +4,8 @@ const {
   getComments, getComment, createComment,
   updateComment, deleteComment,
   likeComment, getReplies,
-  translateComment,
-  getCommentTranslations
+  translateComment, getCommentTranslations,
+  reactToComment, unreactToComment, uploadCommentImage
 } = require('../controllers/comments');
 const advancedResults = require('../middleware/advancedResults');
 const { protect, authorize, authorizeComment} = require('../middleware/auth');
@@ -25,6 +25,15 @@ router.route('/:id')
 
 // Like/unlike a comment
 router.route('/:id/like').post(protect, likeComment);
+
+// React/unreact to a comment
+router.route('/:id/react')
+  .post(protect, reactToComment)
+  .delete(protect, unreactToComment);
+
+// Upload image to comment
+router.route('/:id/image')
+  .put(protect, uploadSingleCompressed('image', 'bananatalk/comments'), uploadCommentImage);
 
 // Replies to a comment
 router.route('/:id/replies').get(getReplies);

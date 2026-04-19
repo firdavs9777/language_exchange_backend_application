@@ -1,13 +1,12 @@
 const mongoose = require('mongoose');
-const slugify = require('slugify');
-const ISO6391 = require('iso-639-1'); 
+const ISO6391 = require('iso-639-1');
 const MomentSchema = new mongoose.Schema({
+  // Kept as optional for backward compatibility with old app versions
   title: {
     type: String,
-    unique: false,
-    required: [true, 'Please add a title'],
     trim: true,
-    maxlength: [100, 'Title can not be more than 100 characters'] // Increased from 50
+    maxlength: [100, 'Title can not be more than 100 characters'],
+    default: ''
   },
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -73,7 +72,6 @@ const MomentSchema = new mongoose.Schema({
     index: true
   },
   deletedAt: Date,
-  slug: String,
   description: {
     type: String,
     required: [true, 'Please add a description'],
@@ -83,7 +81,8 @@ const MomentSchema = new mongoose.Schema({
   // NEW FIELDS - Phase 1
   mood: {
     type: String,
-    enum: ['happy', 'excited', 'grateful', 'motivated', 'relaxed', 'curious', ''],
+    enum: ['happy', 'excited', 'grateful', 'motivated', 'relaxed', 'curious',
+           'sad', 'love', 'funny', 'thoughtful', 'cool', 'tired', ''],
     default: ''
   },
   tags: {
@@ -93,7 +92,8 @@ const MomentSchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    enum: ['general', 'language-learning', 'culture', 'food', 'travel', 'music', 'books', 'hobbies'],
+    enum: ['general', 'language-learning', 'culture', 'food', 'travel', 'music', 'books', 'hobbies',
+           'daily-life', 'technology', 'entertainment', 'sports', 'movies', 'study', 'work', 'question'],
     default: 'general'
   },
   language: {
@@ -111,6 +111,13 @@ const MomentSchema = new mongoose.Schema({
     type: String,
     enum: ['public', 'friends', 'private'],
     default: 'public'
+  },
+  backgroundColor: {
+    type: String,
+    enum: ['', 'gradient_sunset', 'gradient_ocean', 'gradient_forest',
+           'gradient_purple', 'gradient_fire', 'gradient_midnight',
+           'gradient_candy', 'gradient_sky'],
+    default: ''
   },
 
   // EXISTING FIELDS

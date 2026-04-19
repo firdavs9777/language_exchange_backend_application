@@ -4,20 +4,22 @@ const { body } = require('express-validator');
  * Validation rules for creating a moment
  */
 exports.createMomentValidation = [
-  body('title')
-    .trim()
-    .notEmpty().withMessage('Title is required')
-    .isLength({ min: 1, max: 100 }).withMessage('Title must be between 1 and 100 characters'),
-  
   body('description')
     .trim()
     .notEmpty().withMessage('Description is required')
     .isLength({ min: 1, max: 2000 }).withMessage('Description must be between 1 and 2000 characters'),
-  
+
+  body('backgroundColor')
+    .optional({ nullable: true })
+    .isIn(['', 'gradient_sunset', 'gradient_ocean', 'gradient_forest',
+           'gradient_purple', 'gradient_fire', 'gradient_midnight',
+           'gradient_candy', 'gradient_sky']).withMessage('Invalid background color'),
+
   body('mood')
     .optional()
-    .isIn(['happy', 'excited', 'grateful', 'motivated', 'relaxed', 'curious', '']).withMessage('Invalid mood'),
-  
+    .isIn(['happy', 'excited', 'grateful', 'motivated', 'relaxed', 'curious',
+           'sad', 'love', 'funny', 'thoughtful', 'cool', 'tired', '']).withMessage('Invalid mood'),
+
   body('tags')
     .optional()
     .isArray().withMessage('Tags must be an array')
@@ -27,19 +29,20 @@ exports.createMomentValidation = [
       }
       return true;
     }),
-  
+
   body('category')
     .optional()
-    .isIn(['general', 'language-learning', 'culture', 'food', 'travel', 'music', 'books', 'hobbies']).withMessage('Invalid category'),
-  
+    .isIn(['general', 'language-learning', 'culture', 'food', 'travel', 'music', 'books', 'hobbies',
+           'daily-life', 'technology', 'entertainment', 'sports', 'movies', 'study', 'work', 'question']).withMessage('Invalid category'),
+
   body('language')
     .optional()
     .isLength({ max: 2 }).withMessage('Language code must be 2 characters (ISO639-1)'),
-  
+
   body('privacy')
     .optional()
     .isIn(['public', 'friends', 'private']).withMessage('Privacy must be public, friends, or private'),
-  
+
   body('location')
     .optional()
     .custom((location) => {
@@ -57,7 +60,7 @@ exports.createMomentValidation = [
       }
       return true;
     }),
-  
+
   body('scheduledFor')
     .optional()
     .isISO8601().withMessage('Scheduled date must be a valid ISO 8601 date')
@@ -73,20 +76,22 @@ exports.createMomentValidation = [
  * Validation rules for updating a moment
  */
 exports.updateMomentValidation = [
-  body('title')
-    .optional()
-    .trim()
-    .isLength({ min: 1, max: 100 }).withMessage('Title must be between 1 and 100 characters'),
-  
   body('description')
     .optional()
     .trim()
     .isLength({ min: 1, max: 2000 }).withMessage('Description must be between 1 and 2000 characters'),
-  
+
+  body('backgroundColor')
+    .optional({ nullable: true })
+    .isIn(['', 'gradient_sunset', 'gradient_ocean', 'gradient_forest',
+           'gradient_purple', 'gradient_fire', 'gradient_midnight',
+           'gradient_candy', 'gradient_sky']).withMessage('Invalid background color'),
+
   body('mood')
     .optional()
-    .isIn(['happy', 'excited', 'grateful', 'motivated', 'relaxed', 'curious', '']).withMessage('Invalid mood'),
-  
+    .isIn(['happy', 'excited', 'grateful', 'motivated', 'relaxed', 'curious',
+           'sad', 'love', 'funny', 'thoughtful', 'cool', 'tired', '']).withMessage('Invalid mood'),
+
   body('tags')
     .optional()
     .isArray().withMessage('Tags must be an array')
@@ -96,13 +101,13 @@ exports.updateMomentValidation = [
       }
       return true;
     }),
-  
+
   body('category')
     .optional()
-    .isIn(['general', 'language-learning', 'culture', 'food', 'travel', 'music', 'books', 'hobbies']).withMessage('Invalid category'),
-  
+    .isIn(['general', 'language-learning', 'culture', 'food', 'travel', 'music', 'books', 'hobbies',
+           'daily-life', 'technology', 'entertainment', 'sports', 'movies', 'study', 'work', 'question']).withMessage('Invalid category'),
+
   body('privacy')
     .optional()
     .isIn(['public', 'friends', 'private']).withMessage('Privacy must be public, friends, or private')
 ];
-

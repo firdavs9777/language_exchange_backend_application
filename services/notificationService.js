@@ -495,6 +495,81 @@ const sendFollowerMoment = async (momentAuthorId, momentId, momentText) => {
   }
 };
 
+/**
+ * Send notification when someone replies to a comment
+ */
+const sendCommentReply = async (parentAuthorId, replierId, momentId, replyText) => {
+  try {
+    const replier = await User.findById(replierId);
+    if (!replier) return { success: false, error: 'Replier not found' };
+
+    const notification = {
+      title: `${replier.name} replied to your comment`,
+      body: replyText.length > 100 ? replyText.substring(0, 100) + '...' : replyText,
+      data: { type: 'comment_reply', userId: replierId, momentId: momentId.toString() }
+    };
+
+    if (replier.images && replier.images.length > 0) {
+      notification.imageUrl = replier.images[0];
+    }
+
+    return await send(parentAuthorId, 'comment_reply', notification);
+  } catch (error) {
+    console.error('Error sending comment reply notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Send notification when someone reacts to a comment
+ */
+const sendCommentReaction = async (commentAuthorId, reactorId, momentId, emoji) => {
+  try {
+    const reactor = await User.findById(reactorId);
+    if (!reactor) return { success: false, error: 'Reactor not found' };
+
+    const notification = {
+      title: `${reactor.name} reacted ${emoji} to your comment`,
+      body: 'Tap to view',
+      data: { type: 'comment_reaction', userId: reactorId, momentId: momentId.toString() }
+    };
+
+    if (reactor.images && reactor.images.length > 0) {
+      notification.imageUrl = reactor.images[0];
+    }
+
+    return await send(commentAuthorId, 'comment_reaction', notification);
+  } catch (error) {
+    console.error('Error sending comment reaction notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Send notification when someone mentions a user in a comment
+ */
+const sendCommentMention = async (mentionedUserId, mentionerId, momentId, commentText) => {
+  try {
+    const mentioner = await User.findById(mentionerId);
+    if (!mentioner) return { success: false, error: 'Mentioner not found' };
+
+    const notification = {
+      title: `${mentioner.name} mentioned you in a comment`,
+      body: commentText.length > 100 ? commentText.substring(0, 100) + '...' : commentText,
+      data: { type: 'comment_mention', userId: mentionerId, momentId: momentId.toString() }
+    };
+
+    if (mentioner.images && mentioner.images.length > 0) {
+      notification.imageUrl = mentioner.images[0];
+    }
+
+    return await send(mentionedUserId, 'comment_mention', notification);
+  } catch (error) {
+    console.error('Error sending comment mention notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   send,
   sendChatMessage,
@@ -503,6 +578,9 @@ module.exports = {
   sendFriendRequest,
   sendProfileVisit,
   sendFollowerMoment,
-  sendWave
+  sendWave,
+  sendCommentReply,
+  sendCommentReaction,
+  sendCommentMention
 };
 

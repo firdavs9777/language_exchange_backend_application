@@ -152,7 +152,27 @@ const StorySchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'StoryHighlight'
   },
-  
+
+  // Flag to preserve highlighted stories past 24h expiration
+  isHighlighted: { type: Boolean, default: false },
+
+  // Text/emoji overlays (rendered client-side)
+  overlays: [{
+    type: {
+      type: String,
+      enum: ['text', 'sticker'],
+      required: true
+    },
+    content: { type: String, required: true },
+    x: { type: Number, default: 0.5 },
+    y: { type: Number, default: 0.5 },
+    scale: { type: Number, default: 1.0 },
+    rotation: { type: Number, default: 0 },
+    color: { type: String, default: '#FFFFFF' },
+    fontStyle: { type: String, default: 'sans-serif' },
+    bgMode: { type: String, enum: ['none', 'semi', 'solid'], default: 'none' }
+  }],
+
   // Archive flag (for viewing old stories)
   isArchived: { type: Boolean, default: false },
   archivedAt: Date,
@@ -277,7 +297,8 @@ StorySchema.statics.archiveExpired = async function() {
     {
       isActive: true,
       expiresAt: { $lte: now },
-      isArchived: false
+      isArchived: false,
+      isHighlighted: { $ne: true }
     },
     {
       $set: {

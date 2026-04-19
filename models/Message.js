@@ -224,6 +224,18 @@ const MessageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Message'
   },
+  // Story reaction reference (for story replies via chat)
+  storyReference: {
+    storyId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Story',
+      default: null
+    },
+    thumbnail: {
+      type: String,
+      default: null
+    }
+  },
   // Forward functionality
   forwardedFrom: {
     sender: {

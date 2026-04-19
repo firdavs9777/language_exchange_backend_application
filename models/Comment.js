@@ -43,6 +43,36 @@ const CommentSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  // Emoji reactions
+  reactions: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    emoji: {
+      type: String,
+      required: true
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  reactionCount: {
+    type: Number,
+    default: 0,
+  },
+  // @Mentions
+  mentions: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    username: String,
+    offset: Number,
+    length: Number
+  }],
   // Edit tracking
   isEdited: {
     type: Boolean,
