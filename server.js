@@ -17,6 +17,7 @@ const passport = require('passport');
 const bodyParser = require('body-parser');
 const { Server } = require('socket.io');
 const { initializeSocket } = require('./socket/socketHandler');
+const { initializeFitBowlSocket } = require('./socket/fitbowlHandler');
 
 // Load environment variables
 dotenv.config({ path: './config/config.env' });
@@ -48,6 +49,17 @@ const lessonBuilder = require('./routes/lessonBuilder');
 const calls = require('./routes/calls');
 const leaderboard = require('./routes/leaderboard');
 const matching = require('./routes/matching');
+
+// FitBowl Route files
+const fitbowlAuth = require('./routes/fitbowl/auth');
+const fitbowlMenu = require('./routes/fitbowl/menu');
+const fitbowlCategories = require('./routes/fitbowl/categories');
+const fitbowlCart = require('./routes/fitbowl/cart');
+const fitbowlOrders = require('./routes/fitbowl/orders');
+const fitbowlAddresses = require('./routes/fitbowl/addresses');
+const fitbowlKitchen = require('./routes/fitbowl/kitchen');
+const fitbowlReviews = require('./routes/fitbowl/reviews');
+const fitbowlPromos = require('./routes/fitbowl/promos');
 
 // Initialize Express app
 const app = express();
@@ -101,6 +113,9 @@ const io = new Server(server, {
 
 // Initialize socket event handlers
 initializeSocket(io);
+
+// Initialize FitBowl socket namespace
+initializeFitBowlSocket(io);
 
 // Make io accessible to routes
 app.set('io', io);
@@ -282,6 +297,17 @@ app.use('/api/v1/calls', calls);
 app.use('/api/v1/leaderboard', leaderboard);
 app.use('/api/v1/matching', matching);
 app.use('/api/v1/analytics', require('./routes/analytics'));
+
+// FitBowl API Routes
+app.use('/api/v1/fitbowl/auth', fitbowlAuth);
+app.use('/api/v1/fitbowl/menu', fitbowlMenu);
+app.use('/api/v1/fitbowl/categories', fitbowlCategories);
+app.use('/api/v1/fitbowl/cart', fitbowlCart);
+app.use('/api/v1/fitbowl/orders', fitbowlOrders);
+app.use('/api/v1/fitbowl/addresses', fitbowlAddresses);
+app.use('/api/v1/fitbowl/kitchen', fitbowlKitchen);
+app.use('/api/v1/fitbowl/reviews', fitbowlReviews);
+app.use('/api/v1/fitbowl/promos', fitbowlPromos);
 
 // Error request logger (logs failed requests)
 app.use(errorRequestLogger);
