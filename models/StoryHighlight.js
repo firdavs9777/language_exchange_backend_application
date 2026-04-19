@@ -86,10 +86,10 @@ StoryHighlightSchema.methods.addStory = async function(storyId) {
     }
   }
   
-  // Update story's highlight reference
+  // Update story's highlight reference and preserve it
   const Story = mongoose.model('Story');
-  await Story.findByIdAndUpdate(storyId, { highlight: this._id });
-  
+  await Story.findByIdAndUpdate(storyId, { highlight: this._id, isHighlighted: true });
+
   return this.save();
 };
 
@@ -98,10 +98,10 @@ StoryHighlightSchema.methods.removeStory = async function(storyId) {
   this.stories = this.stories.filter(s => s.story.toString() !== storyId.toString());
   this.storyCount = this.stories.length;
   
-  // Clear story's highlight reference
+  // Clear story's highlight reference and allow expiration
   const Story = mongoose.model('Story');
-  await Story.findByIdAndUpdate(storyId, { $unset: { highlight: 1 } });
-  
+  await Story.findByIdAndUpdate(storyId, { $unset: { highlight: 1 }, isHighlighted: false });
+
   return this.save();
 };
 
@@ -157,6 +157,7 @@ StoryHighlightSchema.statics.createFromStory = async function(userId, storyId, t
     await highlight.save();
     
     story.highlight = highlight._id;
+    story.isHighlighted = true;
     await story.save();
   }
   
