@@ -494,17 +494,67 @@ exports.reactToStory = asyncHandler(async (req, res, next) => {
     }
     
     await story.addReaction(userId, emoji);
-    
-    // Notify story owner via socket
-    const io = req.app.get('io');
-    if (io && story.user.toString() !== userId) {
-      io.to(`user_${story.user}`).emit('storyReaction', {
-        storyId: story._id,
-        reaction: { user: userId, emoji },
-        reactionCount: story.reactionCount
+
+    // Also send reaction as a DM message (Instagram-style)
+    if (story.user.toString() !== userId) {
+      const dmMessage = await Message.create({
+        sender: userId,
+        receiver: story.user,
+        message: emoji,
+        storyReference: {
+          storyId: story._id,
+          thumbnail: story.mediaUrls?.[0] || story.mediaUrl || null
+        },
+        messageType: 'text'
       });
+
+      // Update conversation lastMessage
+      const Conversation = require('../models/Conversation');
+      const conversation = await Conversation.findOne({
+        participants: { $all: [userId, story.user.toString()] },
+        isGroup: false
+      });
+      if (conversation) {
+        conversation.lastMessage = dmMessage._id;
+        conversation.lastMessageAt = new Date();
+        await conversation.save();
+      }
+
+      // Populate for socket
+      await dmMessage.populate('sender', 'name images userMode');
+      await dmMessage.populate('receiver', 'name images userMode');
+
+      // Notify via socket
+      const io = req.app.get('io');
+      if (io) {
+        const receiverRoom = `user_${story.user}`;
+
+        io.to(receiverRoom).emit('storyReaction', {
+          storyId: story._id,
+          reaction: { user: userId, emoji },
+          reactionCount: story.reactionCount
+        });
+
+        // Emit as standard newMessage so chat list updates
+        io.to(receiverRoom).emit('newMessage', {
+          message: dmMessage,
+          senderId: userId,
+          isStoryReaction: true,
+          storyId: story._id
+        });
+      }
+    } else {
+      // Self-reaction, just notify via socket
+      const io = req.app.get('io');
+      if (io) {
+        io.to(`user_${story.user}`).emit('storyReaction', {
+          storyId: story._id,
+          reaction: { user: userId, emoji },
+          reactionCount: story.reactionCount
+        });
+      }
     }
-    
+
     res.status(200).json({
       success: true,
       data: {
@@ -605,16 +655,18 @@ exports.replyToStory = asyncHandler(async (req, res, next) => {
       }
     }
     
-    // Create DM message
+    // Create DM message with story reference
     const dmMessage = await Message.create({
       sender: userId,
       receiver: story.user._id,
       message: message,
-      // Reference to story
-      replyTo: null, // Could add story reference here
+      storyReference: {
+        storyId: story._id,
+        thumbnail: story.mediaUrls?.[0] || story.mediaUrl || null
+      },
       messageType: 'text'
     });
-    
+
     // Add to story replies
     story.replies.push({
       user: userId,
@@ -623,21 +675,36 @@ exports.replyToStory = asyncHandler(async (req, res, next) => {
     });
     story.replyCount = story.replies.length;
     await story.save();
-    
+
+    // Update conversation lastMessage
+    const Conversation = require('../models/Conversation');
+    let conversation = await Conversation.findOne({
+      participants: { $all: [userId, story.user._id] },
+      isGroup: false
+    });
+    if (conversation) {
+      conversation.lastMessage = dmMessage._id;
+      conversation.lastMessageAt = new Date();
+      await conversation.save();
+    }
+
     // Populate for response
     await dmMessage.populate('sender', 'name images userMode');
-    
+    await dmMessage.populate('receiver', 'name images userMode');
+
     // Notify story owner via socket
     const io = req.app.get('io');
     if (io && story.user._id.toString() !== userId) {
-      io.to(`user_${story.user._id}`).emit('storyReply', {
+      const receiverRoom = `user_${story.user._id}`;
+
+      io.to(receiverRoom).emit('storyReply', {
         storyId: story._id,
         message: dmMessage,
         replyCount: story.replyCount
       });
-      
-      // Also send as new message
-      io.to(`user_${story.user._id}`).emit('newMessage', {
+
+      // Emit as standard newMessage so chat list updates
+      io.to(receiverRoom).emit('newMessage', {
         message: dmMessage,
         senderId: userId,
         isStoryReply: true,
