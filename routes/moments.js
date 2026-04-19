@@ -21,7 +21,9 @@ const {
   getTrendingMoments,
   exploreMoments,
   translateMoment,
-  getMomentTranslations
+  getMomentTranslations,
+  reactToMoment,
+  unreactToMoment
 } = require('../controllers/moments');
 const { validate } = require('../middleware/validation');
 const { createMomentValidation, updateMomentValidation } = require('../validators/momentValidator');
@@ -80,6 +82,7 @@ router.route('/:id/like').post(protect, interactionLimiter, likeMoment);
 router.route('/:id/dislike').post(protect, interactionLimiter, dislikeMoment);
 router.route('/:id/save').post(protect, interactionLimiter, saveMoment).delete(protect, interactionLimiter, unsaveMoment);
 router.route('/:id/share').post(protect, interactionLimiter, shareMoment);
+router.route('/:id/react').post(protect, interactionLimiter, reactToMoment).delete(protect, unreactToMoment);
 router.route('/:id/report').post(protect, reportLimiter, reportMoment);
 
 // Translation

@@ -986,6 +986,90 @@ exports.shareMoment = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    React to a moment with emoji
+ * @route   POST /api/v1/moments/:id/react
+ * @access  Private
+ */
+exports.reactToMoment = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
+
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  const userId = req.user._id.toString();
+  const { emoji } = req.body;
+
+  if (!emoji) {
+    return next(new ErrorResponse('Emoji is required', 400));
+  }
+
+  if (!moment.reactions) moment.reactions = [];
+
+  const existingIndex = moment.reactions.findIndex(
+    r => r.user.toString() === userId
+  );
+
+  if (existingIndex !== -1) {
+    if (moment.reactions[existingIndex].emoji === emoji) {
+      // Same emoji — toggle off
+      moment.reactions.splice(existingIndex, 1);
+    } else {
+      // Different emoji — replace
+      moment.reactions[existingIndex].emoji = emoji;
+      moment.reactions[existingIndex].createdAt = new Date();
+    }
+  } else {
+    // New reaction
+    moment.reactions.push({ user: userId, emoji, createdAt: new Date() });
+  }
+
+  moment.reactionCount = moment.reactions.length;
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      reactions: moment.reactions,
+      reactionCount: moment.reactionCount
+    }
+  });
+});
+
+/**
+ * @desc    Remove reaction from moment
+ * @route   DELETE /api/v1/moments/:id/react
+ * @access  Private
+ */
+exports.unreactToMoment = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
+
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  const userId = req.user._id.toString();
+
+  if (!moment.reactions) moment.reactions = [];
+
+  moment.reactions = moment.reactions.filter(
+    r => r.user.toString() !== userId
+  );
+  moment.reactionCount = moment.reactions.length;
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      reactions: moment.reactions,
+      reactionCount: moment.reactionCount
+    }
+  });
+});
+
+/**
  * @desc    Get trending moments (most liked/commented in last 7 days)
  * @route   GET /api/v1/moments/trending
  * @access  Public

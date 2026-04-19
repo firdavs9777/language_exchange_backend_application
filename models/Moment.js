@@ -29,6 +29,26 @@ const MomentSchema = new mongoose.Schema({
     type: [mongoose.Schema.Types.ObjectId],
     ref: 'User'
   },
+  // Emoji reactions
+  reactions: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    emoji: {
+      type: String,
+      required: true
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  reactionCount: {
+    type: Number,
+    default: 0
+  },
   // Saved/bookmarked moments
   savedBy: [{
     type: mongoose.Schema.Types.ObjectId,
