@@ -110,6 +110,7 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
   const { nativeLanguage, learningLanguage, matchLanguage } = req.query;
 
   if (matchLanguage === 'true' && (nativeLanguage || learningLanguage)) {
+    // Language exchange matching: find complementary partners
     const languageConditions = [];
 
     // Find users whose native language matches what I'm learning
@@ -128,6 +129,14 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
 
     if (languageConditions.length > 0) {
       query.$or = languageConditions;
+    }
+  } else {
+    // Direct language filtering: find users with exact native/learning language
+    if (nativeLanguage) {
+      query.native_language = { $regex: new RegExp(nativeLanguage, 'i') };
+    }
+    if (learningLanguage) {
+      query.language_to_learn = { $regex: new RegExp(learningLanguage, 'i') };
     }
   }
 
