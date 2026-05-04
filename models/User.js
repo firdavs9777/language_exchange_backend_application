@@ -154,6 +154,20 @@ const UserSchema = new mongoose.Schema({
     }
   },
 
+  quietHours: {
+    enabled: { type: Boolean, default: false },
+    start: { type: String, default: '22:00' },
+    end: { type: String, default: '08:00' },
+    timezone: { type: String, default: 'Asia/Seoul' },
+    allowUrgent: { type: Boolean, default: true },
+  },
+  notificationCounters: {
+    daily: { type: Map, of: Number, default: () => new Map() },
+    weekly: { type: Map, of: Number, default: () => new Map() },
+    dailyResetAt: { type: Date, default: null },
+    weeklyResetAt: { type: Date, default: null },
+  },
+
   // BADGE COUNTS
   badges: {
     unreadMessages: {
