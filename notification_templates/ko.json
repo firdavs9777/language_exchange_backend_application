@@ -1,0 +1,54 @@
+{
+  "chat_message": {
+    "title": "{senderName}",
+    "body": "{message}"
+  },
+  "moment_like_single": {
+    "title": "❤️ {actorName}",
+    "body": "님이 회원님의 모먼트를 좋아합니다"
+  },
+  "moment_like_bundle": {
+    "title": "❤️ {actorName}님 외 {othersCount}명",
+    "body": "회원님의 모먼트를 좋아합니다"
+  },
+  "moment_comment": {
+    "title": "💬 {actorName}",
+    "body": "님의 댓글: {snippet}"
+  },
+  "comment_reply": {
+    "title": "↩️ {actorName}님이 답글을 남겼습니다",
+    "body": "{snippet}"
+  },
+  "comment_reaction": {
+    "title": "{emoji} {actorName}님이 반응했습니다",
+    "body": "탭하여 보기"
+  },
+  "comment_mention": {
+    "title": "@ {actorName}님이 회원님을 언급했습니다",
+    "body": "{snippet}"
+  },
+  "friend_request_single": {
+    "title": "👋 {actorName}",
+    "body": "님이 회원님을 팔로우합니다"
+  },
+  "friend_request_bundle": {
+    "title": "👋 새 팔로워 {count}명",
+    "body": "탭하여 확인"
+  },
+  "profile_visit_single": {
+    "title": "👀 {actorName}님이 프로필을 봤습니다",
+    "body": "탭하여 확인"
+  },
+  "profile_visit_bundle": {
+    "title": "👀 새 방문자 {count}명",
+    "body": "누가 관심을 보였는지 확인하세요"
+  },
+  "follower_moment_single": {
+    "title": "📸 {actorName}님이 모먼트를 공유했습니다",
+    "body": "탭하여 보기"
+  },
+  "follower_moment_bundle": {
+    "title": "📸 {actorName}님 외 {othersCount}명이 모먼트를 공유했습니다",
+    "body": "탭하여 보기"
+  }
+}

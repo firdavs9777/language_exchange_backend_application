@@ -1,0 +1,15 @@
+{
+  "chat_message": { "title": "{senderName}", "body": "{message}" },
+  "moment_like_single": { "title": "❤️ {actorName}", "body": "さんがあなたのモーメントにいいねしました" },
+  "moment_like_bundle": { "title": "❤️ {actorName}さん 他{othersCount}名", "body": "があなたのモーメントにいいねしました" },
+  "moment_comment": { "title": "💬 {actorName}", "body": "さんからコメント: {snippet}" },
+  "comment_reply": { "title": "↩️ {actorName}さんが返信", "body": "{snippet}" },
+  "comment_reaction": { "title": "{emoji} {actorName}さんがリアクション", "body": "タップして表示" },
+  "comment_mention": { "title": "@ {actorName}さんがあなたをメンションしました", "body": "{snippet}" },
+  "friend_request_single": { "title": "👋 {actorName}", "body": "さんがあなたをフォローしました" },
+  "friend_request_bundle": { "title": "👋 新しいフォロワー {count}人", "body": "タップして確認" },
+  "profile_visit_single": { "title": "👀 {actorName}さんがプロフィールを見ました", "body": "タップして確認" },
+  "profile_visit_bundle": { "title": "👀 新しい訪問者 {count}人", "body": "誰が興味を持っているか確認" },
+  "follower_moment_single": { "title": "📸 {actorName}さんがモーメントを投稿", "body": "タップして表示" },
+  "follower_moment_bundle": { "title": "📸 {actorName}さん 他{othersCount}名がモーメントを投稿", "body": "タップして表示" }
+}
