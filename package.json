@@ -10,7 +10,8 @@
     "migrate:profile-visitors": "node migrations/addProfileVisitorFields.js",
     "migrate:chat-indexes": "node migrations/addChatIndexes.js",
     "migrate:chat-performance": "node migrations/addChatPerformanceIndexes.js",
-    "migrate:leaderboard-indexes": "node migrations/addLeaderboardMatchingIndexes.js"
+    "migrate:leaderboard-indexes": "node migrations/addLeaderboardMatchingIndexes.js",
+    "migrate:notif-v2-c1": "node migrations/addQuietHoursAndCounters.js"
   },
   "author": "Firdavs Mutalipov",
   "license": "ISC",
