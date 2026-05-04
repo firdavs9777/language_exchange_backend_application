@@ -3,6 +3,7 @@ const Notification = require('../models/Notification');
 const fcmService = require('./fcmService');
 const templates = require('../utils/notificationTemplates');
 const templateService = require('./notificationTemplateService');
+const bundlingService = require('./notificationBundlingService');
 
 /**
  * Notification Service
@@ -161,33 +162,52 @@ const sendMomentLike = async (momentOwnerId, likerId, momentId) => {
       User.findById(momentOwnerId),
     ]);
 
-    if (!liker || !moment) {
-      return { success: false, error: 'Liker or moment not found' };
+    if (!liker || !moment || !owner) {
+      return { success: false, error: 'Liker, moment, or owner not found' };
     }
 
-    const { title, body } = templateService.render(
-      'moment_like_single',
-      owner?.preferredLocale || 'en',
-      { actorName: liker.name },
+    await bundlingService.collect(
+      String(momentOwnerId),
+      'moment_like',
+      {
+        momentId: String(momentId),
+        actorId: String(likerId),
+        actorName: liker.name,
+        likerImage: liker.images && liker.images.length > 0 ? liker.images[0] : null,
+      },
+      async (bundle) => {
+        const tplKey = bundle.count > 1 ? 'moment_like_bundle' : 'moment_like_single';
+        const { title, body } = templateService.render(
+          tplKey,
+          owner.preferredLocale || 'en',
+          {
+            actorName: bundle.vars.actorName,
+            othersCount: Math.max(bundle.count - 1, 0),
+          },
+        );
+
+        const notification = {
+          title,
+          body,
+          data: {
+            type: 'moment_like',
+            userId: likerId,
+            momentId: String(momentId),
+            screen: 'moment_detail',
+            bundleSize: bundle.count,
+            bundleActors: bundle.actorIds,
+          },
+        };
+
+        if (bundle.vars.likerImage) {
+          notification.imageUrl = bundle.vars.likerImage;
+        }
+
+        await send(String(momentOwnerId), 'moment_like', notification);
+      },
     );
 
-    const notification = {
-      title,
-      body,
-      data: {
-        type: 'moment_like',
-        userId: likerId,
-        momentId: momentId.toString(),
-        screen: 'moment_detail',
-      },
-    };
-
-    // Add liker's image
-    if (liker.images && liker.images.length > 0) {
-      notification.imageUrl = liker.images[0];
-    }
-
-    return await send(momentOwnerId, 'moment_like', notification);
+    return { success: true, bundled: true };
   } catch (error) {
     console.error('❌ Error sending moment like notification:', error);
     return { success: false, error: error.message };
@@ -261,32 +281,50 @@ const sendFriendRequest = async (recipientId, requesterId) => {
       User.findById(recipientId),
     ]);
 
-    if (!requester) {
-      return { success: false, error: 'Requester not found' };
+    if (!requester || !recipient) {
+      return { success: false, error: 'Requester or recipient not found' };
     }
 
-    const { title, body } = templateService.render(
-      'friend_request_single',
-      recipient?.preferredLocale || 'en',
-      { actorName: requester.name },
+    await bundlingService.collect(
+      String(recipientId),
+      'friend_request',
+      {
+        actorId: String(requesterId),
+        actorName: requester.name,
+        requesterImage: requester.images && requester.images.length > 0 ? requester.images[0] : null,
+      },
+      async (bundle) => {
+        const tplKey = bundle.count > 1 ? 'friend_request_bundle' : 'friend_request_single';
+        const { title, body } = templateService.render(
+          tplKey,
+          recipient.preferredLocale || 'en',
+          {
+            actorName: bundle.vars.actorName,
+            count: bundle.count,
+          },
+        );
+
+        const notification = {
+          title,
+          body,
+          data: {
+            type: 'friend_request',
+            userId: requesterId,
+            screen: 'profile',
+            bundleSize: bundle.count,
+            bundleActors: bundle.actorIds,
+          },
+        };
+
+        if (bundle.vars.requesterImage) {
+          notification.imageUrl = bundle.vars.requesterImage;
+        }
+
+        await send(String(recipientId), 'friend_request', notification);
+      },
     );
 
-    const notification = {
-      title,
-      body,
-      data: {
-        type: 'friend_request',
-        userId: requesterId,
-        screen: 'profile',
-      },
-    };
-
-    // Add requester's image
-    if (requester.images && requester.images.length > 0) {
-      notification.imageUrl = requester.images[0];
-    }
-
-    return await send(recipientId, 'friend_request', notification);
+    return { success: true, bundled: true };
   } catch (error) {
     console.error('❌ Error sending friend request notification:', error);
     return { success: false, error: error.message };
@@ -306,32 +344,50 @@ const sendProfileVisit = async (profileOwnerId, visitorId) => {
       User.findById(profileOwnerId),
     ]);
 
-    if (!visitor) {
-      return { success: false, error: 'Visitor not found' };
+    if (!visitor || !profileOwner) {
+      return { success: false, error: 'Visitor or profile owner not found' };
     }
 
-    const { title, body } = templateService.render(
-      'profile_visit_single',
-      profileOwner?.preferredLocale || 'en',
-      { actorName: visitor.name },
+    await bundlingService.collect(
+      String(profileOwnerId),
+      'profile_visit',
+      {
+        actorId: String(visitorId),
+        actorName: visitor.name,
+        visitorImage: visitor.images && visitor.images.length > 0 ? visitor.images[0] : null,
+      },
+      async (bundle) => {
+        const tplKey = bundle.count > 1 ? 'profile_visit_bundle' : 'profile_visit_single';
+        const { title, body } = templateService.render(
+          tplKey,
+          profileOwner.preferredLocale || 'en',
+          {
+            actorName: bundle.vars.actorName,
+            count: bundle.count,
+          },
+        );
+
+        const notification = {
+          title,
+          body,
+          data: {
+            type: 'profile_visit',
+            userId: visitorId,
+            screen: 'profile',
+            bundleSize: bundle.count,
+            bundleActors: bundle.actorIds,
+          },
+        };
+
+        if (bundle.vars.visitorImage) {
+          notification.imageUrl = bundle.vars.visitorImage;
+        }
+
+        await send(String(profileOwnerId), 'profile_visit', notification);
+      },
     );
 
-    const notification = {
-      title,
-      body,
-      data: {
-        type: 'profile_visit',
-        userId: visitorId,
-        screen: 'profile',
-      },
-    };
-
-    // Add visitor's image
-    if (visitor.images && visitor.images.length > 0) {
-      notification.imageUrl = visitor.images[0];
-    }
-
-    return await send(profileOwnerId, 'profile_visit', notification);
+    return { success: true, bundled: true };
   } catch (error) {
     console.error('❌ Error sending profile visit notification:', error);
     return { success: false, error: error.message };
@@ -480,7 +536,9 @@ const _saveToHistory = async (userId, type, title, body, data = {}, imageUrl = n
       title,
       body,
       imageUrl,
-      data
+      data,
+      bundleSize: data.bundleSize || 1,
+      bundleActors: Array.isArray(data.bundleActors) ? data.bundleActors : [],
     });
 
     return notification;
@@ -518,33 +576,51 @@ const sendFollowerMoment = async (momentAuthorId, momentId, momentText) => {
           return;
         }
 
-        const { title, body } = templateService.render(
-          'follower_moment_single',
-          follower.preferredLocale || 'en',
-          { actorName: author.name },
+        const followerLocale = follower.preferredLocale || 'en';
+        const authorImage = author.images && author.images.length > 0 ? author.images[0] : null;
+
+        await bundlingService.collect(
+          String(follower._id),
+          'follower_moment',
+          {
+            momentId: String(momentId),
+            actorId: String(momentAuthorId),
+            actorName: author.name,
+            authorImage,
+          },
+          async (bundle) => {
+            const tplKey = bundle.count > 1 ? 'follower_moment_bundle' : 'follower_moment_single';
+            const { title, body } = templateService.render(
+              tplKey,
+              followerLocale,
+              {
+                actorName: bundle.vars.actorName,
+                othersCount: Math.max(bundle.count - 1, 0),
+              },
+            );
+
+            const notification = {
+              title,
+              body,
+              data: {
+                type: 'follower_moment',
+                userId: momentAuthorId,
+                momentId: String(momentId),
+                screen: 'moment_detail',
+                bundleSize: bundle.count,
+                bundleActors: bundle.actorIds,
+              },
+            };
+
+            if (bundle.vars.authorImage) {
+              notification.imageUrl = bundle.vars.authorImage;
+            }
+
+            await send(String(follower._id), 'follower_moment', notification);
+          },
         );
 
-        const notification = {
-          title,
-          body,
-          data: {
-            type: 'follower_moment',
-            userId: momentAuthorId,
-            momentId: momentId.toString(),
-            screen: 'moment_detail',
-          },
-        };
-
-        // Add author's image if available
-        if (author.images && author.images.length > 0) {
-          notification.imageUrl = author.images[0];
-        }
-
-        const result = await send(follower._id.toString(), 'follower_moment', notification);
-
-        if (result.success && !result.skipped) {
-          sentCount++;
-        }
+        sentCount++;
       } catch (error) {
         console.error(`❌ Error sending follower moment notification to ${follower._id}:`, error);
         failedCount++;

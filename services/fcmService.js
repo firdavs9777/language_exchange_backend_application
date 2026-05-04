@@ -92,6 +92,8 @@ const sendToUser = async (userId, notification, data = {}) => {
         body: notification.body,
         data: { ...data, originalType: type || 'unknown' },
         suppressedReason: 'quiet_hours',
+        bundleSize: data.bundleSize || 1,
+        bundleActors: Array.isArray(data.bundleActors) ? data.bundleActors : [],
         sentAt: new Date(),
       });
       console.log(`🔕 Suppressed ${type || 'unknown'} push to user ${userId} (quiet hours)`);
@@ -107,6 +109,8 @@ const sendToUser = async (userId, notification, data = {}) => {
         body: notification.body,
         data: { ...data, originalType: NOTIFICATION_TYPE_ENUM.has(type) ? undefined : type },
         suppressedReason: 'frequency_cap',
+        bundleSize: data.bundleSize || 1,
+        bundleActors: Array.isArray(data.bundleActors) ? data.bundleActors : [],
         sentAt: new Date(),
       });
       console.log(`🚦 Suppressed ${type || 'unknown'} push to user ${userId} (frequency cap)`);
