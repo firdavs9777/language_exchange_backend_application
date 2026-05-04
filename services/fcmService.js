@@ -15,6 +15,30 @@ const NOTIFICATION_TYPE_ENUM = new Set([
   'system',
 ]);
 
+// Maps each notification type to the iOS UNNotificationCategory the client
+// has registered (see notification_service.dart). The category drives which
+// action buttons the system shows on the notification (e.g. inline-reply for
+// chat). Types not listed here keep their default category and no actions.
+const TYPE_TO_CATEGORY = {
+  chat_message: 'CHAT_MESSAGE',
+  moment_like: 'MOMENT_SOCIAL',
+  moment_comment: 'MOMENT_SOCIAL',
+  follower_moment: 'MOMENT_SOCIAL',
+  friend_request: 'PROFILE_SOCIAL',
+  profile_visit: 'PROFILE_SOCIAL',
+};
+
+// Android equivalent of the iOS category actions. FCM passes
+// `android.notification.actions` directly to the system tray on Android 7+.
+const ANDROID_ACTIONS = {
+  CHAT_MESSAGE: [
+    { action: 'reply', title: 'Reply' },
+    { action: 'view', title: 'View' },
+  ],
+  MOMENT_SOCIAL: [{ action: 'view', title: 'View' }],
+  PROFILE_SOCIAL: [{ action: 'profile', title: 'View Profile' }],
+};
+
 /**
  * Check whether a user has hit a daily or weekly cap for a notification type.
  * @param {Object} user - User document (Mongoose doc or plain object for tests)
@@ -354,6 +378,23 @@ const _buildMessage = (token, notification, data, platform, badges = {}) => {
         }
       }
     };
+  }
+
+  // Wire notification action buttons per notification type.
+  // - iOS: APNS category must match a UNNotificationCategory the client has
+  //   registered locally (CHAT_MESSAGE / MOMENT_SOCIAL / PROFILE_SOCIAL).
+  // - Android: the equivalent action list is sent inline via FCM.
+  // Additive only — types not in TYPE_TO_CATEGORY keep the existing default.
+  const category = TYPE_TO_CATEGORY[data && data.type];
+  if (category) {
+    message.apns = message.apns || { payload: { aps: {} } };
+    message.apns.payload = message.apns.payload || { aps: {} };
+    message.apns.payload.aps = message.apns.payload.aps || {};
+    message.apns.payload.aps.category = category;
+
+    message.android = message.android || { notification: {} };
+    message.android.notification = message.android.notification || {};
+    message.android.notification.actions = ANDROID_ACTIONS[category];
   }
 
   return message;
