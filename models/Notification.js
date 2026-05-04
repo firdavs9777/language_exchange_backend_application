@@ -58,7 +58,9 @@ const NotificationSchema = new mongoose.Schema({
     type: String,
     enum: ['quiet_hours', 'frequency_cap', null],
     default: null
-  }
+  },
+  bundleSize: { type: Number, default: 1 },
+  bundleActors: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 });
 
 // Compound index for efficient queries
