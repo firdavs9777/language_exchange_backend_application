@@ -115,15 +115,32 @@ exports.removeToken = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.getSettings = asyncHandler(async (req, res, next) => {
-  const user = await User.findById(req.user.id);
+  const user = await User.findById(req.user.id).select('notificationSettings quietHours');
 
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
   }
 
+  const quietHours = (user.quietHours && user.quietHours.toObject)
+    ? user.quietHours.toObject()
+    : (user.quietHours || {
+        enabled: false,
+        start: '22:00',
+        end: '08:00',
+        timezone: 'Asia/Seoul',
+        allowUrgent: true,
+      });
+
+  const settings = (user.notificationSettings && user.notificationSettings.toObject)
+    ? user.notificationSettings.toObject()
+    : (user.notificationSettings || {});
+
   res.status(200).json({
     success: true,
-    data: user.notificationSettings
+    data: {
+      ...settings,
+      quietHours,
+    }
   });
 });
 
@@ -134,7 +151,7 @@ exports.getSettings = asyncHandler(async (req, res, next) => {
  */
 exports.updateSettings = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
-  const settings = req.body;
+  const { quietHours, ...settings } = req.body;
 
   // Build update object
   const updateFields = {};
@@ -148,6 +165,22 @@ exports.updateSettings = asyncHandler(async (req, res, next) => {
       updateFields[`notificationSettings.${field}`] = settings[field];
     }
   });
+
+  // Validate and apply quietHours
+  if (quietHours && typeof quietHours === 'object') {
+    const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
+    if (quietHours.start !== undefined && !HHMM.test(quietHours.start)) {
+      return next(new ErrorResponse('Invalid quietHours.start; use HH:mm', 400));
+    }
+    if (quietHours.end !== undefined && !HHMM.test(quietHours.end)) {
+      return next(new ErrorResponse('Invalid quietHours.end; use HH:mm', 400));
+    }
+    for (const k of ['enabled', 'start', 'end', 'timezone', 'allowUrgent']) {
+      if (quietHours[k] !== undefined) {
+        updateFields[`quietHours.${k}`] = quietHours[k];
+      }
+    }
+  }
 
   const user = await User.findByIdAndUpdate(
     userId,
@@ -164,7 +197,14 @@ exports.updateSettings = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: 'Notification settings updated successfully',
-    data: user.notificationSettings
+    data: {
+      ...(user.notificationSettings && user.notificationSettings.toObject
+        ? user.notificationSettings.toObject()
+        : user.notificationSettings || {}),
+      quietHours: user.quietHours && user.quietHours.toObject
+        ? user.quietHours.toObject()
+        : user.quietHours,
+    }
   });
 });
 
