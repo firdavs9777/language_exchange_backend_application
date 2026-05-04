@@ -1,5 +1,18 @@
 const admin = require('../config/firebase');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
+const { isInQuietHours } = require('../lib/quietHours');
+
+const URGENT_TYPES = new Set(['incoming_call', 'missed_call']);
+const NOTIFICATION_TYPE_ENUM = new Set([
+  'chat_message',
+  'moment_like',
+  'moment_comment',
+  'friend_request',
+  'profile_visit',
+  'follower_moment',
+  'system',
+]);
 
 /**
  * FCM Service
@@ -16,10 +29,31 @@ const User = require('../models/User');
 const sendToUser = async (userId, notification, data = {}) => {
   try {
     const user = await User.findById(userId);
-    
+
     if (!user) {
       console.error(`❌ User ${userId} not found`);
       return { success: false, error: 'User not found' };
+    }
+
+    // Quiet-hours gate
+    const type = data && data.type;
+    if (
+      isInQuietHours(user, new Date()) &&
+      !URGENT_TYPES.has(type) &&
+      !(user.quietHours && user.quietHours.allowUrgent && type === 'chat_message' /* TODO: VIP-partner gating in C2 */)
+    ) {
+      const auditType = NOTIFICATION_TYPE_ENUM.has(type) ? type : 'system';
+      await Notification.create({
+        userId,
+        type: auditType,
+        title: notification.title,
+        body: notification.body,
+        data: { ...data, originalType: type || 'unknown' },
+        suppressedReason: 'quiet_hours',
+        sentAt: new Date(),
+      });
+      console.log(`🔕 Suppressed ${type || 'unknown'} push to user ${userId} (quiet hours)`);
+      return { suppressed: true, reason: 'quiet_hours' };
     }
 
     // Get active FCM tokens
