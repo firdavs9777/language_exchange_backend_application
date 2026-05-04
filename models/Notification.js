@@ -53,6 +53,11 @@ const NotificationSchema = new mongoose.Schema({
     type: Date,
     default: () => new Date(+new Date() + 30 * 24 * 60 * 60 * 1000), // 30 days
     index: true
+  },
+  suppressedReason: {
+    type: String,
+    enum: ['quiet_hours', 'frequency_cap', null],
+    default: null
   }
 });
 
