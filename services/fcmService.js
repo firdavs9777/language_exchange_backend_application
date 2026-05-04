@@ -2,6 +2,7 @@ const admin = require('../config/firebase');
 const User = require('../models/User');
 const Notification = require('../models/Notification');
 const { isInQuietHours } = require('../lib/quietHours');
+const caps = require('../config/notificationCaps');
 
 const URGENT_TYPES = new Set(['incoming_call', 'missed_call']);
 const NOTIFICATION_TYPE_ENUM = new Set([
@@ -13,6 +14,47 @@ const NOTIFICATION_TYPE_ENUM = new Set([
   'follower_moment',
   'system',
 ]);
+
+/**
+ * Check whether a user has hit a daily or weekly cap for a notification type.
+ * @param {Object} user - User document (Mongoose doc or plain object for tests)
+ * @param {String} type - Notification type
+ * @returns {Boolean}
+ */
+function isCapped(user, type) {
+  if (!user || !user.notificationCounters) return false;
+  const dailyCap = caps.daily[type];
+  const weeklyCap = caps.weekly[type];
+  // Mongoose Map exposes .get(key); plain objects fall back to bracket access for tests.
+  const readCount = (counter, key) => {
+    if (!counter) return 0;
+    if (typeof counter.get === 'function') return counter.get(key) ?? 0;
+    return counter[key] ?? 0;
+  };
+  if (dailyCap !== undefined) {
+    if (readCount(user.notificationCounters.daily, type) >= dailyCap) return true;
+  }
+  if (weeklyCap !== undefined) {
+    if (readCount(user.notificationCounters.weekly, type) >= weeklyCap) return true;
+  }
+  return false;
+}
+
+/**
+ * Increment per-type daily/weekly counters after a successful send.
+ * No-op for types not listed in the caps config.
+ */
+async function recordSend(userId, type) {
+  const update = {};
+  if (caps.daily[type] !== undefined) {
+    update[`notificationCounters.daily.${type}`] = 1;
+  }
+  if (caps.weekly[type] !== undefined) {
+    update[`notificationCounters.weekly.${type}`] = 1;
+  }
+  if (Object.keys(update).length === 0) return;
+  await User.updateOne({ _id: userId }, { $inc: update });
+}
 
 /**
  * FCM Service
@@ -56,6 +98,21 @@ const sendToUser = async (userId, notification, data = {}) => {
       return { suppressed: true, reason: 'quiet_hours' };
     }
 
+    // Frequency cap gate
+    if (isCapped(user, type)) {
+      await Notification.create({
+        userId,
+        type: NOTIFICATION_TYPE_ENUM.has(type) ? type : 'system',
+        title: notification.title,
+        body: notification.body,
+        data: { ...data, originalType: NOTIFICATION_TYPE_ENUM.has(type) ? undefined : type },
+        suppressedReason: 'frequency_cap',
+        sentAt: new Date(),
+      });
+      console.log(`🚦 Suppressed ${type || 'unknown'} push to user ${userId} (frequency cap)`);
+      return { suppressed: true, reason: 'frequency_cap' };
+    }
+
     // Get active FCM tokens
     const activeTokens = user.fcmTokens.filter(t => t.active);
     
@@ -77,7 +134,16 @@ const sendToUser = async (userId, notification, data = {}) => {
     }
 
     console.log(`✅ Sent notification to user ${userId}: ${response.successCount} delivered, ${response.failureCount} failed`);
-    
+
+    // Record send for frequency cap accounting (only on actual delivery)
+    if (response.successCount > 0) {
+      try {
+        await recordSend(userId, type);
+      } catch (err) {
+        console.error(`⚠️ Failed to record send counter for user ${userId}:`, err);
+      }
+    }
+
     return {
       success: true,
       delivered: response.successCount,
@@ -347,6 +413,8 @@ module.exports = {
   sendToUsers,
   sendToTopic,
   subscribeToTopic,
-  unsubscribeFromTopic
+  unsubscribeFromTopic,
+  isCapped,
+  recordSend
 };
 
