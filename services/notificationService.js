@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Notification = require('../models/Notification');
 const fcmService = require('./fcmService');
 const templates = require('../utils/notificationTemplates');
+const templateService = require('./notificationTemplateService');
 
 /**
  * Notification Service
@@ -75,8 +76,11 @@ const send = async (userId, type, notificationData) => {
  */
 const sendChatMessage = async (recipientId, senderId, message) => {
   try {
-    const sender = await User.findById(senderId);
-    
+    const [sender, recipient] = await Promise.all([
+      User.findById(senderId),
+      User.findById(recipientId),
+    ]);
+
     if (!sender) {
       return { success: false, error: 'Sender not found' };
     }
@@ -99,15 +103,29 @@ const sendChatMessage = async (recipientId, senderId, message) => {
       messagePreview = 'Sent a message';
     }
 
-    const notification = templates.getChatMessageTemplate(
-      sender.name,
-      messagePreview,
-      {
+    const truncatedPreview = messagePreview.length > 100
+      ? `${messagePreview.substring(0, 100)}...`
+      : messagePreview;
+
+    const { title, body } = templateService.render(
+      'chat_message',
+      recipient?.preferredLocale || 'en',
+      { senderName: sender.name, message: truncatedPreview },
+    );
+
+    // Note: showPreview override (body -> "You have a new message") is handled
+    // centrally in send() below. Kept in English for C1 — separate concern to localize.
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'chat_message',
         senderId: senderId,
         conversationId: message.conversation?.toString() || '',
-        messageId: message._id?.toString() || ''
-      }
-    );
+        messageId: message._id?.toString() || '',
+        screen: 'chat',
+      },
+    };
 
     // Add sender's image if available
     if (sender.images && sender.images.length > 0) {
@@ -137,25 +155,32 @@ const sendChatMessage = async (recipientId, senderId, message) => {
  */
 const sendMomentLike = async (momentOwnerId, likerId, momentId) => {
   try {
-    const [liker, moment] = await Promise.all([
+    const [liker, moment, owner] = await Promise.all([
       User.findById(likerId),
-      require('../models/Moment').findById(momentId)
+      require('../models/Moment').findById(momentId),
+      User.findById(momentOwnerId),
     ]);
 
     if (!liker || !moment) {
       return { success: false, error: 'Liker or moment not found' };
     }
 
-    const momentPreview = moment.text || moment.translation || 'your moment';
-
-    const notification = templates.getMomentLikeTemplate(
-      liker.name,
-      momentPreview,
-      {
-        userId: likerId,
-        momentId: momentId.toString()
-      }
+    const { title, body } = templateService.render(
+      'moment_like_single',
+      owner?.preferredLocale || 'en',
+      { actorName: liker.name },
     );
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'moment_like',
+        userId: likerId,
+        momentId: momentId.toString(),
+        screen: 'moment_detail',
+      },
+    };
 
     // Add liker's image
     if (liker.images && liker.images.length > 0) {
@@ -179,23 +204,37 @@ const sendMomentLike = async (momentOwnerId, likerId, momentId) => {
  */
 const sendMomentComment = async (momentOwnerId, commenterId, momentId, comment) => {
   try {
-    const commenter = await User.findById(commenterId);
+    const [commenter, owner] = await Promise.all([
+      User.findById(commenterId),
+      User.findById(momentOwnerId),
+    ]);
 
     if (!commenter) {
       return { success: false, error: 'Commenter not found' };
     }
 
     const commentText = comment.text || comment.comment || 'commented on your moment';
+    const snippet = commentText.length > 80
+      ? `${commentText.substring(0, 80)}...`
+      : commentText;
 
-    const notification = templates.getMomentCommentTemplate(
-      commenter.name,
-      commentText,
-      {
+    const { title, body } = templateService.render(
+      'moment_comment',
+      owner?.preferredLocale || 'en',
+      { actorName: commenter.name, snippet },
+    );
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'moment_comment',
         userId: commenterId,
         momentId: momentId.toString(),
-        commentId: comment._id?.toString() || ''
-      }
-    );
+        commentId: comment._id?.toString() || '',
+        screen: 'moment_detail',
+      },
+    };
 
     // Add commenter's image
     if (commenter.images && commenter.images.length > 0) {
@@ -217,18 +256,30 @@ const sendMomentComment = async (momentOwnerId, commenterId, momentId, comment) 
  */
 const sendFriendRequest = async (recipientId, requesterId) => {
   try {
-    const requester = await User.findById(requesterId);
+    const [requester, recipient] = await Promise.all([
+      User.findById(requesterId),
+      User.findById(recipientId),
+    ]);
 
     if (!requester) {
       return { success: false, error: 'Requester not found' };
     }
 
-    const notification = templates.getFriendRequestTemplate(
-      requester.name,
-      {
-        userId: requesterId
-      }
+    const { title, body } = templateService.render(
+      'friend_request_single',
+      recipient?.preferredLocale || 'en',
+      { actorName: requester.name },
     );
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'friend_request',
+        userId: requesterId,
+        screen: 'profile',
+      },
+    };
 
     // Add requester's image
     if (requester.images && requester.images.length > 0) {
@@ -250,18 +301,30 @@ const sendFriendRequest = async (recipientId, requesterId) => {
  */
 const sendProfileVisit = async (profileOwnerId, visitorId) => {
   try {
-    const visitor = await User.findById(visitorId);
+    const [visitor, profileOwner] = await Promise.all([
+      User.findById(visitorId),
+      User.findById(profileOwnerId),
+    ]);
 
     if (!visitor) {
       return { success: false, error: 'Visitor not found' };
     }
 
-    const notification = templates.getProfileVisitTemplate(
-      visitor.name,
-      {
-        userId: visitorId
-      }
+    const { title, body } = templateService.render(
+      'profile_visit_single',
+      profileOwner?.preferredLocale || 'en',
+      { actorName: visitor.name },
     );
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'profile_visit',
+        userId: visitorId,
+        screen: 'profile',
+      },
+    };
 
     // Add visitor's image
     if (visitor.images && visitor.images.length > 0) {
@@ -455,14 +518,22 @@ const sendFollowerMoment = async (momentAuthorId, momentId, momentText) => {
           return;
         }
 
-        const notification = templates.getFollowerMomentTemplate(
-          author.name,
-          momentPreview,
-          {
-            userId: momentAuthorId,
-            momentId: momentId.toString()
-          }
+        const { title, body } = templateService.render(
+          'follower_moment_single',
+          follower.preferredLocale || 'en',
+          { actorName: author.name },
         );
+
+        const notification = {
+          title,
+          body,
+          data: {
+            type: 'follower_moment',
+            userId: momentAuthorId,
+            momentId: momentId.toString(),
+            screen: 'moment_detail',
+          },
+        };
 
         // Add author's image if available
         if (author.images && author.images.length > 0) {
@@ -500,12 +571,25 @@ const sendFollowerMoment = async (momentAuthorId, momentId, momentText) => {
  */
 const sendCommentReply = async (parentAuthorId, replierId, momentId, replyText) => {
   try {
-    const replier = await User.findById(replierId);
+    const [replier, parentAuthor] = await Promise.all([
+      User.findById(replierId),
+      User.findById(parentAuthorId),
+    ]);
     if (!replier) return { success: false, error: 'Replier not found' };
 
+    const snippet = replyText.length > 100
+      ? `${replyText.substring(0, 100)}...`
+      : replyText;
+
+    const { title, body } = templateService.render(
+      'comment_reply',
+      parentAuthor?.preferredLocale || 'en',
+      { actorName: replier.name, snippet },
+    );
+
     const notification = {
-      title: `${replier.name} replied to your comment`,
-      body: replyText.length > 100 ? replyText.substring(0, 100) + '...' : replyText,
+      title,
+      body,
       data: { type: 'comment_reply', userId: replierId, momentId: momentId.toString() }
     };
 
@@ -525,12 +609,21 @@ const sendCommentReply = async (parentAuthorId, replierId, momentId, replyText) 
  */
 const sendCommentReaction = async (commentAuthorId, reactorId, momentId, emoji) => {
   try {
-    const reactor = await User.findById(reactorId);
+    const [reactor, commentAuthor] = await Promise.all([
+      User.findById(reactorId),
+      User.findById(commentAuthorId),
+    ]);
     if (!reactor) return { success: false, error: 'Reactor not found' };
 
+    const { title, body } = templateService.render(
+      'comment_reaction',
+      commentAuthor?.preferredLocale || 'en',
+      { emoji, actorName: reactor.name },
+    );
+
     const notification = {
-      title: `${reactor.name} reacted ${emoji} to your comment`,
-      body: 'Tap to view',
+      title,
+      body,
       data: { type: 'comment_reaction', userId: reactorId, momentId: momentId.toString() }
     };
 
@@ -550,12 +643,25 @@ const sendCommentReaction = async (commentAuthorId, reactorId, momentId, emoji) 
  */
 const sendCommentMention = async (mentionedUserId, mentionerId, momentId, commentText) => {
   try {
-    const mentioner = await User.findById(mentionerId);
+    const [mentioner, mentionedUser] = await Promise.all([
+      User.findById(mentionerId),
+      User.findById(mentionedUserId),
+    ]);
     if (!mentioner) return { success: false, error: 'Mentioner not found' };
 
+    const snippet = commentText.length > 100
+      ? `${commentText.substring(0, 100)}...`
+      : commentText;
+
+    const { title, body } = templateService.render(
+      'comment_mention',
+      mentionedUser?.preferredLocale || 'en',
+      { actorName: mentioner.name, snippet },
+    );
+
     const notification = {
-      title: `${mentioner.name} mentioned you in a comment`,
-      body: commentText.length > 100 ? commentText.substring(0, 100) + '...' : commentText,
+      title,
+      body,
       data: { type: 'comment_mention', userId: mentionerId, momentId: momentId.toString() }
     };
 
