@@ -24,6 +24,8 @@ const { runSubscriptionExpiryJob } = require('./subscriptionExpiryJob');
 const { runAdminReportJob } = require('./adminReportJob');
 const { runWebVisitReport } = require('./webVisitReportJob');
 const { runPromotionalEmailJob } = require('./promotionalEmailJob');
+const dailyCounterResetJob = require('./dailyCounterResetJob');
+const weeklyCounterResetJob = require('./weeklyCounterResetJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -298,6 +300,44 @@ const schedulePromotionalEmail = () => {
 };
 
 /**
+ * Schedule daily counter reset (every hour, catches all timezones crossing midnight)
+ */
+const scheduleDailyCounterReset = () => {
+  const runJob = async () => {
+    try {
+      await dailyCounterResetJob.run();
+    } catch (error) {
+      console.error('[dailyCounterResetJob]', error);
+    }
+    // Schedule next run (1 hour from now)
+    setTimeout(runJob, 60 * 60 * 1000);
+  };
+
+  // Start first run after 2 minutes (allow server to fully initialize)
+  setTimeout(runJob, 2 * 60 * 1000);
+  console.log('📅 Daily counter reset job scheduled (hourly)');
+};
+
+/**
+ * Schedule weekly counter reset (every 6 hours)
+ */
+const scheduleWeeklyCounterReset = () => {
+  const runJob = async () => {
+    try {
+      await weeklyCounterResetJob.run();
+    } catch (error) {
+      console.error('[weeklyCounterResetJob]', error);
+    }
+    // Schedule next run (6 hours from now)
+    setTimeout(runJob, 6 * 60 * 60 * 1000);
+  };
+
+  // Start first run after 3 minutes (allow server to fully initialize)
+  setTimeout(runJob, 3 * 60 * 1000);
+  console.log('📅 Weekly counter reset job scheduled (every 6 hours)');
+};
+
+/**
  * Start all scheduled jobs
  */
 const startScheduler = () => {
@@ -331,6 +371,10 @@ const startScheduler = () => {
 
   // Promotional email (Sundays at 9:00 AM KST)
   schedulePromotionalEmail();
+
+  // Notification frequency-cap counter resets
+  scheduleDailyCounterReset();
+  scheduleWeeklyCounterReset();
 
   // Learning/gamification jobs
   startLearningJobs();
@@ -398,6 +442,8 @@ module.exports = {
   scheduleSubscriptionExpiry,
   scheduleAdminReport,
   scheduleWebVisitReport,
-  schedulePromotionalEmail
+  schedulePromotionalEmail,
+  scheduleDailyCounterReset,
+  scheduleWeeklyCounterReset
 };
 
