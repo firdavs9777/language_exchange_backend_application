@@ -1,7 +1,7 @@
 # Push Notifications Implementation Guide
 
 ## Overview
-This document describes the complete push notification system implemented using Firebase Cloud Messaging (FCM) for BananaTalk.
+This document describes the complete push notification system implemented using Firebase Cloud Messaging (FCM) for Bananatalk.
 
 ## Architecture
 

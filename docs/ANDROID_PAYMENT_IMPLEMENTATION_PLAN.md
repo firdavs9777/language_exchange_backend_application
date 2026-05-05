@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the implementation plan for adding Google Play Billing support to the BananaTalk backend. The iOS payment infrastructure is already complete and production-ready, serving as a template for Android implementation.
+This document outlines the implementation plan for adding Google Play Billing support to the Bananatalk backend. The iOS payment infrastructure is already complete and production-ready, serving as a template for Android implementation.
 
 ## Current State
 

@@ -21,7 +21,7 @@ Here's what's new:
 • Bug fixes and performance improvements
 • New features to help you connect even better
 
-We've been listening to your feedback and working hard to make BananaTalk the best place to learn languages and meet amazing people from around the world.
+We've been listening to your feedback and working hard to make Bananatalk the best place to learn languages and meet amazing people from around the world.
 
 Update now and let us know what you think! Your feedback means everything to us.`,
   iosUrl: 'https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146',
@@ -65,7 +65,7 @@ const buildHtml = (userName) => `
               <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #f8f9ff 0%, #fff5f5 100%); border-radius: 12px; padding: 25px; margin: 25px 0;">
                 <tr>
                   <td style="text-align: center;">
-                    <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download BananaTalk</h3>
+                    <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download Bananatalk</h3>
                     <table cellpadding="0" cellspacing="0" style="margin: 0 auto;">
                       <tr>
                         <td style="padding: 0 10px;">
@@ -84,7 +84,7 @@ const buildHtml = (userName) => `
                 </tr>
               </table>
               <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
-                See you on BananaTalk! 🍌✨
+                See you on Bananatalk! 🍌✨
               </p>
             </td>
           </tr>
@@ -94,7 +94,7 @@ const buildHtml = (userName) => `
                 Need help? Contact us at <a href="mailto:support@banatalk.com" style="color: #FFD93D; text-decoration: none;">support@banatalk.com</a>
               </p>
               <p style="margin: 0; font-size: 12px; color: #999999;">
-                © 2026 BananaTalk. All rights reserved.
+                © 2026 Bananatalk. All rights reserved.
               </p>
             </td>
           </tr>
@@ -109,7 +109,7 @@ const buildHtml = (userName) => `
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function sendEmails() {
-  console.log('\n🍌 BananaTalk Promotional Email Sender\n');
+  console.log('\n🍌 Bananatalk Promotional Email Sender\n');
   console.log('========================================\n');
 
   // Setup Mailgun

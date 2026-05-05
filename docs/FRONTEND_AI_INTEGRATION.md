@@ -1,6 +1,6 @@
 # Frontend AI Integration Guide
 
-Complete guide for integrating BananaTalk AI features in Flutter/mobile apps.
+Complete guide for integrating Bananatalk AI features in Flutter/mobile apps.
 
 ## Table of Contents
 1. [AI Quiz Generation](#1-ai-quiz-generation)

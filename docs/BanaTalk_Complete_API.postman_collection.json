@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "bananatalk-complete-api-2024",
-    "name": "BanaTalk Complete API",
-    "description": "Complete API collection for BanaTalk language learning platform.\n\n## Categories:\n1. Authentication\n2. Users & Profiles\n3. Moments (Posts)\n4. Stories\n5. Messages & Chat\n6. Conversations\n7. Comments\n8. Notifications\n9. Learning System\n10. AI Conversation\n11. Grammar Feedback\n12. Speech Features\n13. Enhanced Translation\n14. Reports & Blocks\n15. Purchases & Subscriptions\n16. AI Lesson Builder (NEW)\n17. AI Lesson Assistant (NEW)\n18. Utilities\n\n## Setup:\n1. Set `baseUrl` to your API server (default: http://localhost:5000/api/v1)\n2. Login to get token\n3. Import and start testing!\n\n## New AI Features:\n- AI Lesson Builder: Generate complete lessons, exercises, vocabulary, and curricula using GPT-4\n- AI Lesson Assistant: Get hints, explanations, feedback, and practice variations during lessons",
+    "name": "Bananatalk Complete API",
+    "description": "Complete API collection for Bananatalk language learning platform.\n\n## Categories:\n1. Authentication\n2. Users & Profiles\n3. Moments (Posts)\n4. Stories\n5. Messages & Chat\n6. Conversations\n7. Comments\n8. Notifications\n9. Learning System\n10. AI Conversation\n11. Grammar Feedback\n12. Speech Features\n13. Enhanced Translation\n14. Reports & Blocks\n15. Purchases & Subscriptions\n16. AI Lesson Builder (NEW)\n17. AI Lesson Assistant (NEW)\n18. Utilities\n\n## Setup:\n1. Set `baseUrl` to your API server (default: http://localhost:5000/api/v1)\n2. Login to get token\n3. Import and start testing!\n\n## New AI Features:\n- AI Lesson Builder: Generate complete lessons, exercises, vocabulary, and curricula using GPT-4\n- AI Lesson Assistant: Get hints, explanations, feedback, and practice variations during lessons",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

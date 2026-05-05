@@ -75,7 +75,7 @@ exports.googleAuth = asyncHandler(async (req, res, next) => {
     const { OAuth2Client } = require('google-auth-library');
     const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-    // Verify the ID token with Google - reuse same client IDs as BananaTalk
+    // Verify the ID token with Google - reuse same client IDs as Bananatalk
     const ticket = await client.verifyIdToken({
       idToken,
       audience: [
@@ -135,7 +135,7 @@ exports.appleAuth = asyncHandler(async (req, res, next) => {
   try {
     const appleSignin = require('apple-signin-auth');
 
-    // Verify the identity token with Apple - reuse same bundle ID as BananaTalk
+    // Verify the identity token with Apple - reuse same bundle ID as Bananatalk
     const appleResponse = await appleSignin.verifyIdToken(identityToken, {
       audience: process.env.APPLE_BUNDLE_ID || 'com.banatalk.app',
       ignoreExpiration: false

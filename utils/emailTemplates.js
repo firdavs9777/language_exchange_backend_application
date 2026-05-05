@@ -1,9 +1,9 @@
 /**
- * Email Templates for BananaTalk
+ * Email Templates for Bananatalk
  * Beautiful, consistent email templates for all occasions
  */
 
-const APP_NAME = 'BananaTalk';
+const APP_NAME = 'Bananatalk';
 const SUPPORT_EMAIL = 'support@banatalk.com';
 const YEAR = new Date().getFullYear();
 
@@ -255,7 +255,7 @@ exports.accountDeactivationWarning = (userName, daysRemaining = 30) => {
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
           <tr>
             <td align="center">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Open BanaTalk</h3>
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Open Bananatalk</h3>
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="padding-right: 10px;">
@@ -324,7 +324,7 @@ exports.inactivityReminder = (userName, daysSinceActive = 7) => {
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
           <tr>
             <td align="center">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download BananaTalk</h3>
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download Bananatalk</h3>
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="padding-right: 10px;">
@@ -349,7 +349,7 @@ exports.inactivityReminder = (userName, daysSinceActive = 7) => {
   return {
     subject: `👋 ${userName}, we miss you on ${APP_NAME}!`,
     html: baseTemplate(content, '#f5576c'),
-    text: `Hi ${userName}, we haven't seen you on ${APP_NAME} for ${daysSinceActive} days. Come back and see what you've missed!\n\nDownload BananaTalk:\niOS: https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146\nAndroid: https://play.google.com/store/apps/details?id=com.bananatalk.app`
+    text: `Hi ${userName}, we haven't seen you on ${APP_NAME} for ${daysSinceActive} days. Come back and see what you've missed!\n\nDownload Bananatalk:\niOS: https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146\nAndroid: https://play.google.com/store/apps/details?id=com.bananatalk.app`
   };
 };
 
@@ -1089,7 +1089,7 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
         <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #f8f9ff 0%, #fff5f5 100%); border-radius: 12px; padding: 25px; margin: 25px 0;">
           <tr>
             <td style="text-align: center;">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download BananaTalk</h3>
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download Bananatalk</h3>
               <table cellpadding="0" cellspacing="0" style="margin: 0 auto;">
                 <tr>
                   <td style="padding: 0 10px;">
@@ -1118,7 +1118,7 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
   return {
     subject: `🍌 ${title}`,
     html: baseTemplate(content, '#FFD93D'),
-    text: `Hi ${userName}! ${message}\n\nDownload BananaTalk:\niOS: ${iosUrl}\nAndroid: ${androidUrl}`
+    text: `Hi ${userName}! ${message}\n\nDownload Bananatalk:\niOS: ${iosUrl}\nAndroid: ${androidUrl}`
   };
 };
 

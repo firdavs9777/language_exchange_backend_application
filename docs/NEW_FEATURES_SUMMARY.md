@@ -386,7 +386,7 @@ db.profilevisits.countDocuments();
 
 ```
 ┌─────────────────────────────────────┐
-│  BanaTalk                      🔔   │
+│  Bananatalk                      🔔   │
 ├─────────────────────────────────────┤
 │  [Photo]                            │
 │  Alice posted a moment              │

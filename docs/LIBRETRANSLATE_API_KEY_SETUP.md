@@ -68,7 +68,7 @@ The public LibreTranslate instance implemented API keys to:
 - Manage rate limits
 - Provide better service
 
-**Good news:** The free tier is very generous and should be more than enough for BananaTalk!
+**Good news:** The free tier is very generous and should be more than enough for Bananatalk!
 
 ---
 

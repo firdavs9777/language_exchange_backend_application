@@ -1,6 +1,6 @@
 /**
  * Language Seed Data
- * Complete list of languages for BananaTalk language exchange app
+ * Complete list of languages for Bananatalk language exchange app
  *
  * Run: node seeds/languages.js
  */

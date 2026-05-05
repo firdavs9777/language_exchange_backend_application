@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "bananatalk-ai-apis-2024",
-    "name": "BanaTalk AI APIs",
-    "description": "Complete collection of AI-powered endpoints for the BanaTalk language learning platform.\n\n## Features Included:\n1. AI Conversation Partner\n2. Grammar Feedback\n3. Adaptive Recommendations\n4. AI-Generated Quizzes\n5. Speech Features (TTS/STT/Pronunciation)\n6. Enhanced Translation\n\n## Setup:\n1. Set the `baseUrl` variable to your API server\n2. Set the `token` variable with your JWT token\n3. Import and start testing!",
+    "name": "Bananatalk AI APIs",
+    "description": "Complete collection of AI-powered endpoints for the Bananatalk language learning platform.\n\n## Features Included:\n1. AI Conversation Partner\n2. Grammar Feedback\n3. Adaptive Recommendations\n4. AI-Generated Quizzes\n5. Speech Features (TTS/STT/Pronunciation)\n6. Enhanced Translation\n\n## Setup:\n1. Set the `baseUrl` variable to your API server\n2. Set the `token` variable with your JWT token\n3. Import and start testing!",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [

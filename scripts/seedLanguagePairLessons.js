@@ -487,7 +487,7 @@ function createSelfIntroLesson(sourceLang, targetLang) {
 }
 
 async function main() {
-  console.log('🌐 BananaTalk Language-Pair Lesson Seeder');
+  console.log('🌐 Bananatalk Language-Pair Lesson Seeder');
   console.log('=========================================\n');
 
   if (isDryRun) {

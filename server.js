@@ -255,7 +255,7 @@ app.get('/test', (req, res) => {
 app.get('/api', (req, res) => {
   res.status(200).json({
     success: true,
-    name: 'BanaTalk API',
+    name: 'Bananatalk API',
     version: 'v1',
     currentVersion: '/api/v1',
     documentation: '/api/v1/docs',

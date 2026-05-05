@@ -1,4 +1,4 @@
-# BananaTalk Chat Frontend Implementation Guide
+# Bananatalk Chat Frontend Implementation Guide
 
 This guide provides comprehensive documentation for implementing chat features in the frontend application.
 
@@ -30,7 +30,7 @@ This guide provides comprehensive documentation for implementing chat features i
 
 ## Architecture Overview
 
-BananaTalk uses a hybrid communication approach:
+Bananatalk uses a hybrid communication approach:
 
 - **HTTP API**: For CRUD operations, file uploads, and data fetching
 - **WebSocket (Socket.IO)**: For real-time messaging, typing indicators, and presence
@@ -645,7 +645,7 @@ socket.on('bulkStatusUpdate', (statusMap) => {
 
 ## Advanced Features
 
-BananaTalk includes advanced chat features inspired by KakaoTalk and HelloTalk.
+Bananatalk includes advanced chat features inspired by KakaoTalk and HelloTalk.
 
 ### Voice Messages
 

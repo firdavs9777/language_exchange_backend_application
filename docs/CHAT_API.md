@@ -1,6 +1,6 @@
 # Chat System API Documentation
 
-Complete API reference for the BananaTalk real-time chat system. This document covers conversations, messages, real-time events, and advanced features.
+Complete API reference for the Bananatalk real-time chat system. This document covers conversations, messages, real-time events, and advanced features.
 
 ## Table of Contents
 

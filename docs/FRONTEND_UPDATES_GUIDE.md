@@ -1,4 +1,4 @@
-# BananaTalk Frontend Updates Guide
+# Bananatalk Frontend Updates Guide
 
 This document outlines all the backend changes that require frontend updates.
 

@@ -1,8 +1,8 @@
-# BanaTalk Learning System - Frontend Implementation Guide
+# Bananatalk Learning System - Frontend Implementation Guide
 
 ## Overview
 
-This document provides frontend developers with all the necessary information to implement the new language learning features in the BanaTalk mobile app. The learning system includes gamification (XP, levels, streaks, badges), vocabulary with spaced repetition, structured lessons, quizzes, and daily/weekly challenges.
+This document provides frontend developers with all the necessary information to implement the new language learning features in the Bananatalk mobile app. The learning system includes gamification (XP, levels, streaks, badges), vocabulary with spaced repetition, structured lessons, quizzes, and daily/weekly challenges.
 
 ---
 

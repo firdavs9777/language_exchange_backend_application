@@ -127,15 +127,15 @@ const getReengagementTemplate = () => {
   const messages = [
     {
       title: 'We miss you! 💛',
-      body: 'Your friends are waiting for you on BanaTalk'
+      body: 'Your friends are waiting for you on Bananatalk'
     },
     {
-      title: 'Come back to BanaTalk! 🌟',
+      title: 'Come back to Bananatalk! 🌟',
       body: 'New moments and messages are waiting for you'
     },
     {
       title: 'Your language partner is waiting! 🗣️',
-      body: 'Continue your language learning journey on BanaTalk'
+      body: 'Continue your language learning journey on Bananatalk'
     }
   ];
 

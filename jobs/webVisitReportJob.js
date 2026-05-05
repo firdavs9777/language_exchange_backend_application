@@ -144,7 +144,7 @@ const buildReportEmail = (stats) => {
   <div style="max-width:640px;margin:0 auto;padding:20px;">
     <!-- Header -->
     <div style="background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);border-radius:16px 16px 0 0;padding:32px 24px;text-align:center;">
-      <h1 style="color:white;margin:0 0 4px;font-size:22px;">📊 BananaTalk Weekly Traffic Report</h1>
+      <h1 style="color:white;margin:0 0 4px;font-size:22px;">📊 Bananatalk Weekly Traffic Report</h1>
       <p style="color:#94A3B8;margin:0;font-size:14px;">${stats.period.from} — ${stats.period.to} (KST)</p>
     </div>
 
@@ -220,7 +220,7 @@ const buildReportEmail = (stats) => {
 
       <!-- Footer -->
       <div style="margin-top:32px;padding-top:16px;border-top:1px solid #E2E8F0;text-align:center;">
-        <p style="color:#94A3B8;font-size:12px;margin:0;">BananaTalk Analytics • Auto-generated weekly report</p>
+        <p style="color:#94A3B8;font-size:12px;margin:0;">Bananatalk Analytics • Auto-generated weekly report</p>
       </div>
     </div>
   </div>
@@ -248,7 +248,7 @@ const runWebVisitReport = async () => {
 
     await sendEmail({
       email: ADMIN_EMAIL,
-      subject: `📊 BananaTalk Weekly Traffic: ${fmt(stats.thisWeek.totalVisits)} visits from ${stats.topCountries.length} countries (${stats.period.from} — ${stats.period.to})`,
+      subject: `📊 Bananatalk Weekly Traffic: ${fmt(stats.thisWeek.totalVisits)} visits from ${stats.topCountries.length} countries (${stats.period.from} — ${stats.period.to})`,
       html,
       message: `Weekly traffic report: ${stats.thisWeek.totalVisits} visits, ${stats.thisWeek.uniqueVisitors} unique visitors from ${stats.topCountries.length} countries.`
     });

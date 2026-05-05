@@ -1,4 +1,4 @@
-# BananaTalk Stories - Complete Frontend Implementation Guide
+# Bananatalk Stories - Complete Frontend Implementation Guide
 
 This guide covers all story features including the new additions: reactions, replies, polls, highlights, close friends, and more.
 

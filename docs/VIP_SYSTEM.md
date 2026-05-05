@@ -1,4 +1,4 @@
-# BananaTalk VIP System Documentation
+# Bananatalk VIP System Documentation
 
 **Last Updated**: January 31, 2026
 **Version**: 1.0
@@ -19,7 +19,7 @@
 
 ## Overview
 
-BananaTalk uses a three-tier user system to provide free access while offering premium features for paying subscribers.
+Bananatalk uses a three-tier user system to provide free access while offering premium features for paying subscribers.
 
 | Tier | Description |
 |------|-------------|

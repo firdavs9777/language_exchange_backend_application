@@ -18,7 +18,7 @@ class RedisCacheService {
     this.redis = null;
     this.memoryCache = new Map();
     this.stats = { hits: 0, misses: 0, redisConnected: false };
-    this.prefix = 'bt:'; // BananaTalk prefix
+    this.prefix = 'bt:'; // Bananatalk prefix
 
     this.connect();
     this.startCleanup();

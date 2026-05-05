@@ -122,7 +122,7 @@ Your contact form API endpoint is now fully implemented and ready to use!
 ### Email Content
 
 The email sent includes:
-- **From:** BanaTalk <noreply@banatalk.com>
+- **From:** Bananatalk <noreply@banatalk.com>
 - **To:** Your email (fmutalipov7@gmail.com)
 - **Reply-To:** Sender's email (allows direct reply)
 - **Subject:** User's subject or "Contact from Portfolio"
@@ -303,7 +303,7 @@ CONTACT_RECIPIENT_EMAIL=fmutalipov7@gmail.com
 MAILGUN_API_KEY=your-key-here
 MAILGUN_DOMAIN=banatalk.com
 MAILGUN_REGION=us
-FROM_NAME=BanaTalk
+FROM_NAME=Bananatalk
 FROM_EMAIL=noreply@banatalk.com
 ```
 

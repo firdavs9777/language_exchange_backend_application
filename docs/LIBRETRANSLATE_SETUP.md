@@ -2,7 +2,7 @@
 
 ## ✅ Recommended: FREE Public Instance
 
-**Perfect for BananaTalk!** No setup required.
+**Perfect for Bananatalk!** No setup required.
 
 ### Configuration
 
@@ -18,7 +18,7 @@ LIBRETRANSLATE_API_KEY=  # Leave empty - not needed for public instance
 - ✅ **FREE** - $0 cost
 - ✅ **No API key needed** - Works out of the box
 - ✅ **Rate limited** - But reasonable for small-medium apps
-- ✅ **Perfect for starting out** - Ideal for BananaTalk
+- ✅ **Perfect for starting out** - Ideal for Bananatalk
 
 ### That's it!
 
@@ -75,7 +75,7 @@ For complete control and unlimited usage:
 
 ## Summary
 
-**For BananaTalk: Use the FREE public instance - no API key needed!**
+**For Bananatalk: Use the FREE public instance - no API key needed!**
 
 The backend is already configured correctly. Just restart your server and it will work.
 

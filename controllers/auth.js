@@ -772,7 +772,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   });
 
   // Email content (same as before)
-  const message = `Your verification code for BanaTalk is: ${code}. This code will expire in 5 minutes.`;
+  const message = `Your verification code for Bananatalk is: ${code}. This code will expire in 5 minutes.`;
   
   const html = `
 <!DOCTYPE html>
@@ -788,7 +788,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <tr>
             <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Welcome to BanaTalk! 🎉</h1>
+              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Welcome to Bananatalk! 🎉</h1>
             </td>
           </tr>
           <tr>
@@ -834,7 +834,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
                 Need help? Contact us at <a href="mailto:support@banatalk.com" style="color: #667eea; text-decoration: none;">support@banatalk.com</a>
               </p>
               <p style="margin: 0; font-size: 12px; color: #999999;">
-                © ${new Date().getFullYear()} BanaTalk. All rights reserved.
+                © ${new Date().getFullYear()} Bananatalk. All rights reserved.
               </p>
             </td>
           </tr>
@@ -849,7 +849,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   try {
     await sendEmail({
       email: user.email,
-      subject: 'BanaTalk - Email Verification Code',
+      subject: 'Bananatalk - Email Verification Code',
       message,
       html
     });
@@ -956,7 +956,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   await user.save({ validateBeforeSave: false });
 
   // Email content
-  const message = `Your password reset code for BanaTalk is: ${code}. This code will expire in 15 minutes.`;
+  const message = `Your password reset code for Bananatalk is: ${code}. This code will expire in 15 minutes.`;
   
   const html = `
 <!DOCTYPE html>
@@ -1018,7 +1018,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
                 Need help? Contact us at <a href="mailto:support@banatalk.com" style="color: #f5576c; text-decoration: none;">support@banatalk.com</a>
               </p>
               <p style="margin: 0; font-size: 12px; color: #999999;">
-                © ${new Date().getFullYear()} BanaTalk. All rights reserved.
+                © ${new Date().getFullYear()} Bananatalk. All rights reserved.
               </p>
             </td>
           </tr>
@@ -1033,7 +1033,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   try {
     await sendEmail({
       email: user.email,
-      subject: 'BanaTalk - Password Reset Code',
+      subject: 'Bananatalk - Password Reset Code',
       message,
       html
     });

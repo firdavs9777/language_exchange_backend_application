@@ -1,6 +1,6 @@
-# BanaTalk AI Features Guide
+# Bananatalk AI Features Guide
 
-This document covers all AI-powered features available in the BanaTalk language learning platform.
+This document covers all AI-powered features available in the Bananatalk language learning platform.
 
 ---
 
@@ -22,7 +22,7 @@ This document covers all AI-powered features available in the BanaTalk language 
 
 ## Overview
 
-BanaTalk uses OpenAI's GPT-4o-mini for chat, Whisper for speech-to-text, and TTS-1 for text-to-speech. All AI features are designed to enhance language learning through personalized, interactive experiences.
+Bananatalk uses OpenAI's GPT-4o-mini for chat, Whisper for speech-to-text, and TTS-1 for text-to-speech. All AI features are designed to enhance language learning through personalized, interactive experiences.
 
 ### Base URL
 ```

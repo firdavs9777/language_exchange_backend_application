@@ -18,7 +18,7 @@ Here's what's new:
 • Bug fixes and performance improvements
 • New features to help you connect even better
 
-We've been listening to your feedback and working hard to make BananaTalk the best place to learn languages and meet amazing people from around the world.
+We've been listening to your feedback and working hard to make Bananatalk the best place to learn languages and meet amazing people from around the world.
 
 Update now and let us know what you think! Your feedback means everything to us.`,
   ctaText: 'Try It Now',

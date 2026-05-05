@@ -619,7 +619,7 @@ exports.sendTestNotification = asyncHandler(async (req, res, next) => {
     case 'chat_message':
       notification = templates.getChatMessageTemplate(
         'Test User',
-        'This is a test message from BanaTalk!',
+        'This is a test message from Bananatalk!',
         { senderId: targetUserId, conversationId: 'test', messageId: 'test' }
       );
       break;
@@ -657,7 +657,7 @@ exports.sendTestNotification = asyncHandler(async (req, res, next) => {
     default:
       notification = templates.getSystemTemplate(
         'Test Notification',
-        'This is a test notification from BanaTalk!'
+        'This is a test notification from Bananatalk!'
       );
   }
 

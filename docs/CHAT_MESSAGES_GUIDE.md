@@ -1,6 +1,6 @@
 # Chat Messages - Complete Frontend Guide
 
-Complete guide for sending, editing, and deleting chat messages in BananaTalk.
+Complete guide for sending, editing, and deleting chat messages in Bananatalk.
 
 ---
 

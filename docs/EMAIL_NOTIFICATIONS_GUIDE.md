@@ -1,4 +1,4 @@
-# BananaTalk Email Notifications System
+# Bananatalk Email Notifications System
 
 Complete guide for the email notification system, including when emails are sent and how to configure them.
 
@@ -155,7 +155,7 @@ interface EmailPreferences {
 MAILGUN_API_KEY=your-mailgun-api-key
 MAILGUN_DOMAIN=mg.yourdomain.com
 MAILGUN_REGION=us                    # or 'eu' for EU region
-FROM_NAME=BananaTalk
+FROM_NAME=Bananatalk
 FROM_EMAIL=noreply@banatalk.com
 
 # Scheduler

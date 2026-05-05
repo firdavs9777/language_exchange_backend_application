@@ -1,6 +1,6 @@
 # Edit, Delete & Message Functionality - Frontend Guide
 
-Complete guide for editing, deleting content, and sending messages in BananaTalk.
+Complete guide for editing, deleting content, and sending messages in Bananatalk.
 
 ---
 
