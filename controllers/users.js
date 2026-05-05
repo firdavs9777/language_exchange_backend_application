@@ -1063,6 +1063,42 @@ exports.getUserLimits = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Check whether a username is available for registration
+// @route   GET /api/v1/users/check-username?value=<username>
+// @access  Public (rate-limited via generalLimiter)
+const RESERVED_USERNAMES = new Set([
+  'admin', 'root', 'support', 'help', 'api',
+  'banatalk', 'bananatalk', 'official', 'staff', 'moderator',
+]);
+
+exports.checkUsernameAvailability = asyncHandler(async (req, res) => {
+  const raw = (req.query.value || '').trim().toLowerCase();
+
+  // Format: 3–20 chars, lowercase letters, digits, underscore
+  if (!/^[a-z0-9_]{3,20}$/.test(raw)) {
+    return res.status(200).json({
+      success: true,
+      data: { available: false, reason: 'invalid_format' },
+    });
+  }
+
+  if (RESERVED_USERNAMES.has(raw)) {
+    return res.status(200).json({
+      success: true,
+      data: { available: false, reason: 'reserved' },
+    });
+  }
+
+  const exists = await User.exists({ username: raw });
+  return res.status(200).json({
+    success: true,
+    data: {
+      available: !exists,
+      reason: exists ? 'taken' : null,
+    },
+  });
+});
+
 const sendTokenResponse = (user, statusCode, res) => {
   // Create token
   const token = user.getSignedJwtToken();

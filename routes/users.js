@@ -23,7 +23,8 @@ const {
   upgradeVisitor,
   checkVisitorLimits,
   changeUserMode,
-  getUserLimits
+  getUserLimits,
+  checkUsernameAvailability
 } = require('../controllers/users');
 
 const {
@@ -50,6 +51,9 @@ router.route('/').get(protect, getUsers).post(protect, authorize('admin'), creat
 // ============================================
 // Username search routes - MUST BE BEFORE /:userId routes
 // ============================================
+
+// Check username availability (public — used during registration)
+router.route('/check-username').get(checkUsernameAvailability);
 
 // Search users by username (partial match)
 router.route('/search/username').get(protect, searchUsersByUsername);
