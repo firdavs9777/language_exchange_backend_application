@@ -284,6 +284,7 @@ app.use('/api/v1/conversations', conversations);
 app.use('/api/v1/reports', reports);
 app.use('/api/v1/notifications', notifications);
 app.use('/api/v1/contact', require('./routes/contact'));
+app.use('/api/v1/app-config', require('./routes/appConfig'));
 app.use('/api/v1/learning', learning);
 app.use('/api/v1/community', community);
 app.use('/api/v1/interactions', require('./routes/interactions'));
