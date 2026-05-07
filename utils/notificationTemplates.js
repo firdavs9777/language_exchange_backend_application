@@ -205,11 +205,12 @@ const getWaveTemplate = (waverName, isMutual, waveData = {}) => {
       ? `You and ${waverName} both waved at each other!`
       : `${waverName} waved at you`,
     data: {
-      type: 'wave',
+      type: 'wave_received',
       userId: waveData.userId || '',
       waveId: waveData.waveId || '',
       isMutual: isMutual ? 'true' : 'false',
-      screen: 'community'
+      screen: 'community',
+      route: '/community?tab=waves'
     }
   };
 };

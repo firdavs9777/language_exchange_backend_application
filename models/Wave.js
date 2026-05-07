@@ -43,6 +43,7 @@ const WaveSchema = new mongoose.Schema({
 
 // Compound index for efficient lookups
 WaveSchema.index({ from: 1, to: 1 });
+WaveSchema.index({ from: 1, to: 1, createdAt: -1 });
 WaveSchema.index({ to: 1, isRead: 1, createdAt: -1 });
 
 // Prevent duplicate waves within 24 hours

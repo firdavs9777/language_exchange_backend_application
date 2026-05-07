@@ -404,6 +404,20 @@ const sendProfileVisit = async (profileOwnerId, visitorId) => {
  */
 const sendWave = async (recipientId, waverId, waveId, isMutual = false) => {
   try {
+    const Wave = require('../models/Wave');
+
+    // Suppress push if recipient received >3 waves in the last 6 hours
+    // (daily-summary cron is future work; just silence excess pushes for now)
+    const sixHoursAgo = new Date(Date.now() - 6 * 3600 * 1000);
+    const recentWaveCount = await Wave.countDocuments({
+      to: recipientId,
+      createdAt: { $gte: sixHoursAgo }
+    });
+    if (recentWaveCount > 3) {
+      console.log(`[wave] suppressing push for ${recipientId} — ${recentWaveCount} waves in last 6h`);
+      return { success: true, skipped: true, reason: 'push suppressed (>3 waves in 6h)' };
+    }
+
     const waver = await User.findById(waverId);
 
     if (!waver) {
