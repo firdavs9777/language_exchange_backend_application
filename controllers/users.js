@@ -63,14 +63,11 @@ exports.uploadMultiplePhotos = asyncHandler(async (req, res, next) => {
     totalImages: user.images.length
   });
 });
-// @desc     Get all users (Community/Explore) with server-side filtering
-// @route    GET /api/v1/auth/users
-// @access   Private/Admin
-exports.getUsers = asyncHandler(async (req, res, next) => {
-  const page = parseInt(req.query.page, 10) || 1;
-  const limit = parseInt(req.query.limit, 10) || 10;
-  const skip = (page - 1) * limit;
-
+// ---------------------------------------------------------------------------
+// Shared filter builder — used by both getUsers and getUsersCount so that
+// the two endpoints always agree on which documents are in scope.
+// ---------------------------------------------------------------------------
+async function buildUsersQuery(req) {
   // Get blocked users if authenticated
   let blockedUserIds = [];
   let excludedUserIds = [];
@@ -141,12 +138,6 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
       query.language_to_learn = { $regex: new RegExp(learningLanguage, 'i') };
     }
   }
-
-  // Check if user is VIP for premium filters
-  const isVip = req.user && (
-    req.user.userMode === 'vip' ||
-    (req.user.vipSubscription && req.user.vipSubscription.isActive)
-  );
 
   // Gender filter (available to all users)
   if (req.query.gender) {
@@ -237,6 +228,19 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     }
   }
 
+  return query;
+}
+
+// @desc     Get all users (Community/Explore) with server-side filtering
+// @route    GET /api/v1/auth/users
+// @access   Private/Admin
+exports.getUsers = asyncHandler(async (req, res, next) => {
+  const page = parseInt(req.query.page, 10) || 1;
+  const limit = parseInt(req.query.limit, 10) || 10;
+  const skip = (page - 1) * limit;
+
+  const query = await buildUsersQuery(req);
+
   // Sort: VIP first, then online, then most recently active
   const sortOptions = {
     'vipSubscription.isActive': -1,
@@ -282,6 +286,15 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     pages: Math.ceil(total / limit),
     data: processedUsers
   });
+});
+
+// @desc     Count users matching the same filter set as getUsers (Community filter count)
+// @route    GET /api/v1/auth/users/count
+// @access   Private
+exports.getUsersCount = asyncHandler(async (req, res, next) => {
+  const query = await buildUsersQuery(req);
+  const count = await User.countDocuments(query);
+  return res.status(200).json({ success: true, data: { count } });
 });
 
 // @desc     Get single user

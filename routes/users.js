@@ -1,5 +1,6 @@
 const {
   getUsers,
+  getUsersCount,
   getUser,
   getUserByUsername,
   searchUsersByUsername,
@@ -54,6 +55,9 @@ router.route('/').get(protect, getUsers).post(protect, authorize('admin'), creat
 
 // Check username availability (public — used during registration)
 router.route('/check-username').get(checkUsernameAvailability);
+
+// Count users matching the community filter (sibling of the list endpoint)
+router.route('/count').get(protect, getUsersCount);
 
 // Search users by username (partial match)
 router.route('/search/username').get(protect, searchUsersByUsername);
