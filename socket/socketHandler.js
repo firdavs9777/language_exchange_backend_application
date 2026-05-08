@@ -260,6 +260,33 @@ const initializeSocket = (io) => {
     // Broadcast online status
     broadcastUserStatus(socket, io, userId, 'online');
 
+    // --- Presence: notify interested subscribers of this user coming online ---
+    // Run async so it doesn't block the rest of connection setup
+    setImmediate(async () => {
+      try {
+        const interestedIds = await getInterestedSubscribers(userId);
+
+        // Notify each interested subscriber that this user is online
+        for (const subId of interestedIds) {
+          const subConnections = userConnections.get(subId);
+          if (subConnections && subConnections.size > 0) {
+            io.to(`user_${subId}`).emit('presence:online', { userId });
+          }
+        }
+
+        // Send bulk snapshot of online interested users to this socket
+        const onlineSubset = interestedIds
+          .filter(id => onlineUsersCache.has(id) && onlineUsersCache.get(id).status === 'online')
+          .slice(0, 200);
+        socket.emit('presence:bulk', { onlineUserIds: onlineSubset });
+
+        // Store interested IDs on socket for use during disconnect
+        socket._presenceSubscribers = interestedIds;
+      } catch (err) {
+        console.error(`❌ Presence online broadcast error for ${userId}:`, err);
+      }
+    });
+
     // Send connection verified event to client
     socket.emit('connectionVerified', {
       userId,
@@ -517,6 +544,56 @@ const sendOnlineUsers = (socket) => {
     console.log(`📋 Sent ${onlineUsers.length} online users to ${socket.user.id}`);
   } catch (error) {
     console.error('❌ Error sending online users:', error);
+  }
+};
+
+/**
+ * Get users who are interested in presence changes for a given userId.
+ * Interested = followers of this user + users who share an active conversation.
+ * Capped at 200 to prevent fan-out storms.
+ */
+const getInterestedSubscribers = async (userId) => {
+  try {
+    const MAX_SUBSCRIBERS = 200;
+    const userIdStr = String(userId);
+
+    // Fetch in parallel: followers list from User doc + conversation partners
+    const [userDoc, conversations] = await Promise.all([
+      User.findById(userId, { followers: 1 }).lean(),
+      Conversation.find(
+        { participants: userId, isGroup: false },
+        { participants: 1 }
+      ).lean()
+    ]);
+
+    const subscriberSet = new Set();
+
+    // Add followers
+    if (userDoc && Array.isArray(userDoc.followers)) {
+      for (const fId of userDoc.followers) {
+        subscriberSet.add(String(fId));
+        if (subscriberSet.size >= MAX_SUBSCRIBERS) break;
+      }
+    }
+
+    // Add conversation partners (the other participant)
+    if (subscriberSet.size < MAX_SUBSCRIBERS && Array.isArray(conversations)) {
+      for (const conv of conversations) {
+        for (const pId of conv.participants) {
+          const pIdStr = String(pId);
+          if (pIdStr !== userIdStr) {
+            subscriberSet.add(pIdStr);
+            if (subscriberSet.size >= MAX_SUBSCRIBERS) break;
+          }
+        }
+        if (subscriberSet.size >= MAX_SUBSCRIBERS) break;
+      }
+    }
+
+    return [...subscriberSet];
+  } catch (err) {
+    console.error(`❌ getInterestedSubscribers error for ${userId}:`, err);
+    return [];
   }
 };
 
@@ -1251,14 +1328,34 @@ const registerLogoutHandlers = (socket, io) => {
         if (userConnections.get(userId).size === 0) {
           userConnections.delete(userId);
           onlineUsersCache.delete(userId);
-          
+          const logoutLastSeenAt = new Date();
+
+          // Persist lastSeenAt on explicit logout
+          User.findByIdAndUpdate(userId, {
+            isOnline: false,
+            lastSeen: logoutLastSeenAt,
+            lastSeenAt: logoutLastSeenAt
+          }).catch(err => console.error(`❌ Failed to update lastSeenAt on logout for ${userId}:`, err));
+
           // Broadcast offline status
           socket.broadcast.emit('userStatusUpdate', {
             userId,
             status: 'offline',
-            lastSeen: new Date().toISOString(),
+            lastSeen: logoutLastSeenAt.toISOString(),
             deviceCount: 0
           });
+
+          // Presence: notify interested subscribers
+          const logoutPresenceSubs = socket._presenceSubscribers || [];
+          for (const subId of logoutPresenceSubs) {
+            const subConns = userConnections.get(subId);
+            if (subConns && subConns.size > 0) {
+              io.to(`user_${subId}`).emit('presence:offline', {
+                userId,
+                lastSeenAt: logoutLastSeenAt.toISOString()
+              });
+            }
+          }
         } else {
           // Update device count
           updateOnlineCache(userId);
@@ -1406,10 +1503,11 @@ const handleDisconnect = async (socket, io, reason) => {
 
         console.log(`📴 User ${userId} is now offline (after grace period)`);
 
-        // Persist lastSeen to database
+        // Persist lastSeen and lastSeenAt to database
         User.findByIdAndUpdate(userId, {
           isOnline: false,
-          lastSeen: lastSeenTime
+          lastSeen: lastSeenTime,
+          lastSeenAt: lastSeenTime
         }).catch(err => console.error(`❌ Failed to update lastSeen for ${userId}:`, err));
 
         socket.broadcast.emit('userStatusUpdate', {
@@ -1418,6 +1516,18 @@ const handleDisconnect = async (socket, io, reason) => {
           lastSeen: lastSeenTime.toISOString(),
           deviceCount: 0
         });
+
+        // Presence: notify interested subscribers that this user went offline
+        const presenceSubs = socket._presenceSubscribers || [];
+        for (const subId of presenceSubs) {
+          const subConnections = userConnections.get(subId);
+          if (subConnections && subConnections.size > 0) {
+            io.to(`user_${subId}`).emit('presence:offline', {
+              userId,
+              lastSeenAt: lastSeenTime.toISOString()
+            });
+          }
+        }
 
         offlineGraceTimers.delete(userId);
       }, SOCKET_CONFIG.RECONNECT_GRACE_PERIOD);
