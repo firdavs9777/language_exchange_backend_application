@@ -11,6 +11,22 @@ const bundlingService = require('./notificationBundlingService');
  */
 
 /**
+ * Returns true if the user has not opted out of `type` notifications.
+ * Missing notificationPreferences = use defaults (all true).
+ *
+ * @param {Object} user - User document with notificationPreferences populated
+ * @param {string} type - One of: 'chat', 'wave', 'voiceRoomStart',
+ *                        'scheduledRoomReminder', 'followerMoment',
+ *                        'visitorAlert', 'matchAlert'
+ */
+function shouldNotify(user, type) {
+  if (!user) return false;
+  const prefs = user.notificationPreferences;
+  if (!prefs) return true;  // missing field = use defaults (all true)
+  return prefs[type] !== false;
+}
+
+/**
  * Generic send notification method
  * @param {String} userId - Recipient user ID
  * @param {String} type - Notification type
@@ -469,37 +485,62 @@ const _shouldSendNotification = async (user, type, data = {}) => {
       if (data.conversationId && user.notificationSettings.mutedChats.includes(data.conversationId)) {
         return false;
       }
+      // notification preferences gate
+      if (!shouldNotify(user, 'chat')) return false;
       break;
-    
+
     case 'moment_like':
     case 'moment_comment':
       if (!user.notificationSettings.moments) {
         return false;
       }
       break;
-    
+
     case 'friend_request':
       if (!user.notificationSettings.friendRequests) {
         return false;
       }
       break;
-    
+
     case 'profile_visit':
       if (!user.notificationSettings.profileVisits) {
         return false;
       }
+      // notification preferences gate
+      if (!shouldNotify(user, 'visitorAlert')) return false;
       break;
-    
+
     case 'follower_moment':
       if (!user.notificationSettings.followerMoments) {
         return false;
       }
+      // notification preferences gate
+      if (!shouldNotify(user, 'followerMoment')) return false;
       break;
-    
+
     case 'system':
       if (!user.notificationSettings.marketing) {
         return false;
       }
+      break;
+
+    case 'wave':
+      // notification preferences gate — mutual waves use matchAlert pref
+      if (data.isMutual === 'true') {
+        if (!shouldNotify(user, 'matchAlert')) return false;
+      } else {
+        if (!shouldNotify(user, 'wave')) return false;
+      }
+      break;
+
+    case 'voice_room_start':
+      // notification preferences gate
+      if (!shouldNotify(user, 'voiceRoomStart')) return false;
+      break;
+
+    case 'scheduled_room_reminder':
+      // notification preferences gate
+      if (!shouldNotify(user, 'scheduledRoomReminder')) return false;
       break;
   }
 
@@ -767,6 +808,7 @@ const sendCommentMention = async (mentionedUserId, mentionerId, momentId, commen
 };
 
 module.exports = {
+  shouldNotify,
   send,
   sendChatMessage,
   sendMomentLike,
