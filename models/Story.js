@@ -157,21 +157,26 @@ const StorySchema = new mongoose.Schema({
   isHighlighted: { type: Boolean, default: false },
 
   // Text/emoji overlays (rendered client-side)
-  overlays: [{
-    type: {
-      type: String,
-      enum: ['text', 'sticker'],
-      required: true
+  overlays: {
+    type: [{
+      type: { type: String, enum: ['text', 'emoji'], required: true },
+      content: { type: String, required: true },
+      x: { type: Number, min: 0, max: 1, required: true },
+      y: { type: Number, min: 0, max: 1, required: true },
+      scale: { type: Number, min: 0.5, max: 3.0, default: 1.0 },
+      rotation: { type: Number, default: 0 },
+      color: { type: String, default: '#FFFFFF' },
+      fontStyle: { type: String, enum: ['sans-serif', 'serif', 'bold', 'handwritten'], default: 'sans-serif' },
+      bgMode: { type: String, enum: ['none', 'semi', 'solid'], default: 'none' },
+    }],
+    validate: {
+      validator: function (arr) {
+        return Array.isArray(arr) && arr.length <= 5;
+      },
+      message: 'A story can have at most 5 overlays',
     },
-    content: { type: String, required: true },
-    x: { type: Number, default: 0.5 },
-    y: { type: Number, default: 0.5 },
-    scale: { type: Number, default: 1.0 },
-    rotation: { type: Number, default: 0 },
-    color: { type: String, default: '#FFFFFF' },
-    fontStyle: { type: String, default: 'sans-serif' },
-    bgMode: { type: String, enum: ['none', 'semi', 'solid'], default: 'none' }
-  }],
+    default: [],
+  },
 
   // Archive flag (for viewing old stories)
   isArchived: { type: Boolean, default: false },

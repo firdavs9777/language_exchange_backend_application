@@ -170,6 +170,7 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
 exports.createStory = asyncHandler(async (req, res, next) => {
   try {
     const { text, backgroundColor, textColor, privacy } = req.body;
+    const overlays = Array.isArray(req.body.overlays) ? req.body.overlays : [];
     const userId = req.user.id;
     const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
     const LIMITS = require('../config/limitations');
@@ -212,7 +213,8 @@ exports.createStory = asyncHandler(async (req, res, next) => {
       text,
       backgroundColor: backgroundColor || '#000000',
       textColor: textColor || '#ffffff',
-      privacy: privacy || 'friends'
+      privacy: privacy || 'friends',
+      overlays,
     };
 
     const story = await Story.create(storyData);
