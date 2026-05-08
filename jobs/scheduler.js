@@ -26,6 +26,7 @@ const { runWebVisitReport } = require('./webVisitReportJob');
 const { runPromotionalEmailJob } = require('./promotionalEmailJob');
 const dailyCounterResetJob = require('./dailyCounterResetJob');
 const weeklyCounterResetJob = require('./weeklyCounterResetJob');
+const voiceRoomCleanupJob = require('./voiceRoomCleanupJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -378,6 +379,9 @@ const startScheduler = () => {
 
   // Learning/gamification jobs
   startLearningJobs();
+
+  // Voice room stale-cleanup job (every 60s, stale > 90s)
+  voiceRoomCleanupJob.start();
 
   console.log('✅ All jobs scheduled!\n');
 };

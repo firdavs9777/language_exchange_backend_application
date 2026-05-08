@@ -409,6 +409,22 @@ const registerVoiceRoomHandlers = (socket, io) => {
   });
 
   /**
+   * Heartbeat — clients send this every ~30s while in a room so we can detect
+   * stale/abandoned rooms (host crashed, network dropped, etc.).
+   */
+  socket.on('voiceroom:heartbeat', async ({ roomId }) => {
+    if (!roomId) return;
+    try {
+      await VoiceRoom.updateOne(
+        { _id: roomId },
+        { lastHeartbeatAt: new Date() }
+      );
+    } catch (err) {
+      console.error('[voiceroom:heartbeat]', err);
+    }
+  });
+
+  /**
    * Handle disconnect - leave all voice rooms
    */
   socket.on('disconnect', async () => {

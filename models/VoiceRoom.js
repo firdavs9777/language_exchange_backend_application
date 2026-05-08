@@ -138,6 +138,11 @@ const VoiceRoomSchema = new mongoose.Schema({
       type: Number,
       default: 0
     }
+  },
+  // Last heartbeat timestamp — updated by clients every ~30s while room is live
+  lastHeartbeatAt: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true
@@ -149,6 +154,7 @@ VoiceRoomSchema.index({ language: 1, status: 1 });
 VoiceRoomSchema.index({ topic: 1, status: 1 });
 VoiceRoomSchema.index({ host: 1, status: 1 });
 VoiceRoomSchema.index({ 'participants.user': 1 });
+VoiceRoomSchema.index({ status: 1, lastHeartbeatAt: -1 });
 
 // Virtual for current participant count
 VoiceRoomSchema.virtual('participantCount').get(function() {

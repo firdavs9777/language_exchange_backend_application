@@ -15,9 +15,13 @@ exports.getVoiceRooms = asyncHandler(async (req, res, next) => {
   const limitNum = Math.min(Math.max(1, parseInt(limit)), 50);
   const skip = (pageNum - 1) * limitNum;
 
+  // Exclude rooms that have gone stale (no heartbeat in the last 60s)
+  const heartbeatCutoff = new Date(Date.now() - 60 * 1000);
+
   const filter = {
     status: { $in: ['waiting', 'active'] },
-    isPublic: true
+    isPublic: true,
+    lastHeartbeatAt: { $gte: heartbeatCutoff }
   };
 
   if (language) filter.language = language;
