@@ -673,7 +673,11 @@ role: {
   lastInactivityEmailAt: {
     type: Date
   },
-  
+  lastDailySummaryAt: {
+    type: Date,
+    default: null
+  },
+
   resetPasswordToken: String,
   resetPasswordExpire: Date,
   
