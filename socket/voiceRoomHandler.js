@@ -11,6 +11,90 @@ const { getCachedIceServers } = require('../services/callService');
 // Key: roomId, Value: { participantIds: Set<string>, status: string, lastUpdated: Date }
 const roomParticipantsCache = new Map();
 
+// ---------------------------------------------------------------------------
+// Host transfer grace-timer state machine (C26)
+// ---------------------------------------------------------------------------
+// Key: `${roomId}:${userId}` → setTimeout handle
+const hostGraceTimers = new Map();
+const HOST_GRACE_MS = 30 * 1000;
+
+/**
+ * Schedule a host-transfer after HOST_GRACE_MS.
+ * If a timer for this {roomId, hostUserId} pair is already pending, this is a
+ * no-op (idempotent).  Pass graceMs=0 for an immediate (explicit-leave) transfer.
+ *
+ * @param {import('socket.io').Server} io
+ * @param {string} roomId
+ * @param {string} hostUserId
+ * @param {number} [graceMs]
+ */
+function scheduleHostTransfer(io, roomId, hostUserId, graceMs = HOST_GRACE_MS) {
+  const key = `${roomId}:${hostUserId}`;
+  if (hostGraceTimers.has(key)) return; // already pending — don't reset
+
+  const timer = setTimeout(async () => {
+    hostGraceTimers.delete(key);
+    try {
+      const room = await VoiceRoom.findById(roomId);
+      if (!room || room.status !== 'active') return;
+      // Guard: another path may have already changed the host
+      if (String(room.host) !== String(hostUserId)) return;
+
+      if (!room.participants || room.participants.length === 0) {
+        // Empty room — end immediately
+        room.status = 'ended';
+        room.endedAt = new Date();
+        await room.save();
+        clearRoomCache(String(roomId));
+        io.emit('voiceroom:ended', { roomId: String(roomId) });
+        return;
+      }
+
+      // Promote the participant with the oldest joinedAt
+      const sorted = [...room.participants].sort(
+        (a, b) => new Date(a.joinedAt) - new Date(b.joinedAt)
+      );
+      const newHostEntry = sorted[0];
+      const previousHostId = String(hostUserId);
+      const newHostId = String(newHostEntry.user);
+
+      room.host = newHostEntry.user;
+      // Update the role field on the promoted participant subdoc
+      const subdoc = room.participants.find(
+        (p) => String(p.user) === newHostId
+      );
+      if (subdoc) subdoc.role = 'host';
+
+      await room.save();
+
+      io.to(`voiceroom_${roomId}`).emit('voiceroom:host-changed', {
+        newHostId,
+        previousHostId,
+      });
+    } catch (err) {
+      console.error('[host-transfer] timer error:', err);
+    }
+  }, graceMs);
+
+  hostGraceTimers.set(key, timer);
+}
+
+/**
+ * Cancel a pending host-transfer grace timer for {roomId, hostUserId}.
+ * Safe to call even if no timer exists.
+ *
+ * @param {string} roomId
+ * @param {string} hostUserId
+ */
+function cancelHostTransfer(roomId, hostUserId) {
+  const key = `${roomId}:${hostUserId}`;
+  const timer = hostGraceTimers.get(key);
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    hostGraceTimers.delete(key);
+  }
+}
+
 /**
  * Get room participant data (from cache or DB)
  * @param {string} roomId - Room ID
@@ -153,23 +237,57 @@ const registerVoiceRoomHandlers = (socket, io) => {
       // Leave socket room
       socket.leave(`voiceroom_${roomId}`);
 
-      // Update database — remove participant and handle host transfer/room ending
+      // Cancel any pending grace timer — the user is explicitly leaving, so the
+      // grace window (started by an earlier disconnect) is no longer relevant.
+      cancelHostTransfer(roomId, userId);
+
+      // Update database — remove participant
       const room = await VoiceRoom.findById(roomId);
-      if (room && room.hasParticipant(userId)) {
-        await room.removeParticipant(userId);
+      if (!room || !room.hasParticipant(userId)) {
+        return;
       }
+
+      const wasHost = String(room.host) === String(userId);
+
+      if (wasHost && room.participants.length > 1) {
+        // Host is explicitly leaving but there are other participants:
+        // Remove host from participants first, then schedule an immediate
+        // transfer (graceMs=0) so the promotion logic runs atomically.
+        room.participants = room.participants.filter(
+          (p) => String(p.user) !== String(userId)
+        );
+        await room.save();
+
+        // Update cache
+        removeParticipantFromCache(roomId, userId);
+
+        // Notify others that the user has left
+        socket.to(`voiceroom_${roomId}`).emit('voiceroom:user_left', {
+          roomId,
+          userId,
+          roomEnded: false,
+        });
+
+        // Immediate host transfer (graceMs=0)
+        scheduleHostTransfer(io, roomId, userId, 0);
+        return;
+      }
+
+      // Non-host leave, OR host leaving an empty room — use existing model method
+      // which handles the ended-room case when participants.length === 0.
+      await room.removeParticipant(userId);
 
       // Update cache
       removeParticipantFromCache(roomId, userId);
 
       // Check if room ended (host left with no one to transfer to)
-      const roomEnded = room && room.status === 'ended';
+      const roomEnded = room.status === 'ended';
 
       // Notify others
       socket.to(`voiceroom_${roomId}`).emit('voiceroom:user_left', {
         roomId,
         userId,
-        roomEnded
+        roomEnded,
       });
 
       if (roomEnded) {
@@ -420,6 +538,9 @@ const registerVoiceRoomHandlers = (socket, io) => {
         return;
       }
 
+      // Cancel any pending grace timer — host has reconnected within the window.
+      cancelHostTransfer(roomId, userId);
+
       const room = await VoiceRoom.findById(roomId);
 
       // Room missing or no longer active
@@ -482,6 +603,9 @@ const registerVoiceRoomHandlers = (socket, io) => {
         { _id: roomId },
         { lastHeartbeatAt: new Date() }
       );
+      // If the host reconnects and sends a heartbeat before the grace timer
+      // fires, cancel the pending transfer.
+      cancelHostTransfer(roomId, userId);
     } catch (err) {
       console.error('[voiceroom:heartbeat]', err);
     }
@@ -500,20 +624,40 @@ const registerVoiceRoomHandlers = (socket, io) => {
 
       for (const room of rooms) {
         try {
-          await room.removeParticipant(userId);
+          const roomId = room._id.toString();
+          const isHost = String(room.host) === String(userId);
 
-          // Update cache
-          removeParticipantFromCache(room._id.toString(), userId);
+          if (isHost) {
+            // Host disconnected — start a 30s grace timer instead of removing
+            // immediately.  If they reconnect (rejoin or heartbeat), the timer
+            // is cancelled.  If the timer fires, the next-oldest participant is
+            // promoted (or the room is ended if empty).
+            scheduleHostTransfer(io, roomId, userId);
 
-          io.to(`voiceroom_${room._id}`).emit('voiceroom:user_left', {
-            roomId: room._id,
-            userId,
-            roomEnded: room.status === 'ended'
-          });
+            // Notify others that the host has temporarily left so the UI can
+            // show the grace-period state, but do NOT mark them removed yet.
+            io.to(`voiceroom_${roomId}`).emit('voiceroom:user_left', {
+              roomId,
+              userId,
+              roomEnded: false,
+              graceTransfer: true,
+            });
+          } else {
+            // Non-host disconnect — remove immediately as before.
+            await room.removeParticipant(userId);
 
-          if (room.status === 'ended') {
-            clearRoomCache(room._id.toString());
-            io.emit('voiceroom:ended', { roomId: room._id });
+            removeParticipantFromCache(roomId, userId);
+
+            io.to(`voiceroom_${roomId}`).emit('voiceroom:user_left', {
+              roomId,
+              userId,
+              roomEnded: room.status === 'ended',
+            });
+
+            if (room.status === 'ended') {
+              clearRoomCache(roomId);
+              io.emit('voiceroom:ended', { roomId });
+            }
           }
         } catch (e) {
           // Ignore errors during cleanup
