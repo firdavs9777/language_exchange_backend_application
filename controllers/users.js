@@ -185,6 +185,17 @@ async function buildUsersQuery(req) {
     query.languageLevel = req.query.languageLevel.toUpperCase();
   }
 
+  // Topics filter — matches users who have at least one of the requested topic IDs
+  if (req.query.topics) {
+    const topicIds = req.query.topics
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (topicIds.length > 0) {
+      query.topics = { $in: topicIds };
+    }
+  }
+
   // Server-side search filter (search in name, username, bio, languages)
   if (req.query.search && req.query.search.trim()) {
     let searchTerm = req.query.search.trim();
