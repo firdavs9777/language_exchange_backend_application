@@ -629,6 +629,38 @@ role: {
     }
   },
   
+  // Push/in-app notification preferences
+  notificationPreferences: {
+    chat: {
+      type: Boolean,
+      default: true
+    },
+    wave: {
+      type: Boolean,
+      default: true
+    },
+    voiceRoomStart: {
+      type: Boolean,
+      default: true
+    },
+    scheduledRoomReminder: {
+      type: Boolean,
+      default: true
+    },
+    followerMoment: {
+      type: Boolean,
+      default: true
+    },
+    visitorAlert: {
+      type: Boolean,
+      default: true
+    },
+    matchAlert: {
+      type: Boolean,
+      default: true
+    }
+  },
+
   // Activity tracking for inactivity emails
   lastActivityAt: {
     type: Date,

@@ -1118,6 +1118,52 @@ exports.checkUsernameAvailability = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc     Get current user's notification preferences
+// @route    GET /api/v1/auth/users/me/notification-preferences
+// @access   Private
+exports.getNotificationPreferences = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.user._id).select('notificationPreferences');
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+  return res.status(200).json({
+    success: true,
+    data: { prefs: user.notificationPreferences || {} },
+  });
+});
+
+// @desc     Update current user's notification preferences
+// @route    PUT /api/v1/auth/users/me/notification-preferences
+// @access   Private
+exports.updateNotificationPreferences = asyncHandler(async (req, res, next) => {
+  const { prefs } = req.body;
+  if (!prefs || typeof prefs !== 'object') {
+    return next(new ErrorResponse('prefs body required', 400));
+  }
+  const allowed = [
+    'chat', 'wave', 'voiceRoomStart', 'scheduledRoomReminder',
+    'followerMoment', 'visitorAlert', 'matchAlert',
+  ];
+  const update = {};
+  for (const key of allowed) {
+    if (key in prefs) {
+      update[`notificationPreferences.${key}`] = !!prefs[key];
+    }
+  }
+  if (Object.keys(update).length === 0) {
+    return next(new ErrorResponse('no valid prefs in body', 400));
+  }
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: update },
+    { new: true, select: 'notificationPreferences' },
+  );
+  return res.status(200).json({
+    success: true,
+    data: { prefs: user.notificationPreferences || {} },
+  });
+});
+
 const sendTokenResponse = (user, statusCode, res) => {
   // Create token
   const token = user.getSignedJwtToken();

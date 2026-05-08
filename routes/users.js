@@ -25,7 +25,9 @@ const {
   checkVisitorLimits,
   changeUserMode,
   getUserLimits,
-  checkUsernameAvailability
+  checkUsernameAvailability,
+  getNotificationPreferences,
+  updateNotificationPreferences
 } = require('../controllers/users');
 
 const {
@@ -81,6 +83,11 @@ router
 router
   .route('/me/visited-profiles')
   .get(protect, getMyVisitedProfiles);
+
+router
+  .route('/me/notification-preferences')
+  .get(protect, getNotificationPreferences)
+  .put(protect, updateNotificationPreferences);
 
 // ============================================
 // /:userId routes (come after /me routes)
