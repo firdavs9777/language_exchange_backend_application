@@ -7,6 +7,7 @@ const notificationService = require('../services/notificationService');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 const cache = require('../services/cacheService');
 const mongoose = require('mongoose');
+const { onlineUsersCache } = require('../socket/socketHandler');
 
 // ============================================
 // NEARBY USERS
@@ -114,11 +115,14 @@ exports.getNearbyUsers = asyncHandler(async (req, res, next) => {
     }
   ];
 
-  // Online only filter (check if user has recent socket activity)
+  // Online only filter — intersect with in-memory presence store
   if (onlineOnly === 'true') {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const onlineIds = Array.from(onlineUsersCache.entries())
+      .filter(([, data]) => data.status === 'online')
+      .map(([id]) => new mongoose.Types.ObjectId(id));
+    // $geoNear query already applied; push a post-geo $match to restrict to online users
     pipeline.push({
-      $match: { lastActive: { $gte: fiveMinutesAgo } }
+      $match: { _id: { $in: onlineIds } }
     });
   }
 
@@ -378,7 +382,7 @@ exports.getTopics = asyncHandler(async (req, res, next) => {
 exports.getTopicUsers = asyncHandler(async (req, res, next) => {
   const { topicId } = req.params;
   const userId = req.user.id;
-  const { page = 1, limit = 20 } = req.query;
+  const { page = 1, limit = 20, onlineOnly, online } = req.query;
 
   const pageNum = Math.max(1, parseInt(page));
   const limitNum = Math.min(Math.max(1, parseInt(limit)), 50);
@@ -395,6 +399,14 @@ exports.getTopicUsers = asyncHandler(async (req, res, next) => {
   // Exclude blocked users
   if (blockedUserIds.length > 0) {
     filter._id = { $ne: userId, $nin: blockedUserIds };
+  }
+
+  // Online only filter — intersect with in-memory presence store
+  if (onlineOnly === 'true' || online === 'true') {
+    const onlineIds = Array.from(onlineUsersCache.entries())
+      .filter(([, data]) => data.status === 'online')
+      .map(([id]) => new mongoose.Types.ObjectId(id));
+    filter._id = { ...(filter._id || {}), $in: onlineIds };
   }
 
   const [users, total] = await Promise.all([

@@ -2325,6 +2325,7 @@ module.exports = {
   getOnlineUsersCount,
   getOnlineUserIds,
   getConnectionInfo,
+  onlineUsersCache,
   invalidateUserCache, // Call this when user blocks/unblocks someone
   clearUserCache // Call this on server restart or cache issues
 };
