@@ -409,6 +409,69 @@ const registerVoiceRoomHandlers = (socket, io) => {
   });
 
   /**
+   * Rejoin — called when a client reconnects to a room it was already in
+   * (e.g. after a network drop or app background/foreground cycle).
+   * Acks { ok, ended, currentHostId?, youArePromoted?, participants? }
+   */
+  socket.on('voiceroom:rejoin', async ({ roomId, lastSeenAt } = {}, ack) => {
+    try {
+      if (!roomId) {
+        if (typeof ack === 'function') ack({ ok: false, ended: true });
+        return;
+      }
+
+      const room = await VoiceRoom.findById(roomId);
+
+      // Room missing or no longer active
+      if (!room || room.status !== 'active') {
+        if (typeof ack === 'function') ack({ ok: false, ended: true });
+        socket.emit('voiceroom:ended', { roomId });
+        return;
+      }
+
+      // Re-add to participants if missing
+      const isParticipant = room.hasParticipant(userId);
+      if (!isParticipant) {
+        room.participants.push({
+          user: userId,
+          joinedAt: new Date(),
+          isMuted: true,
+        });
+        await room.save();
+
+        // Update cache
+        addParticipantToCache(roomId, userId);
+
+        socket.to(`voiceroom_${roomId}`).emit('voiceroom:user_joined', {
+          roomId,
+          userId,
+          joinedAt: new Date().toISOString(),
+        });
+      }
+
+      // Subscribe socket to the room channel
+      socket.join(`voiceroom_${roomId}`);
+
+      // Determine if rejoining user is still the host
+      const currentHostId = String(room.host);
+      const youArePromoted = currentHostId === String(userId);
+
+      if (typeof ack === 'function') {
+        ack({
+          ok: true,
+          ended: false,
+          currentHostId,
+          youArePromoted,
+          participants: room.participants,
+        });
+      }
+    } catch (err) {
+      console.error('[voiceroom:rejoin]', err);
+      if (typeof ack === 'function') ack({ ok: false, ended: true });
+    }
+  });
+
+  /**
    * Heartbeat — clients send this every ~30s while in a room so we can detect
    * stale/abandoned rooms (host crashed, network dropped, etc.).
    */
