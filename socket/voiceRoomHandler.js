@@ -349,6 +349,41 @@ const registerVoiceRoomHandlers = (socket, io) => {
   });
 
   /**
+   * Host mutes all participants (C11)
+   */
+  socket.on('voiceroom:mute-all', async (data = {}) => {
+    try {
+      const { roomId } = data;
+      if (!roomId) return;
+
+      const room = await VoiceRoom.findById(roomId);
+      if (!room) return;
+
+      // Only the host may trigger mute-all
+      if (String(room.host) !== String(userId)) return;
+
+      // Update every participant's isMuted flag in the DB
+      await VoiceRoom.updateMany(
+        { _id: roomId },
+        { $set: { 'participants.$[].isMuted': true } }
+      );
+
+      // Broadcast a forced mute event for each participant
+      for (const p of room.participants) {
+        const pid = String(p.user?._id || p.user);
+        io.to(`voiceroom_${roomId}`).emit('voiceroom:mute', {
+          roomId,
+          userId: pid,
+          isMuted: true,
+          forced: true,
+        });
+      }
+    } catch (err) {
+      console.error('[voiceroom:mute-all]', err);
+    }
+  });
+
+  /**
    * WebRTC signaling - offer (targeted to specific user)
    */
   socket.on('voiceroom:rtc_offer', async (data) => {
