@@ -252,12 +252,15 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
 
   const query = await buildUsersQuery(req);
 
-  // Sort: VIP first, then online, then most recently active
-  const sortOptions = {
-    'vipSubscription.isActive': -1,
-    'isOnline': -1,
-    'lastActive': -1
-  };
+  // Sort: VIP first, then online, then most recently active (default)
+  // Override with ?sort=recently_active to sort by lastSeenAt desc
+  const sortOptions = req.query.sort === 'recently_active'
+    ? { lastSeenAt: -1, _id: -1 }
+    : {
+        'vipSubscription.isActive': -1,
+        'isOnline': -1,
+        'lastActive': -1
+      };
 
   const [users, total] = await Promise.all([
     User.find(query)
