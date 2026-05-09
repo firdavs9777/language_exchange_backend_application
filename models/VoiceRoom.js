@@ -79,7 +79,7 @@ const VoiceRoomSchema = new mongoose.Schema({
   // Room status
   status: {
     type: String,
-    enum: ['waiting', 'active', 'ended'],
+    enum: ['scheduled', 'waiting', 'active', 'ended'],
     default: 'waiting',
     index: true
   },
@@ -143,6 +143,18 @@ const VoiceRoomSchema = new mongoose.Schema({
   lastHeartbeatAt: {
     type: Date,
     default: Date.now
+  },
+  // Scheduled rooms
+  scheduledFor: { type: Date, default: null },
+  rsvps: [{
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    rsvpAt: { type: Date, default: Date.now },
+  }],
+  remindersSent: { type: [String], default: [] },
+  category: {
+    type: String,
+    enum: ['casual', 'language_practice', 'topic', 'qa'],
+    default: null,
   }
 }, {
   timestamps: true
@@ -155,6 +167,7 @@ VoiceRoomSchema.index({ topic: 1, status: 1 });
 VoiceRoomSchema.index({ host: 1, status: 1 });
 VoiceRoomSchema.index({ 'participants.user': 1 });
 VoiceRoomSchema.index({ status: 1, lastHeartbeatAt: -1 });
+VoiceRoomSchema.index({ status: 1, scheduledFor: 1 });
 
 // Virtual for current participant count
 VoiceRoomSchema.virtual('participantCount').get(function() {
