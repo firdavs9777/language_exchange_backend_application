@@ -9,7 +9,7 @@ const User = require('../models/User');
  * @access  Private
  */
 exports.getVoiceRooms = asyncHandler(async (req, res, next) => {
-  const { language, topic, page = 1, limit = 20 } = req.query;
+  const { language, topic, page = 1, limit = 20, status: statusFilter } = req.query;
 
   const pageNum = Math.max(1, parseInt(page));
   const limitNum = Math.min(Math.max(1, parseInt(limit)), 50);
@@ -18,10 +18,21 @@ exports.getVoiceRooms = asyncHandler(async (req, res, next) => {
   // Exclude rooms that have gone stale (no heartbeat in the last 60s)
   const heartbeatCutoff = new Date(Date.now() - 60 * 1000);
 
+  let statusQuery;
+  if (statusFilter === 'scheduled') {
+    statusQuery = 'scheduled';
+  } else if (statusFilter === 'all') {
+    statusQuery = { $in: ['scheduled', 'waiting', 'active'] };
+  } else {
+    // Default — preserves backward compatibility for old clients
+    statusQuery = { $in: ['waiting', 'active'] };
+  }
+
   const filter = {
-    status: { $in: ['waiting', 'active'] },
+    status: statusQuery,
     isPublic: true,
-    lastHeartbeatAt: { $gte: heartbeatCutoff }
+    // Skip heartbeat check for scheduled rooms (they haven't started yet)
+    ...(statusFilter !== 'scheduled' && { lastHeartbeatAt: { $gte: heartbeatCutoff } })
   };
 
   if (language) filter.language = language;
@@ -450,5 +461,49 @@ exports.getMyRoom = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     data: room || null
+  });
+});
+
+/**
+ * @desc    RSVP to a scheduled voice room
+ * @route   POST /api/v1/voicerooms/:id/rsvp
+ * @access  Private
+ */
+exports.rsvp = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const room = await VoiceRoom.findById(req.params.id);
+  if (!room) return next(new ErrorResponse('Room not found', 404));
+  if (room.status !== 'scheduled') {
+    return next(new ErrorResponse('Can only RSVP to scheduled rooms', 400));
+  }
+  const existing = room.rsvps.find(r => String(r.user) === String(userId));
+  if (existing) {
+    return res.status(200).json({
+      success: true,
+      data: { rsvpCount: room.rsvps.length },
+    });
+  }
+  room.rsvps.push({ user: userId, rsvpAt: new Date() });
+  await room.save();
+  res.status(200).json({
+    success: true,
+    data: { rsvpCount: room.rsvps.length },
+  });
+});
+
+/**
+ * @desc    Un-RSVP from a scheduled voice room
+ * @route   DELETE /api/v1/voicerooms/:id/rsvp
+ * @access  Private
+ */
+exports.unrsvp = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const room = await VoiceRoom.findById(req.params.id);
+  if (!room) return next(new ErrorResponse('Room not found', 404));
+  room.rsvps = room.rsvps.filter(r => String(r.user) !== String(userId));
+  await room.save();
+  res.status(200).json({
+    success: true,
+    data: { rsvpCount: room.rsvps.length },
   });
 });

@@ -10,7 +10,9 @@ const {
   endVoiceRoom,
   updateParticipantStatus,
   promoteParticipant,
-  getMyRoom
+  getMyRoom,
+  rsvp,
+  unrsvp
 } = require('../controllers/voiceRooms');
 
 const { protect } = require('../middleware/auth');
@@ -77,5 +79,17 @@ router.put('/:id/status', updateParticipantStatus);
  * @desc    Promote participant to co-host (host only)
  */
 router.put('/:id/promote/:userId', promoteParticipant);
+
+/**
+ * @route   POST /api/v1/voicerooms/:id/rsvp
+ * @desc    RSVP to a scheduled voice room
+ */
+router.post('/:id/rsvp', rsvp);
+
+/**
+ * @route   DELETE /api/v1/voicerooms/:id/rsvp
+ * @desc    Un-RSVP from a scheduled voice room
+ */
+router.delete('/:id/rsvp', unrsvp);
 
 module.exports = router;
