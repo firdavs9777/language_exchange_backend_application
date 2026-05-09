@@ -2,13 +2,24 @@
  * Voice Room Cleanup Job
  *
  * Periodically marks rooms as 'ended' when no heartbeat has been received
- * for more than STALE_MS milliseconds (default: 90s).  Clients are expected
- * to send a `voiceroom:heartbeat` socket event every ~30s while in a room.
+ * for more than STALE_MS milliseconds.
+ *
+ * STALE_MS is intentionally generous (30 minutes) right after the heartbeat
+ * feature deploys — old Flutter clients in the wild don't emit
+ * `voiceroom:heartbeat`, so a tight 90s window would kill their rooms
+ * shortly after creation. Once app-update adoption is high (~1-2 weeks
+ * post-launch), tighten this back to 90s for sharper cleanup.
+ *
+ * Tunable via VOICE_ROOM_STALE_MS env var (milliseconds).
+ *
+ * Clients on the new app emit `voiceroom:heartbeat` every ~20s while in
+ * a room (see Flutter `VoiceRoomManager._heartbeatTimer`).
  */
 
 const VoiceRoom = require('../models/VoiceRoom');
 
-const STALE_MS = 90 * 1000; // 90 seconds
+const DEFAULT_STALE_MS = 30 * 60 * 1000; // 30 minutes — generous for legacy clients
+const STALE_MS = parseInt(process.env.VOICE_ROOM_STALE_MS, 10) || DEFAULT_STALE_MS;
 const INTERVAL_MS = 60 * 1000; // run every 60 seconds
 
 async function runVoiceRoomCleanup() {
@@ -36,7 +47,8 @@ async function runVoiceRoomCleanup() {
 
 function start() {
   setInterval(runVoiceRoomCleanup, INTERVAL_MS);
-  console.log('[voiceRoomCleanup] job started (every 60s, stale > 90s)');
+  const staleMin = Math.round(STALE_MS / 1000 / 60);
+  console.log(`[voiceRoomCleanup] job started (every 60s, stale > ${staleMin}min)`);
 }
 
 module.exports = { start, runVoiceRoomCleanup };
