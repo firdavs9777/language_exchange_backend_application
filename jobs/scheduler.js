@@ -28,6 +28,7 @@ const dailyCounterResetJob = require('./dailyCounterResetJob');
 const weeklyCounterResetJob = require('./weeklyCounterResetJob');
 const voiceRoomCleanupJob = require('./voiceRoomCleanupJob');
 const waveDailySummaryJob = require('./waveDailySummaryJob');
+const voiceRoomSchedulerJob = require('./voiceRoomSchedulerJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -383,6 +384,9 @@ const startScheduler = () => {
 
   // Voice room stale-cleanup job (every 60s, stale > 90s)
   voiceRoomCleanupJob.start();
+
+  // Voice room scheduler job (every 60s — start scheduled rooms + reminders)
+  voiceRoomSchedulerJob.start();
 
   // Wave daily summary job (9 AM UTC, hourly tick)
   waveDailySummaryJob.start();

@@ -807,6 +807,62 @@ const sendCommentMention = async (mentionedUserId, mentionerId, momentId, commen
   }
 };
 
+/**
+ * Notify host + RSVPs when a scheduled room flips to active.
+ * @param {string} userId - recipient user ID
+ * @param {string|ObjectId} roomId
+ * @param {string} title - room title
+ */
+const sendScheduledRoomStarted = async (userId, roomId, title) => {
+  const user = await User.findById(userId).select('fcmToken notificationPreferences');
+  if (!user?.fcmToken) return;
+  if (!shouldNotify(user, 'voiceRoomStart')) return;
+
+  await fcmService.sendToUser(
+    user._id,
+    {
+      title: 'Room starting now',
+      body: `${title} is starting now`,
+    },
+    {
+      type: 'voice_room_start',
+      roomId: String(roomId),
+      route: `/voicerooms/${roomId}`,
+    }
+  );
+};
+
+/**
+ * Remind RSVPs of an upcoming scheduled room.
+ * @param {string} userId - recipient user ID
+ * @param {string|ObjectId} roomId
+ * @param {string} title - room title
+ * @param {'1h'|'15min'} when - reminder window label
+ */
+const sendScheduledRoomReminder = async (userId, roomId, title, when) => {
+  const user = await User.findById(userId).select('fcmToken notificationPreferences');
+  if (!user?.fcmToken) return;
+  if (!shouldNotify(user, 'scheduledRoomReminder')) return;
+
+  const body = when === '1h'
+    ? `${title} starts in 1 hour`
+    : `${title} starts in 15 minutes`;
+
+  await fcmService.sendToUser(
+    user._id,
+    {
+      title: 'Upcoming room',
+      body,
+    },
+    {
+      type: 'scheduled_room_reminder',
+      roomId: String(roomId),
+      when,
+      route: `/voicerooms/${roomId}`,
+    }
+  );
+};
+
 module.exports = {
   shouldNotify,
   send,
@@ -819,6 +875,8 @@ module.exports = {
   sendWave,
   sendCommentReply,
   sendCommentReaction,
-  sendCommentMention
+  sendCommentMention,
+  sendScheduledRoomStarted,
+  sendScheduledRoomReminder,
 };
 
