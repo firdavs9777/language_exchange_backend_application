@@ -17,6 +17,7 @@ const learningTrackingService = require('../services/learningTrackingService');
 const recommendationService = require('../services/recommendationService');
 const aiQuizService = require('../services/aiQuizService');
 const aiLessonAssistantService = require('../services/aiLessonAssistantService');
+const { chatCompletion } = require('../services/aiProviderService');
 
 // ===================== PROGRESS =====================
 
@@ -1435,5 +1436,80 @@ exports.getWeeklyDigest = asyncHandler(async (req, res, next) => {
       topAchievement,
       daysActive,
     },
+  });
+});
+
+// ===================== AI VOCABULARY =====================
+
+// @desc    AI-define a vocabulary word — generate definition, examples, collocations
+// @route   POST /api/v1/learning/vocabulary/ai-define
+// @access  Private
+exports.aiDefineVocabulary = asyncHandler(async (req, res, next) => {
+  const { word, language, nativeLanguage } = req.body;
+
+  if (!word || typeof word !== 'string' || word.trim().length === 0) {
+    return next(new ErrorResponse('Word is required', 400));
+  }
+  if (word.length > 100) {
+    return next(new ErrorResponse('Word too long', 400));
+  }
+
+  const targetLang = language || req.user.language_to_learn || 'English';
+  const native = nativeLanguage || req.user.native_language || 'English';
+
+  const prompt = `You are a language-learning assistant for a user studying ${targetLang}, native speaker of ${native}.
+
+Generate vocabulary entry data for the word: "${word.trim()}" (${targetLang})
+
+Return a JSON object with EXACTLY these fields:
+{
+  "definition": "<concise ${native} definition>",
+  "translation": "<simple ${native} translation>",
+  "partOfSpeech": "<noun|verb|adjective|adverb|pronoun|preposition|conjunction|interjection|phrase|other>",
+  "examples": [
+    "<${targetLang} sentence 1>",
+    "<${targetLang} sentence 2>",
+    "<${targetLang} sentence 3>"
+  ],
+  "collocations": ["<2-4 common collocations>"],
+  "registerNotes": "<brief formal/informal/regional notes, or empty string>",
+  "pronunciation": "<IPA or romanization, or empty string>"
+}
+
+Return ONLY the JSON, no preamble.`;
+
+  const result = await chatCompletion({
+    messages: [
+      {
+        role: 'system',
+        content: 'You are a precise language-learning vocabulary generator. Respond with valid JSON only.'
+      },
+      { role: 'user', content: prompt }
+    ],
+    feature: 'translation',
+    maxTokens: 600,
+    temperature: 0.3,
+    json: true
+  });
+
+  let parsed;
+  try {
+    parsed = JSON.parse(result.content);
+  } catch (e) {
+    return next(new ErrorResponse('AI response could not be parsed', 502));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      word: word.trim(),
+      definition: parsed.definition || '',
+      translation: parsed.translation || '',
+      partOfSpeech: parsed.partOfSpeech || 'other',
+      examples: Array.isArray(parsed.examples) ? parsed.examples.slice(0, 3) : [],
+      collocations: Array.isArray(parsed.collocations) ? parsed.collocations.slice(0, 4) : [],
+      registerNotes: parsed.registerNotes || '',
+      pronunciation: parsed.pronunciation || '',
+    }
   });
 });

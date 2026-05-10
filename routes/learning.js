@@ -58,7 +58,9 @@ const {
   generatePractice,
   getLessonSummary,
   // Weekly Digest
-  getWeeklyDigest
+  getWeeklyDigest,
+  // AI Vocabulary
+  aiDefineVocabulary
 } = require('../controllers/learning');
 
 const { protect } = require('../middleware/auth');
@@ -132,6 +134,9 @@ router.get('/quizzes/ai/stats', getAIQuizStats);
 router.post('/quizzes/ai/:id/start', startAIQuiz);
 router.post('/quizzes/ai/:id/answer', submitAIQuizAnswer);
 router.post('/quizzes/ai/:id/complete', completeAIQuiz);
+
+// ===================== AI VOCABULARY ROUTES =====================
+router.post('/vocabulary/ai-define', aiRateLimiter('translation'), aiDefineVocabulary);
 
 // ===================== AI LESSON ASSISTANT ROUTES =====================
 router.post('/lessons/:id/assistant/hint', aiRateLimiter('conversation'), getExerciseHint);
