@@ -1513,3 +1513,172 @@ Return ONLY the JSON, no preamble.`;
     }
   });
 });
+
+// ===================== AI DAILY PRACTICE =====================
+
+/**
+ * @desc    Get today's AI daily practice sentence
+ * @route   GET /api/v1/learning/daily-practice
+ * @access  Private
+ */
+exports.getDailyPractice = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const targetLanguage = req.user.language_to_learn || 'English';
+  const nativeLanguage = req.user.native_language || 'English';
+
+  // Pick 2-3 words from user's vocab — prefer learning-tier (srsLevel 1-8)
+  const vocab = await Vocabulary.find({
+    user: userId,
+    language: targetLanguage,
+    srsLevel: { $gte: 1, $lt: 9 },
+  })
+    .sort({ updatedAt: -1 })
+    .limit(20)
+    .lean();
+
+  // Random sample of 2-3 from the top 20
+  const sample = [];
+  const pool = [...vocab];
+  const targetCount = Math.min(3, Math.max(2, pool.length));
+  while (sample.length < targetCount && pool.length > 0) {
+    const idx = Math.floor(Math.random() * pool.length);
+    sample.push(pool.splice(idx, 1)[0]);
+  }
+
+  if (sample.length === 0) {
+    // Fallback: use random recent vocab regardless of mastery
+    const fallback = await Vocabulary.find({ user: userId, language: targetLanguage })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+    if (fallback.length === 0) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          sentence: null,
+          words: [],
+          message: 'Add vocabulary words first',
+        },
+      });
+    }
+    sample.push(...fallback.slice(0, Math.min(3, fallback.length)));
+  }
+
+  const wordsList = sample.map(v => v.word).join(', ');
+
+  const prompt = `You are a language teacher creating a daily practice sentence.
+
+Target language: ${targetLanguage}
+Native language: ${nativeLanguage}
+Words to incorporate: ${wordsList}
+
+Create ONE natural, useful sentence in ${nativeLanguage} that the user should translate to ${targetLanguage}. The sentence should naturally use 2 or 3 of the vocabulary words above.
+
+Return JSON with these EXACT fields:
+{
+  "sentence_native": "<the ${nativeLanguage} sentence to translate>",
+  "expected_translation": "<the model ${targetLanguage} translation>",
+  "words_used": ["<word1>", "<word2>", ...],
+  "difficulty_hint": "<one-line tip about grammar or word usage>"
+}
+
+Return ONLY JSON, no preamble.`;
+
+  const messages = [
+    { role: 'system', content: 'You are a precise language-learning daily practice generator. Respond with valid JSON only.' },
+    { role: 'user', content: prompt },
+  ];
+
+  const response = await chatCompletion({
+    feature: 'translation',
+    messages,
+    maxTokens: 500,
+    json: true,
+  });
+
+  let parsed;
+  try {
+    parsed = JSON.parse(response.content);
+  } catch (e) {
+    return next(new ErrorResponse('AI response could not be parsed', 502));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      sentence: parsed.sentence_native || null,
+      expectedTranslation: parsed.expected_translation || null,
+      wordsUsed: Array.isArray(parsed.words_used) ? parsed.words_used : sample.map(v => v.word),
+      difficultyHint: parsed.difficulty_hint || '',
+      vocabIds: sample.map(v => v._id),
+      targetLanguage,
+      nativeLanguage,
+    },
+  });
+});
+
+/**
+ * @desc    Grade user's daily practice translation
+ * @route   POST /api/v1/learning/daily-practice/grade
+ * @access  Private
+ */
+exports.gradeDailyPractice = asyncHandler(async (req, res, next) => {
+  const { sentenceNative, userTranslation, expectedTranslation, targetLanguage, nativeLanguage } = req.body;
+
+  if (!userTranslation || typeof userTranslation !== 'string') {
+    return next(new ErrorResponse('userTranslation required', 400));
+  }
+  if (!sentenceNative) {
+    return next(new ErrorResponse('sentenceNative required', 400));
+  }
+
+  const tgt = targetLanguage || req.user.language_to_learn || 'English';
+  const native = nativeLanguage || req.user.native_language || 'English';
+
+  const prompt = `You are a language teacher grading a translation.
+
+Native sentence (${native}): "${sentenceNative}"
+Expected translation (${tgt}): "${expectedTranslation || '<not provided — use your own judgment>'}"
+User's translation (${tgt}): "${userTranslation}"
+
+Grade the user's translation. Return JSON:
+{
+  "score": <integer 0-100>,
+  "isCorrect": <boolean — true if score >= 80>,
+  "feedback": "<2-3 sentences explaining errors or praising. Be encouraging.>",
+  "suggested_translation": "<your suggested correct ${tgt} translation>",
+  "errors": [
+    { "type": "grammar|vocab|spelling|word_order|other", "explanation": "<short>" }
+  ]
+}
+
+Return ONLY JSON.`;
+
+  const response = await chatCompletion({
+    feature: 'translation',
+    messages: [
+      { role: 'system', content: 'You are a precise language teacher grader. Respond with valid JSON only.' },
+      { role: 'user', content: prompt },
+    ],
+    maxTokens: 600,
+    json: true,
+  });
+
+  let parsed;
+  try {
+    parsed = JSON.parse(response.content);
+  } catch (e) {
+    return next(new ErrorResponse('AI grading response could not be parsed', 502));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      score: typeof parsed.score === 'number' ? parsed.score : 0,
+      isCorrect: !!parsed.isCorrect,
+      feedback: parsed.feedback || '',
+      suggestedTranslation: parsed.suggested_translation || expectedTranslation || '',
+      errors: Array.isArray(parsed.errors) ? parsed.errors : [],
+    },
+  });
+});

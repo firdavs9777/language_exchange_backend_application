@@ -60,7 +60,10 @@ const {
   // Weekly Digest
   getWeeklyDigest,
   // AI Vocabulary
-  aiDefineVocabulary
+  aiDefineVocabulary,
+  // AI Daily Practice
+  getDailyPractice,
+  gradeDailyPractice
 } = require('../controllers/learning');
 
 const { protect } = require('../middleware/auth');
@@ -137,6 +140,10 @@ router.post('/quizzes/ai/:id/complete', completeAIQuiz);
 
 // ===================== AI VOCABULARY ROUTES =====================
 router.post('/vocabulary/ai-define', aiRateLimiter('translation'), aiDefineVocabulary);
+
+// ===================== AI DAILY PRACTICE ROUTES =====================
+router.get('/daily-practice', aiRateLimiter('translation'), getDailyPractice);
+router.post('/daily-practice/grade', aiRateLimiter('translation'), gradeDailyPractice);
 
 // ===================== AI LESSON ASSISTANT ROUTES =====================
 router.post('/lessons/:id/assistant/hint', aiRateLimiter('conversation'), getExerciseHint);
