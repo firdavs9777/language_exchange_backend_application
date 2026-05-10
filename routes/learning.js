@@ -56,7 +56,9 @@ const {
   getTranslationHelp,
   askAssistant,
   generatePractice,
-  getLessonSummary
+  getLessonSummary,
+  // Weekly Digest
+  getWeeklyDigest
 } = require('../controllers/learning');
 
 const { protect } = require('../middleware/auth');
@@ -114,6 +116,9 @@ router.put('/achievements/featured', setFeaturedAchievements);
 
 // ===================== ACTIVITY ROUTES =====================
 router.get('/activity', getActivitySummary);
+
+// ===================== WEEKLY DIGEST ROUTES =====================
+router.get('/weekly-digest', getWeeklyDigest);
 
 // ===================== AI RECOMMENDATION ROUTES =====================
 router.get('/recommendations/adaptive', aiRateLimiter('conversation'), getAdaptiveRecommendations);

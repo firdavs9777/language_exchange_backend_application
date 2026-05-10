@@ -1329,3 +1329,111 @@ exports.getLessonSummary = asyncHandler(async (req, res, next) => {
     data: result
   });
 });
+
+// @desc    Get last-7-day digest of learning activity
+// @route   GET /api/v1/learning/weekly-digest
+// @access  Private
+exports.getWeeklyDigest = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const language = req.query.language || req.user.targetLanguage || null;
+
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - 7);
+  weekStart.setHours(0, 0, 0, 0);
+
+  // Find learning progress (per-language if specified)
+  const progressQuery = { user: userId };
+  if (language) progressQuery.targetLanguage = language;
+  const progress = await LearningProgress.findOne(progressQuery);
+
+  if (!progress) {
+    return res.status(200).json({
+      success: true,
+      data: {
+        weekStart: weekStart.toISOString(),
+        weekEnd: now.toISOString(),
+        xpEarned: 0,
+        lessonsCompleted: 0,
+        vocabularyLearned: 0,
+        challengesCompleted: 0,
+        currentStreak: 0,
+        longestStreak: 0,
+        topAchievement: null,
+        daysActive: 0,
+      },
+    });
+  }
+
+  // XP earned this week (rolling weeklyXP counter)
+  const xpEarned = progress.weeklyXP || 0;
+
+  // Lessons completed in the 7-day window
+  const lessonQuery = { user: userId, isCompleted: true, completedAt: { $gte: weekStart } };
+  const lessonsCompleted = await LessonProgress.countDocuments(lessonQuery);
+
+  // Vocabulary words added in the 7-day window
+  const vocabQuery = { user: userId, createdAt: { $gte: weekStart } };
+  if (language) vocabQuery.language = language;
+  const vocabularyLearned = await Vocabulary.countDocuments(vocabQuery);
+
+  // Challenges completed in the 7-day window
+  const challengeQuery = { user: userId, isCompleted: true, completedAt: { $gte: weekStart } };
+  const challengesCompleted = await ChallengeProgress.countDocuments(challengeQuery);
+
+  // Days active: count distinct days with a completed lesson or challenge in window
+  const [lessonDays, challengeDays] = await Promise.all([
+    LessonProgress.distinct('completedAt', {
+      user: userId,
+      isCompleted: true,
+      completedAt: { $gte: weekStart },
+    }),
+    ChallengeProgress.distinct('completedAt', {
+      user: userId,
+      isCompleted: true,
+      completedAt: { $gte: weekStart },
+    }),
+  ]);
+  const activeDaySet = new Set();
+  for (const d of [...lessonDays, ...challengeDays]) {
+    if (d) activeDaySet.add(new Date(d).toDateString());
+  }
+  const daysActive = activeDaySet.size;
+
+  // Most recent achievement unlocked in the window
+  let topAchievement = null;
+  try {
+    const ua = await UserAchievement.findOne({
+      user: userId,
+      isUnlocked: true,
+      unlockedAt: { $gte: weekStart },
+    })
+      .sort({ unlockedAt: -1 })
+      .lean();
+    if (ua) {
+      topAchievement = {
+        id: ua._id,
+        achievementCode: ua.achievementCode,
+        unlockedAt: ua.unlockedAt,
+      };
+    }
+  } catch (e) {
+    // Non-fatal: return null for topAchievement
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      weekStart: weekStart.toISOString(),
+      weekEnd: now.toISOString(),
+      xpEarned,
+      lessonsCompleted,
+      vocabularyLearned,
+      challengesCompleted,
+      currentStreak: progress.currentStreak || 0,
+      longestStreak: progress.longestStreak || 0,
+      topAchievement,
+      daysActive,
+    },
+  });
+});
