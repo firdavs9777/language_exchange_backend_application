@@ -7,6 +7,7 @@ const {
   getLeaderboard,
   updateDailyGoal,
   updatePreferences,
+  useStreakFreeze,
   // Vocabulary
   getVocabulary,
   addVocabulary,
@@ -70,6 +71,7 @@ router.get('/progress', getProgress);
 router.get('/progress/leaderboard', getLeaderboard);
 router.put('/progress/daily-goal', updateDailyGoal);
 router.put('/progress/preferences', updatePreferences);
+router.post('/progress/use-freeze', useStreakFreeze);
 
 // ===================== VOCABULARY ROUTES =====================
 router.route('/vocabulary')

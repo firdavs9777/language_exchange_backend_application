@@ -1288,6 +1288,31 @@ exports.generatePractice = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc    Use a streak freeze
+// @route   POST /api/v1/learning/progress/use-freeze
+// @access  Private
+exports.useStreakFreeze = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+
+  let progress = await LearningProgress.findOne({ user: userId });
+
+  if (!progress) {
+    return next(new ErrorResponse('No progress record found', 404));
+  }
+
+  if ((progress.streakFreezes || 0) <= 0) {
+    return next(new ErrorResponse('No streak freezes available', 400));
+  }
+
+  const used = await progress.useStreakFreeze();
+
+  if (!used) {
+    return next(new ErrorResponse('Freeze already used today or none available', 400));
+  }
+
+  res.status(200).json({ success: true, data: progress });
+});
+
 /**
  * @desc    Get AI-generated lesson summary
  * @route   GET /api/v1/learning/lessons/:id/assistant/summary
