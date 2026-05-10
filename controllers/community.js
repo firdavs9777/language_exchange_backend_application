@@ -275,7 +275,7 @@ exports.sendWave = asyncHandler(async (req, res, next) => {
  */
 exports.getWaves = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
-  const { page = 1, limit = 20, unreadOnly } = req.query;
+  const { page = 1, limit = 20, unreadOnly, archive } = req.query;
 
   const pageNum = Math.max(1, parseInt(page));
   const limitNum = Math.min(Math.max(1, parseInt(limit)), 50);
@@ -284,6 +284,13 @@ exports.getWaves = asyncHandler(async (req, res, next) => {
   const filter = { to: userId };
   if (unreadOnly === 'true') {
     filter.isRead = false;
+  }
+  if (archive === 'true') {
+    const now = Date.now();
+    filter.createdAt = {
+      $gte: new Date(now - 30 * 24 * 60 * 60 * 1000),
+      $lt: new Date(now - 7 * 24 * 60 * 60 * 1000),
+    };
   }
 
   const [waves, total, unreadCount] = await Promise.all([
