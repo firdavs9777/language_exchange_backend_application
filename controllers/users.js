@@ -196,6 +196,29 @@ async function buildUsersQuery(req) {
     }
   }
 
+  // Mutual interests minimum — requires at least N overlapping topics with the current user
+  if (req.query.topicsAtLeast) {
+    const minOverlap = parseInt(req.query.topicsAtLeast, 10);
+    if (minOverlap > 0) {
+      const myTopics = (req.user && req.user.topics) ? req.user.topics : [];
+      if (myTopics.length === 0) {
+        // Current user has no topics → no overlap possible → return empty result set
+        query._id = { ...(query._id || {}), $in: [] };
+      } else {
+        const overlapCondition = {
+          $gte: [
+            { $size: { $setIntersection: ['$topics', myTopics] } },
+            minOverlap,
+          ],
+        };
+        // Merge with any existing $expr (defensive — none expected today)
+        query.$expr = query.$expr
+          ? { $and: [query.$expr, overlapCondition] }
+          : overlapCondition;
+      }
+    }
+  }
+
   // Server-side search filter (search in name, username, bio, languages)
   if (req.query.search && req.query.search.trim()) {
     let searchTerm = req.query.search.trim();
