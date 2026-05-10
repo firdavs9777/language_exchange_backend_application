@@ -68,6 +68,29 @@ exports.transcribeAudio = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    Transcribe an audio URL (e.g., from chat voice messages)
+ * @route   POST /api/v1/speech/transcribe-url
+ * @access  Private
+ */
+exports.transcribeFromUrl = asyncHandler(async (req, res, next) => {
+  const { audioUrl, language } = req.body;
+
+  if (!audioUrl) {
+    return next(new ErrorResponse('audioUrl is required', 400));
+  }
+
+  const transcript = await speechService.transcribeFromUrl(audioUrl, {
+    language,
+    userId: req.user.id
+  });
+
+  res.status(200).json({
+    success: true,
+    data: { transcript }
+  });
+});
+
+/**
  * @desc    Evaluate pronunciation
  * @route   POST /api/v1/speech/pronunciation/evaluate
  * @access  Private

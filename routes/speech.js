@@ -5,6 +5,7 @@ const multer = require('multer');
 const {
   generateTTS,
   transcribeAudio,
+  transcribeFromUrl,
   evaluatePronunciation,
   getPronunciationHistory,
   getPronunciationStats,
@@ -64,6 +65,13 @@ router.post('/tts', aiRateLimiter('tts'), generateTTS);
  * @access  Private
  */
 router.post('/stt', aiRateLimiter('stt'), upload.single('audio'), transcribeAudio);
+
+/**
+ * @route   POST /api/v1/speech/transcribe-url
+ * @desc    Transcribe audio from a URL (chat voice messages)
+ * @access  Private
+ */
+router.post('/transcribe-url', aiRateLimiter('stt'), transcribeFromUrl);
 
 // ===================== PRONUNCIATION ROUTES =====================
 /**

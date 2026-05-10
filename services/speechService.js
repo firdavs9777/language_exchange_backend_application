@@ -364,6 +364,50 @@ const generateBasicImprovements = (metrics) => {
 };
 
 /**
+ * Transcribe audio from a URL (e.g., stored voice messages)
+ * Downloads the audio from the URL and passes the buffer to the STT pipeline.
+ * @param {string} audioUrl - Public URL of the audio file
+ * @param {Object} options - Options
+ * @param {string} [options.language] - BCP-47 language hint
+ * @param {string} [options.userId] - For usage tracking
+ * @returns {Promise<string>} Transcript text
+ */
+const transcribeFromUrl = async (audioUrl, { language, userId } = {}) => {
+  if (!AI_FEATURES.speechFeatures) {
+    throw new Error('Speech features are not enabled');
+  }
+
+  // Fetch the audio bytes from the remote URL
+  const fetchResponse = await fetch(audioUrl);
+  if (!fetchResponse.ok) {
+    throw new Error(`Failed to fetch audio from URL: ${fetchResponse.status} ${fetchResponse.statusText}`);
+  }
+  const arrayBuffer = await fetchResponse.arrayBuffer();
+  const audioBuffer = Buffer.from(arrayBuffer);
+
+  // Derive a plausible filename from the URL for Whisper's format detection
+  const urlPath = new URL(audioUrl).pathname;
+  const filename = urlPath.split('/').pop() || 'audio.mp3';
+
+  const result = await speechToText({
+    audio: audioBuffer,
+    language,
+    filename
+  });
+
+  if (userId) {
+    await trackUsage({
+      userId,
+      feature: 'stt',
+      provider: 'openai',
+      metadata: { language, duration: result.duration, source: 'url' }
+    });
+  }
+
+  return result.text;
+};
+
+/**
  * Get user's pronunciation history
  * @param {String} userId - User ID
  * @param {Object} options - Query options
@@ -416,6 +460,7 @@ const getCacheStats = async () => {
 module.exports = {
   generateTTS,
   transcribeAudio,
+  transcribeFromUrl,
   evaluatePronunciation,
   getPronunciationHistory,
   getPronunciationStats,
