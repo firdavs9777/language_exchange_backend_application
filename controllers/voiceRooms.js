@@ -37,6 +37,7 @@ exports.getVoiceRooms = asyncHandler(async (req, res, next) => {
 
   if (language) filter.language = language;
   if (topic) filter.topic = topic;
+  if (req.query.category) filter.category = req.query.category;
 
   const [rooms, total] = await Promise.all([
     VoiceRoom.find(filter)
