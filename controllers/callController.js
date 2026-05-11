@@ -118,6 +118,7 @@ exports.getMissedCallsCount = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.getIceServers = asyncHandler(async (req, res, next) => {
+  console.warn('[step8] /calls/ice-servers requested (deprecated; LiveKit removes need for ICE)');
   const iceServers = await callService.getCachedIceServers();
 
   res.status(200).json({

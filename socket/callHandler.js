@@ -312,74 +312,25 @@ const registerCallHandlers = (socket, io) => {
     }
   });
   
-  // ============ WEBRTC SIGNALING ============
-  
-  socket.on('call:offer', (data) => {
-    try {
-      const { callId, targetUserId, offer } = data;
-      
-      if (!callId || !targetUserId || !offer) {
-        console.error('Missing required fields for call:offer');
-        return;
-      }
-      
-      console.log(`📡 WebRTC offer: ${userId} → ${targetUserId}`);
-      
-      const targetRoom = `user_${targetUserId}`;
-      io.to(targetRoom).emit('call:offer', {
-        callId,
-        fromUserId: userId,
-        offer
-      });
-      
-    } catch (error) {
-      console.error('❌ Call offer error:', error.message);
-    }
-  });
-  
-  socket.on('call:answer-sdp', (data) => {
-    try {
-      const { callId, targetUserId, answer } = data;
-      
-      if (!callId || !targetUserId || !answer) {
-        console.error('Missing required fields for call:answer-sdp');
-        return;
-      }
-      
-      console.log(`📡 WebRTC answer: ${userId} → ${targetUserId}`);
-      
-      const targetRoom = `user_${targetUserId}`;
-      io.to(targetRoom).emit('call:answer-sdp', {
-        callId,
-        fromUserId: userId,
-        answer
-      });
-      
-    } catch (error) {
-      console.error('❌ Call answer SDP error:', error.message);
-    }
-  });
-  
-  socket.on('call:ice-candidate', (data) => {
-    try {
-      const { callId, targetUserId, candidate } = data;
-      
-      if (!callId || !targetUserId || !candidate) {
-        return;
-      }
-      
-      const targetRoom = `user_${targetUserId}`;
-      io.to(targetRoom).emit('call:ice-candidate', {
-        callId,
-        fromUserId: userId,
-        candidate
-      });
-      
-    } catch (error) {
-      console.error('❌ ICE candidate error:', error.message);
-    }
-  });
-  
+  // ---------------------------------------------------------------------------
+  // Step 8 / B6 — Mesh-WebRTC signaling removed.
+  //
+  // The call:offer / call:answer-sdp / call:ice-candidate handlers relayed SDP
+  // and ICE between 1:1 call peers.  1:1 calls now run on LiveKit Cloud, which
+  // carries the media end-to-end, so the relay is dead code.  We keep stub
+  // handlers that log a deprecation warning so any straggler client (e.g. an
+  // old TestFlight build) shows up in logs instead of silently failing.
+  // ---------------------------------------------------------------------------
+  const logDeprecatedMeshSignal = (event) => {
+    console.warn(
+      '[step8] deprecated call mesh event:', event,
+      'from socket', socket.id, 'user', userId
+    );
+  };
+  socket.on('call:offer', () => logDeprecatedMeshSignal('call:offer'));
+  socket.on('call:answer-sdp', () => logDeprecatedMeshSignal('call:answer-sdp'));
+  socket.on('call:ice-candidate', () => logDeprecatedMeshSignal('call:ice-candidate'));
+
   // ============ CALL CONTROL ============
   
   socket.on('call:end', async (data, callback) => {
