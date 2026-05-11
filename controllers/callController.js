@@ -113,18 +113,21 @@ exports.getMissedCallsCount = asyncHandler(async (req, res, next) => {
 });
 
 /**
- * @desc    Get ICE servers for WebRTC
+ * @desc    [DEPRECATED] Get ICE servers for WebRTC. Retired in Step 8 / C3 —
+ *          LiveKit's SFU removes the need for client-side ICE-server
+ *          discovery; TURN credentials are managed inside the LiveKit
+ *          cluster. The route is kept (returning 410) instead of 404 so
+ *          straggling TestFlight builds get an unambiguous deprecation
+ *          signal in their logs.
  * @route   GET /api/v1/calls/ice-servers
  * @access  Private
  */
 exports.getIceServers = asyncHandler(async (req, res, next) => {
   console.warn('[step8] /calls/ice-servers requested (deprecated; LiveKit removes need for ICE)');
-  const iceServers = await callService.getCachedIceServers();
-
-  res.status(200).json({
-    success: true,
-    data: iceServers
-  });
+  return next(new ErrorResponse(
+    'Endpoint deprecated — LiveKit removes the need for ICE servers',
+    410
+  ));
 });
 
 /**
