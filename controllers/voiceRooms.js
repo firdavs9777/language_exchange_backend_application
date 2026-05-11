@@ -145,14 +145,29 @@ exports.createVoiceRoom = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Room language is required', 400));
   }
 
-  // Check if user already has an active room
+  // If the user has a previous active/waiting room, auto-end it before
+  // creating the new one. Forcing the host to manually clean up a stale
+  // room (e.g. they backgrounded the app or navigated away without
+  // tapping End) is bad UX — only one active room per host is enforced,
+  // but the cleanup is implicit.
   const existingRoom = await VoiceRoom.findOne({
     host: userId,
     status: { $in: ['waiting', 'active'] }
   });
 
   if (existingRoom) {
-    return next(new ErrorResponse('You already have an active room', 400));
+    existingRoom.status = 'ended';
+    existingRoom.endedAt = new Date();
+    await existingRoom.save();
+
+    // Tell any clients still subscribed to the old room that it's over.
+    const io = req.app.get('io');
+    if (io) {
+      io.to(`voiceroom_${existingRoom._id}`).emit('voiceroom:ended', {
+        roomId: existingRoom._id.toString(),
+        reason: 'host_created_new_room',
+      });
+    }
   }
 
   // Create room
