@@ -3,6 +3,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const User = require('../models/User');
 const Wave = require('../models/Wave');
 const Topic = require('../models/Topic');
+const Message = require('../models/Message');
 const notificationService = require('../services/notificationService');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 const cache = require('../services/cacheService');
@@ -239,6 +240,55 @@ exports.sendWave = asyncHandler(async (req, res, next) => {
     }),
     Wave.checkMutualWave(fromUserId, targetUserId)
   ]);
+
+  // Mirror the wave into the chat conversation as a sticker-type message
+  // so the recipient sees it in their chat detail screen (not just in the
+  // Waves tab). Falls back to '👋' when no message was provided so the
+  // bubble is never empty. Failure here doesn't fail the wave — the wave
+  // record + push are the authoritative artifacts; the chat mirror is a
+  // best-effort UX nicety.
+  try {
+    const chatBody = (message || '👋').toString().substring(0, 200);
+    const chatMsg = await Message.create({
+      sender: fromUserId,
+      receiver: targetUserId,
+      participants: [fromUserId, targetUserId],
+      message: chatBody,
+      messageType: 'sticker',
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      const [unreadForReceiver, unreadForSender] = await Promise.all([
+        Message.countDocuments({
+          receiver: targetUserId,
+          sender: fromUserId,
+          read: false,
+        }),
+        Message.countDocuments({
+          receiver: fromUserId,
+          sender: targetUserId,
+          read: false,
+        }),
+      ]);
+      io.to(`user_${targetUserId}`).emit('newMessage', {
+        message: chatMsg,
+        unreadCount: unreadForReceiver,
+        senderId: fromUserId.toString(),
+        hasMedia: false,
+        mediaType: null,
+      });
+      io.to(`user_${fromUserId}`).emit('messageSent', {
+        message: chatMsg,
+        unreadCount: unreadForSender,
+        receiverId: targetUserId.toString(),
+        hasMedia: false,
+        mediaType: null,
+      });
+    }
+  } catch (mirrorErr) {
+    console.error('[wave] chat-mirror message failed:', mirrorErr.message);
+  }
 
   // Send push notification to target user
   notificationService.sendWave(
