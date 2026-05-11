@@ -46,7 +46,7 @@ function scheduleHostTransfer(io, roomId, hostUserId, graceMs = HOST_GRACE_MS) {
         room.endedAt = new Date();
         await room.save();
         clearRoomCache(String(roomId));
-        io.emit('voiceroom:ended', { roomId: String(roomId) });
+        io.to('voicerooms:lobby').emit('voiceroom:ended', { roomId: String(roomId) });
         return;
       }
 
@@ -292,7 +292,7 @@ const registerVoiceRoomHandlers = (socket, io) => {
 
       if (roomEnded) {
         clearRoomCache(roomId);
-        io.emit('voiceroom:ended', { roomId });
+        io.to('voicerooms:lobby').emit('voiceroom:ended', { roomId });
       }
 
     } catch (error) {
@@ -585,7 +585,7 @@ const registerVoiceRoomHandlers = (socket, io) => {
 
             if (room.status === 'ended') {
               clearRoomCache(roomId);
-              io.emit('voiceroom:ended', { roomId });
+              io.to('voicerooms:lobby').emit('voiceroom:ended', { roomId });
             }
           }
         } catch (e) {

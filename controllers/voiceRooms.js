@@ -375,7 +375,7 @@ exports.leaveVoiceRoom = asyncHandler(async (req, res, next) => {
     });
 
     if (room.status === 'ended') {
-      io.emit('voiceroom:ended', { roomId });
+      io.to('voicerooms:lobby').emit('voiceroom:ended', { roomId });
     }
   }
 
@@ -421,7 +421,7 @@ exports.endVoiceRoom = asyncHandler(async (req, res, next) => {
       roomId,
       endedBy: userId
     });
-    io.emit('voiceroom:ended', { roomId });
+    io.to('voicerooms:lobby').emit('voiceroom:ended', { roomId });
   }
 
   res.status(200).json({

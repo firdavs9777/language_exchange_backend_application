@@ -247,6 +247,11 @@ const initializeSocket = (io) => {
     const userRoom = `user_${userId}`;
     await socket.join(userRoom);
     console.log(`👤 User ${userId} joined room: ${userRoom}`);
+
+    // Broadcast channel for room-list updates (voiceroom:ended, etc.). All
+    // connected sockets subscribe so rooms-tab lists stay in sync without
+    // io.emit() waking every user for every event.
+    await socket.join('voicerooms:lobby');
     
     // Setup heartbeat
     setupHeartbeat(socket, io);
