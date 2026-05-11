@@ -11,6 +11,31 @@ const { getCachedIceServers } = require('../services/callService');
 // Key: roomId, Value: { participantIds: Set<string>, status: string, lastUpdated: Date }
 const roomParticipantsCache = new Map();
 
+// Hosts that just sent `voiceroom:end-intent` — their imminent disconnect
+// should NOT trigger the 30s host-transfer grace timer. Key: `${userId}:${roomId}`.
+// Auto-expires after 60s so a missed teardown can't pin the entry forever.
+const hostEndIntents = new Map(); // key -> setTimeout handle
+
+function markHostEndIntent(userId, roomId) {
+  const key = `${userId}:${roomId}`;
+  // Refresh any existing TTL
+  const existing = hostEndIntents.get(key);
+  if (existing) clearTimeout(existing);
+  const handle = setTimeout(() => hostEndIntents.delete(key), 60 * 1000);
+  hostEndIntents.set(key, handle);
+}
+
+function hasHostEndIntent(userId, roomId) {
+  return hostEndIntents.has(`${userId}:${roomId}`);
+}
+
+function clearHostEndIntent(userId, roomId) {
+  const key = `${userId}:${roomId}`;
+  const existing = hostEndIntents.get(key);
+  if (existing) clearTimeout(existing);
+  hostEndIntents.delete(key);
+}
+
 // ---------------------------------------------------------------------------
 // Host transfer grace-timer state machine (C26)
 // ---------------------------------------------------------------------------
@@ -160,6 +185,11 @@ const registerVoiceRoomHandlers = (socket, io) => {
   const userId = socket.user?.id;
 
   if (!userId) return;
+
+  socket.on('voiceroom:end-intent', ({ roomId } = {}) => {
+    if (!roomId) return;
+    markHostEndIntent(userId, String(roomId));
+  });
 
   /**
    * Join a voice room's socket channel
@@ -557,6 +587,15 @@ const registerVoiceRoomHandlers = (socket, io) => {
           const isHost = String(room.host) === String(userId);
 
           if (isHost) {
+            // If the host explicitly ended the room moments ago, do NOT
+            // schedule a host-transfer for their disconnect — the room is
+            // dying anyway. Skip both the grace timer and the user_left
+            // emit; the /end controller handles the room-ended broadcast.
+            if (hasHostEndIntent(userId, roomId)) {
+              clearHostEndIntent(userId, roomId);
+              continue;
+            }
+
             // Host disconnected — start a 30s grace timer instead of removing
             // immediately.  If they reconnect (rejoin or heartbeat), the timer
             // is cancelled.  If the timer fires, the next-oldest participant is
