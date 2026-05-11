@@ -383,131 +383,25 @@ const registerVoiceRoomHandlers = (socket, io) => {
     }
   });
 
-  /**
-   * WebRTC signaling - offer (targeted to specific user)
-   */
-  socket.on('voiceroom:rtc_offer', async (data) => {
-    try {
-      const { roomId, targetUserId, offer } = data;
-      if (!roomId || !targetUserId || !offer) {
-        console.log('WebRTC offer rejected: Missing required fields');
-        return;
-      }
-
-      // Verify room and participants (using cache for performance)
-      const roomData = await getRoomParticipants(roomId);
-      if (!roomData || !['waiting', 'active'].includes(roomData.status)) {
-        console.log(`WebRTC offer rejected: Room ${roomId} not active`);
-        return socket.emit('voiceroom:error', { message: 'Room not active' });
-      }
-
-      // Check both users are participants
-      const participantIds = roomData.participantIds;
-      if (!participantIds.includes(userId.toString())) {
-        console.log(`WebRTC offer rejected: User ${userId} not in room ${roomId}`);
-        return socket.emit('voiceroom:error', { message: 'Not authorized' });
-      }
-      if (!participantIds.includes(targetUserId.toString())) {
-        console.log(`WebRTC offer rejected: Target ${targetUserId} not in room ${roomId}`);
-        return socket.emit('voiceroom:error', { message: 'Target not in room' });
-      }
-
-      // Send to target user
-      const targetRoom = `user_${targetUserId}`;
-      io.to(targetRoom).emit('voiceroom:rtc_offer', {
-        roomId,
-        fromUserId: userId,
-        offer
-      });
-    } catch (error) {
-      console.error('voiceroom:rtc_offer error:', error);
-      socket.emit('voiceroom:error', { message: error.message });
-    }
-  });
-
-  /**
-   * WebRTC signaling - answer (targeted to specific user)
-   */
-  socket.on('voiceroom:rtc_answer', async (data) => {
-    try {
-      const { roomId, targetUserId, answer } = data;
-      if (!roomId || !targetUserId || !answer) {
-        console.log('WebRTC answer rejected: Missing required fields');
-        return;
-      }
-
-      // Verify room and participants (using cache for performance)
-      const roomData = await getRoomParticipants(roomId);
-      if (!roomData || !['waiting', 'active'].includes(roomData.status)) {
-        console.log(`WebRTC answer rejected: Room ${roomId} not active`);
-        return socket.emit('voiceroom:error', { message: 'Room not active' });
-      }
-
-      // Check both users are participants
-      const participantIds = roomData.participantIds;
-      if (!participantIds.includes(userId.toString())) {
-        console.log(`WebRTC answer rejected: User ${userId} not in room ${roomId}`);
-        return socket.emit('voiceroom:error', { message: 'Not authorized' });
-      }
-      if (!participantIds.includes(targetUserId.toString())) {
-        console.log(`WebRTC answer rejected: Target ${targetUserId} not in room ${roomId}`);
-        return socket.emit('voiceroom:error', { message: 'Target not in room' });
-      }
-
-      // Send to target user
-      const targetRoom = `user_${targetUserId}`;
-      io.to(targetRoom).emit('voiceroom:rtc_answer', {
-        roomId,
-        fromUserId: userId,
-        answer
-      });
-    } catch (error) {
-      console.error('voiceroom:rtc_answer error:', error);
-      socket.emit('voiceroom:error', { message: error.message });
-    }
-  });
-
-  /**
-   * WebRTC signaling - ICE candidate (targeted to specific user)
-   */
-  socket.on('voiceroom:ice_candidate', async (data) => {
-    try {
-      const { roomId, targetUserId, candidate } = data;
-      if (!roomId || !targetUserId || !candidate) {
-        console.log('ICE candidate rejected: Missing required fields');
-        return;
-      }
-
-      // Verify room and participants (using cache for performance)
-      const roomData = await getRoomParticipants(roomId);
-      if (!roomData || !['waiting', 'active'].includes(roomData.status)) {
-        console.log(`ICE candidate rejected: Room ${roomId} not active`);
-        return socket.emit('voiceroom:error', { message: 'Room not active' });
-      }
-
-      // Check both users are participants
-      const participantIds = roomData.participantIds;
-      if (!participantIds.includes(userId.toString())) {
-        console.log(`ICE candidate rejected: User ${userId} not in room ${roomId}`);
-        return socket.emit('voiceroom:error', { message: 'Not authorized' });
-      }
-      if (!participantIds.includes(targetUserId.toString())) {
-        console.log(`ICE candidate rejected: Target ${targetUserId} not in room ${roomId}`);
-        return socket.emit('voiceroom:error', { message: 'Target not in room' });
-      }
-
-      // Send to target user
-      const targetRoom = `user_${targetUserId}`;
-      io.to(targetRoom).emit('voiceroom:ice_candidate', {
-        roomId,
-        fromUserId: userId,
-        candidate
-      });
-    } catch (error) {
-      console.error('voiceroom:ice_candidate error:', error);
-      socket.emit('voiceroom:error', { message: error.message });
-    }
-  });
+  // ---------------------------------------------------------------------------
+  // Step 8 / A6 — Mesh-WebRTC signaling removed.
+  //
+  // The voiceroom:rtc_offer / voiceroom:rtc_answer / voiceroom:ice_candidate
+  // handlers relayed SDP and ICE between mesh participants.  Voice rooms now
+  // run on LiveKit Cloud, which carries the media end-to-end, so the relay is
+  // dead code.  We keep stub handlers that log a deprecation warning so any
+  // straggler client (e.g. an old TestFlight build) shows up in logs instead
+  // of silently failing.
+  // ---------------------------------------------------------------------------
+  const logDeprecatedMeshSignal = (event) => {
+    console.warn(
+      '[step8] deprecated voiceroom mesh event:', event,
+      'from socket', socket.id, 'user', userId
+    );
+  };
+  socket.on('voiceroom:rtc_offer', () => logDeprecatedMeshSignal('voiceroom:rtc_offer'));
+  socket.on('voiceroom:rtc_answer', () => logDeprecatedMeshSignal('voiceroom:rtc_answer'));
+  socket.on('voiceroom:ice_candidate', () => logDeprecatedMeshSignal('voiceroom:ice_candidate'));
 
   /**
    * Raise hand (request to speak)
