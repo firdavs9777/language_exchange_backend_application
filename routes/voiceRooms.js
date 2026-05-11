@@ -6,6 +6,7 @@ const {
   getVoiceRoom,
   createVoiceRoom,
   joinVoiceRoom,
+  getVoiceRoomToken,
   leaveVoiceRoom,
   endVoiceRoom,
   updateParticipantStatus,
@@ -54,6 +55,13 @@ router.post('/', checkVoiceRoomAccess, interactionLimiter, createVoiceRoom);
  * @desc    Join a voice room
  */
 router.post('/:id/join', interactionLimiter, joinVoiceRoom);
+
+/**
+ * @route   POST /api/v1/voicerooms/:id/token
+ * @desc    Mint a LiveKit join token for a voice room
+ * @access  Private
+ */
+router.post('/:id/token', getVoiceRoomToken);
 
 /**
  * @route   POST /api/v1/voicerooms/:id/leave
