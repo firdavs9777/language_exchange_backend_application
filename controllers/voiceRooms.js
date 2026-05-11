@@ -221,8 +221,17 @@ exports.joinVoiceRoom = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('This room has ended', 400));
   }
 
+  // Idempotent: if the user is already in this room (e.g. the host who
+  // was auto-added at creation), return the current room state with 200
+  // instead of erroring. The Flutter client always calls /join in parallel
+  // with /token, and the host re-entering shouldn't be a failure path.
   if (room.hasParticipant(userId)) {
-    return next(new ErrorResponse('You are already in this room', 400));
+    await room.populate('participants.user', 'name images');
+    return res.status(200).json({
+      success: true,
+      data: room,
+      alreadyJoined: true,
+    });
   }
 
   if (room.participants.length >= room.maxParticipants) {
