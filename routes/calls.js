@@ -5,7 +5,11 @@ const {
   getCallHistory,
   getCall,
   getMissedCallsCount,
-  getIceServers
+  getIceServers,
+  initiateCall,
+  acceptCall,
+  declineCall,
+  endCall
 } = require('../controllers/callController');
 
 const { protect } = require('../middleware/auth');
@@ -38,5 +42,34 @@ router.get('/missed/count', getMissedCallsCount);
  * @desc    Get single call details
  */
 router.get('/:id', getCall);
+
+/**
+ * @route   POST /api/v1/calls/initiate
+ * @desc    Initiate a 1:1 call — creates Call (ringing), mints LiveKit
+ *          tokens for both peers, pushes FCM data to receiver.
+ * @body    { receiverId, type: 'audio' | 'video' }
+ */
+router.post('/initiate', initiateCall);
+
+/**
+ * @route   POST /api/v1/calls/:id/accept
+ * @desc    Receiver accepts the call — marks active, mints fresh
+ *          receiver token, emits call:accepted to caller.
+ */
+router.post('/:id/accept', acceptCall);
+
+/**
+ * @route   POST /api/v1/calls/:id/decline
+ * @desc    Receiver declines the call — marks rejected, emits
+ *          call:declined to caller.
+ */
+router.post('/:id/decline', declineCall);
+
+/**
+ * @route   POST /api/v1/calls/:id/end
+ * @desc    Participant ends an active call — marks ended, computes
+ *          duration, emits call:ended to both peers.
+ */
+router.post('/:id/end', endCall);
 
 module.exports = router;
