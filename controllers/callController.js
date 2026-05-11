@@ -15,6 +15,7 @@ const callService = require('../services/callService');
 const Call = require('../models/Call');
 const User = require('../models/User');
 const { mintRoomToken } = require('../services/livekitService');
+const livekitAdmin = require('../services/livekitAdminService');
 const fcmService = require('../services/fcmService');
 const { shouldNotify } = require('../services/notificationService');
 
@@ -407,6 +408,10 @@ exports.endCall = asyncHandler(async (req, res, next) => {
   const durationStart = call.answeredAt || call.startTime;
   call.duration = Math.floor((call.endTime - durationStart) / 1000);
   await call.save();
+
+  // Force-close the LiveKit room so neither peer can keep talking if a
+  // `call:ended` socket event was lost.
+  await livekitAdmin.endRoom(_roomNameForCall(call._id));
 
   const io = req.app.get('io');
   if (io) {
