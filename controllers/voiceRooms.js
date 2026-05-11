@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 const VoiceRoom = require('../models/VoiceRoom');
 const User = require('../models/User');
+const { mintRoomToken } = require('../services/livekitService');
 
 /**
  * @desc    Get all active voice rooms
@@ -250,6 +251,58 @@ exports.joinVoiceRoom = asyncHandler(async (req, res, next) => {
       roomId: room._id,
       message: 'Joined room successfully',
       participantCount: room.participants.length
+    }
+  });
+});
+
+/**
+ * @desc    Mint a LiveKit join token for a voice room
+ * @route   POST /api/v1/voicerooms/:id/token
+ * @access  Private
+ */
+exports.getVoiceRoomToken = asyncHandler(async (req, res, next) => {
+  const userId = req.user._id.toString();
+  const roomId = req.params.id;
+
+  const room = await VoiceRoom.findById(roomId);
+
+  if (!room) {
+    return next(new ErrorResponse('Voice room not found', 404));
+  }
+
+  // Same access checks as joinVoiceRoom: room active, not full, user not blocked.
+  // (We intentionally skip the "already in this room" check from joinVoiceRoom —
+  //  the host is always a participant from creation, and participants legitimately
+  //  need to (re-)mint a token after joining.)
+  if (room.status === 'ended') {
+    return next(new ErrorResponse('This room has ended', 400));
+  }
+
+  if (room.participants.length >= room.maxParticipants && !room.hasParticipant(userId)) {
+    return next(new ErrorResponse('Room is full', 400));
+  }
+
+  const host = await User.findById(room.host).select('blockedUsers');
+  if (host?.blockedUsers?.includes(userId)) {
+    return next(new ErrorResponse('You cannot join this room', 403));
+  }
+
+  const role = room.host.toString() === req.user._id.toString() ? 'host' : 'participant';
+
+  const { token, url } = await mintRoomToken({
+    identity: req.user._id.toString(),
+    name: req.user.name || 'Guest',
+    roomName: room._id.toString(),
+    metadata: { role }
+  });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      token,
+      url,
+      roomName: room._id.toString(),
+      role
     }
   });
 });
