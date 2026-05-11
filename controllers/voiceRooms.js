@@ -125,8 +125,17 @@ exports.createVoiceRoom = asyncHandler(async (req, res, next) => {
     isPublic = true,
     scheduledAt,
     settings,
-    tags
+    tags,
+    category,
   } = req.body;
+
+  const VALID_CATEGORIES = ['casual', 'language_practice', 'topic', 'qa'];
+  if (category != null && !VALID_CATEGORIES.includes(category)) {
+    return next(new ErrorResponse(
+      `Invalid category. Must be one of: ${VALID_CATEGORIES.join(', ')}`,
+      400
+    ));
+  }
 
   if (!title) {
     return next(new ErrorResponse('Room title is required', 400));
@@ -159,6 +168,7 @@ exports.createVoiceRoom = asyncHandler(async (req, res, next) => {
     scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
     settings: settings || {},
     tags: tags?.slice(0, 5) || [],
+    category: category || null,
     participants: [{
       user: userId,
       joinedAt: new Date(),
