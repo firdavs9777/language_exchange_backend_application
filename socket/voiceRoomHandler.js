@@ -438,7 +438,7 @@ const registerVoiceRoomHandlers = (socket, io) => {
    */
   socket.on('voiceroom:raise_hand', async (data) => {
     try {
-      const { roomId } = data;
+      const { roomId, isRaised } = data || {};
 
       if (!roomId) return;
 
@@ -446,11 +446,13 @@ const registerVoiceRoomHandlers = (socket, io) => {
 
       io.to(`voiceroom_${roomId}`).emit('voiceroom:hand_raised', {
         roomId,
+        userId,
+        isRaised: isRaised === true,
         user: {
           _id: userId,
           name: user?.name,
           images: user?.images
-        }
+        },
       });
 
     } catch (error) {
