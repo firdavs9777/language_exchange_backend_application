@@ -3,6 +3,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const VoiceRoom = require('../models/VoiceRoom');
 const User = require('../models/User');
 const { mintRoomToken } = require('../services/livekitService');
+const livekitAdmin = require('../services/livekitAdminService');
 
 /**
  * @desc    Get all active voice rooms
@@ -408,6 +409,10 @@ exports.endVoiceRoom = asyncHandler(async (req, res, next) => {
   }
 
   await room.end();
+
+  // Force-close the LiveKit room so any client that ignored the socket
+  // event still loses its transport. Fails open (see livekitAdminService).
+  await livekitAdmin.endRoom(String(roomId));
 
   // Emit socket event
   const io = req.app.get('io');
