@@ -244,6 +244,19 @@ exports.interactionLimiter = rateLimit({
 });
 
 /**
+ * Tutor message limiter — bounds OpenAI cost per user.
+ * 30 messages/min/user; the global generalLimiter still applies on top.
+ */
+exports.tutorMessageLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { success: false, error: 'Too many tutor messages. Slow down a sec.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.user ? `tutormsg:${req.user.id}` : `tutormsg:${req.ip}`,
+});
+
+/**
  * Rate limiter for report submissions (stricter)
  */
 exports.reportLimiter = rateLimit({

@@ -50,6 +50,7 @@ const calls = require('./routes/calls');
 const leaderboard = require('./routes/leaderboard');
 const matching = require('./routes/matching');
 const livekit = require('./routes/livekit');
+const tutor = require('./routes/tutor');
 
 // FitBowl Route files
 const fitbowlAuth = require('./routes/fitbowl/auth');
@@ -299,6 +300,7 @@ app.use('/api/v1/calls', calls);
 app.use('/api/v1/leaderboard', leaderboard);
 app.use('/api/v1/matching', matching);
 app.use('/api/v1/livekit', livekit);
+app.use('/api/v1/tutor', tutor);
 app.use('/api/v1/analytics', require('./routes/analytics'));
 
 // FitBowl API Routes
