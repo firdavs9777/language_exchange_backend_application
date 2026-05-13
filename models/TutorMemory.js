@@ -33,7 +33,10 @@ const DailyPlanSchema = new mongoose.Schema({
 
 const TutorMemorySchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
-  persona:             { type: String, enum: ['nana', 'sensei', 'riko'], default: null },
+  // No `default: null` — Mongoose's enum validator rejects null even when
+  // null isn't in the enum array, so an unset persona stays `undefined`.
+  // Client-side `memory.persona == null` works for both undefined + null.
+  persona:             { type: String, enum: ['nana', 'sensei', 'riko'] },
   proficiencyLevel:    { type: String, enum: ['A1','A2','B1','B2','C1','C2'], default: 'A1' },
   targetLanguages:     { type: [String], default: [] },
   nativeLanguage:      { type: String, default: '' },
