@@ -10,6 +10,7 @@
 const TutorMemory     = require('../models/TutorMemory');
 const Vocabulary      = require('../models/Vocabulary');
 const aiProvider      = require('./aiProviderService');
+const scenarios       = require('./tutorScenarios');
 
 const PERSONA_PROMPTS = {
   nana:   "You are Nana, a warm and encouraging tutor 🐻. Use light emoji. Praise effort first, then correct gently. Keep replies short (≤80 words) unless explaining grammar.",
@@ -40,11 +41,14 @@ Output the JSON only. No code fences, no commentary.
 
 /**
  * Build the system prompt for a tutor turn from memory + user profile.
- * @param {Object} memory - TutorMemory doc (Mongoose or plain object)
- * @param {Object} user   - User doc with at least { name } (other fields optional)
+ * @param {Object} memory  - TutorMemory doc (Mongoose or plain object)
+ * @param {Object} user    - User doc with at least { name } (other fields optional)
+ * @param {Object} [options]
+ * @param {Object} [options.scenario] - Roleplay scenario to layer on top of the persona prompt
  */
-const buildSystemPrompt = (memory, user) => {
+const buildSystemPrompt = (memory, user, options = {}) => {
   const persona = memory.persona || 'nana';
+  const scenario = options.scenario;
   const recentSummary = memory.recentChatSummaries?.[0]?.summary || 'first chat';
   const weakAreaTopics = (memory.weakAreas || []).slice(0, 3).map(w => w.topic).join(', ') || 'none yet';
   const vocabFocusIds = (memory.vocabFocus || []).slice(0, 5).map(v => v.wordId?.toString?.() || v.wordId).join(', ') || 'none yet';
@@ -69,8 +73,59 @@ const buildSystemPrompt = (memory, user) => {
     ``,
     PERSONA_PROMPTS[persona],
     ``,
+    ...(scenario ? [
+      `ROLEPLAY MODE — you are no longer the tutor 'persona'; you are playing a character.`,
+      `You are: ${scenario.aiRole}.`,
+      `The user's goal: ${scenario.goal}`,
+      `Scenario context: ${scenario.summary}`,
+      `Stay in character throughout the conversation. Speak naturally as the character would. The user is practicing — do NOT break character to correct grammar (we'll grade at the end).`,
+      `If the user goes silent for 2 turns or clearly wants to end, you can say goodbye in character.`,
+      `Each reply should be 'type': 'text' only — no cards during a roleplay.`,
+      ``,
+    ] : []),
     RESPONSE_SCHEMA,
   ].join('\n');
+};
+
+/**
+ * Generate the end-of-scenario score: 0-100 + a friendly 2-3 sentence
+ * critique focused on the success criteria. Returns null on failure.
+ */
+const gradeScenario = async (session, scenario) => {
+  if (!session?.messages?.length || !scenario) return null;
+  const transcript = session.messages
+    .map(m => `${m.role}: ${m.content}`)
+    .join('\n');
+
+  const judgePrompt =
+    `You are grading a language-learning roleplay.\n` +
+    `Scenario: ${scenario.title}\n` +
+    `User's goal: ${scenario.goal}\n` +
+    `Success criteria:\n` +
+    scenario.successCriteria.map((c, i) => `${i + 1}. ${c}`).join('\n') + '\n' +
+    `Min turns expected: ${scenario.minTurns}\n\n` +
+    `Output JSON: {"score": 0..100, "criteriaMet": [bool...], "feedback": "<2-3 sentences, encouraging, mention 1 thing to improve>"}`;
+
+  try {
+    const result = await aiProvider.chatCompletion({
+      messages: [
+        { role: 'system', content: judgePrompt },
+        { role: 'user', content: transcript },
+      ],
+      feature: 'conversation',
+      json: true,
+      maxTokens: 220,
+    });
+    const parsed = JSON.parse(result?.content || '{}');
+    return {
+      score: Math.max(0, Math.min(100, Number(parsed.score) || 0)),
+      criteriaMet: Array.isArray(parsed.criteriaMet) ? parsed.criteriaMet : [],
+      feedback: (parsed.feedback || '').toString().slice(0, 500),
+    };
+  } catch (e) {
+    console.error('[tutor] gradeScenario failed:', e.message);
+    return null;
+  }
 };
 
 /**
@@ -221,5 +276,6 @@ module.exports = {
   generateDailyPlan,
   summarizeSession,
   appendSummaryToMemory,
+  gradeScenario,
   PERSONA_PROMPTS,
 };

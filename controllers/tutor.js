@@ -5,6 +5,7 @@ const AITutorSession = require('../models/AITutorSession');
 const User           = require('../models/User');
 const LearningProgress = require('../models/LearningProgress');
 const tutorService   = require('../services/tutorService');
+const scenarios      = require('../services/tutorScenarios');
 const speechService  = require('../services/speechService');
 
 const VALID_PERSONAS = ['nana', 'sensei', 'riko'];
@@ -215,12 +216,20 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
 
   const mem = await ensureMemory(req.user._id);
   const user = await User.findById(req.user._id).select('name').lean();
-  const systemPrompt = tutorService.buildSystemPrompt(mem, user || { name: 'Friend' });
+  const scenario = session.mode === 'roleplay' && session.scenarioId
+    ? scenarios.findById(session.scenarioId)
+    : null;
+  const systemPrompt = tutorService.buildSystemPrompt(mem, user || { name: 'Friend' }, { scenario });
 
   let parsed;
   try {
     const rawReply = await tutorService.callTutorModel(systemPrompt, session.messages);
     parsed = tutorService.parseTutorReply(rawReply);
+    // In roleplay mode, force text-only — we don't want quiz cards
+    // breaking character.
+    if (scenario && parsed.messageType !== 'text') {
+      parsed = { messageType: 'text', content: parsed.content || '', payload: null };
+    }
   } catch (e) {
     console.error('[tutor.sendMessage] AI call failed:', e.message);
     parsed = { messageType: 'text', content: "I'm having a moment — try again in a sec?", payload: null };
@@ -258,6 +267,16 @@ exports.endSession = asyncHandler(async (req, res, next) => {
   session.endedAt = new Date();
   const summary = await tutorService.summarizeSession(session);
   if (summary) session.summary = summary;
+
+  // Grade the user if this was a roleplay session.
+  if (session.mode === 'roleplay' && session.scenarioId) {
+    const scenario = scenarios.findById(session.scenarioId);
+    if (scenario) {
+      const score = await tutorService.gradeScenario(session, scenario);
+      if (score) session.scenarioScore = score;
+    }
+  }
+
   await session.save();
 
   await tutorService.appendSummaryToMemory(req.user._id, session._id, summary);
@@ -367,4 +386,67 @@ exports.transcribeVoice = asyncHandler(async (req, res, next) => {
     console.error('[tutor.transcribeVoice] STT failed:', e.message);
     return next(new ErrorResponse('Could not transcribe audio', 500));
   }
+});
+
+/**
+ * @route   GET /api/v1/tutor/scenarios
+ * @desc    List available roleplay scenarios (no auth needed beyond protect)
+ */
+exports.listScenarios = asyncHandler(async (req, res) => {
+  res.status(200).json({ success: true, data: scenarios.list() });
+});
+
+/**
+ * @route   POST /api/v1/tutor/sessions/roleplay
+ * @desc    Start a roleplay session with a specific scenario
+ * @body    { scenarioId: string }
+ * @access  Private
+ */
+exports.startRoleplaySession = asyncHandler(async (req, res, next) => {
+  const { scenarioId } = req.body || {};
+  const scenario = scenarios.findById(scenarioId);
+  if (!scenario) {
+    return next(new ErrorResponse('Unknown scenario', 400));
+  }
+
+  const mem = await ensureMemory(req.user._id);
+  if (!mem.persona) {
+    return next(new ErrorResponse('Pick a persona first', 400));
+  }
+
+  const user = await User.findById(req.user._id).select('name').lean();
+  const session = await AITutorSession.create({
+    user: req.user._id,
+    persona: mem.persona,
+    mode: 'roleplay',
+    scenarioId: scenario.id,
+    messages: [],
+  });
+
+  // First turn — AI greets in character, naturally setting the scene.
+  const systemPrompt = tutorService.buildSystemPrompt(mem, user || { name: 'Friend' }, { scenario });
+  const openingHistory = [{
+    role: 'user',
+    content: '(internal) Open the scene naturally in character. One short greeting/setup line — no card.',
+    messageType: 'text',
+  }];
+
+  let rawReply;
+  try {
+    rawReply = await tutorService.callTutorModel(systemPrompt, openingHistory);
+  } catch (e) {
+    console.error('[tutor.startRoleplay] AI call failed:', e.message);
+    rawReply = JSON.stringify({ type: 'text', content: 'Hello! How can I help you today?' });
+  }
+  const parsed = tutorService.parseTutorReply(rawReply);
+
+  session.messages.push({
+    role: 'assistant',
+    content: parsed.content,
+    messageType: 'text',
+    payload: null,
+  });
+  await session.save();
+
+  res.status(201).json({ success: true, data: session });
 });

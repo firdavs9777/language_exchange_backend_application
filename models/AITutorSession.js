@@ -9,12 +9,15 @@ const TutorMessageSchema = new mongoose.Schema({
 }, { _id: true });
 
 const AITutorSessionSchema = new mongoose.Schema({
-  user:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  persona:   { type: String, enum: ['nana', 'sensei', 'riko'], required: true },
-  messages:  { type: [TutorMessageSchema], default: [] },
-  startedAt: { type: Date, default: Date.now },
-  endedAt:   { type: Date },
-  summary:   { type: String, maxlength: 200 },
+  user:       { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  persona:    { type: String, enum: ['nana', 'sensei', 'riko'], required: true },
+  mode:       { type: String, enum: ['free', 'roleplay'], default: 'free' },
+  scenarioId: { type: String },
+  messages:   { type: [TutorMessageSchema], default: [] },
+  startedAt:  { type: Date, default: Date.now },
+  endedAt:    { type: Date },
+  summary:    { type: String, maxlength: 200 },
+  scenarioScore: { type: mongoose.Schema.Types.Mixed },
 }, { timestamps: true });
 
 AITutorSessionSchema.index({ user: 1, startedAt: -1 });
