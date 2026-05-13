@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 
 const {
   getMyMemory,
@@ -11,10 +12,29 @@ const {
   startSession,
   sendMessage,
   endSession,
+  speakMessage,
+  transcribeVoice,
 } = require('../controllers/tutor');
 
 const { protect } = require('../middleware/auth');
 const { tutorMessageLimiter } = require('../middleware/rateLimiter');
+
+// Multer memory storage for STT uploads (25MB cap matches /speech route).
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/wav',
+      'audio/webm', 'audio/ogg', 'audio/flac', 'audio/x-m4a', 'audio/x-wav',
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid file type: ${file.mimetype}`), false);
+    }
+  },
+});
 
 router.use(protect);
 
@@ -63,5 +83,17 @@ router.post('/sessions/:id/message', tutorMessageLimiter, sendMessage);
  * @route   POST /api/v1/tutor/sessions/:id/end
  */
 router.post('/sessions/:id/end', endSession);
+
+/**
+ * @route   POST /api/v1/tutor/sessions/:id/speak
+ * @desc    TTS for an assistant message (defaults to last one)
+ */
+router.post('/sessions/:id/speak', speakMessage);
+
+/**
+ * @route   POST /api/v1/tutor/sessions/:id/transcribe
+ * @desc    STT for a user voice recording (multipart 'audio')
+ */
+router.post('/sessions/:id/transcribe', upload.single('audio'), transcribeVoice);
 
 module.exports = router;

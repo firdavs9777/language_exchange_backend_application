@@ -5,6 +5,7 @@ const AITutorSession = require('../models/AITutorSession');
 const User           = require('../models/User');
 const LearningProgress = require('../models/LearningProgress');
 const tutorService   = require('../services/tutorService');
+const speechService  = require('../services/speechService');
 
 const VALID_PERSONAS = ['nana', 'sensei', 'riko'];
 
@@ -281,4 +282,89 @@ exports.endSession = asyncHandler(async (req, res, next) => {
   }
 
   res.status(200).json({ success: true, data: session });
+});
+
+/**
+ * @route   POST /api/v1/tutor/sessions/:id/speak
+ * @desc    Generate TTS audio for a specific assistant message in the
+ *          session so the client can play it back in voice mode.
+ * @body    { messageIndex: number, voice?: string, speed?: number }
+ * @access  Private (owner only)
+ */
+exports.speakMessage = asyncHandler(async (req, res, next) => {
+  const session = await AITutorSession.findById(req.params.id);
+  if (!session) return next(new ErrorResponse('Session not found', 404));
+  if (session.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized', 403));
+  }
+
+  const idx = Number.isFinite(req.body?.messageIndex)
+    ? req.body.messageIndex
+    : session.messages.length - 1;
+  const msg = session.messages[idx];
+  if (!msg || msg.role !== 'assistant') {
+    return next(new ErrorResponse('No assistant message at that index', 400));
+  }
+
+  // For card messages, speak the intro content only; the card body
+  // (options, IPA, etc.) isn't worth narrating.
+  const text = (msg.content || '').trim();
+  if (!text) {
+    return next(new ErrorResponse('Message has no spoken content', 400));
+  }
+
+  // Pick the first target language from the user's memory as the TTS
+  // language hint; falls back to English. The OpenAI TTS model picks
+  // a sensible voice for the language internally.
+  const mem = await ensureMemory(req.user._id);
+  const language = mem.targetLanguages?.[0] || 'en';
+
+  try {
+    const result = await speechService.generateTTS({
+      text,
+      language,
+      voice:  req.body?.voice,
+      speed:  Number.isFinite(req.body?.speed) ? req.body.speed : 1.0,
+      format: 'mp3',
+      sourceType: 'tutor',
+      userId: req.user._id,
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (e) {
+    console.error('[tutor.speakMessage] TTS failed:', e.message);
+    return next(new ErrorResponse('Could not generate audio', 500));
+  }
+});
+
+/**
+ * @route   POST /api/v1/tutor/sessions/:id/transcribe
+ * @desc    Transcribe a recorded user voice message. Multipart 'audio'.
+ *          Returns the transcription so the client can post it as a
+ *          normal user message via /sessions/:id/message.
+ * @access  Private (owner only)
+ */
+exports.transcribeVoice = asyncHandler(async (req, res, next) => {
+  const session = await AITutorSession.findById(req.params.id);
+  if (!session) return next(new ErrorResponse('Session not found', 404));
+  if (session.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized', 403));
+  }
+  if (!req.file) {
+    return next(new ErrorResponse('Audio file is required', 400));
+  }
+
+  const mem = await ensureMemory(req.user._id);
+  const language = req.body?.language || mem.targetLanguages?.[0];
+
+  try {
+    const result = await speechService.transcribeAudio({
+      audioFile: req.file,
+      language,
+      userId: req.user._id,
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (e) {
+    console.error('[tutor.transcribeVoice] STT failed:', e.message);
+    return next(new ErrorResponse('Could not transcribe audio', 500));
+  }
 });
