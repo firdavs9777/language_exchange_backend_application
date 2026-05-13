@@ -5,7 +5,14 @@
  * All limits are enforced server-side
  */
 
+// Emergency kill switch for Step 13A tutor-chip daily quotas.
+// When 'false' (or unset), the new tutor-quota middleware short-circuits
+// to next() with no DB write and no check.
+const AI_QUOTA_ENABLED = String(process.env.AI_QUOTA_ENABLED || 'true').toLowerCase() === 'true';
+
 module.exports = {
+  AI_QUOTA_ENABLED,
+
   // ===================== VISITOR LIMITS =====================
   // Users who haven't verified email or just browsing
   visitor: {
@@ -54,7 +61,16 @@ module.exports = {
     // Storage
     maxPhotoUploadMB: 10,
     maxVideoUploadMB: 50,
-    maxVoiceUploadMB: 10
+    maxVoiceUploadMB: 10,
+
+    // Step 13A: AI tutor chip daily quotas
+    tutorDailyQuotas: {
+      chat:          3,
+      roleplay:      0,
+      story:         0,
+      photo:         0,
+      pronunciation: 0,
+    },
   },
 
   // ===================== REGULAR USER LIMITS =====================
@@ -105,7 +121,16 @@ module.exports = {
     // Storage
     maxPhotoUploadMB: 10,
     maxVideoUploadMB: 50,
-    maxVoiceUploadMB: 10
+    maxVoiceUploadMB: 10,
+
+    // Step 13A: AI tutor chip daily quotas
+    tutorDailyQuotas: {
+      chat:          10,
+      roleplay:      1,
+      story:         1,
+      photo:         2,
+      pronunciation: 1,
+    },
   },
 
   // ===================== VIP USER LIMITS =====================
@@ -171,7 +196,16 @@ module.exports = {
     readReceipts: true,
     whoViewedProfile: true,
     undoMessage: true,
-    scheduleMessages: true
+    scheduleMessages: true,
+
+    // Step 13A: AI tutor chip daily quotas (-1 = unlimited)
+    tutorDailyQuotas: {
+      chat:          -1,
+      roleplay:      -1,
+      story:         -1,
+      photo:         -1,
+      pronunciation: -1,
+    },
   },
 
   // ===================== HELPER FUNCTIONS =====================
