@@ -1,0 +1,37 @@
+name: Deploy to DigitalOcean
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          port: ${{ secrets.DROPLET_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -e
+            cd /home/language_exchange_backend_application
+            echo "==> Pulling latest from main"
+            git fetch --all
+            git reset --hard origin/main
+            echo "==> Installing production deps"
+            npm ci --omit=dev
+            echo "==> Restarting PM2 app"
+            pm2 restart language-app --update-env
+            pm2 save
+            echo "==> Deploy complete"
+            pm2 describe language-app | grep -E "status|uptime|restarts" || true
