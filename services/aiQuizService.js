@@ -6,6 +6,7 @@
 const AIGeneratedQuiz = require('../models/AIGeneratedQuiz');
 const Vocabulary = require('../models/Vocabulary');
 const LearningProgress = require('../models/LearningProgress');
+const TutorMemory = require('../models/TutorMemory');
 const {
   chatCompletion,
   buildQuizGenerationPrompt,
@@ -13,6 +14,39 @@ const {
   trackUsage
 } = require('./aiProviderService');
 const { identifyWeakAreas } = require('./recommendationService');
+
+/**
+ * Augment quiz-history-derived weakAreas with TutorMemory.weakAreas
+ * (grammar mistakes + wrong-quiz topics that flowed through the
+ * tutor's memory hooks). Dedupes by topic — quiz-history score wins
+ * when both sources flag the same topic since it's based on accuracy
+ * data rather than frequency counts.
+ */
+const _enrichWeakAreasWithTutorMemory = async (userId, weakAreas) => {
+  try {
+    const mem = await TutorMemory.findOne({ user: userId })
+      .select('weakAreas')
+      .lean();
+    if (!mem?.weakAreas?.length) return weakAreas;
+
+    const known = new Set(weakAreas.map(w => (w.topic || '').toLowerCase()));
+    const extras = mem.weakAreas
+      .filter(w => w.topic && !known.has(w.topic.toLowerCase()))
+      .slice(0, 3)
+      .map(w => ({
+        topic: w.topic,
+        category: 'tutor_memory',
+        // Convert frequency to an inverse 0-1 score so higher frequency
+        // = lower mastery, matching identifyWeakAreas semantics.
+        score: Math.max(0.2, 1 - Math.min(0.7, (w.frequency || 1) * 0.1)),
+        mistakeRate: Math.min(100, (w.frequency || 1) * 10),
+      }));
+    return [...weakAreas, ...extras];
+  } catch (e) {
+    console.error('[aiQuiz] enrich with TutorMemory failed:', e.message);
+    return weakAreas;
+  }
+};
 const { XP_REWARDS } = require('../config/xpRewards');
 const { AI_FEATURES, CACHE_TTL, QUIZ_SETTINGS } = require('../config/aiConfig');
 
@@ -62,7 +96,8 @@ const generatePracticeQuiz = async (userId, options = {}) => {
 
   // Get focus areas based on type
   if (type === 'weak_areas') {
-    const weakAreas = await identifyWeakAreas(userId);
+    const rawWeakAreas = await identifyWeakAreas(userId);
+    const weakAreas = await _enrichWeakAreasWithTutorMemory(userId, rawWeakAreas);
     quizContext.focusAreas = weakAreas.map(w => ({
       topic: w.topic,
       category: w.category,
@@ -111,7 +146,8 @@ const generatePracticeQuiz = async (userId, options = {}) => {
       srsLevel: v.srsLevel
     }));
 
-    const weakAreas = await identifyWeakAreas(userId);
+    const rawWeakAreas = await identifyWeakAreas(userId);
+    const weakAreas = await _enrichWeakAreasWithTutorMemory(userId, rawWeakAreas);
     quizContext.focusAreas = weakAreas.slice(0, 3).map(w => ({
       topic: w.topic,
       category: w.category,

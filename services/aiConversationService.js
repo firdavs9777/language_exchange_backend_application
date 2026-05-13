@@ -71,13 +71,42 @@ const startConversation = async (options) => {
   });
 
   // Build system prompt
-  const systemPrompt = buildConversationSystemPrompt({
+  let systemPrompt = buildConversationSystemPrompt({
     cefrLevel,
     targetLanguage,
     nativeLanguage,
     topic: customTopic || (topic ? topic.name : null),
     scenario: scenario ? scenario.description : null
   });
+
+  // Cross-session memory: layer a one-line context block pulled from
+  // the user's TutorMemory so the standalone AI Conversation feels
+  // continuous across sessions, not amnesiac. Best-effort; skipped if
+  // memory hasn't been initialized yet.
+  try {
+    const TutorMemory = require('../models/TutorMemory');
+    const mem = await TutorMemory.findOne({ user: userId })
+      .select('recentChatSummaries weakAreas')
+      .lean();
+    const lastSummary = mem?.recentChatSummaries?.[0]?.summary;
+    const topWeak = (mem?.weakAreas || [])
+      .slice(0, 2)
+      .map(w => w.topic)
+      .filter(Boolean)
+      .join(', ');
+    const memoryBlock = [];
+    if (lastSummary) {
+      memoryBlock.push(`Context from your last chat with this user: ${lastSummary}`);
+    }
+    if (topWeak) {
+      memoryBlock.push(`Areas they're currently working on: ${topWeak}`);
+    }
+    if (memoryBlock.length) {
+      systemPrompt = `${systemPrompt}\n\nUSER MEMORY\n${memoryBlock.join('\n')}\nUse this context naturally — refer back to past topics or gently revisit weak areas, but don't recite this block verbatim.`;
+    }
+  } catch (e) {
+    console.error('[aiConversation] memory enrichment failed (non-fatal):', e.message);
+  }
 
   // Add system message
   conversation.messages.push({
