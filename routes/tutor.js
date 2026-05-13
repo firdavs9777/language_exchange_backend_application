@@ -14,6 +14,8 @@ const {
   endSession,
   speakMessage,
   transcribeVoice,
+  listScenarios,
+  startRoleplaySession,
 } = require('../controllers/tutor');
 
 const { protect } = require('../middleware/auth');
@@ -95,5 +97,15 @@ router.post('/sessions/:id/speak', speakMessage);
  * @desc    STT for a user voice recording (multipart 'audio')
  */
 router.post('/sessions/:id/transcribe', upload.single('audio'), transcribeVoice);
+
+/**
+ * @route   GET /api/v1/tutor/scenarios
+ */
+router.get('/scenarios', listScenarios);
+
+/**
+ * @route   POST /api/v1/tutor/sessions/roleplay
+ */
+router.post('/sessions/roleplay', startRoleplaySession);
 
 module.exports = router;
