@@ -26,6 +26,7 @@ const {
 
 const { protect } = require('../middleware/auth');
 const { tutorMessageLimiter } = require('../middleware/rateLimiter');
+const { checkTutorQuota, checkChatQuotaSessionAware } = require('../middleware/checkTutorQuota');
 
 // Multer memory storage for STT uploads (25MB cap matches /speech route).
 const upload = multer({
@@ -100,7 +101,7 @@ router.get('/sessions/:id', getSession);
  * @route   POST /api/v1/tutor/sessions/:id/message
  * @access  Private + dedicated 30/min/user limiter to cap OpenAI cost
  */
-router.post('/sessions/:id/message', tutorMessageLimiter, sendMessage);
+router.post('/sessions/:id/message', checkChatQuotaSessionAware, tutorMessageLimiter, sendMessage);
 
 /**
  * @route   POST /api/v1/tutor/sessions/:id/end
@@ -127,17 +128,17 @@ router.get('/scenarios', listScenarios);
 /**
  * @route   POST /api/v1/tutor/sessions/roleplay
  */
-router.post('/sessions/roleplay', startRoleplaySession);
+router.post('/sessions/roleplay', checkTutorQuota('roleplay'), startRoleplaySession);
 
 /**
  * @route   POST /api/v1/tutor/stories/generate
  */
-router.post('/stories/generate', generateStory);
+router.post('/stories/generate', checkTutorQuota('story'), generateStory);
 
 /**
  * @route   POST /api/v1/tutor/image-vocab/describe  (multipart 'image')
  */
-router.post('/image-vocab/describe', imageUpload.single('image'), imageVocabDescribe);
+router.post('/image-vocab/describe', checkTutorQuota('photo'), imageUpload.single('image'), imageVocabDescribe);
 
 /**
  * @route   POST /api/v1/tutor/image-vocab/grade     (multipart 'image' + 'description')
@@ -157,6 +158,6 @@ router.post('/pronunciation/score', upload.single('audio'), scorePronunciationAt
 /**
  * @route   POST /api/v1/tutor/pronunciation/summary
  */
-router.post('/pronunciation/summary', submitPronunciationSummary);
+router.post('/pronunciation/summary', checkTutorQuota('pronunciation'), submitPronunciationSummary);
 
 module.exports = router;

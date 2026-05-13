@@ -48,7 +48,14 @@ const ensureMemory = async (userId) => {
  */
 exports.getMyMemory = asyncHandler(async (req, res) => {
   const mem = await ensureMemory(req.user._id);
-  res.status(200).json({ success: true, data: mem });
+  // req.user is the full Mongoose User doc populated by protect middleware
+  // (verified: middleware/auth.js#protect does findById without .lean()).
+  // Loud failure if the method is missing — prevents silent null in prod.
+  if (!req.user.getQuotasSnapshot) {
+    throw new Error('getQuotasSnapshot missing from req.user — protect middleware may be using .lean()');
+  }
+  const quotas = req.user.getQuotasSnapshot();
+  res.status(200).json({ success: true, data: mem, quotas });
 });
 
 /**
@@ -249,7 +256,11 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
   session.messages.push(aiMsg);
   await session.save();
 
-  res.status(200).json({ success: true, data: { message: aiMsg, sessionId: session._id } });
+  res.status(200).json({
+    success: true,
+    data: { message: aiMsg, sessionId: session._id },
+    quotas: req.tutorQuotaResult?.snapshot || null,
+  });
 });
 
 /**
@@ -407,7 +418,11 @@ exports.imageVocabDescribe = asyncHandler(async (req, res, next) => {
       imageBuffer: req.file.buffer,
       mimeType: req.file.mimetype,
     });
-    res.status(200).json({ success: true, data: result });
+    res.status(200).json({
+      success: true,
+      data: result,
+      quotas: req.tutorQuotaResult?.snapshot || null,
+    });
   } catch (e) {
     console.error('[tutor.imageVocabDescribe] failed:', e.message);
     return next(new ErrorResponse(e.message || 'Could not describe image', 500));
@@ -458,7 +473,11 @@ exports.generateStory = asyncHandler(async (req, res, next) => {
       wordCount,
       theme,
     });
-    res.status(200).json({ success: true, data: story });
+    res.status(200).json({
+      success: true,
+      data: story,
+      quotas: req.tutorQuotaResult?.snapshot || null,
+    });
   } catch (e) {
     console.error('[tutor.generateStory] failed:', e.message);
     return next(new ErrorResponse(e.message || 'Could not generate a story', 500));
@@ -525,7 +544,11 @@ exports.startRoleplaySession = asyncHandler(async (req, res, next) => {
   });
   await session.save();
 
-  res.status(201).json({ success: true, data: session });
+  res.status(201).json({
+    success: true,
+    data: session,
+    quotas: req.tutorQuotaResult?.snapshot || null,
+  });
 });
 
 /**
@@ -681,5 +704,6 @@ exports.submitPronunciationSummary = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     data: { weakAreasUpdated: updated, dailyPlanTicked },
+    quotas: req.tutorQuotaResult?.snapshot || null,
   });
 });
