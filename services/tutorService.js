@@ -196,7 +196,16 @@ const generateDailyPlan = async (userId, memory) => {
     console.error('[tutor] SRS due-count failed (non-fatal):', e.message);
   }
 
-  const topWeakArea = (memory.weakAreas || [])
+  // Grammar drill topic comes from the user's weakAreas — but skip
+  // pronunciation-tagged ones (e.g. "pronunciation:park"). Those belong
+  // to the tutor_pronunciation task, not grammar_drill, and would
+  // otherwise render as gibberish UI copy ("Practice: pronunciation:park").
+  // If no eligible non-pronunciation topic exists, skip the grammar_drill
+  // task entirely — the daily plan is a suggestion surface, not a quota.
+  // A real grammar weak area will resurface the task naturally as soon
+  // as one is logged via chat / quiz.
+  const topGrammarWeakArea = (memory.weakAreas || [])
+    .filter(w => w && typeof w.topic === 'string' && !w.topic.startsWith('pronunciation:'))
     .slice()
     .sort((a, b) => (b.frequency || 0) - (a.frequency || 0))[0];
 
@@ -204,8 +213,8 @@ const generateDailyPlan = async (userId, memory) => {
   if (dueCount > 0) {
     tasks.push({ type: 'srs_review', count: dueCount, completed: 0 });
   }
-  if (topWeakArea) {
-    tasks.push({ type: 'grammar_drill', topic: topWeakArea.topic, completed: false });
+  if (topGrammarWeakArea) {
+    tasks.push({ type: 'grammar_drill', topic: topGrammarWeakArea.topic, completed: false });
   }
   tasks.push({ type: 'tutor_chat', minutes: 5, completed: 0 });
   tasks.push({ type: 'tutor_pronunciation', count: 1, completed: 0 });
