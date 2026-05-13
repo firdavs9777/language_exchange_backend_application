@@ -662,10 +662,24 @@ exports.submitPronunciationSummary = asyncHandler(async (req, res, next) => {
     }
     updated.push(topic);
   }
+
+  // Tick the daily-plan pronunciation task if it exists. Pre-existing
+  // plans (generated before tutor_pronunciation was added) won't have
+  // the task — silently skip; the next regenerate will include it.
+  let dailyPlanTicked = false;
+  if (mem.dailyPlan && Array.isArray(mem.dailyPlan.tasks)) {
+    const task = mem.dailyPlan.tasks.find(t => t.type === 'tutor_pronunciation');
+    if (task) {
+      task.completed = Number(task.completed || 0) + 1;
+      mem.markModified('dailyPlan');
+      dailyPlanTicked = true;
+    }
+  }
+
   await mem.save();
 
   res.status(200).json({
     success: true,
-    data: { weakAreasUpdated: updated },
+    data: { weakAreasUpdated: updated, dailyPlanTicked },
   });
 });

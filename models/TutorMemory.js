@@ -19,7 +19,7 @@ const ChatSummarySchema = new mongoose.Schema({
 }, { _id: false });
 
 const DailyPlanTaskSchema = new mongoose.Schema({
-  type:      { type: String, enum: ['srs_review', 'grammar_drill', 'tutor_chat'], required: true },
+  type:      { type: String, enum: ['srs_review', 'grammar_drill', 'tutor_chat', 'tutor_pronunciation'], required: true },
   count:     { type: Number },
   topic:     { type: String },
   minutes:   { type: Number },
