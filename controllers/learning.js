@@ -722,6 +722,37 @@ exports.submitQuizAnswer = asyncHandler(async (req, res, next) => {
 
   const result = await attempt.submitAnswer(questionIndex, answer, responseTime);
 
+  // Best-effort: bump TutorMemory.weakAreas when the user got it wrong, using
+  // the quiz's category as the topic. Fire-and-forget; never blocks the
+  // response.
+  if (result && result.isCorrect === false) {
+    (async () => {
+      try {
+        const TutorMemory = require('../models/TutorMemory');
+        const Quiz = require('../models/Quiz');
+        const quizDoc = await Quiz.findById(quizId).select('category').lean();
+        const topic = (quizDoc?.category || 'quiz').toString().trim();
+        const upd = await TutorMemory.updateOne(
+          { user: userId, 'weakAreas.topic': topic },
+          { $inc: { 'weakAreas.$.frequency': 1 }, $set: { 'weakAreas.$.lastSeen': new Date() } }
+        );
+        if (upd.matchedCount === 0) {
+          await TutorMemory.updateOne(
+            { user: userId },
+            {
+              $push: {
+                weakAreas: { $each: [{ topic, frequency: 1, lastSeen: new Date() }], $slice: -10 },
+              },
+            },
+            { upsert: true }
+          );
+        }
+      } catch (e) {
+        console.error('[tutor-memory] weakArea update failed (quiz):', e.message);
+      }
+    })();
+  }
+
   res.status(200).json({
     success: true,
     data: result

@@ -48,6 +48,40 @@ exports.requestFeedback = asyncHandler(async (req, res, next) => {
     requestedBy: 'user'
   });
 
+  // Best-effort: bump TutorMemory.weakAreas for whichever rule/type the
+  // grammar errors fell under. Fire-and-forget; never blocks the response.
+  if (result?.feedback?.errors?.length) {
+    (async () => {
+      try {
+        const TutorMemory = require('../models/TutorMemory');
+        const topics = new Set();
+        for (const err of result.feedback.errors) {
+          const topic = (err.rule || err.type || 'grammar').toString().trim();
+          if (topic) topics.add(topic);
+        }
+        for (const topic of topics) {
+          const upd = await TutorMemory.updateOne(
+            { user: userId, 'weakAreas.topic': topic },
+            { $inc: { 'weakAreas.$.frequency': 1 }, $set: { 'weakAreas.$.lastSeen': new Date() } }
+          );
+          if (upd.matchedCount === 0) {
+            await TutorMemory.updateOne(
+              { user: userId },
+              {
+                $push: {
+                  weakAreas: { $each: [{ topic, frequency: 1, lastSeen: new Date() }], $slice: -10 },
+                },
+              },
+              { upsert: true }
+            );
+          }
+        }
+      } catch (e) {
+        console.error('[tutor-memory] weakArea update failed (grammar):', e.message);
+      }
+    })();
+  }
+
   res.status(200).json({
     success: true,
     data: result
