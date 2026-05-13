@@ -19,6 +19,9 @@ const {
   generateStory,
   imageVocabDescribe,
   imageVocabGrade,
+  generatePronunciationSentence,
+  scorePronunciationAttempt,
+  submitPronunciationSummary,
 } = require('../controllers/tutor');
 
 const { protect } = require('../middleware/auth');
@@ -32,6 +35,7 @@ const upload = multer({
     const allowedMimes = [
       'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/wav',
       'audio/webm', 'audio/ogg', 'audio/flac', 'audio/x-m4a', 'audio/x-wav',
+      'audio/aac', 'audio/x-aac',
     ];
     if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
@@ -139,5 +143,20 @@ router.post('/image-vocab/describe', imageUpload.single('image'), imageVocabDesc
  * @route   POST /api/v1/tutor/image-vocab/grade     (multipart 'image' + 'description')
  */
 router.post('/image-vocab/grade', imageUpload.single('image'), imageVocabGrade);
+
+/**
+ * @route   POST /api/v1/tutor/pronunciation/sentence
+ */
+router.post('/pronunciation/sentence', generatePronunciationSentence);
+
+/**
+ * @route   POST /api/v1/tutor/pronunciation/score   (multipart 'audio' + 'targetSentence')
+ */
+router.post('/pronunciation/score', upload.single('audio'), scorePronunciationAttempt);
+
+/**
+ * @route   POST /api/v1/tutor/pronunciation/summary
+ */
+router.post('/pronunciation/summary', submitPronunciationSummary);
 
 module.exports = router;

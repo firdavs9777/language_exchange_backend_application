@@ -9,6 +9,8 @@ const scenarios      = require('../services/tutorScenarios');
 const tutorStoryService = require('../services/tutorStoryService');
 const tutorImageVocabService = require('../services/tutorImageVocabService');
 const speechService  = require('../services/speechService');
+const aiProvider     = require('../services/aiProviderService');
+const { score: scorePronunciation } = require('../services/pronunciationScoring');
 
 const VALID_PERSONAS = ['nana', 'sensei', 'riko'];
 
@@ -524,4 +526,146 @@ exports.startRoleplaySession = asyncHandler(async (req, res, next) => {
   await session.save();
 
   res.status(201).json({ success: true, data: session });
+});
+
+/**
+ * @route   POST /api/v1/tutor/pronunciation/sentence
+ * @desc    Generate (or accept custom) a target-language sentence sized
+ *          to the user's proficiencyLevel, plus a TTS audio URL.
+ * @body    { custom?: string, preferWeakWords?: boolean (default true) }
+ * @access  Private
+ */
+exports.generatePronunciationSentence = asyncHandler(async (req, res, next) => {
+  const { custom, preferWeakWords = true } = req.body || {};
+  const mem = await ensureMemory(req.user._id);
+
+  const level = mem.proficiencyLevel || 'A1';
+  const targetLanguage = (mem.targetLanguages || [])[0] || 'en';
+
+  let sentence;
+  if (typeof custom === 'string' && custom.trim().length > 0) {
+    sentence = custom.trim().slice(0, 300);
+  } else {
+    const weakWords = preferWeakWords && Array.isArray(mem.weakAreas)
+      ? mem.weakAreas
+          .filter(w => w.topic && w.topic.startsWith('pronunciation:'))
+          .slice(0, 3)
+          .map(w => w.topic.replace(/^pronunciation:/, ''))
+      : [];
+
+    const hint = weakWords.length > 0
+      ? ` If natural, weave in one of these tricky words: ${weakWords.join(', ')}.`
+      : '';
+
+    const systemPrompt = `You are a sentence generator for pronunciation practice. Output a single sentence only — no quotes, no commentary, no leading "Sentence:" label.`;
+    const userPrompt = `Generate ONE short ${level}-level sentence in ${targetLanguage} for pronunciation practice. Keep it 5-12 words. Prefer spelled-out numbers over digits.${hint}`;
+
+    let response;
+    try {
+      response = await aiProvider.chatCompletion({
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userPrompt },
+        ],
+        feature: 'conversation',
+        maxTokens: 60,
+        temperature: 0.8,
+      });
+    } catch (e) {
+      console.error('[tutor.generatePronunciationSentence] GPT failed:', e.message);
+      return next(new ErrorResponse('Could not generate a sentence right now', 502));
+    }
+
+    sentence = (response?.content || '').trim().replace(/^["']|["']$/g, '');
+    if (!sentence) {
+      return next(new ErrorResponse('Empty sentence returned', 502));
+    }
+  }
+
+  let ttsAudioUrl;
+  try {
+    const tts = await speechService.generateTTS({
+      text: sentence,
+      language: targetLanguage,
+      format: 'mp3',
+      sourceType: 'pronunciation',
+      userId: req.user._id,
+    });
+    ttsAudioUrl = tts.audioUrl;
+  } catch (e) {
+    console.error('[tutor.generatePronunciationSentence] TTS failed:', e.message);
+    return next(new ErrorResponse('Could not generate audio for sentence', 502));
+  }
+
+  res.status(200).json({
+    success: true,
+    data: { sentence, level, targetLanguage, ttsAudioUrl },
+  });
+});
+
+/**
+ * @route   POST /api/v1/tutor/pronunciation/score
+ * @desc    Score a recorded attempt against the target sentence.
+ * @body    multipart: audio (file) + targetSentence (string)
+ * @access  Private
+ */
+exports.scorePronunciationAttempt = asyncHandler(async (req, res, next) => {
+  const file = req.file;
+  const { targetSentence } = req.body || {};
+  if (!file) return next(new ErrorResponse('audio file is required', 400));
+  if (!targetSentence || typeof targetSentence !== 'string') {
+    return next(new ErrorResponse('targetSentence is required', 400));
+  }
+
+  let transcribed;
+  try {
+    transcribed = await speechService.transcribeAudio({
+      audioBuffer: file.buffer,
+      userId: req.user._id,
+    });
+  } catch (e) {
+    console.error('[tutor.scorePronunciationAttempt] Whisper failed:', e.message);
+    return next(new ErrorResponse('Transcription failed', 502));
+  }
+  const transcript = (transcribed && transcribed.text) || '';
+
+  const result = scorePronunciation(transcript, targetSentence);
+  res.status(200).json({ success: true, data: result });
+});
+
+/**
+ * @route   POST /api/v1/tutor/pronunciation/summary
+ * @desc    Upsert session weak words into TutorMemory.weakAreas with the
+ *          'pronunciation:<word>' topic prefix. Capped at 5 words per call.
+ * @body    { weakWords: string[] }
+ * @access  Private
+ */
+exports.submitPronunciationSummary = asyncHandler(async (req, res, next) => {
+  const raw = Array.isArray(req.body?.weakWords) ? req.body.weakWords : [];
+  const weakWords = raw
+    .filter(w => typeof w === 'string' && w.trim().length > 0)
+    .slice(0, 5)
+    .map(w => w.trim().toLowerCase());
+
+  const mem = await ensureMemory(req.user._id);
+
+  const now = new Date();
+  const updated = [];
+  for (const word of weakWords) {
+    const topic = `pronunciation:${word}`;
+    const existing = mem.weakAreas.find(w => w.topic === topic);
+    if (existing) {
+      existing.frequency = (existing.frequency || 1) + 1;
+      existing.lastSeen = now;
+    } else {
+      mem.weakAreas.push({ topic, frequency: 1, lastSeen: now });
+    }
+    updated.push(topic);
+  }
+  await mem.save();
+
+  res.status(200).json({
+    success: true,
+    data: { weakAreasUpdated: updated },
+  });
 });
