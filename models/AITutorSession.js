@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const TutorMessageSchema = new mongoose.Schema({
   role:        { type: String, enum: ['user', 'assistant', 'system'], required: true },
   content:     { type: String, default: '' },
-  messageType: { type: String, enum: ['text', 'quiz_card', 'vocab_card', 'grammar_card'], default: 'text' },
+  messageType: { type: String, enum: ['text', 'quiz_card', 'vocab_card', 'grammar_card', 'srs_due_card', 'mini_lesson_card'], default: 'text' },
   payload:     { type: mongoose.Schema.Types.Mixed },
   createdAt:   { type: Date, default: Date.now },
 }, { _id: true });

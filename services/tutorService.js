@@ -20,12 +20,17 @@ const PERSONA_PROMPTS = {
 const RESPONSE_SCHEMA = `
 Respond as valid JSON matching this exact shape:
 {
-  "type": "text" | "quiz_card" | "vocab_card" | "grammar_card",
+  "type": "text" | "quiz_card" | "vocab_card" | "grammar_card" | "srs_due_card" | "mini_lesson_card",
   "content": "<conversational text — required for all types; for cards, this is the short intro before the card>",
   "payload": {
-    // For "quiz_card":  { "question": string, "options": string[], "correctIdx": number, "explanation": string }
-    // For "vocab_card": { "word": string, "language": string, "definition": string, "example": string, "ipa"?: string }
-    // For "grammar_card": { "rule": string, "explanation": string, "examples": [{ "correct": string, "wrong"?: string, "note"?: string }] }
+    // For "quiz_card":      { "question": string, "options": string[], "correctIdx": number, "explanation": string }
+    // For "vocab_card":     { "word": string, "language": string, "definition": string, "example": string, "ipa"?: string }
+    // For "grammar_card":   { "rule": string, "explanation": string, "examples": [{ "correct": string, "wrong"?: string, "note"?: string }] }
+    // For "srs_due_card":   { "dueCount": number, "preview": [{ "word": string, "definition"?: string }]  // up to 3 preview entries
+    //                       }   — emit when the user has SRS cards waiting and you want to suggest reviewing them now
+    // For "mini_lesson_card":
+    //   { "title": string, "bullets": [string, string, string], "practicePrompt"?: string }
+    //   — emit when teaching a small concept; up to 3 bullets, optional practice prompt the user can tap to try
     // For "text": omit or null
   }
 }
@@ -101,7 +106,8 @@ const callTutorModel = async (systemPrompt, history) => {
 const parseTutorReply = (raw) => {
   try {
     const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    const type = ['text', 'quiz_card', 'vocab_card', 'grammar_card'].includes(parsed.type)
+    const type = ['text', 'quiz_card', 'vocab_card', 'grammar_card', 'srs_due_card', 'mini_lesson_card']
+      .includes(parsed.type)
       ? parsed.type
       : 'text';
     return {
