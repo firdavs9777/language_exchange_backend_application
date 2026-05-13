@@ -3,6 +3,18 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
+// Maps the public feature key (used by middleware + API responses) to the
+// pair of schema fields on the limitations sub-doc. Step 13A.
+const TUTOR_QUOTA_FIELDS = {
+  chat:          { counter: 'tutorChatToday',           reset: 'lastTutorChatReset' },
+  roleplay:      { counter: 'roleplaySessionsToday',    reset: 'lastRoleplaySessionReset' },
+  story:         { counter: 'storyGenerationsToday',    reset: 'lastStoryGenerationReset' },
+  photo:         { counter: 'photoVocabToday',          reset: 'lastPhotoVocabReset' },
+  pronunciation: { counter: 'pronunciationDrillsToday', reset: 'lastPronunciationDrillReset' },
+};
+
+const TUTOR_QUOTA_KEYS = Object.keys(TUTOR_QUOTA_FIELDS);
+
 const UserSchema = new mongoose.Schema({
   name: {
     type: String,
@@ -1646,5 +1658,163 @@ UserSchema.index({ lastSeenAt: -1 }); // For presence last-seen queries
 UserSchema.index({ topics: 1 }); // For topic-based user discovery
 UserSchema.index({ native_language: 1, language_to_learn: 1 }); // For language matching
 UserSchema.index({ birth_year: 1 }); // For age filtering
+
+// ─── Step 13A: tutor chip daily quotas ─────────────────────────────
+
+/**
+ * Snapshot of all 5 tutor chip quotas for this user. Pure read; does
+ * not mutate counters. Computes resetAt and remaining fresh from
+ * stored values + the current UTC date.
+ *
+ * VIP users: returns all-unlimited entries with unlimited: true.
+ */
+UserSchema.methods.getQuotasSnapshot = function() {
+  const LIMITS = require('../config/limitations');
+  const now = new Date();
+  const startOfTodayUTC = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()
+  ));
+  const startOfTomorrowUTC = new Date(startOfTodayUTC.getTime() + 24 * 60 * 60 * 1000);
+
+  const isVipActive = this.userMode === 'vip'
+    && this.vipSubscription?.isActive
+    && this.vipSubscription?.endDate
+    && new Date(this.vipSubscription.endDate) > now;
+
+  if (isVipActive) {
+    return Object.fromEntries(TUTOR_QUOTA_KEYS.map(k => [k, {
+      used: 0, cap: null, remaining: null, resetAt: null, unlimited: true,
+    }]));
+  }
+
+  const tier = this.userMode === 'visitor' ? 'visitor' : 'regular';
+  const tierLimits = LIMITS[tier]?.tutorDailyQuotas || {};
+  const limitations = tier === 'visitor' ? this.visitorLimitations : this.regularUserLimitations;
+
+  const snapshot = {};
+  for (const [key, { counter, reset }] of Object.entries(TUTOR_QUOTA_FIELDS)) {
+    const cap = tierLimits[key] ?? 0;
+    const lastReset = limitations?.[reset] ? new Date(limitations[reset]) : new Date(0);
+    const stale = lastReset < startOfTodayUTC;
+    const used = stale ? 0 : (limitations?.[counter] || 0);
+    const unlimited = (cap === -1 || cap === Infinity);
+    snapshot[key] = {
+      used,
+      cap: unlimited ? null : cap,
+      remaining: unlimited ? null : Math.max(0, cap - used),
+      resetAt: startOfTomorrowUTC,
+      unlimited,
+    };
+  }
+  return snapshot;
+};
+
+/**
+ * Atomic check-and-increment for a tutor-chip quota. Returns BOTH the
+ * per-feature result AND the freshly-computed full snapshot in one DB
+ * round trip — callers should NOT refetch the user document.
+ *
+ * @param {String} userId
+ * @param {String} featureKey
+ * @returns {Promise<{allowed: boolean, used: number, cap: number, resetAt: Date|null, snapshot: object}>}
+ */
+UserSchema.statics.consumeQuota = async function(userId, featureKey) {
+  const LIMITS = require('../config/limitations');
+  const fields = TUTOR_QUOTA_FIELDS[featureKey];
+  if (!fields) throw new Error(`Unknown featureKey: ${featureKey}`);
+
+  const now = new Date();
+  const startOfTodayUTC = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()
+  ));
+  const startOfTomorrowUTC = new Date(startOfTodayUTC.getTime() + 24 * 60 * 60 * 1000);
+
+  // Light tier-check read.
+  const probe = await this.findById(userId)
+    .select('userMode vipSubscription.isActive vipSubscription.endDate')
+    .lean();
+  if (!probe) {
+    return { allowed: false, used: 0, cap: 0, resetAt: startOfTomorrowUTC, snapshot: null };
+  }
+
+  // VIP fast path — no DB write, pre-computed snapshot.
+  const isVipActive = probe.userMode === 'vip'
+    && probe.vipSubscription?.isActive
+    && probe.vipSubscription?.endDate
+    && new Date(probe.vipSubscription.endDate) > now;
+  if (isVipActive) {
+    const vipSnapshot = Object.fromEntries(TUTOR_QUOTA_KEYS.map(k => [k, {
+      used: 0, cap: null, remaining: null, resetAt: null, unlimited: true,
+    }]));
+    return {
+      allowed: true, used: 0, cap: Infinity, resetAt: null, snapshot: vipSnapshot,
+    };
+  }
+
+  const tier = probe.userMode === 'visitor' ? 'visitor' : 'regular';
+  const tierLimits = LIMITS[tier]?.tutorDailyQuotas || {};
+  const cap = tierLimits[featureKey];
+  if (cap === undefined || cap === null) {
+    return { allowed: false, used: 0, cap: 0, resetAt: startOfTomorrowUTC, snapshot: null };
+  }
+  if (cap === -1 || cap === Infinity) {
+    const passthrough = await this.findById(userId);
+    return {
+      allowed: true, used: 0, cap: Infinity, resetAt: null,
+      snapshot: passthrough?.getQuotasSnapshot() || null,
+    };
+  }
+
+  const limitationsPath = tier === 'visitor' ? 'visitorLimitations' : 'regularUserLimitations';
+  const counterPath = `${limitationsPath}.${fields.counter}`;
+  const resetPath = `${limitationsPath}.${fields.reset}`;
+
+  // Atomic check-and-increment + return updated doc.
+  const updated = await this.findOneAndUpdate(
+    {
+      _id: userId,
+      $expr: {
+        $or: [
+          { $lt: [`$${resetPath}`, startOfTodayUTC] },
+          { $lt: [{ $ifNull: [`$${counterPath}`, 0] }, cap] },
+        ],
+      },
+    },
+    [{
+      $set: {
+        [counterPath]: {
+          $cond: [
+            { $lt: [`$${resetPath}`, startOfTodayUTC] },
+            1,
+            { $add: [{ $ifNull: [`$${counterPath}`, 0] }, 1] },
+          ],
+        },
+        [resetPath]: {
+          $cond: [
+            { $lt: [`$${resetPath}`, startOfTodayUTC] },
+            '$$NOW',
+            `$${resetPath}`,
+          ],
+        },
+      },
+    }],
+    { new: true }
+  );
+
+  if (!updated) {
+    // Filter didn't match → cap hit, not new day.
+    const current = await this.findById(userId);
+    return {
+      allowed: false, used: cap, cap, resetAt: startOfTomorrowUTC,
+      snapshot: current?.getQuotasSnapshot() || null,
+    };
+  }
+
+  const used = updated.get(counterPath);
+  return {
+    allowed: true, used, cap, resetAt: startOfTomorrowUTC,
+    snapshot: updated.getQuotasSnapshot(),
+  };
+};
 
 module.exports = mongoose.model('User', UserSchema);
