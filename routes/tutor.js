@@ -16,6 +16,7 @@ const {
   transcribeVoice,
   listScenarios,
   startRoleplaySession,
+  generateStory,
 } = require('../controllers/tutor');
 
 const { protect } = require('../middleware/auth');
@@ -107,5 +108,10 @@ router.get('/scenarios', listScenarios);
  * @route   POST /api/v1/tutor/sessions/roleplay
  */
 router.post('/sessions/roleplay', startRoleplaySession);
+
+/**
+ * @route   POST /api/v1/tutor/stories/generate
+ */
+router.post('/stories/generate', generateStory);
 
 module.exports = router;

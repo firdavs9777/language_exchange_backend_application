@@ -6,6 +6,7 @@ const User           = require('../models/User');
 const LearningProgress = require('../models/LearningProgress');
 const tutorService   = require('../services/tutorService');
 const scenarios      = require('../services/tutorScenarios');
+const tutorStoryService = require('../services/tutorStoryService');
 const speechService  = require('../services/speechService');
 
 const VALID_PERSONAS = ['nana', 'sensei', 'riko'];
@@ -385,6 +386,32 @@ exports.transcribeVoice = asyncHandler(async (req, res, next) => {
   } catch (e) {
     console.error('[tutor.transcribeVoice] STT failed:', e.message);
     return next(new ErrorResponse('Could not transcribe audio', 500));
+  }
+});
+
+/**
+ * @route   POST /api/v1/tutor/stories/generate
+ * @desc    Generate a short story at the user's level using N words from
+ *          their vocab list. Stateless — not persisted.
+ * @body    { wordCount?: number (3-15), theme?: string }
+ * @access  Private
+ */
+exports.generateStory = asyncHandler(async (req, res, next) => {
+  const wordCount = Math.max(3, Math.min(15, Number(req.body?.wordCount) || 5));
+  const theme = tutorStoryService.VALID_THEMES.includes(req.body?.theme)
+    ? req.body.theme
+    : 'free';
+
+  try {
+    const story = await tutorStoryService.generateStory({
+      userId: req.user._id,
+      wordCount,
+      theme,
+    });
+    res.status(200).json({ success: true, data: story });
+  } catch (e) {
+    console.error('[tutor.generateStory] failed:', e.message);
+    return next(new ErrorResponse(e.message || 'Could not generate a story', 500));
   }
 });
 
