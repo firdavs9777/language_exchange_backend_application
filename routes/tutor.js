@@ -17,6 +17,8 @@ const {
   listScenarios,
   startRoleplaySession,
   generateStory,
+  imageVocabDescribe,
+  imageVocabGrade,
 } = require('../controllers/tutor');
 
 const { protect } = require('../middleware/auth');
@@ -35,6 +37,20 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error(`Invalid file type: ${file.mimetype}`), false);
+    }
+  },
+});
+
+// Image multer — 10MB cap, JPEG/PNG/WebP.
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
+    if (allowedMimes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid image type: ${file.mimetype}`), false);
     }
   },
 });
@@ -113,5 +129,15 @@ router.post('/sessions/roleplay', startRoleplaySession);
  * @route   POST /api/v1/tutor/stories/generate
  */
 router.post('/stories/generate', generateStory);
+
+/**
+ * @route   POST /api/v1/tutor/image-vocab/describe  (multipart 'image')
+ */
+router.post('/image-vocab/describe', imageUpload.single('image'), imageVocabDescribe);
+
+/**
+ * @route   POST /api/v1/tutor/image-vocab/grade     (multipart 'image' + 'description')
+ */
+router.post('/image-vocab/grade', imageUpload.single('image'), imageVocabGrade);
 
 module.exports = router;

@@ -7,6 +7,7 @@ const LearningProgress = require('../models/LearningProgress');
 const tutorService   = require('../services/tutorService');
 const scenarios      = require('../services/tutorScenarios');
 const tutorStoryService = require('../services/tutorStoryService');
+const tutorImageVocabService = require('../services/tutorImageVocabService');
 const speechService  = require('../services/speechService');
 
 const VALID_PERSONAS = ['nana', 'sensei', 'riko'];
@@ -386,6 +387,53 @@ exports.transcribeVoice = asyncHandler(async (req, res, next) => {
   } catch (e) {
     console.error('[tutor.transcribeVoice] STT failed:', e.message);
     return next(new ErrorResponse('Could not transcribe audio', 500));
+  }
+});
+
+/**
+ * @route   POST /api/v1/tutor/image-vocab/describe
+ * @desc    Step 1 of the describe-a-photo loop. Multipart 'image'.
+ *          Returns a target-language prompt + suggested vocab visible
+ *          in the scene.
+ * @access  Private
+ */
+exports.imageVocabDescribe = asyncHandler(async (req, res, next) => {
+  if (!req.file) return next(new ErrorResponse('Image is required', 400));
+  try {
+    const result = await tutorImageVocabService.describePhoto({
+      userId: req.user._id,
+      imageBuffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (e) {
+    console.error('[tutor.imageVocabDescribe] failed:', e.message);
+    return next(new ErrorResponse(e.message || 'Could not describe image', 500));
+  }
+});
+
+/**
+ * @route   POST /api/v1/tutor/image-vocab/grade
+ * @desc    Step 2. Multipart 'image' + form field 'description'.
+ *          Returns score + feedback + grammar notes + missing items.
+ * @access  Private
+ */
+exports.imageVocabGrade = asyncHandler(async (req, res, next) => {
+  if (!req.file) return next(new ErrorResponse('Image is required', 400));
+  const description = (req.body?.description || '').toString().trim();
+  if (!description) return next(new ErrorResponse('Description is required', 400));
+
+  try {
+    const result = await tutorImageVocabService.gradeDescription({
+      userId: req.user._id,
+      imageBuffer: req.file.buffer,
+      mimeType: req.file.mimetype,
+      description,
+    });
+    res.status(200).json({ success: true, data: result });
+  } catch (e) {
+    console.error('[tutor.imageVocabGrade] failed:', e.message);
+    return next(new ErrorResponse(e.message || 'Could not grade description', 500));
   }
 });
 
