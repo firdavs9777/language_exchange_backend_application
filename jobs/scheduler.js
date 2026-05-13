@@ -30,6 +30,7 @@ const voiceRoomCleanupJob = require('./voiceRoomCleanupJob');
 const waveDailySummaryJob = require('./waveDailySummaryJob');
 const voiceRoomSchedulerJob = require('./voiceRoomSchedulerJob');
 const { purgeLegacyPronunciationAudio } = require('./pronunciationAudioPurgeJob');
+const { purgeAudioCacheOrphans } = require('./audioCacheOrphanPurgeJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -364,6 +365,28 @@ const schedulePronunciationAudioPurge = () => {
 };
 
 /**
+ * Schedule AudioCache orphan-blob purge (daily at 2:15 AM KST).
+ * Staggered 15min after the pronunciation purge to avoid bursts.
+ * Deletes Spaces blobs for AudioCache records aged >87 days,
+ * ~3 days before the 90-day Mongo TTL drops the record.
+ */
+const scheduleAudioCacheOrphanPurge = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled AudioCache orphan purge...');
+    try {
+      await purgeAudioCacheOrphans();
+    } catch (error) {
+      console.error('Scheduled AudioCache orphan purge failed:', error);
+    }
+    setTimeout(runJob, 24 * 60 * 60 * 1000);
+  };
+
+  const msUntilNextRun = getMillisecondsUntil(2, 15); // 2:15 AM KST
+  console.log(`📅 AudioCache orphan purge scheduled in ${Math.round(msUntilNextRun / 1000 / 60 / 60)} hours`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
  * Start all scheduled jobs
  */
 const startScheduler = () => {
@@ -416,6 +439,7 @@ const startScheduler = () => {
 
   // Legacy pronunciation user-audio purge (2 AM KST, daily)
   schedulePronunciationAudioPurge();
+  scheduleAudioCacheOrphanPurge();
 
   console.log('✅ All jobs scheduled!\n');
 };
