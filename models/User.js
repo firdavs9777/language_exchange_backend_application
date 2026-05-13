@@ -369,7 +369,18 @@ role: {
     lastTranslationReset: {
       type: Date,
       default: Date.now
-    }
+    },
+    // AI tutor chip daily quotas (Step 13A)
+    tutorChatToday: { type: Number, default: 0 },
+    lastTutorChatReset: { type: Date, default: Date.now },
+    roleplaySessionsToday: { type: Number, default: 0 },
+    lastRoleplaySessionReset: { type: Date, default: Date.now },
+    storyGenerationsToday: { type: Number, default: 0 },
+    lastStoryGenerationReset: { type: Date, default: Date.now },
+    photoVocabToday: { type: Number, default: 0 },
+    lastPhotoVocabReset: { type: Date, default: Date.now },
+    pronunciationDrillsToday: { type: Number, default: 0 },
+    lastPronunciationDrillReset: { type: Date, default: Date.now }
   },
   // Regular user limitations
   regularUserLimitations: {
@@ -420,7 +431,18 @@ role: {
     lastTranslationReset: {
       type: Date,
       default: Date.now
-    }
+    },
+    // AI tutor chip daily quotas (Step 13A)
+    tutorChatToday: { type: Number, default: 0 },
+    lastTutorChatReset: { type: Date, default: Date.now },
+    roleplaySessionsToday: { type: Number, default: 0 },
+    lastRoleplaySessionReset: { type: Date, default: Date.now },
+    storyGenerationsToday: { type: Number, default: 0 },
+    lastStoryGenerationReset: { type: Date, default: Date.now },
+    photoVocabToday: { type: Number, default: 0 },
+    lastPhotoVocabReset: { type: Date, default: Date.now },
+    pronunciationDrillsToday: { type: Number, default: 0 },
+    lastPronunciationDrillReset: { type: Date, default: Date.now }
   },
   bio: {
     type: String,
