@@ -29,6 +29,7 @@ const weeklyCounterResetJob = require('./weeklyCounterResetJob');
 const voiceRoomCleanupJob = require('./voiceRoomCleanupJob');
 const waveDailySummaryJob = require('./waveDailySummaryJob');
 const voiceRoomSchedulerJob = require('./voiceRoomSchedulerJob');
+const { purgeLegacyPronunciationAudio } = require('./pronunciationAudioPurgeJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -341,6 +342,28 @@ const scheduleWeeklyCounterReset = () => {
 };
 
 /**
+ * Schedule legacy pronunciation audio purge (daily at 2:00 AM KST).
+ * Deletes Spaces blobs for PronunciationAttempt records aged >27 days,
+ * ~3 days before the 30-day Mongo TTL drops the record entirely.
+ */
+const schedulePronunciationAudioPurge = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled pronunciation audio purge...');
+    try {
+      await purgeLegacyPronunciationAudio();
+    } catch (error) {
+      console.error('Scheduled pronunciation audio purge failed:', error);
+    }
+    // Schedule next run (24 hours from now)
+    setTimeout(runJob, 24 * 60 * 60 * 1000);
+  };
+
+  const msUntilNextRun = getMillisecondsUntil(2, 0); // 2:00 AM KST
+  console.log(`📅 Pronunciation audio purge scheduled in ${Math.round(msUntilNextRun / 1000 / 60 / 60)} hours`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
  * Start all scheduled jobs
  */
 const startScheduler = () => {
@@ -390,6 +413,9 @@ const startScheduler = () => {
 
   // Wave daily summary job (9 AM UTC, hourly tick)
   waveDailySummaryJob.start();
+
+  // Legacy pronunciation user-audio purge (2 AM KST, daily)
+  schedulePronunciationAudioPurge();
 
   console.log('✅ All jobs scheduled!\n');
 };
