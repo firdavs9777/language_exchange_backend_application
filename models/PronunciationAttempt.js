@@ -117,6 +117,15 @@ PronunciationAttemptSchema.index({ user: 1, language: 1, createdAt: -1 });
 PronunciationAttemptSchema.index({ user: 1, 'score.overall': -1 });
 PronunciationAttemptSchema.index({ 'context.vocabularyId': 1 });
 
+// TTL: auto-drop attempts (and their userAudioUrl reference) after 30 days.
+// The companion job in jobs/pronunciationAudioPurgeJob.js purges the
+// underlying Spaces blob a few days before this TTL fires so the blob is
+// gone before the URL pointing to it disappears.
+PronunciationAttemptSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 30 * 24 * 60 * 60 }
+);
+
 /**
  * Static: Get user's pronunciation history
  */
