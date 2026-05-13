@@ -208,6 +208,7 @@ const generateDailyPlan = async (userId, memory) => {
     tasks.push({ type: 'grammar_drill', topic: topWeakArea.topic, completed: false });
   }
   tasks.push({ type: 'tutor_chat', minutes: 5, completed: 0 });
+  tasks.push({ type: 'tutor_pronunciation', count: 1, completed: 0 });
 
   return {
     date:  new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z'),
