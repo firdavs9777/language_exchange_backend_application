@@ -98,9 +98,14 @@ exports.getAllReports = asyncHandler(async (req, res, next) => {
   if (type) filter.type = type;
   if (priority) filter.priority = priority;
 
+  // Richer populate for the admin reports screen — covers avatar, language
+  // pair, country, joined date, and ban status so the moderator can make
+  // an informed decision without round-tripping to a profile lookup.
+  const USER_FIELDS = 'name email images imageUrls native_language language_to_learn location createdAt isBanned';
+
   const reports = await Report.find(filter)
-    .populate('reportedBy', 'name email')
-    .populate('reportedUser', 'name email')
+    .populate('reportedBy', USER_FIELDS)
+    .populate('reportedUser', USER_FIELDS)
     .populate('moderatedBy', 'name email')
     .sort({ createdAt: -1 })
     .limit(100);
@@ -118,9 +123,10 @@ exports.getAllReports = asyncHandler(async (req, res, next) => {
  * @access  Admin
  */
 exports.getReport = asyncHandler(async (req, res, next) => {
+  const USER_FIELDS = 'name email images imageUrls native_language language_to_learn location createdAt isBanned';
   const report = await Report.findById(req.params.id)
-    .populate('reportedBy', 'name email imageUrls')
-    .populate('reportedUser', 'name email imageUrls')
+    .populate('reportedBy', USER_FIELDS)
+    .populate('reportedUser', USER_FIELDS)
     .populate('moderatedBy', 'name email');
 
   if (!report) {
