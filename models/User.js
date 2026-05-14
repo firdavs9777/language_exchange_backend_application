@@ -679,6 +679,11 @@ bannedAt: {
       default: false
     }
   },
+
+  // Note: notificationPreferences (further below) is a separate sub-doc
+  // that gates push notifications — privacySettings above gates user-facing
+  // visibility + email channel. Step 16 added comment / newFollower /
+  // vipRenewalWarning fields to notificationPreferences.
   
   // Push/in-app notification preferences
   notificationPreferences: {
@@ -711,6 +716,19 @@ bannedAt: {
       default: true
     },
     calls: {
+      type: Boolean,
+      default: true
+    },
+    // Step 16 — push notification gates added for the event-driven wave.
+    comment: {
+      type: Boolean,
+      default: true
+    },
+    newFollower: {
+      type: Boolean,
+      default: true
+    },
+    vipRenewalWarning: {
       type: Boolean,
       default: true
     }

@@ -798,24 +798,32 @@ const registerMessageHandlers = (socket, io) => {
             .then(() => senderUser.incrementMessageCount())
             .catch(err => console.error('Background update error:', err.message));
 
-          // Push notification - always send for chat messages
-          // The client handles deduplication (skips showing when app is in foreground)
-          // This ensures notifications work when app is backgrounded but socket still connected
-          notificationService.sendChatMessage(
-            receiver,
-            userId,
-            {
-              _id: newMessage._id,
-              text: messageText,
-              conversation: newMessage.conversation
-            }
-          ).then(result => {
-            if (result.skipped) {
-              console.log(`📱 Push notification skipped for ${receiver} (user preferences)`);
-            } else if (result.success) {
-              console.log(`📱 Push notification sent to ${receiver}`);
-            }
-          }).catch(err => console.error('Push notification failed:', err));
+          // Step 16: gate by receiver online status. Push only when the
+          // receiver's chat socket is disconnected — users with a live
+          // socket already see the message via the newMessage event, so
+          // double-notification is wasteful. Edge: if the socket cleanup
+          // heartbeat hasn't fired after an app crash (~30s window),
+          // push is suppressed; acceptable.
+          const receiverIsOnline = userConnections.has(String(receiver));
+          if (!receiverIsOnline) {
+            notificationService.sendChatMessage(
+              receiver,
+              userId,
+              {
+                _id: newMessage._id,
+                text: messageText,
+                conversation: newMessage.conversation
+              }
+            ).then(result => {
+              if (result.skipped) {
+                console.log(`📱 Push notification skipped for ${receiver} (user preferences)`);
+              } else if (result.success) {
+                console.log(`📱 Push notification sent to ${receiver}`);
+              }
+            }).catch(err => console.error('Push notification failed:', err));
+          } else {
+            console.log(`📱 Push skipped for ${receiver} — receiver online (socket connected)`);
+          }
 
           // Learning tracking (already async) - get conversation ID first
           if (messageText && messageText.length > 0) {

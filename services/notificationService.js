@@ -490,16 +490,42 @@ const _shouldSendNotification = async (user, type, data = {}) => {
       break;
 
     case 'moment_like':
+      if (!user.notificationSettings.moments) {
+        return false;
+      }
+      break;
+
     case 'moment_comment':
       if (!user.notificationSettings.moments) {
         return false;
       }
+      // Step 16 — moment comments share the 'comment' preference toggle
+      // with story comments + reply/reaction/mention.
+      if (!shouldNotify(user, 'comment')) return false;
+      break;
+
+    case 'story_comment':
+    case 'comment_reply':
+    case 'comment_reaction':
+    case 'comment_mention':
+      // Step 16 — all comment-related notifications share the 'comment'
+      // preference. story_comment lands in B4; the others were
+      // pre-existing push types with no preference gate (silent send).
+      if (!shouldNotify(user, 'comment')) return false;
       break;
 
     case 'friend_request':
       if (!user.notificationSettings.friendRequests) {
         return false;
       }
+      // Step 16 — additional gate on the newFollower preference (the
+      // user-facing toggle for "someone followed you" notifications).
+      if (!shouldNotify(user, 'newFollower')) return false;
+      break;
+
+    case 'vip_renewal_warning':
+      // Step 16 — VIP renewal warning push (wired in B3).
+      if (!shouldNotify(user, 'vipRenewalWarning')) return false;
       break;
 
     case 'profile_visit':
@@ -863,6 +889,41 @@ const sendScheduledRoomReminder = async (userId, roomId, title, when) => {
   );
 };
 
+/**
+ * Send VIP renewal warning push notification.
+ * Step 16 — replaces the broken sendPushNotification stub in
+ * jobs/subscriptionExpiryJob.js. Fires at 7 / 3 / 1 days before
+ * vipSubscription.endDate (dedup via vipSubscription.warnings flags
+ * managed by the job itself).
+ *
+ * @param {String} userId — recipient (the VIP user)
+ * @param {Number} daysLeft — 7 | 3 | 1
+ * @returns {Object} send() result
+ */
+const sendVipRenewalWarning = async (userId, daysLeft) => {
+  try {
+    const title = 'VIP Subscription Expiring Soon';
+    const body = daysLeft === 1
+      ? 'Your VIP subscription expires tomorrow! Renew now to keep unlimited tutor chips, ads-off, and more.'
+      : `Your VIP subscription expires in ${daysLeft} days. Renew anytime to keep your benefits.`;
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'vip_renewal_warning',
+        daysLeft: String(daysLeft),
+        screen: 'vip',
+      },
+    };
+
+    return await send(userId, 'vip_renewal_warning', notification);
+  } catch (error) {
+    console.error('❌ Error sending VIP renewal warning:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   shouldNotify,
   send,
@@ -878,5 +939,6 @@ module.exports = {
   sendCommentMention,
   sendScheduledRoomStarted,
   sendScheduledRoomReminder,
+  sendVipRenewalWarning,
 };
 
