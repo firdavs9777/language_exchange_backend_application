@@ -426,7 +426,11 @@ exports.imageVocabDescribe = asyncHandler(async (req, res, next) => {
     });
   } catch (e) {
     console.error('[tutor.imageVocabDescribe] failed:', e.message);
-    return next(new ErrorResponse(e.message || 'Could not describe image', 500));
+    // 502, not 500: middleware/error.js masks 500 to "An unexpected
+    // error occurred" in production, which hides the real OpenAI /
+    // vision-model failure the operator needs to debug. 502 surfaces
+    // e.message intact — matching the pronunciation endpoints below.
+    return next(new ErrorResponse(e.message || 'Could not describe image', 502));
   }
 });
 
@@ -451,7 +455,8 @@ exports.imageVocabGrade = asyncHandler(async (req, res, next) => {
     res.status(200).json({ success: true, data: result });
   } catch (e) {
     console.error('[tutor.imageVocabGrade] failed:', e.message);
-    return next(new ErrorResponse(e.message || 'Could not grade description', 500));
+    // 502 not 500 — see imageVocabDescribe above for rationale.
+    return next(new ErrorResponse(e.message || 'Could not grade description', 502));
   }
 });
 
