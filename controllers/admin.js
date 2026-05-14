@@ -179,6 +179,124 @@ exports.changeRole = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    Aggregate user stats for the admin analytics screen.
+ * @route   GET /api/v1/admin/stats
+ * @access  Admin
+ * @returns total + byGender + byRole + byMode + banned + admins + vip +
+ *          newToday + newThisWeek + activeWeek + topNativeLanguages +
+ *          topLearningLanguages
+ *
+ * One round-trip via $facet so the analytics page renders in one fetch.
+ */
+exports.getStats = asyncHandler(async (req, res, next) => {
+  const now = new Date();
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
+  const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const [agg] = await User.aggregate([
+    {
+      $facet: {
+        total: [{ $count: 'count' }],
+        byGender: [
+          {
+            $group: {
+              _id: { $ifNull: ['$gender', 'unspecified'] },
+              count: { $sum: 1 },
+            },
+          },
+          { $sort: { count: -1 } },
+        ],
+        byRole: [
+          {
+            $group: {
+              _id: { $ifNull: ['$role', 'user'] },
+              count: { $sum: 1 },
+            },
+          },
+        ],
+        byMode: [
+          {
+            $group: {
+              _id: { $ifNull: ['$userMode', 'regular'] },
+              count: { $sum: 1 },
+            },
+          },
+        ],
+        banned: [
+          { $match: { isBanned: true } },
+          { $count: 'count' },
+        ],
+        admins: [
+          { $match: { role: 'admin' } },
+          { $count: 'count' },
+        ],
+        vip: [
+          { $match: { 'vipSubscription.isActive': true } },
+          { $count: 'count' },
+        ],
+        newToday: [
+          { $match: { createdAt: { $gte: todayStart } } },
+          { $count: 'count' },
+        ],
+        newThisWeek: [
+          { $match: { createdAt: { $gte: weekStart } } },
+          { $count: 'count' },
+        ],
+        activeWeek: [
+          { $match: { lastActive: { $gte: weekStart } } },
+          { $count: 'count' },
+        ],
+        topNativeLanguages: [
+          {
+            $match: {
+              native_language: { $exists: true, $ne: null, $ne: '' },
+            },
+          },
+          { $group: { _id: '$native_language', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 10 },
+        ],
+        topLearningLanguages: [
+          {
+            $match: {
+              language_to_learn: { $exists: true, $ne: null, $ne: '' },
+            },
+          },
+          { $group: { _id: '$language_to_learn', count: { $sum: 1 } } },
+          { $sort: { count: -1 } },
+          { $limit: 10 },
+        ],
+      },
+    },
+  ]);
+
+  const pluck = (k) => agg[k]?.[0]?.count || 0;
+
+  res.status(200).json({
+    success: true,
+    data: {
+      total: pluck('total'),
+      banned: pluck('banned'),
+      admins: pluck('admins'),
+      vip: pluck('vip'),
+      newToday: pluck('newToday'),
+      newThisWeek: pluck('newThisWeek'),
+      activeWeek: pluck('activeWeek'),
+      byGender: agg.byGender || [],
+      byRole: agg.byRole || [],
+      byMode: agg.byMode || [],
+      topNativeLanguages: agg.topNativeLanguages || [],
+      topLearningLanguages: agg.topLearningLanguages || [],
+      generatedAt: now.toISOString(),
+    },
+  });
+});
+
+/**
  * @desc    Paginated audit log, filterable by moderator/target/action.
  * @route   GET /api/v1/admin/audit-log
  * @access  Admin
