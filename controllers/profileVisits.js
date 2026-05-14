@@ -39,11 +39,18 @@ exports.recordProfileVisit = asyncHandler(async (req, res, next) => {
     });
   }
 
+  // Read viewer's anonymity preference server-side. Older clients won't
+  // pass an isAnonymous flag in the request; preference applies regardless.
+  const viewer = await User.findById(visitorId)
+    .select('privacySettings.anonymousProfileVisits')
+    .lean();
+  const isAnonymous = viewer?.privacySettings?.anonymousProfileVisits === true;
+
   // Record the visit
   const visit = await ProfileVisit.recordVisit(profileOwnerId, visitorId, {
     source: source || 'other',
     deviceType: deviceType || 'ios',
-    isAnonymous: false
+    isAnonymous
   });
 
   // Update profile owner's stats
