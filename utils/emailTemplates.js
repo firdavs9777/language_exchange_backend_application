@@ -1197,5 +1197,29 @@ ${reason ? `Reason: ${reason}\n\n` : ''}If you believe this was made in error, c
     </tr>`, '#d63031')
 });
 
+// Step 15 — restored-account notification, mirrors banNotification.
+exports.unbanNotification = (reason) => ({
+  subject: `Your ${APP_NAME} account has been restored`,
+  text: `Good news — your account has been restored.
+
+${reason ? `Reason: ${reason}\n\n` : ''}You can log in and resume using ${APP_NAME} normally.
+
+If you have any questions, contact support@banatalk.com.`,
+  html: baseTemplate(`
+    <tr>
+      <td style="background: linear-gradient(135deg, #4cd964 0%, #11998e 100%); padding: 40px; text-align: center;">
+        <h1 style="color: #fff; margin: 0; font-size: 28px;">Account Restored</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 30px;">
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">Good news — your account has been restored.</p>
+        ${reason ? `<p style="font-size: 16px; color: #555; line-height: 1.7;"><strong>Reason:</strong> ${reason}</p>` : ''}
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">You can log in and resume using ${APP_NAME} normally.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">If you have any questions, contact <a href="mailto:support@banatalk.com" style="color: #11998e;">support@banatalk.com</a>.</p>
+      </td>
+    </tr>`, '#11998e')
+});
+
 module.exports = exports;
 

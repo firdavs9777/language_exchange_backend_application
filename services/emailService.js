@@ -357,5 +357,23 @@ exports.sendBanNotification = async (userId, reason) => {
   }
 };
 
+// Step 15 — restored-account notification. Called from
+// services/banService.js#unbanUser fire-and-forget.
+exports.sendUnbanNotification = async (userId, reason) => {
+  try {
+    const user = await User.findById(userId).select('name email').lean();
+    if (!user?.email) return;
+    const tpl = templates.unbanNotification(reason);
+    await sendEmail({
+      email: user.email,
+      subject: tpl.subject,
+      message: tpl.text,
+      html: tpl.html,
+    });
+  } catch (err) {
+    console.error('[email] sendUnbanNotification failed:', err.message);
+  }
+};
+
 module.exports = exports;
 
