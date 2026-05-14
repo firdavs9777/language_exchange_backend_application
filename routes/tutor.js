@@ -28,6 +28,26 @@ const { protect } = require('../middleware/auth');
 const { tutorMessageLimiter } = require('../middleware/rateLimiter');
 const { checkTutorQuota, checkChatQuotaSessionAware } = require('../middleware/checkTutorQuota');
 
+// Some clients (Flutter http.MultipartFile.fromPath without an explicit
+// contentType, certain Android pickers, curl --data-binary) drop the
+// mime header and the file arrives as application/octet-stream. Trust
+// the filename extension in that single case — multer's `originalname`
+// comes from the multipart Content-Disposition, not the client mime.
+const _extToMime = (filename, kind) => {
+  if (typeof filename !== 'string') return null;
+  const ext = filename.toLowerCase().split('.').pop();
+  if (!ext) return null;
+  const audio = {
+    mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', webm: 'audio/webm',
+    ogg: 'audio/ogg', flac: 'audio/flac', aac: 'audio/aac', mp4: 'audio/mp4',
+  };
+  const image = {
+    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+    webp: 'image/webp', heic: 'image/heic', heif: 'image/heif',
+  };
+  return (kind === 'audio' ? audio : image)[ext] || null;
+};
+
 // Multer memory storage for STT uploads (25MB cap matches /speech route).
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -38,7 +58,11 @@ const upload = multer({
       'audio/webm', 'audio/ogg', 'audio/flac', 'audio/x-m4a', 'audio/x-wav',
       'audio/aac', 'audio/x-aac',
     ];
-    if (allowedMimes.includes(file.mimetype)) {
+    const mime = file.mimetype === 'application/octet-stream'
+      ? (_extToMime(file.originalname, 'audio') || file.mimetype)
+      : file.mimetype;
+    if (allowedMimes.includes(mime)) {
+      file.mimetype = mime; // normalize for downstream code
       cb(null, true);
     } else {
       cb(new Error(`Invalid file type: ${file.mimetype}`), false);
@@ -52,7 +76,11 @@ const imageUpload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'];
-    if (allowedMimes.includes(file.mimetype)) {
+    const mime = file.mimetype === 'application/octet-stream'
+      ? (_extToMime(file.originalname, 'image') || file.mimetype)
+      : file.mimetype;
+    if (allowedMimes.includes(mime)) {
+      file.mimetype = mime;
       cb(null, true);
     } else {
       cb(new Error(`Invalid image type: ${file.mimetype}`), false);
