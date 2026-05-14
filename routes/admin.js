@@ -8,6 +8,7 @@ const {
   unbanUser,
   changeRole,
   getAuditLog,
+  getStats,
 } = require('../controllers/admin');
 
 // Every endpoint in this file requires an authenticated admin.
@@ -21,5 +22,6 @@ router.post('/users/:id/unban', unbanUser);
 router.put('/users/:id/role', changeRole);
 
 router.get('/audit-log', getAuditLog);
+router.get('/stats', getStats);
 
 module.exports = router;
