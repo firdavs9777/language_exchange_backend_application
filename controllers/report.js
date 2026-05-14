@@ -1,11 +1,10 @@
 const asyncHandler = require('../middleware/async');
 const Report = require('../models/Report');
 const User = require('../models/User');
-const VoiceRoom = require('../models/VoiceRoom');
 const ErrorResponse = require('../utils/errorResponse');
 const { logSecurityEvent } = require('../utils/securityLogger');
 const emailService = require('../services/emailService');
-const livekitAdmin = require('../services/livekitAdminService');
+const banService = require('../services/banService');
 
 /**
  * @desc    Create a new report
@@ -239,48 +238,16 @@ exports.resolveReport = asyncHandler(async (req, res, next) => {
 
   // Take action based on moderator decision
   if (action === 'user_banned') {
-    await User.findByIdAndUpdate(report.reportedUser, {
-      isBanned: true,
-      banReason: notes || `Banned following report ${report._id}`,
-      bannedAt: new Date()
+    // Step 15: delegate to banService so the side-effect implementation
+    // stays in one place. source='report:<id>' surfaces in the audit log
+    // so we can tell report-driven bans apart from manual /admin bans.
+    await banService.banUser({
+      userId: report.reportedUser,
+      reason: notes || `Banned following report ${report._id}`,
+      moderatorId: req.user.id,
+      source: `report:${report._id}`,
+      io: req.app.get('io'),
     });
-
-    // Auto-end the banned user's active voice rooms. Mirrors the canonical
-    // flow in controllers/voiceRooms.js#endVoiceRoom (room.end() +
-    // livekitAdmin.endRoom() + socket emits to room channel + lobby) so
-    // participants are evicted from LiveKit audio AND the listing updates.
-    const activeRooms = await VoiceRoom.find({
-      host: report.reportedUser,
-      status: { $in: ['waiting', 'active'] },
-    });
-    const io = req.app.get('io');
-    for (const room of activeRooms) {
-      try {
-        await room.end();
-        await livekitAdmin.endRoom(String(room._id));
-        if (io) {
-          io.to(`voiceroom_${room._id}`).emit('voiceroom:ended', {
-            roomId: String(room._id),
-            endedBy: 'admin',
-          });
-          io.to('voicerooms:lobby').emit('voiceroom:ended', {
-            roomId: String(room._id),
-          });
-        }
-      } catch (err) {
-        console.error(`[ban] failed to end room ${room._id}:`, err.message);
-      }
-    }
-
-    // Clear FCM tokens so banned user stops getting push.
-    await User.findByIdAndUpdate(report.reportedUser, {
-      $set: { fcmTokens: [] }
-    });
-
-    // Send the banned user an email explaining the ban.
-    emailService.sendBanNotification(report.reportedUser, notes).catch(err =>
-      console.error('Ban notification failed:', err.message)
-    );
   } else if (action === 'content_removed') {
     if (report.type === 'moment') {
       const Moment = require('../models/Moment');
