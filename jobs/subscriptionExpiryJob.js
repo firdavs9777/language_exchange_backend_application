@@ -12,17 +12,7 @@
 
 const User = require('../models/User');
 const { logSecurityEvent } = require('../utils/securityLogger');
-
-// Try to import notification service (may not exist)
-let sendPushNotification;
-try {
-  const notificationService = require('../services/notificationService');
-  sendPushNotification = notificationService.sendPushNotification;
-} catch (e) {
-  sendPushNotification = async () => {
-    console.log('📱 Push notification service not available');
-  };
-}
+const notificationService = require('../services/notificationService');
 
 /**
  * Grace period in hours after subscription expires
@@ -163,26 +153,17 @@ async function sendExpiryWarnings() {
 }
 
 /**
- * Send warning notification to user
+ * Send warning notification to user.
+ * Step 16 — was a no-op stub (sendPushNotification was undefined since
+ * notificationService doesn't export that symbol). Now delegates to the
+ * typed helper sendVipRenewalWarning(userId, daysLeft) which uses the
+ * 'vip_renewal_warning' type string + gates by user.notificationPreferences.vipRenewalWarning.
  */
 async function sendWarningNotification(user, daysRemaining) {
-  const title = 'VIP Subscription Expiring Soon';
-  const body = daysRemaining === 1
-    ? 'Your VIP subscription expires tomorrow! Renew now to keep your benefits.'
-    : `Your VIP subscription expires in ${daysRemaining} days. Renew to keep unlimited access.`;
-
   try {
-    await sendPushNotification(user._id, {
-      title,
-      body,
-      data: {
-        type: 'subscription_warning',
-        daysRemaining: daysRemaining.toString(),
-        action: 'open_subscription'
-      }
-    });
+    await notificationService.sendVipRenewalWarning(user._id, daysRemaining);
   } catch (error) {
-    console.log(`   Could not send push notification: ${error.message}`);
+    console.log(`   Could not send VIP renewal push: ${error.message}`);
   }
 }
 

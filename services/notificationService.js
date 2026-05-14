@@ -889,6 +889,41 @@ const sendScheduledRoomReminder = async (userId, roomId, title, when) => {
   );
 };
 
+/**
+ * Send VIP renewal warning push notification.
+ * Step 16 — replaces the broken sendPushNotification stub in
+ * jobs/subscriptionExpiryJob.js. Fires at 7 / 3 / 1 days before
+ * vipSubscription.endDate (dedup via vipSubscription.warnings flags
+ * managed by the job itself).
+ *
+ * @param {String} userId — recipient (the VIP user)
+ * @param {Number} daysLeft — 7 | 3 | 1
+ * @returns {Object} send() result
+ */
+const sendVipRenewalWarning = async (userId, daysLeft) => {
+  try {
+    const title = 'VIP Subscription Expiring Soon';
+    const body = daysLeft === 1
+      ? 'Your VIP subscription expires tomorrow! Renew now to keep unlimited tutor chips, ads-off, and more.'
+      : `Your VIP subscription expires in ${daysLeft} days. Renew anytime to keep your benefits.`;
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'vip_renewal_warning',
+        daysLeft: String(daysLeft),
+        screen: 'vip',
+      },
+    };
+
+    return await send(userId, 'vip_renewal_warning', notification);
+  } catch (error) {
+    console.error('❌ Error sending VIP renewal warning:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 module.exports = {
   shouldNotify,
   send,
@@ -904,5 +939,6 @@ module.exports = {
   sendCommentMention,
   sendScheduledRoomStarted,
   sendScheduledRoomReminder,
+  sendVipRenewalWarning,
 };
 
