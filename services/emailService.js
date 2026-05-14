@@ -5,6 +5,7 @@
 
 const sendEmail = require('../utils/sendEmail');
 const templates = require('../utils/emailTemplates');
+const User = require('../models/User');
 
 /**
  * Send welcome email after registration
@@ -290,6 +291,69 @@ exports.sendNewUserNotification = async (adminEmail, user) => {
   } catch (error) {
     console.error(`❌ Failed to send new user notification to ${adminEmail}:`, error);
     return false;
+  }
+};
+
+// ===================== SAFETY WAVE (Step 14) =====================
+// Per-report admin alerts + reporter confirmation + ban notification.
+// APPENDED to the existing exports — do NOT replace module.exports below.
+
+exports.sendAdminReportAlert = async (report) => {
+  const adminEmail = process.env.ADMIN_EMAIL || 'bananatalkmain@gmail.com';
+  if (!adminEmail) return;
+  // Emergency kill switch — set ADMIN_REPORT_ALERTS_ENABLED=false in .env
+  // to silence per-report alerts without a code deploy.
+  if (process.env.ADMIN_REPORT_ALERTS_ENABLED === 'false') return;
+  try {
+    const [reporter, reportedUser] = await Promise.all([
+      User.findById(report.reportedBy).select('name').lean(),
+      User.findById(report.reportedUser).select('name').lean(),
+    ]);
+    const tpl = templates.adminReportAlert(
+      report,
+      reporter?.name || 'Unknown',
+      reportedUser?.name || 'Unknown'
+    );
+    await sendEmail({
+      email: adminEmail,
+      subject: tpl.subject,
+      message: tpl.text,
+      html: tpl.html,
+    });
+  } catch (err) {
+    console.error('[email] sendAdminReportAlert failed:', err.message);
+  }
+};
+
+exports.sendReportResolutionToReporter = async (report) => {
+  try {
+    const reporter = await User.findById(report.reportedBy).select('name email').lean();
+    if (!reporter?.email) return;
+    const tpl = templates.reportResolutionToReporter(report);
+    await sendEmail({
+      email: reporter.email,
+      subject: tpl.subject,
+      message: tpl.text,
+      html: tpl.html,
+    });
+  } catch (err) {
+    console.error('[email] sendReportResolutionToReporter failed:', err.message);
+  }
+};
+
+exports.sendBanNotification = async (userId, reason) => {
+  try {
+    const user = await User.findById(userId).select('name email').lean();
+    if (!user?.email) return;
+    const tpl = templates.banNotification(reason);
+    await sendEmail({
+      email: user.email,
+      subject: tpl.subject,
+      message: tpl.text,
+      html: tpl.html,
+    });
+  } catch (err) {
+    console.error('[email] sendBanNotification failed:', err.message);
   }
 };
 

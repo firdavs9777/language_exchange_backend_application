@@ -4,6 +4,7 @@ const VoiceRoom = require('../models/VoiceRoom');
 const User = require('../models/User');
 const { mintRoomToken } = require('../services/livekitService');
 const livekitAdmin = require('../services/livekitAdminService');
+const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 /**
  * @desc    Get all active voice rooms
@@ -30,11 +31,16 @@ exports.getVoiceRooms = asyncHandler(async (req, res, next) => {
     statusQuery = { $in: ['waiting', 'active'] };
   }
 
+  const blockedUserIds = await getBlockedUserIds(req.user.id);
+
   const filter = {
     status: statusQuery,
     isPublic: true,
     // Skip heartbeat check for scheduled rooms (they haven't started yet)
-    ...(statusFilter !== 'scheduled' && { lastHeartbeatAt: { $gte: heartbeatCutoff } })
+    ...(statusFilter !== 'scheduled' && { lastHeartbeatAt: { $gte: heartbeatCutoff } }),
+    ...(blockedUserIds.length > 0 && {
+      host: { $nin: blockedUserIds }
+    })
   };
 
   if (language) filter.language = language;
@@ -52,8 +58,20 @@ exports.getVoiceRooms = asyncHandler(async (req, res, next) => {
     VoiceRoom.countDocuments(filter)
   ]);
 
+  // Post-fetch JS filter on participants — host-only $nin above catches simple
+  // host blocks; this catches "blocked user is a participant in a non-blocked
+  // host's room." Pagination total is intentionally unfiltered (acceptable
+  // discrepancy for invisible-block UX).
+  const visibleRooms = blockedUserIds.length > 0
+    ? rooms.filter(r =>
+        !(r.participants || []).some(p =>
+          blockedUserIds.includes(p.user?._id?.toString())
+        )
+      )
+    : rooms;
+
   // Format response
-  const formattedRooms = rooms.map(room => ({
+  const formattedRooms = visibleRooms.map(room => ({
     _id: room._id,
     title: room.title,
     description: room.description,
@@ -99,6 +117,18 @@ exports.getVoiceRoom = asyncHandler(async (req, res, next) => {
     .populate('participants.user', 'name images native_language language_to_learn');
 
   if (!room) {
+    return next(new ErrorResponse('Voice room not found', 404));
+  }
+
+  // Invisible block: return 404 (not 403) so we don't reveal the room exists.
+  const blockedUserIds = await getBlockedUserIds(req.user.id);
+  if (blockedUserIds.includes(room.host?._id?.toString() || room.host?.toString())) {
+    return next(new ErrorResponse('Voice room not found', 404));
+  }
+  const hasBlockedParticipant = (room.participants || []).some(p =>
+    blockedUserIds.includes(p.user?._id?.toString() || p.user?.toString())
+  );
+  if (hasBlockedParticipant) {
     return next(new ErrorResponse('Voice room not found', 404));
   }
 
@@ -254,9 +284,18 @@ exports.joinVoiceRoom = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Room is full', 400));
   }
 
-  // Check if user is blocked by host
-  const host = await User.findById(room.host).select('blockedUsers');
-  if (host?.blockedUsers?.includes(userId)) {
+  // Bidirectional block check: reject if joiner is in any block relationship
+  // with the host, or with any current participant. Error copy is identical
+  // to the legacy "blocked by host" response so the rejection doesn't reveal
+  // who triggered it.
+  const joinerBlockedIds = await getBlockedUserIds(userId);
+  if (joinerBlockedIds.includes(room.host?.toString())) {
+    return next(new ErrorResponse('You cannot join this room', 403));
+  }
+  const hasBlockedParticipant = (room.participants || []).some(p =>
+    joinerBlockedIds.includes(p.user?.toString())
+  );
+  if (hasBlockedParticipant) {
     return next(new ErrorResponse('You cannot join this room', 403));
   }
 
@@ -317,8 +356,16 @@ exports.getVoiceRoomToken = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Room is full', 400));
   }
 
-  const host = await User.findById(room.host).select('blockedUsers');
-  if (host?.blockedUsers?.includes(userId)) {
+  // Bidirectional block check: same shape as joinVoiceRoom. Don't mint a
+  // token to a user who couldn't legitimately join.
+  const joinerBlockedIds = await getBlockedUserIds(userId);
+  if (joinerBlockedIds.includes(room.host?.toString())) {
+    return next(new ErrorResponse('You cannot join this room', 403));
+  }
+  const hasBlockedParticipant = (room.participants || []).some(p =>
+    joinerBlockedIds.includes(p.user?.toString())
+  );
+  if (hasBlockedParticipant) {
     return next(new ErrorResponse('You cannot join this room', 403));
   }
 
@@ -510,6 +557,25 @@ exports.promoteParticipant = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User is not in this room', 400));
   }
 
+  // Defense-in-depth: host may have blocked this participant after they
+  // joined. Also reject if any other current participant has blocked the
+  // target (don't promote someone into a co-host slot in a room where
+  // they're now blocked by anyone present). Error copy is generic so the
+  // rejection doesn't leak which block relationship triggered it.
+  const hostBlockedIds = await getBlockedUserIds(hostId);
+  if (hostBlockedIds.includes(targetUserId)) {
+    return next(new ErrorResponse('Cannot promote this user', 403));
+  }
+  const otherParticipantIds = (room.participants || [])
+    .map(p => p.user?.toString())
+    .filter(id => id && id !== targetUserId && id !== hostId);
+  for (const pid of otherParticipantIds) {
+    const pidBlocked = await getBlockedUserIds(pid);
+    if (pidBlocked.includes(targetUserId)) {
+      return next(new ErrorResponse('Cannot promote this user', 403));
+    }
+  }
+
   // Add to co-hosts
   if (!room.coHosts.includes(targetUserId)) {
     room.coHosts.push(targetUserId);
@@ -551,6 +617,16 @@ exports.getMyRoom = asyncHandler(async (req, res, next) => {
     .populate('host', 'name images')
     .populate('participants.user', 'name images');
 
+  // If the room is hosted by someone in a block relationship with the user,
+  // surface as no room (invisible-block UX).
+  if (room) {
+    const blockedUserIds = await getBlockedUserIds(userId);
+    const hostId = room.host?._id?.toString() || room.host?.toString();
+    if (blockedUserIds.includes(hostId)) {
+      return res.status(200).json({ success: true, data: null });
+    }
+  }
+
   res.status(200).json({
     success: true,
     data: room || null
@@ -566,6 +642,11 @@ exports.rsvp = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
   const room = await VoiceRoom.findById(req.params.id);
   if (!room) return next(new ErrorResponse('Room not found', 404));
+  // Invisible block: 404 (not 403) so we don't reveal the room exists.
+  const blockedUserIds = await getBlockedUserIds(userId);
+  if (blockedUserIds.includes(room.host?.toString())) {
+    return next(new ErrorResponse('Room not found', 404));
+  }
   if (room.status !== 'scheduled') {
     return next(new ErrorResponse('Can only RSVP to scheduled rooms', 400));
   }

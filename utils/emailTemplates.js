@@ -1122,5 +1122,80 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
   };
 };
 
+// ===================== SAFETY WAVE EMAILS (Step 14) =====================
+
+/**
+ * Admin alert for a new report — per-report notification (in addition
+ * to the daily admin digest). Lets admins respond to high-priority
+ * issues without waiting for the digest.
+ */
+exports.adminReportAlert = (report, reporterName, reportedUserName) => ({
+  subject: `[Report] ${report.reason} — ${reportedUserName}`,
+  text: `New report against ${reportedUserName} by ${reporterName}.
+
+Reason: ${report.reason}
+Priority: ${report.priority || 'normal'}
+Description: ${report.description || '(none)'}
+
+View in admin: ${process.env.APP_URL || 'https://banatalk.com'}/admin/reports/${report._id}
+
+This is an automated alert. The full report is also included in
+the daily admin digest.`,
+  html: `<p><strong>New report</strong> against ${reportedUserName} by ${reporterName}.</p>
+<ul>
+  <li>Reason: ${report.reason}</li>
+  <li>Priority: ${report.priority || 'normal'}</li>
+  <li>Description: ${report.description || '(none)'}</li>
+</ul>
+<p>View in admin: <a href="${process.env.APP_URL || 'https://banatalk.com'}/admin/reports/${report._id}">${report._id}</a></p>`
+});
+
+/**
+ * Confirmation to the reporter after the moderator acts on the report.
+ * Deliberately vague about the action taken (privacy of the reported user).
+ */
+exports.reportResolutionToReporter = (report) => ({
+  subject: 'Your report has been reviewed',
+  text: `We've reviewed the report you submitted on ${new Date(report.createdAt).toDateString()}.
+
+Our team has reviewed the content and taken appropriate action where warranted.
+For your privacy, we don't share specific outcomes, but every report helps
+keep ${APP_NAME} safe.
+
+Thank you for helping the community.`,
+  html: baseTemplate(`
+    <tr>
+      <td style="padding: 40px 30px;">
+        <h2 style="color: #333; margin: 0 0 15px 0;">Your report has been reviewed</h2>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">We've reviewed the report you submitted on ${new Date(report.createdAt).toDateString()}.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">Our team has reviewed the content and taken appropriate action where warranted. For your privacy, we don't share specific outcomes, but every report helps keep ${APP_NAME} safe.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">Thank you for helping the community.</p>
+      </td>
+    </tr>`, '#11998e')
+});
+
+/**
+ * Notification to a banned user explaining the ban + appeal contact.
+ */
+exports.banNotification = (reason) => ({
+  subject: `Your ${APP_NAME} account has been suspended`,
+  text: `Your account has been suspended following a review of reports made against it.
+
+${reason ? `Reason: ${reason}\n\n` : ''}If you believe this was made in error, contact appeal@banatalk.com with your username.`,
+  html: baseTemplate(`
+    <tr>
+      <td style="background: linear-gradient(135deg, #ff7e7e 0%, #d63031 100%); padding: 40px; text-align: center;">
+        <h1 style="color: #fff; margin: 0; font-size: 28px;">Account Suspended</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 30px;">
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">Your account has been suspended following a review of reports made against it.</p>
+        ${reason ? `<p style="font-size: 16px; color: #555; line-height: 1.7;"><strong>Reason:</strong> ${reason}</p>` : ''}
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">If you believe this was made in error, contact <a href="mailto:appeal@banatalk.com" style="color: #d63031;">appeal@banatalk.com</a> with your username.</p>
+      </td>
+    </tr>`, '#d63031')
+});
+
 module.exports = exports;
 

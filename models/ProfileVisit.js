@@ -151,7 +151,8 @@ ProfileVisitSchema.statics.getVisitStats = async function(profileOwnerId) {
   const stats = await this.aggregate([
     {
       $match: {
-        profileOwner: mongoose.Types.ObjectId(profileOwnerId)
+        profileOwner: mongoose.Types.ObjectId(profileOwnerId),
+        isAnonymous: false
       }
     },
     {

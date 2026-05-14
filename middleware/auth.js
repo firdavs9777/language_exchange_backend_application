@@ -34,6 +34,13 @@ exports.protect = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('User not found or account deleted', 401));
     }
 
+    if (req.user.isBanned === true) {
+      return next(new ErrorResponse(
+        `Your account has been suspended.${req.user.banReason ? ' Reason: ' + req.user.banReason : ''}`,
+        403
+      ));
+    }
+
     next();
   } catch (err) {
     return next(new ErrorResponse('Not authorize to access this route', 401));
@@ -63,6 +70,14 @@ exports.optionalAuth = asyncHandler(async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = await User.findById(decoded.id);
+
+    if (req.user?.isBanned === true) {
+      return next(new ErrorResponse(
+        `Your account has been suspended.${req.user.banReason ? ' Reason: ' + req.user.banReason : ''}`,
+        403
+      ));
+    }
+
     next();
   } catch (err) {
     // Invalid token, but still allow access (as anonymous)
