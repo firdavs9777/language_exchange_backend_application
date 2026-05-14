@@ -284,9 +284,18 @@ exports.joinVoiceRoom = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Room is full', 400));
   }
 
-  // Check if user is blocked by host
-  const host = await User.findById(room.host).select('blockedUsers');
-  if (host?.blockedUsers?.includes(userId)) {
+  // Bidirectional block check: reject if joiner is in any block relationship
+  // with the host, or with any current participant. Error copy is identical
+  // to the legacy "blocked by host" response so the rejection doesn't reveal
+  // who triggered it.
+  const joinerBlockedIds = await getBlockedUserIds(userId);
+  if (joinerBlockedIds.includes(room.host?.toString())) {
+    return next(new ErrorResponse('You cannot join this room', 403));
+  }
+  const hasBlockedParticipant = (room.participants || []).some(p =>
+    joinerBlockedIds.includes(p.user?.toString())
+  );
+  if (hasBlockedParticipant) {
     return next(new ErrorResponse('You cannot join this room', 403));
   }
 
@@ -347,8 +356,16 @@ exports.getVoiceRoomToken = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Room is full', 400));
   }
 
-  const host = await User.findById(room.host).select('blockedUsers');
-  if (host?.blockedUsers?.includes(userId)) {
+  // Bidirectional block check: same shape as joinVoiceRoom. Don't mint a
+  // token to a user who couldn't legitimately join.
+  const joinerBlockedIds = await getBlockedUserIds(userId);
+  if (joinerBlockedIds.includes(room.host?.toString())) {
+    return next(new ErrorResponse('You cannot join this room', 403));
+  }
+  const hasBlockedParticipant = (room.participants || []).some(p =>
+    joinerBlockedIds.includes(p.user?.toString())
+  );
+  if (hasBlockedParticipant) {
     return next(new ErrorResponse('You cannot join this room', 403));
   }
 
@@ -538,6 +555,25 @@ exports.promoteParticipant = asyncHandler(async (req, res, next) => {
   const participant = room.participants.find(p => p.user?.toString() === targetUserId);
   if (!participant) {
     return next(new ErrorResponse('User is not in this room', 400));
+  }
+
+  // Defense-in-depth: host may have blocked this participant after they
+  // joined. Also reject if any other current participant has blocked the
+  // target (don't promote someone into a co-host slot in a room where
+  // they're now blocked by anyone present). Error copy is generic so the
+  // rejection doesn't leak which block relationship triggered it.
+  const hostBlockedIds = await getBlockedUserIds(hostId);
+  if (hostBlockedIds.includes(targetUserId)) {
+    return next(new ErrorResponse('Cannot promote this user', 403));
+  }
+  const otherParticipantIds = (room.participants || [])
+    .map(p => p.user?.toString())
+    .filter(id => id && id !== targetUserId && id !== hostId);
+  for (const pid of otherParticipantIds) {
+    const pidBlocked = await getBlockedUserIds(pid);
+    if (pidBlocked.includes(targetUserId)) {
+      return next(new ErrorResponse('Cannot promote this user', 403));
+    }
   }
 
   // Add to co-hosts
