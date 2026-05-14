@@ -4,6 +4,7 @@ const TutorMemory    = require('../models/TutorMemory');
 const AITutorSession = require('../models/AITutorSession');
 const User           = require('../models/User');
 const LearningProgress = require('../models/LearningProgress');
+const Vocabulary = require('../models/Vocabulary');
 const tutorService   = require('../services/tutorService');
 const scenarios      = require('../services/tutorScenarios');
 const tutorStoryService = require('../services/tutorStoryService');
@@ -700,6 +701,41 @@ exports.submitPronunciationSummary = asyncHandler(async (req, res, next) => {
   }
 
   await mem.save();
+
+  // Step 17 — bridge into the SRS queue. Pronunciation weak words are
+  // the canonical 'I'm bad at this' signal; routing them into Vocabulary
+  // so they enter the existing spaced-repetition flow on the next
+  // /learning/vocabulary/review fetch. Existing entries are no-op'd via
+  // $setOnInsert (re-running this on a repeat word does NOT reset SRS
+  // progress).
+  const targetLang = req.user?.language_to_learn || mem?.targetLanguages?.[0] || 'en';
+  const nativeLang = mem?.nativeLanguage || req.user?.native_language || 'en';
+  await Promise.all(weakWords.map(word =>
+    Vocabulary.findOneAndUpdate(
+      { user: req.user._id, word },
+      {
+        $setOnInsert: {
+          user: req.user._id,
+          word,
+          translation: '', // user fills in during review or via vocab dashboard
+          language: targetLang,
+          nativeLanguage: nativeLang,
+          partOfSpeech: 'other',
+          context: { source: 'conversation' }, // closest existing enum value
+          srsLevel: 0,
+          easeFactor: 2.5,
+          interval: 0,
+          nextReview: now,
+          isArchived: false,
+          isMastered: false,
+        },
+      },
+      { upsert: true, new: false }
+    ).catch(err => {
+      console.error(`[pronounce-bridge] vocab upsert failed for "${word}":`, err.message);
+      return null;
+    })
+  ));
 
   res.status(200).json({
     success: true,
