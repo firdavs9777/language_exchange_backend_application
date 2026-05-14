@@ -490,16 +490,42 @@ const _shouldSendNotification = async (user, type, data = {}) => {
       break;
 
     case 'moment_like':
+      if (!user.notificationSettings.moments) {
+        return false;
+      }
+      break;
+
     case 'moment_comment':
       if (!user.notificationSettings.moments) {
         return false;
       }
+      // Step 16 — moment comments share the 'comment' preference toggle
+      // with story comments + reply/reaction/mention.
+      if (!shouldNotify(user, 'comment')) return false;
+      break;
+
+    case 'story_comment':
+    case 'comment_reply':
+    case 'comment_reaction':
+    case 'comment_mention':
+      // Step 16 — all comment-related notifications share the 'comment'
+      // preference. story_comment lands in B4; the others were
+      // pre-existing push types with no preference gate (silent send).
+      if (!shouldNotify(user, 'comment')) return false;
       break;
 
     case 'friend_request':
       if (!user.notificationSettings.friendRequests) {
         return false;
       }
+      // Step 16 — additional gate on the newFollower preference (the
+      // user-facing toggle for "someone followed you" notifications).
+      if (!shouldNotify(user, 'newFollower')) return false;
+      break;
+
+    case 'vip_renewal_warning':
+      // Step 16 — VIP renewal warning push (wired in B3).
+      if (!shouldNotify(user, 'vipRenewalWarning')) return false;
       break;
 
     case 'profile_visit':
