@@ -1,8 +1,11 @@
 const asyncHandler = require('../middleware/async');
 const Report = require('../models/Report');
 const User = require('../models/User');
+const VoiceRoom = require('../models/VoiceRoom');
 const ErrorResponse = require('../utils/errorResponse');
 const { logSecurityEvent } = require('../utils/securityLogger');
+const emailService = require('../services/emailService');
+const livekitAdmin = require('../services/livekitAdminService');
 
 /**
  * @desc    Create a new report
@@ -67,6 +70,12 @@ exports.createReport = asyncHandler(async (req, res, next) => {
     reportedUser,
     reason
   });
+
+  // Fire-and-forget admin alert. Step 14 — gated by
+  // ADMIN_REPORT_ALERTS_ENABLED inside the helper.
+  emailService.sendAdminReportAlert(report).catch(err =>
+    console.error('Admin alert failed:', err.message)
+  );
 
   res.status(201).json({
     success: true,
@@ -224,11 +233,72 @@ exports.resolveReport = asyncHandler(async (req, res, next) => {
 
   // Take action based on moderator decision
   if (action === 'user_banned') {
-    // TODO: Implement user ban logic
-    // await User.findByIdAndUpdate(report.reportedUser, { isBanned: true });
+    await User.findByIdAndUpdate(report.reportedUser, {
+      isBanned: true,
+      banReason: notes || `Banned following report ${report._id}`,
+      bannedAt: new Date()
+    });
+
+    // Auto-end the banned user's active voice rooms. Mirrors the canonical
+    // flow in controllers/voiceRooms.js#endVoiceRoom (room.end() +
+    // livekitAdmin.endRoom() + socket emits to room channel + lobby) so
+    // participants are evicted from LiveKit audio AND the listing updates.
+    const activeRooms = await VoiceRoom.find({
+      host: report.reportedUser,
+      status: { $in: ['waiting', 'active'] },
+    });
+    const io = req.app.get('io');
+    for (const room of activeRooms) {
+      try {
+        await room.end();
+        await livekitAdmin.endRoom(String(room._id));
+        if (io) {
+          io.to(`voiceroom_${room._id}`).emit('voiceroom:ended', {
+            roomId: String(room._id),
+            endedBy: 'admin',
+          });
+          io.to('voicerooms:lobby').emit('voiceroom:ended', {
+            roomId: String(room._id),
+          });
+        }
+      } catch (err) {
+        console.error(`[ban] failed to end room ${room._id}:`, err.message);
+      }
+    }
+
+    // Clear FCM tokens so banned user stops getting push.
+    await User.findByIdAndUpdate(report.reportedUser, {
+      $set: { fcmTokens: [] }
+    });
+
+    // Send the banned user an email explaining the ban.
+    emailService.sendBanNotification(report.reportedUser, notes).catch(err =>
+      console.error('Ban notification failed:', err.message)
+    );
   } else if (action === 'content_removed') {
-    // TODO: Implement content removal logic based on type
-    // if (report.type === 'moment') await Moment.findByIdAndDelete(report.reportedId);
+    if (report.type === 'moment') {
+      const Moment = require('../models/Moment');
+      await Moment.findByIdAndDelete(report.reportId).catch(() => {});
+    } else if (report.type === 'story') {
+      const Story = require('../models/Story');
+      await Story.findByIdAndDelete(report.reportId).catch(() => {});
+    } else if (report.type === 'comment') {
+      const Comment = require('../models/Comment');
+      await Comment.findByIdAndDelete(report.reportId).catch(() => {});
+    } else if (report.type === 'message') {
+      const Message = require('../models/Message');
+      await Message.findByIdAndUpdate(report.reportId, { deleted: true }).catch(() => {});
+    }
+    // No-op for type === 'profile' (handle via user_warned / user_banned instead).
+  }
+
+  // Notify the reporter that the report was reviewed (only on user-action
+  // resolutions). no_violation + content_removed deliberately don't send,
+  // to avoid leaking information about how the report was handled.
+  if (['user_banned', 'user_suspended', 'user_warned'].includes(action)) {
+    emailService.sendReportResolutionToReporter(report).catch(err =>
+      console.error('Reporter notification failed:', err.message)
+    );
   }
 
   logSecurityEvent('REPORT_RESOLVED', {
