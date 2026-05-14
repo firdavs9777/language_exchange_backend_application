@@ -257,6 +257,19 @@ role: {
   enum: ['user', 'admin'],  // Add enum
   default: 'user'            // Add default
 },
+isBanned: {
+  type: Boolean,
+  default: false,
+  index: true
+},
+banReason: {
+  type: String,
+  default: null
+},
+bannedAt: {
+  type: Date,
+  default: null
+},
   // User Mode: visitor, regular, or vip
   userMode: {
     type: String,
@@ -660,6 +673,10 @@ role: {
     securityAlerts: {
       type: Boolean,
       default: true  // Password changes, new logins
+    },
+    anonymousProfileVisits: {
+      type: Boolean,
+      default: false
     }
   },
   
