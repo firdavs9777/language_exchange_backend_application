@@ -202,19 +202,31 @@ exports.addVocabulary = asyncHandler(async (req, res, next) => {
 
   const user = await User.findById(userId).select('language_to_learn native_language');
 
-  const vocabulary = await Vocabulary.create({
-    user: userId,
-    word,
-    translation,
-    language: language || user.language_to_learn,
-    nativeLanguage: user.native_language,
-    partOfSpeech,
-    examples,
-    pronunciation,
-    notes,
-    tags,
-    context
-  });
+  const vocabulary = await Vocabulary.findOneAndUpdate(
+    { user: userId, word },
+    {
+      $setOnInsert: {
+        user: userId,
+        word,
+        translation,
+        language: language || user.language_to_learn,
+        nativeLanguage: user.native_language,
+        partOfSpeech,
+        examples,
+        pronunciation,
+        notes,
+        tags,
+        context,
+        srsLevel: 0,
+        easeFactor: 2.5,
+        interval: 0,
+        nextReview: new Date(),
+        isArchived: false,
+        isMastered: false,
+      },
+    },
+    { upsert: true, new: true }
+  );
 
   // Track for XP
   await learningTrackingService.awardXP(userId, 2, 'add_vocabulary');
