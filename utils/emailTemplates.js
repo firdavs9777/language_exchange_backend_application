@@ -222,50 +222,79 @@ exports.newLoginEmail = (userName, deviceInfo = {}) => {
 /**
  * Account inactivity follow-up (friendly reminder)
  */
-exports.accountDeactivationWarning = (userName, daysRemaining = 30) => {
-  const content = `
-    <tr>
-      <td style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">We Really Miss You! 💕</h1>
-      </td>
-    </tr>
-    <tr>
-      <td style="padding: 40px 30px;">
+exports.deactivationWarning = (userName, daysRemaining = 14) => {
+  let subject, headerText, bodyHtml, ctaText, ctaUrl, plainText;
+
+  if (daysRemaining > 7) {
+    // 21-day-inactive path (daysRemaining = 14)
+    subject    = `Everything you've built is still here`;
+    headerText = `Still here when you're ready`;
+    ctaText    = `Log back in`;
+    ctaUrl     = `https://banatalk.com`;
+    plainText  = `Hi ${userName}, three weeks since your last BananaTalk session. Your account, conversations, and vocabulary are all saved. Log back in when you're ready: https://banatalk.com`;
+    bodyHtml   = `
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
           Hi <strong>${userName}</strong>,
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          It's been a while since we've seen you on ${APP_NAME}. Your language exchange friends are waiting!
+          Three weeks away. Your conversation history, vocabulary deck, and learning progress are all saved exactly where you left them.
         </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Language learning is a long game — it's fine to pause. Whenever you're ready to pick back up, just log in.
+        </p>`;
+  } else {
+    // 28-day-inactive path (daysRemaining = 7)
+    subject    = `One login keeps your BananaTalk account active`;
+    headerText = `Account notice`;
+    ctaText    = `Keep my account`;
+    ctaUrl     = `https://banatalk.com`;
+    plainText  = `Hi ${userName}, log in once to keep your BananaTalk account active. Your saved conversations and vocabulary will be there: https://banatalk.com`;
+    bodyHtml   = `
+        <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi <strong>${userName}</strong>,
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Your account stays active with a single login. The conversations and vocabulary you've saved will be waiting.
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Takes 10 seconds.
+        </p>`;
+  }
 
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff5f5; border: 2px solid #f5576c; border-radius: 8px; padding: 20px; margin: 25px 0;">
+  const content = `
+    <tr>
+      <td style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); padding: 40px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${headerText}</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 30px;">
+        ${bodyHtml}
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
-              <p style="margin: 0; font-size: 16px; color: #f5576c;">
-                🌟 Your profile is still active and your connections are waiting to hear from you!
-              </p>
+              <a href="${ctaUrl}" style="display: inline-block; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
+                ${ctaText}
+              </a>
             </td>
           </tr>
         </table>
 
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Come back and continue your language learning journey. There's so much happening in the community!
-        </p>
-
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
           <tr>
             <td align="center">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Open Bananatalk</h3>
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">Open Bananatalk</h3>
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="padding-right: 10px;">
                     <a href="https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      🍎 App Store
+                      App Store
                     </a>
                   </td>
                   <td style="padding-left: 10px;">
                     <a href="https://play.google.com/store/apps/details?id=com.bananatalk.app" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      🤖 Google Play
+                      Google Play
                     </a>
                   </td>
                 </tr>
@@ -273,20 +302,19 @@ exports.accountDeactivationWarning = (userName, daysRemaining = 30) => {
             </td>
           </tr>
         </table>
-
-        <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
-          Your language learning journey is waiting for you! 🌍📚
-        </p>
       </td>
     </tr>
   `;
 
   return {
-    subject: `💕 ${userName}, Your Friends on ${APP_NAME} Miss You!`,
-    html: baseTemplate(content, '#f5576c'),
-    text: `Hi ${userName}, we noticed you haven't been active on ${APP_NAME} for a while. Your language exchange friends are waiting! Come back and continue your journey.`
+    subject,
+    html: baseTemplate(content, '#ff9a9e'),
+    text: plainText
   };
 };
+
+// Alias for backward-compatibility with emailService.sendDeactivationWarning
+exports.accountDeactivationWarning = exports.deactivationWarning;
 
 // ===================== ENGAGEMENT EMAILS =====================
 
