@@ -27,7 +27,8 @@ Additionally, two high-value notification touchpoints are missing:
 | `jobs/notificationJobs.js` | Pass user object to `getReengagementTemplate(user)` |
 | `jobs/weeklyDigestJob.js` | Update `getUserWeeklyStats` to include vocab reviewed + vocab saved; update activity gate |
 | `jobs/promotionalEmailJob.js` | Already updated (Step 19) — no change |
-| `jobs/learningJobs.js` | Add daily SRS review reminder job |
+| `jobs/learningJobs.js` | Replace existing `sendReviewReminders()` with improved `sendSrsReviewReminders()` (new copy tiers, topWord, ≥1 threshold) |
+| `jobs/scheduler.js` | Register SRS reminder via `scheduleXxx()` using `getMillisecondsUntil(9, 0)` — NOT in `startLearningJobs()` |
 | `controllers/advancedMessages.js` | Add correction-accepted push notification in `acceptCorrection` endpoint |
 
 ### New jobs/notifications
@@ -169,10 +170,10 @@ That's [N] weeks in a row — consistency is how languages stick.
 **Stats to collect (update `getUserWeeklyStats`):**
 | Stat | Source |
 |---|---|
-| `wordsReviewed` | `Vocabulary` — count docs where `user === userId` and `updatedAt >= oneWeekAgo` and `srsLevel > 0` (proxy for "reviewed at least once this week") |
+| `wordsReviewed` | `Vocabulary` — count docs where `user === userId` and `reviewStats.lastReviewedAt >= oneWeekAgo` (field set on every `processReview()` call — exact signal, not a proxy) |
 | `wordsSaved` | `Vocabulary` — count docs where `user === userId` and `createdAt >= oneWeekAgo` |
 | `messagesSent` | `Message` — count docs where `sender === userId` and `createdAt >= oneWeekAgo` (keep existing) |
-| `correctionsExchanged` | `Message` — count docs where (`sender === userId` OR `receiver === userId`) and `corrections` array non-empty and `updatedAt >= oneWeekAgo` |
+| `correctionsExchanged` | `Message` — count docs where (`sender === userId` OR `receiver === userId`) and `'corrections.0': { $exists: true }` and `updatedAt >= oneWeekAgo` |
 
 **Activity gate:** Send if any of `wordsReviewed > 0`, `wordsSaved > 0`, `messagesSent > 0`. Remove moment likes and follower counts from gate (not learning activity).
 
@@ -238,15 +239,23 @@ const notification = templates.getReengagementTemplate(user);
 | 6+ | `[N] words are waiting in your study queue` | `Spend 10 minutes today — your deck is ready` |
 
 **Implementation:**
-- Add `sendSrsReviewReminders()` function to `jobs/learningJobs.js`
-- Query: `Vocabulary.aggregate` — group by user, count due words, filter count > 0
+- **Replace** existing `sendReviewReminders()` in `jobs/learningJobs.js` with `sendSrsReviewReminders()`. Do not add alongside — two competing SRS reminder jobs will double-notify users. Remove the old function and its scheduler registration.
+- Aggregate query: group by user, collect `dueCount` (total) and `topWord` (word field of oldest-due item via `$sort: { nextReview: 1 }, $first`), filter `dueCount >= 1`
+  ```js
+  Vocabulary.aggregate([
+    { $match: { nextReview: { $lte: now }, isArchived: false, isMastered: false } },
+    { $sort: { nextReview: 1 } },
+    { $group: { _id: '$user', dueCount: { $sum: 1 }, topWord: { $first: '$word' } } },
+    { $match: { dueCount: { $gte: 1 } } }
+  ])
+  ```
 - Send via `notificationService.send(userId, 'system', notification)`
-- Add to `startLearningJobs()` scheduler at 9AM KST daily
-- Respect `notificationSettings.enabled` and `notificationSettings.reminders` (or `marketing` if `reminders` doesn't exist)
-- Gate: skip users with no FCM tokens
+- Gate: `notificationSettings.vocabularyReviewReminders !== false` AND `notificationSettings.enabled !== false` AND user has ≥1 FCM token — matches existing `sendReviewReminders()` gate pattern exactly
+- **Scheduler:** Register in `jobs/scheduler.js` as `scheduleSrsReviewReminders()` using `getMillisecondsUntil(9, 0)` with 24-hour repeat — same pattern as `scheduleInactivityJob()`. Do NOT wire into `startLearningJobs()` (that function uses fixed-interval setIntervals, not time-of-day scheduling).
 
 **Template function:** `getSrsReviewTemplate(dueCount, topWord)` — add to `notificationTemplates.js`
 - `topWord`: the `word` field of the oldest-due vocabulary item (for the count=1 case)
+- Three copy tiers: exactly 1 / 2–5 / 6+
 
 ---
 
@@ -260,15 +269,23 @@ const notification = templates.getReengagementTemplate(user);
 - Title: `[receiverName] accepted your correction`
 - Body: `Your fix helped — they accepted it in your conversation`
 
-**Implementation:** In `advancedMessages.js`, after `correction.isAccepted = true; await message.save()`, add:
+**Implementation:** In `advancedMessages.js`, the `acceptCorrection` controller calls `await message.acceptCorrection(correctionId)` which mutates the subdoc and saves internally — there is no `correction` variable in scope after that call. Capture the corrector ID **before** calling the model method:
+
 ```js
-await notificationService.createNotification({
-  recipient: correction.corrector,
-  sender: req.user._id,
-  type: 'correction_accepted',
-  data: { messageId: message._id }
-});
+// Before calling message.acceptCorrection():
+const correction = message.corrections.id(correctionId);
+if (!correction) return next(new ErrorResponse('Correction not found', 404));
+const correctorId = correction.corrector;
+const accepterName = req.user.name || 'Someone';
+
+await message.acceptCorrection(correctionId); // existing call
+
+// After save — notify corrector:
+const notification = templates.getCorrectionAcceptedTemplate(accepterName);
+await notificationService.send(correctorId, 'system', notification);
 ```
+
+`notificationService` has no `createNotification` method — use `notificationService.send(userId, type, notificationObject)` which is the correct API used throughout the codebase.
 
 **Template:** `getCorrectionAcceptedTemplate(accepterName)` — add to `notificationTemplates.js`
 
@@ -292,6 +309,6 @@ await notificationService.createNotification({
 | A3 | Weekly digest shows vocab stats (words reviewed + saved), not moment likes |
 | A4 | Re-engagement push variants reference `language_to_learn` where set |
 | A5 | VIP expiring push names AI Tutor + translation specifically |
-| A6 | SRS reminder sent only to users with ≥1 due word; correct copy tier (1 / 2–5 / 6+) |
+| A6 | SRS reminder sent only to users with ≥1 due word; correct copy tier (1 / 2–5 / 6+); replaces old `sendReviewReminders()`, no duplicate sends |
 | A7 | Correction accepted push sent to corrector (not receiver) after F1a accept action |
 | A8 | No new notifications sent to users with `notificationSettings.enabled: false` |
