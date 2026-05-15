@@ -6,7 +6,6 @@
  */
 
 const User = require('../models/User');
-const Moment = require('../models/Moment');
 const Message = require('../models/Message');
 const emailService = require('../services/emailService');
 
@@ -16,49 +15,34 @@ const emailService = require('../services/emailService');
 const getUserWeeklyStats = async (userId) => {
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-  
+
   try {
-    // Count messages sent
-    const messagesSent = await Message.countDocuments({
-      sender: userId,
-      createdAt: { $gte: oneWeekAgo }
-    });
-    
-    // Count likes received on moments
-    const userMoments = await Moment.find({ user: userId });
-    const momentIds = userMoments.map(m => m._id);
-    
-    // This is a simplified version - you might need to adjust based on your schema
-    let momentLikes = 0;
-    for (const moment of userMoments) {
-      const likesThisWeek = moment.likes?.filter(like => 
-        new Date(like.likedAt || like.createdAt) >= oneWeekAgo
-      ).length || 0;
-      momentLikes += likesThisWeek;
-    }
-    
-    // Count new followers
-    const user = await User.findById(userId);
-    // This assumes you track when follows happened - adjust as needed
-    const newFollowers = 0; // Placeholder - implement based on your follow tracking
-    
-    // Count corrections received (if you have this feature)
-    const correctionsReceived = 0; // Placeholder
-    
-    return {
-      messagesSent,
-      momentLikes,
-      newFollowers,
-      correctionsReceived
-    };
+    const Vocabulary = require('../models/Vocabulary');
+
+    const [wordsReviewed, wordsSaved, messagesSent, correctionsExchanged] = await Promise.all([
+      Vocabulary.countDocuments({
+        user: userId,
+        'reviewStats.lastReviewedAt': { $gte: oneWeekAgo },
+      }),
+      Vocabulary.countDocuments({
+        user: userId,
+        createdAt: { $gte: oneWeekAgo },
+      }),
+      Message.countDocuments({
+        sender: userId,
+        createdAt: { $gte: oneWeekAgo },
+      }),
+      Message.countDocuments({
+        $or: [{ sender: userId }, { receiver: userId }],
+        'corrections.0': { $exists: true },
+        updatedAt: { $gte: oneWeekAgo },
+      }),
+    ]);
+
+    return { wordsReviewed, wordsSaved, messagesSent, correctionsExchanged };
   } catch (error) {
     console.error(`Error getting stats for user ${userId}:`, error);
-    return {
-      messagesSent: 0,
-      momentLikes: 0,
-      newFollowers: 0,
-      correctionsReceived: 0
-    };
+    return { wordsReviewed: 0, wordsSaved: 0, messagesSent: 0, correctionsExchanged: 0 };
   }
 };
 
@@ -92,9 +76,10 @@ const runWeeklyDigest = async () => {
         const userStats = await getUserWeeklyStats(user._id);
         
         // Only send if user had some activity or it's their first digest
-        const hasActivity = userStats.messagesSent > 0 || 
-                           userStats.momentLikes > 0 || 
-                           userStats.newFollowers > 0;
+        const hasActivity =
+          userStats.wordsReviewed > 0 ||
+          userStats.wordsSaved > 0 ||
+          userStats.messagesSent > 0;
         
         if (hasActivity) {
           await emailService.sendWeeklyDigest(user, userStats);

@@ -426,56 +426,44 @@ exports.weeklyDigest = (userName, stats = {}) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #333333; margin: 0; font-size: 32px; font-weight: bold;">Your Weekly Recap 📊</h1>
+        <h1 style="color: #333333; margin: 0; font-size: 32px; font-weight: bold;">Your week on BananaTalk</h1>
         <p style="color: #555555; font-size: 16px; margin: 10px 0 0 0;">Week of ${new Date().toLocaleDateString()}</p>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-          Hi <strong>${userName}</strong>! Here's your weekly activity summary:
+          Hi <strong>${userName}</strong>, here's what you did this week:
         </p>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 25px 0;">
           <tr>
-            <td width="33%" align="center" style="padding: 20px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 25px;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.messagesSent || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Messages Sent</p>
-              </div>
+            <td style="padding: 10px; text-align: center; width: 50%;">
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.wordsReviewed || 0}</div>
+              <div style="font-size: 13px; color: #777;">words reviewed</div>
             </td>
-            <td width="33%" align="center" style="padding: 20px;">
-              <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 12px; padding: 25px;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.momentLikes || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Likes Received</p>
-              </div>
-            </td>
-            <td width="33%" align="center" style="padding: 20px;">
-              <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; padding: 25px;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.newFollowers || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">New Followers</p>
-              </div>
+            <td style="padding: 10px; text-align: center; width: 50%;">
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.wordsSaved || 0}</div>
+              <div style="font-size: 13px; color: #777;">new words saved</div>
             </td>
           </tr>
-        </table>
-        
-        ${stats.correctionsReceived > 0 ? `
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e8f5e9; border-radius: 8px; padding: 20px; margin: 25px 0;">
           <tr>
-            <td>
-              <p style="margin: 0; font-size: 16px; color: #2e7d32;">
-                📝 <strong>Great job!</strong> You received ${stats.correctionsReceived} language corrections this week. Keep practicing!
-              </p>
+            <td style="padding: 10px; text-align: center;">
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.messagesSent || 0}</div>
+              <div style="font-size: 13px; color: #777;">messages with partners</div>
+            </td>
+            <td style="padding: 10px; text-align: center;">
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.correctionsExchanged || 0}</div>
+              <div style="font-size: 13px; color: #777;">corrections exchanged</div>
             </td>
           </tr>
         </table>
-        ` : ''}
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
               <a href="https://banatalk.com/profile/stats" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                View Full Stats 📈
+                See your full progress
               </a>
             </td>
           </tr>
@@ -483,11 +471,11 @@ exports.weeklyDigest = (userName, stats = {}) => {
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `📊 Your Weekly ${APP_NAME} Recap`,
+    subject: `Your language learning week`,
     html: baseTemplate(content, '#667eea'),
-    text: `Hi ${userName}! Here's your weekly recap: ${stats.messagesSent || 0} messages sent, ${stats.momentLikes || 0} likes received, ${stats.newFollowers || 0} new followers.`
+    text: `Hi ${userName}! Your week on BananaTalk: ${stats.wordsReviewed || 0} words reviewed, ${stats.wordsSaved || 0} new words saved, ${stats.messagesSent || 0} messages exchanged, ${stats.correctionsExchanged || 0} corrections exchanged.`
   };
 };
 
