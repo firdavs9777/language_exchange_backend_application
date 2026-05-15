@@ -247,6 +247,46 @@ exports.sendMessage = asyncHandler(async (req, res, next) => {
     parsed = { messageType: 'text', content: "I'm having a moment — try again in a sec?", payload: null };
   }
 
+  // Step 18: when the AI teaches a word, auto-queue it into the SRS vocabulary.
+  // We set payload.queued so the Flutter VocabCard starts in "Added ✓" state.
+  if (parsed.messageType === 'vocab_card' && parsed.payload?.word) {
+    const word = String(parsed.payload.word).trim();
+    if (word) {
+      const targetLang = parsed.payload.language || req.user?.language_to_learn || 'en';
+      const nativeLang = req.user?.native_language || 'en';
+      const example = parsed.payload.example
+        ? String(parsed.payload.example).slice(0, 500)
+        : undefined;
+      const now = new Date();
+      try {
+        await Vocabulary.findOneAndUpdate(
+          { user: req.user._id, word },
+          {
+            $setOnInsert: {
+              user: req.user._id,
+              word,
+              translation: String(parsed.payload.definition || '').slice(0, 500),
+              language: targetLang,
+              nativeLanguage: nativeLang,
+              partOfSpeech: 'other',
+              context: { source: 'conversation', ...(example ? { example } : {}) },
+              srsLevel: 0,
+              easeFactor: 2.5,
+              interval: 0,
+              nextReview: now,
+              isArchived: false,
+              isMastered: false,
+            },
+          },
+          { upsert: true, new: false }
+        );
+        parsed.payload.queued = true;
+      } catch (err) {
+        console.error('[tutor.sendMessage] vocab_card → Vocabulary failed:', err.message);
+      }
+    }
+  }
+
   const aiMsg = {
     role:        'assistant',
     content:     parsed.content,
