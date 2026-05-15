@@ -253,6 +253,26 @@ const getSrsReviewTemplate = (dueCount, topWord) => {
   };
 };
 
+/**
+ * Correction-accepted notification template.
+ * Sent to the user who wrote the correction when the receiver accepts it.
+ * @param {String} accepterName - Name of the user who accepted the correction
+ * @param {Object} data - Optional { messageId, conversationId }
+ * @returns {Object} - { title, body, data }
+ */
+const getCorrectionAcceptedTemplate = (accepterName, data = {}) => {
+  return {
+    title: `${accepterName} accepted your correction`,
+    body: 'Your fix helped — they accepted it in your conversation',
+    data: {
+      type: 'correction_accepted',
+      messageId: data.messageId || '',
+      conversationId: data.conversationId || '',
+      screen: 'chat',
+    },
+  };
+};
+
 module.exports = {
   getChatMessageTemplate,
   getMomentLikeTemplate,
@@ -264,6 +284,7 @@ module.exports = {
   getSubscriptionExpiringTemplate,
   getFollowerMomentTemplate,
   getWaveTemplate,
-  getSrsReviewTemplate
+  getSrsReviewTemplate,
+  getCorrectionAcceptedTemplate,
 };
 
