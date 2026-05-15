@@ -116,7 +116,27 @@ exports.acceptCorrection = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Only message sender can accept corrections', 403));
   }
 
+  const correction = message.corrections.id(correctionId);
+  if (!correction) return next(new ErrorResponse('Correction not found', 404));
+  const correctorId = correction.corrector;
+  const accepterName = req.user.name || 'Someone';
+
   await message.acceptCorrection(correctionId);
+
+  // Notify the corrector — don't fail the request if push fails
+  try {
+    // Skip self-correction (corrector === accepter)
+    if (correctorId && correctorId.toString() !== req.user._id.toString()) {
+      const templates = require('../utils/notificationTemplates');
+      const notificationService = require('../services/notificationService');
+      const notification = templates.getCorrectionAcceptedTemplate(accepterName, {
+        messageId: message._id.toString(),
+      });
+      await notificationService.send(correctorId, 'system', notification);
+    }
+  } catch (err) {
+    console.error('[acceptCorrection] notify corrector failed:', err.message);
+  }
 
   res.status(200).json({
     success: true,

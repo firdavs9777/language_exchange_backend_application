@@ -220,6 +220,27 @@ const scheduleNotificationCleanup = () => {
 };
 
 /**
+ * Schedule SRS review reminders (daily at 9:00 AM KST)
+ */
+const scheduleSrsReviewReminders = () => {
+  const { sendSrsReviewReminders } = require('./learningJobs');
+
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled SRS review reminders...');
+    try {
+      await sendSrsReviewReminders();
+    } catch (error) {
+      console.error('Scheduled SRS review reminders failed:', error);
+    }
+    setTimeout(runJob, 24 * 60 * 60 * 1000);
+  };
+
+  const msUntilNextRun = getMillisecondsUntil(9, 0);
+  console.log(`📅 SRS review reminders scheduled in ${Math.round(msUntilNextRun / 1000 / 60)} minutes`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
  * Schedule subscription expiry check (every hour)
  * Critical job for billing integrity - checks expired VIP subscriptions
  * and deactivates them after grace period
@@ -407,6 +428,7 @@ const startScheduler = () => {
   scheduleTokenCleanup();
   scheduleReengagement();
   scheduleSubscriptionReminders();
+  scheduleSrsReviewReminders();  // ← new
   scheduleNotificationCleanup();
 
   // Subscription/billing jobs
@@ -506,6 +528,7 @@ module.exports = {
   scheduleWebVisitReport,
   schedulePromotionalEmail,
   scheduleDailyCounterReset,
-  scheduleWeeklyCounterReset
+  scheduleWeeklyCounterReset,
+  scheduleSrsReviewReminders
 };
 

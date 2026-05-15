@@ -121,32 +121,37 @@ const getSystemTemplate = (title, body, customData = {}) => {
 
 /**
  * Re-engagement notification template
+ * @param {Object} user - User object with optional language_to_learn
  * @returns {Object} - { title, body, data }
  */
-const getReengagementTemplate = () => {
+const getReengagementTemplate = (user = {}) => {
+  const lang =
+    (user.language_to_learn && String(user.language_to_learn).trim()) ||
+    'your language';
+
   const messages = [
     {
-      title: 'We miss you! 💛',
-      body: 'Your friends are waiting for you on Bananatalk'
+      title: `Still working on ${lang}?`,
+      body: 'Your study deck and practice partners are waiting on BananaTalk',
     },
     {
-      title: 'Come back to Bananatalk! 🌟',
-      body: 'New moments and messages are waiting for you'
+      title: 'Quick practice session?',
+      body: `5 minutes with the AI Tutor is enough to keep your ${lang} moving`,
     },
     {
-      title: 'Your language partner is waiting! 🗣️',
-      body: 'Continue your language learning journey on Bananatalk'
-    }
+      title: 'Vocabulary fades without review',
+      body: 'Your saved words are ready — open BananaTalk to keep them fresh',
+    },
   ];
 
   const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-  
+
   return {
     ...randomMessage,
     data: {
       type: 'system',
-      screen: 'home'
-    }
+      screen: 'home',
+    },
   };
 };
 
@@ -156,14 +161,15 @@ const getReengagementTemplate = () => {
  * @returns {Object} - { title, body, data }
  */
 const getSubscriptionExpiringTemplate = (daysLeft) => {
+  const daySuffix = daysLeft === 1 ? 'day' : 'days';
   return {
-    title: 'VIP Subscription Expiring',
-    body: `Your VIP subscription expires in ${daysLeft} day${daysLeft > 1 ? 's' : ''}. Renew now to keep your benefits!`,
+    title: `Your VIP access ends in ${daysLeft} ${daySuffix}`,
+    body: 'Unlimited AI Tutor sessions, full translation, and voice practice will stop. Tap to renew.',
     data: {
       type: 'system',
       screen: 'subscription',
-      daysLeft: daysLeft.toString()
-    }
+      daysLeft: daysLeft.toString(),
+    },
   };
 };
 
@@ -215,6 +221,58 @@ const getWaveTemplate = (waverName, isMutual, waveData = {}) => {
   };
 };
 
+/**
+ * SRS review reminder template — tiered by due-word count.
+ * @param {Number} dueCount - Number of vocabulary words due for review
+ * @param {String} topWord - The oldest-due word (used only when dueCount === 1)
+ * @returns {Object} - { title, body, data }
+ */
+const getSrsReviewTemplate = (dueCount, topWord) => {
+  let title;
+  let body;
+
+  if (dueCount === 1) {
+    title = `"${topWord}" is ready for review`;
+    body = 'Open BananaTalk to practice it before it fades';
+  } else if (dueCount <= 5) {
+    title = `${dueCount} words are due for review`;
+    body = 'A quick session keeps your vocabulary sharp';
+  } else {
+    title = `${dueCount} words are waiting in your study queue`;
+    body = 'Spend 10 minutes today — your deck is ready';
+  }
+
+  return {
+    title,
+    body,
+    data: {
+      type: 'system',
+      screen: 'vocabulary_review',
+      dueCount: dueCount.toString(),
+    },
+  };
+};
+
+/**
+ * Correction-accepted notification template.
+ * Sent to the user who wrote the correction when the receiver accepts it.
+ * @param {String} accepterName - Name of the user who accepted the correction
+ * @param {Object} data - Optional { messageId, conversationId }
+ * @returns {Object} - { title, body, data }
+ */
+const getCorrectionAcceptedTemplate = (accepterName, data = {}) => {
+  return {
+    title: `${accepterName} accepted your correction`,
+    body: 'Your fix helped — they accepted it in your conversation',
+    data: {
+      type: 'correction_accepted',
+      messageId: data.messageId || '',
+      conversationId: data.conversationId || '',
+      screen: 'chat',
+    },
+  };
+};
+
 module.exports = {
   getChatMessageTemplate,
   getMomentLikeTemplate,
@@ -225,6 +283,8 @@ module.exports = {
   getReengagementTemplate,
   getSubscriptionExpiringTemplate,
   getFollowerMomentTemplate,
-  getWaveTemplate
+  getWaveTemplate,
+  getSrsReviewTemplate,
+  getCorrectionAcceptedTemplate,
 };
 

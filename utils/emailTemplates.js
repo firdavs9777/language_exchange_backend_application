@@ -222,35 +222,170 @@ exports.newLoginEmail = (userName, deviceInfo = {}) => {
 /**
  * Account inactivity follow-up (friendly reminder)
  */
-exports.accountDeactivationWarning = (userName, daysRemaining = 30) => {
-  const content = `
-    <tr>
-      <td style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.2);">We Really Miss You! 💕</h1>
-      </td>
-    </tr>
-    <tr>
-      <td style="padding: 40px 30px;">
+exports.deactivationWarning = (userName, daysRemaining = 14) => {
+  let subject, headerText, bodyHtml, ctaText, ctaUrl, plainText;
+
+  if (daysRemaining > 7) {
+    // 21-day-inactive path (daysRemaining = 14)
+    subject    = `Everything you've built is still here`;
+    headerText = `Still here when you're ready`;
+    ctaText    = `Log back in`;
+    ctaUrl     = `https://banatalk.com`;
+    plainText  = `Hi ${userName}, three weeks since your last BananaTalk session. Your account, conversations, and vocabulary are all saved. Log back in when you're ready: https://banatalk.com`;
+    bodyHtml   = `
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
           Hi <strong>${userName}</strong>,
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          It's been a while since we've seen you on ${APP_NAME}. Your language exchange friends are waiting!
+          Three weeks away. Your conversation history, vocabulary deck, and learning progress are all saved exactly where you left them.
         </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Language learning is a long game — it's fine to pause. Whenever you're ready to pick back up, just log in.
+        </p>`;
+  } else {
+    // 28-day-inactive path (daysRemaining = 7)
+    subject    = `One login keeps your BananaTalk account active`;
+    headerText = `Account notice`;
+    ctaText    = `Keep my account`;
+    ctaUrl     = `https://banatalk.com`;
+    plainText  = `Hi ${userName}, log in once to keep your BananaTalk account active. Your saved conversations and vocabulary will be there: https://banatalk.com`;
+    bodyHtml   = `
+        <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi <strong>${userName}</strong>,
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Your account stays active with a single login. The conversations and vocabulary you've saved will be waiting.
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Takes 10 seconds.
+        </p>`;
+  }
 
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff5f5; border: 2px solid #f5576c; border-radius: 8px; padding: 20px; margin: 25px 0;">
+  const content = `
+    <tr>
+      <td style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); padding: 40px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${headerText}</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 30px;">
+        ${bodyHtml}
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
-              <p style="margin: 0; font-size: 16px; color: #f5576c;">
-                🌟 Your profile is still active and your connections are waiting to hear from you!
-              </p>
+              <a href="${ctaUrl}" style="display: inline-block; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
+                ${ctaText}
+              </a>
             </td>
           </tr>
         </table>
 
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Come back and continue your language learning journey. There's so much happening in the community!
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
+          <tr>
+            <td align="center">
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">Open Bananatalk</h3>
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-right: 10px;">
+                    <a href="https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      App Store
+                    </a>
+                  </td>
+                  <td style="padding-left: 10px;">
+                    <a href="https://play.google.com/store/apps/details?id=com.bananatalk.app" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      Google Play
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  `;
+
+  return {
+    subject,
+    html: baseTemplate(content, '#ff9a9e'),
+    text: plainText
+  };
+};
+
+// Alias for backward-compatibility with emailService.sendDeactivationWarning
+exports.accountDeactivationWarning = exports.deactivationWarning;
+
+// ===================== ENGAGEMENT EMAILS =====================
+
+/**
+ * Inactivity reminder (language-learning specific nudge)
+ */
+exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage) => {
+  const hasLang = targetLanguage && String(targetLanguage).trim();
+  const langLabel      = hasLang ? targetLanguage : 'your language';  // mid-sentence
+  const langPossessive = hasLang ? targetLanguage : 'language';       // after "Your "
+
+  let subject, headerText, bodyHtml, ctaText, ctaUrl, plainText;
+
+  if (daysSinceActive >= 14) {
+    // 14-day path
+    subject    = `Your vocabulary deck has been waiting two weeks`;
+    headerText = `Two weeks away`;
+    ctaText    = `Review my vocabulary`;
+    ctaUrl     = `https://banatalk.com`;
+    plainText  = `Hi ${userName}, two weeks since your last session. Your vocabulary deck is waiting. Open BananaTalk: https://banatalk.com`;
+    bodyHtml   = `
+        <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi <strong>${userName}</strong>,
         </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Two weeks off means some of the words you saved are overdue for review. The vocabulary is still in your deck — it just needs a session to stick.
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Open your study queue and spend 10 minutes. That's enough to get back on track.
+        </p>`;
+  } else {
+    // 7-day path
+    subject    = `Your ${langPossessive} practice paused — pick up where you left off`;
+    headerText = `It's been a week`;
+    ctaText    = `Start a 5-minute session`;
+    ctaUrl     = `https://banatalk.com`;
+    plainText  = `Hi ${userName}, it's been 7 days since your last BananaTalk session. Open the AI Tutor for a 5-minute ${langLabel} conversation: https://banatalk.com`;
+    bodyHtml   = `
+        <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi <strong>${userName}</strong>,
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          It's been 7 days since your last session. That's right around when new vocabulary starts to slip — but you're still in the window where one short practice brings it back.
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Easiest way in: open the AI Tutor and have a 5-minute conversation in ${langLabel}. No prep needed — just start talking.
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          Your saved words and open conversations will be there too.
+        </p>`;
+  }
+
+  const content = `
+    <tr>
+      <td style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 40px; text-align: center;">
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${headerText}</h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 40px 30px;">
+        ${bodyHtml}
+
+        <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
+          <tr>
+            <td align="center">
+              <a href="${ctaUrl}" style="display: inline-block; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
+                ${ctaText}
+              </a>
+            </td>
+          </tr>
+        </table>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
           <tr>
@@ -273,83 +408,14 @@ exports.accountDeactivationWarning = (userName, daysRemaining = 30) => {
             </td>
           </tr>
         </table>
-
-        <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
-          Your language learning journey is waiting for you! 🌍📚
-        </p>
       </td>
     </tr>
   `;
 
   return {
-    subject: `💕 ${userName}, Your Friends on ${APP_NAME} Miss You!`,
+    subject,
     html: baseTemplate(content, '#f5576c'),
-    text: `Hi ${userName}, we noticed you haven't been active on ${APP_NAME} for a while. Your language exchange friends are waiting! Come back and continue your journey.`
-  };
-};
-
-// ===================== ENGAGEMENT EMAILS =====================
-
-/**
- * Inactivity reminder (friendly nudge)
- */
-exports.inactivityReminder = (userName, daysSinceActive = 7) => {
-  const content = `
-    <tr>
-      <td style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Hey ${userName}! 👋</h1>
-        <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 10px 0 0 0;">It's been a while...</p>
-      </td>
-    </tr>
-    <tr>
-      <td style="padding: 40px 30px;">
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          We haven't seen you on ${APP_NAME} for <strong>${daysSinceActive} days</strong>. The community misses you! 
-        </p>
-        
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fef9ff; border-radius: 12px; padding: 25px; margin: 25px 0;">
-          <tr>
-            <td>
-              <h3 style="color: #f5576c; margin: 0 0 15px 0; font-size: 18px;">🔥 Here's what you missed:</h3>
-              <ul style="margin: 0; padding-left: 20px; color: #555555; line-height: 2;">
-                <li>New moments from people you follow</li>
-                <li>Unread messages waiting for you</li>
-                <li>New features we've added</li>
-                <li>Language learning tips from the community</li>
-              </ul>
-            </td>
-          </tr>
-        </table>
-        
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
-          <tr>
-            <td align="center">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download Bananatalk</h3>
-              <table cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="padding-right: 10px;">
-                    <a href="https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      🍎 App Store
-                    </a>
-                  </td>
-                  <td style="padding-left: 10px;">
-                    <a href="https://play.google.com/store/apps/details?id=com.bananatalk.app" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      🤖 Google Play
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  `;
-
-  return {
-    subject: `👋 ${userName}, we miss you on ${APP_NAME}!`,
-    html: baseTemplate(content, '#f5576c'),
-    text: `Hi ${userName}, we haven't seen you on ${APP_NAME} for ${daysSinceActive} days. Come back and see what you've missed!\n\nDownload Bananatalk:\niOS: https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146\nAndroid: https://play.google.com/store/apps/details?id=com.bananatalk.app`
+    text: plainText
   };
 };
 
@@ -360,56 +426,44 @@ exports.weeklyDigest = (userName, stats = {}) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #333333; margin: 0; font-size: 32px; font-weight: bold;">Your Weekly Recap 📊</h1>
+        <h1 style="color: #333333; margin: 0; font-size: 32px; font-weight: bold;">Your week on BananaTalk</h1>
         <p style="color: #555555; font-size: 16px; margin: 10px 0 0 0;">Week of ${new Date().toLocaleDateString()}</p>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-          Hi <strong>${userName}</strong>! Here's your weekly activity summary:
+          Hi <strong>${userName}</strong>, here's what you did this week:
         </p>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 25px 0;">
           <tr>
-            <td width="33%" align="center" style="padding: 20px;">
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 25px;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.messagesSent || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Messages Sent</p>
-              </div>
+            <td style="padding: 10px; text-align: center; width: 50%;">
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.wordsReviewed || 0}</div>
+              <div style="font-size: 13px; color: #777;">words reviewed</div>
             </td>
-            <td width="33%" align="center" style="padding: 20px;">
-              <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 12px; padding: 25px;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.momentLikes || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">Likes Received</p>
-              </div>
-            </td>
-            <td width="33%" align="center" style="padding: 20px;">
-              <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; padding: 25px;">
-                <p style="margin: 0; font-size: 36px; font-weight: bold; color: #ffffff;">${stats.newFollowers || 0}</p>
-                <p style="margin: 5px 0 0 0; font-size: 14px; color: rgba(255,255,255,0.9);">New Followers</p>
-              </div>
+            <td style="padding: 10px; text-align: center; width: 50%;">
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.wordsSaved || 0}</div>
+              <div style="font-size: 13px; color: #777;">new words saved</div>
             </td>
           </tr>
-        </table>
-        
-        ${stats.correctionsReceived > 0 ? `
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e8f5e9; border-radius: 8px; padding: 20px; margin: 25px 0;">
           <tr>
-            <td>
-              <p style="margin: 0; font-size: 16px; color: #2e7d32;">
-                📝 <strong>Great job!</strong> You received ${stats.correctionsReceived} language corrections this week. Keep practicing!
-              </p>
+            <td style="padding: 10px; text-align: center;">
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.messagesSent || 0}</div>
+              <div style="font-size: 13px; color: #777;">messages with partners</div>
+            </td>
+            <td style="padding: 10px; text-align: center;">
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.correctionsExchanged || 0}</div>
+              <div style="font-size: 13px; color: #777;">corrections exchanged</div>
             </td>
           </tr>
         </table>
-        ` : ''}
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
               <a href="https://banatalk.com/profile/stats" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                View Full Stats 📈
+                See your full progress
               </a>
             </td>
           </tr>
@@ -417,11 +471,11 @@ exports.weeklyDigest = (userName, stats = {}) => {
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `📊 Your Weekly ${APP_NAME} Recap`,
+    subject: `Your language learning week`,
     html: baseTemplate(content, '#667eea'),
-    text: `Hi ${userName}! Here's your weekly recap: ${stats.messagesSent || 0} messages sent, ${stats.momentLikes || 0} likes received, ${stats.newFollowers || 0} new followers.`
+    text: `Hi ${userName}! Your week on BananaTalk: ${stats.wordsReviewed || 0} words reviewed, ${stats.wordsSaved || 0} new words saved, ${stats.messagesSent || 0} messages exchanged, ${stats.correctionsExchanged || 0} corrections exchanged.`
   };
 };
 

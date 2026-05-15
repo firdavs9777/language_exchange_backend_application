@@ -72,7 +72,7 @@ exports.sendNewLoginEmail = async (user, deviceInfo = {}) => {
  */
 exports.sendInactivityReminder = async (user, daysSinceActive) => {
   try {
-    const template = templates.inactivityReminder(user.name, daysSinceActive);
+    const template = templates.inactivityReminder(user.name, daysSinceActive, user.language_to_learn);
     await sendEmail({
       email: user.email,
       subject: template.subject,
