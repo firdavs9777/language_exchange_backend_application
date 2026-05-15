@@ -161,14 +161,15 @@ const getReengagementTemplate = (user = {}) => {
  * @returns {Object} - { title, body, data }
  */
 const getSubscriptionExpiringTemplate = (daysLeft) => {
+  const daySuffix = daysLeft === 1 ? 'day' : 'days';
   return {
-    title: 'VIP Subscription Expiring',
-    body: `Your VIP subscription expires in ${daysLeft} day${daysLeft > 1 ? 's' : ''}. Renew now to keep your benefits!`,
+    title: `Your VIP access ends in ${daysLeft} ${daySuffix}`,
+    body: 'Unlimited AI Tutor sessions, full translation, and voice practice will stop. Tap to renew.',
     data: {
       type: 'system',
       screen: 'subscription',
-      daysLeft: daysLeft.toString()
-    }
+      daysLeft: daysLeft.toString(),
+    },
   };
 };
 
