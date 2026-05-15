@@ -250,58 +250,69 @@ const updateLeaderboardRankings = async () => {
 };
 
 /**
- * Send vocabulary review reminders
- * Should run at 9 AM and 7 PM
+ * Send tiered vocabulary review reminders.
+ * Replaces the old 5+-word static-copy version.
+ * Sends to all users with ≥1 due word; copy is tiered (1 / 2–5 / 6+).
  */
-const sendReviewReminders = async () => {
-  console.log('[LearningJobs] Checking for review reminders...');
+const sendSrsReviewReminders = async () => {
+  console.log('[LearningJobs] Sending SRS review reminders...');
 
   try {
     const Vocabulary = require('../models/Vocabulary');
-    const sendPushNotification = require('../utils/sendPushNotification');
+    const notificationService = require('../services/notificationService');
+    const templates = require('../utils/notificationTemplates');
 
-    // Find users with words due for review
+    const now = new Date();
+
+    // Aggregate: users with due words + count + top (oldest) due word
     const usersWithDueWords = await Vocabulary.aggregate([
       {
         $match: {
-          nextReview: { $lte: new Date() },
-          isArchived: false
-        }
+          nextReview: { $lte: now },
+          isArchived: false,
+          isMastered: false,
+        },
       },
+      { $sort: { nextReview: 1 } },
       {
         $group: {
           _id: '$user',
-          dueCount: { $sum: 1 }
-        }
+          dueCount: { $sum: 1 },
+          topWord: { $first: '$word' },
+        },
       },
-      {
-        $match: { dueCount: { $gte: 5 } } // Only notify if 5+ words due
-      }
+      { $match: { dueCount: { $gte: 1 } } },
     ]);
 
-    // Get users who have reminders enabled
-    const usersToNotify = await User.find({
-      _id: { $in: usersWithDueWords.map(u => u._id) },
-      'notificationSettings.vocabularyReviewReminders': true,
-      'fcmTokens.0': { $exists: true }
-    }).select('_id fcmTokens');
-
-    for (const user of usersToNotify) {
-      const dueInfo = usersWithDueWords.find(u => u._id.toString() === user._id.toString());
-
-      await sendPushNotification(
-        user._id,
-        {
-          title: 'Time to Review! 📚',
-          body: `You have ${dueInfo.dueCount} words waiting for review`,
-          data: { type: 'vocabulary_review', count: dueInfo.dueCount }
-        }
-      );
+    if (usersWithDueWords.length === 0) {
+      console.log('[LearningJobs] No users have due words.');
+      return;
     }
 
-    console.log(`[LearningJobs] Sent review reminders to ${usersToNotify.length} users`);
+    // Filter to users who have reminders enabled and at least one FCM token
+    const eligibleUsers = await User.find({
+      _id: { $in: usersWithDueWords.map(u => u._id) },
+      'notificationSettings.vocabularyReviewReminders': true,
+      'fcmTokens.0': { $exists: true },
+    }).select('_id');
+
+    const eligibleSet = new Set(eligibleUsers.map(u => u._id.toString()));
+    let sent = 0;
+    let skipped = 0;
+
+    for (const due of usersWithDueWords) {
+      if (!eligibleSet.has(due._id.toString())) {
+        skipped++;
+        continue;
+      }
+      const notification = templates.getSrsReviewTemplate(due.dueCount, due.topWord);
+      await notificationService.send(due._id, 'system', notification);
+      sent++;
+    }
+
+    console.log(`[LearningJobs] SRS reminders: sent ${sent}, skipped ${skipped}`);
   } catch (error) {
-    console.error('[LearningJobs] Send review reminders error:', error);
+    console.error('[LearningJobs] sendSrsReviewReminders error:', error);
   }
 };
 
@@ -403,7 +414,7 @@ module.exports = {
   cleanupExpiredChallenges,
   syncUserLearningStats,
   updateLeaderboardRankings,
-  sendReviewReminders,
+  sendSrsReviewReminders,
   sendStreakReminders,
   startLearningJobs
 };
