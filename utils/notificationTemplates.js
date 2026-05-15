@@ -121,32 +121,37 @@ const getSystemTemplate = (title, body, customData = {}) => {
 
 /**
  * Re-engagement notification template
+ * @param {Object} user - User object with optional language_to_learn
  * @returns {Object} - { title, body, data }
  */
-const getReengagementTemplate = () => {
+const getReengagementTemplate = (user = {}) => {
+  const lang =
+    (user.language_to_learn && String(user.language_to_learn).trim()) ||
+    'your language';
+
   const messages = [
     {
-      title: 'We miss you! 💛',
-      body: 'Your friends are waiting for you on Bananatalk'
+      title: `Still working on ${lang}?`,
+      body: 'Your study deck and practice partners are waiting on BananaTalk',
     },
     {
-      title: 'Come back to Bananatalk! 🌟',
-      body: 'New moments and messages are waiting for you'
+      title: 'Quick practice session?',
+      body: `5 minutes with the AI Tutor is enough to keep your ${lang} moving`,
     },
     {
-      title: 'Your language partner is waiting! 🗣️',
-      body: 'Continue your language learning journey on Bananatalk'
-    }
+      title: 'Vocabulary fades without review',
+      body: 'Your saved words are ready — open BananaTalk to keep them fresh',
+    },
   ];
 
   const randomMessage = messages[Math.floor(Math.random() * messages.length)];
-  
+
   return {
     ...randomMessage,
     data: {
       type: 'system',
-      screen: 'home'
-    }
+      screen: 'home',
+    },
   };
 };
 

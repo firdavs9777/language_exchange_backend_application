@@ -125,8 +125,8 @@ const sendReengagementNotifications = async () => {
     let failed = 0;
     
     for (const user of inactiveUsers) {
-      const notification = templates.getReengagementTemplate();
-      
+      const notification = templates.getReengagementTemplate(user);
+
       const result = await notificationService.send(
         user._id,
         'system',
