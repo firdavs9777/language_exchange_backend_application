@@ -10,17 +10,14 @@ const emailService = require('../services/emailService');
 
 // Promotional content - update this for each campaign
 const PROMO_CONFIG = {
-  title: 'New Update Just Dropped!',
-  message: `We just released a fresh new update and we're super excited for you to try it out!
+  title: "What's new in BananaTalk",
+  message: `A few things that make language practice with your partners smoother:
 
-Here's what's new:
-• Smoother chat experience with faster message delivery
-• Bug fixes and performance improvements
-• New features to help you connect even better
+• Accept corrections in one tap — when your partner corrects your message, you can now accept it directly in the chat bubble
+• Spot corrections faster — a small "Correct" button appears below messages so you can help your partner without long-pressing
+• Save phrases to your study deck — translate a message and tap "Save phrase" to add it to your vocabulary queue for later review
 
-We've been listening to your feedback and working hard to make Bananatalk the best place to learn languages and meet amazing people from around the world.
-
-Update now and let us know what you think! Your feedback means everything to us.`,
+Update the app to get these features.`,
   ctaText: 'Try It Now',
   ctaUrl: 'https://banatalk.com',
   iosUrl: 'https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146',
