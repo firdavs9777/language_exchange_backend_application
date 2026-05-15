@@ -32,6 +32,29 @@ const offlineMessageQueue = new Map();
 // Connection state tracking
 const connectionStates = new Map(); // socketId -> 'connecting' | 'connected' | 'disconnecting'
 
+// Token-bucket rate limiter for sendMessage (userId -> { tokens, lastRefill })
+const messageBuckets = new Map();
+const BUCKET_CAPACITY = 10;
+const REFILL_RATE_MS  = 1000; // 1 token per second
+
+function consumeMessageToken(userId) {
+  const now = Date.now();
+  let bucket = messageBuckets.get(userId);
+  if (!bucket) {
+    bucket = { tokens: BUCKET_CAPACITY, lastRefill: now };
+    messageBuckets.set(userId, bucket);
+  }
+  const elapsed = now - bucket.lastRefill;
+  const refill  = Math.floor(elapsed / REFILL_RATE_MS);
+  if (refill > 0) {
+    bucket.tokens = Math.min(BUCKET_CAPACITY, bucket.tokens + refill);
+    bucket.lastRefill = now;
+  }
+  if (bucket.tokens < 1) return false;
+  bucket.tokens -= 1;
+  return true;
+}
+
 // ========== CONFIGURATION ==========
 
 const SOCKET_CONFIG = {
@@ -648,6 +671,10 @@ const registerMessageHandlers = (socket, io) => {
     const startTime = Date.now();
     // Always use fresh userId from socket in case it changed
     const userId = socket.user?.id || registeredUserId;
+
+    if (!consumeMessageToken(userId)) {
+      return socket.emit('messageSendError', { error: 'Too many messages — slow down.' });
+    }
 
     try {
       const receiver = data?.receiver || data?.receiverId;
@@ -1564,7 +1591,8 @@ const handleDisconnect = async (socket, io, reason) => {
   // Remove metadata
   socketMetadata.delete(socket.id);
   connectionStates.delete(socket.id);
-  
+  messageBuckets.delete(userId);
+
   // Clear socket user data
   socket.user = null;
 };
