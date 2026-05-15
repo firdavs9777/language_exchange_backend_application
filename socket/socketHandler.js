@@ -1589,9 +1589,10 @@ const handleDisconnect = async (socket, io, reason) => {
   }
   
   // Remove metadata
+  const disconnectUserId = socketMetadata.get(socket.id)?.userId;
+  if (disconnectUserId) messageBuckets.delete(disconnectUserId);
   socketMetadata.delete(socket.id);
   connectionStates.delete(socket.id);
-  messageBuckets.delete(userId);
 
   // Clear socket user data
   socket.user = null;
