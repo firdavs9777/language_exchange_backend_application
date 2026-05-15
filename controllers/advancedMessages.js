@@ -289,64 +289,46 @@ exports.getMessageTTS = asyncHandler(async (req, res, next) => {
 exports.saveToVocabulary = asyncHandler(async (req, res, next) => {
   const { word, translation, pronunciation, language, partOfSpeech } = req.body;
   const messageId = req.params.id;
-  const userId = req.user._id;
+  const userId    = req.user._id;
 
   if (!word || !translation) {
     return next(new ErrorResponse('Word and translation are required', 400));
   }
 
-  const message = await Message.findById(messageId);
-  if (!message) {
-    return next(new ErrorResponse('Message not found', 404));
-  }
+  const message = await Message.findById(messageId).select('message').lean();
+  if (!message) return next(new ErrorResponse('Message not found', 404));
 
-  // Get user's native language
-  const user = await User.findById(userId).select('nativeLanguage');
+  const user = await User.findById(userId).select('native_language').lean();
+  const now  = new Date();
 
-  try {
-    // Check if word already exists in user's vocabulary
-    let vocabulary = await Vocabulary.findOne({ user: userId, word: word.toLowerCase().trim() });
+  const result = await Vocabulary.findOneAndUpdate(
+    { user: userId, word: word.trim() },
+    {
+      $setOnInsert: {
+        user:          userId,
+        word:          word.trim(),
+        translation:   translation.trim(),
+        language:      language || 'unknown',
+        nativeLanguage: user?.native_language || 'en',
+        pronunciation: pronunciation || null,
+        partOfSpeech:  partOfSpeech || 'other',
+        context: {
+          source:           'conversation',
+          messageId:        message._id,
+          originalSentence: message.message,
+        },
+        srsLevel:   0,
+        easeFactor: 2.5,
+        interval:   0,
+        nextReview: now,
+        isArchived: false,
+        isMastered: false,
+      },
+    },
+    { upsert: true, new: true }
+  );
 
-    if (vocabulary) {
-      return res.status(200).json({
-        success: true,
-        data: vocabulary,
-        message: 'Word already in your vocabulary'
-      });
-    }
-
-    // Create new vocabulary entry
-    vocabulary = await Vocabulary.create({
-      user: userId,
-      word: word.trim(),
-      translation: translation.trim(),
-      language: language || 'unknown',
-      nativeLanguage: user?.nativeLanguage || 'en',
-      pronunciation: pronunciation || null,
-      partOfSpeech: partOfSpeech || 'other',
-      context: {
-        source: 'conversation',
-        messageId: message._id,
-        originalSentence: message.message
-      }
-    });
-
-    res.status(201).json({
-      success: true,
-      data: vocabulary,
-      message: 'Word saved to vocabulary'
-    });
-  } catch (error) {
-    if (error.code === 11000) {
-      // Duplicate key error
-      return res.status(200).json({
-        success: true,
-        message: 'Word already in your vocabulary'
-      });
-    }
-    console.error('Save vocabulary error:', error.message);
-    return next(new ErrorResponse('Failed to save word. Please try again.', 500));
-  }
+  res.status(201).json({ success: true, data: result, message: 'Word saved to vocabulary' });
 });
 
 /**
