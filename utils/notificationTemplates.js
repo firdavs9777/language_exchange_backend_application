@@ -221,6 +221,38 @@ const getWaveTemplate = (waverName, isMutual, waveData = {}) => {
   };
 };
 
+/**
+ * SRS review reminder template — tiered by due-word count.
+ * @param {Number} dueCount - Number of vocabulary words due for review
+ * @param {String} topWord - The oldest-due word (used only when dueCount === 1)
+ * @returns {Object} - { title, body, data }
+ */
+const getSrsReviewTemplate = (dueCount, topWord) => {
+  let title;
+  let body;
+
+  if (dueCount === 1) {
+    title = `"${topWord}" is ready for review`;
+    body = 'Open BananaTalk to practice it before it fades';
+  } else if (dueCount <= 5) {
+    title = `${dueCount} words are due for review`;
+    body = 'A quick session keeps your vocabulary sharp';
+  } else {
+    title = `${dueCount} words are waiting in your study queue`;
+    body = 'Spend 10 minutes today — your deck is ready';
+  }
+
+  return {
+    title,
+    body,
+    data: {
+      type: 'system',
+      screen: 'vocabulary_review',
+      dueCount: dueCount.toString(),
+    },
+  };
+};
+
 module.exports = {
   getChatMessageTemplate,
   getMomentLikeTemplate,
@@ -231,6 +263,7 @@ module.exports = {
   getReengagementTemplate,
   getSubscriptionExpiringTemplate,
   getFollowerMomentTemplate,
-  getWaveTemplate
+  getWaveTemplate,
+  getSrsReviewTemplate
 };
 
