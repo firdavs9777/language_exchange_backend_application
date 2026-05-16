@@ -48,7 +48,7 @@ exports.authLimiter = rateLimit({
  */
 exports.emailLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // limit each IP to 3 email requests per hour
+  max: 15, // limit each IP to 15 email requests per hour
   message: {
     success: false,
     error: 'Too many email requests, please try again after 1 hour.'
