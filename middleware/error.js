@@ -134,9 +134,13 @@ function errorHandler(err, req, res, next) {
     ? 'An unexpected error occurred'
     : message;
 
+  // Include both `error` and `message` for client compatibility — some clients
+  // (e.g. the Flutter app's auth screens) read `result['message']` and fall back
+  // to a generic "Verification failed" string when the field is absent.
   res.status(statusCode).json({
     success: false,
     error: responseMessage,
+    message: responseMessage,
     ...(process.env.NODE_ENV === 'development' && {
       stack: err.stack,
       details: err.details || null

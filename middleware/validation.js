@@ -13,10 +13,16 @@ exports.validate = (req, res, next) => {
       message: err.msg,
       value: err.value
     }));
-    
+
+    // Surface the first specific field error as the top-level message so
+    // clients that only read `error`/`message` show something actionable
+    // (instead of just "Validation failed").
+    const firstError = errorMessages[0]?.message || 'Validation failed';
+
     return res.status(400).json({
       success: false,
-      error: 'Validation failed',
+      error: firstError,
+      message: firstError,
       errors: errorMessages
     });
   }

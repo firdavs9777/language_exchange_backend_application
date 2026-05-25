@@ -9,7 +9,8 @@ exports.generalLimiter = rateLimit({
   max: 500, // limit each IP to 500 requests per windowMs (increased from 100)
   message: {
     success: false,
-    error: 'Too many requests from this IP, please try again later.'
+    error: 'Too many requests from this IP, please try again later.',
+    message: 'Too many requests from this IP, please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -36,7 +37,8 @@ exports.authLimiter = rateLimit({
   max: 100, // limit each IP to 5 requests per windowMs
   message: {
     success: false,
-    error: 'Too many authentication attempts, please try again after 15 minutes.'
+    error: 'Too many authentication attempts, please try again after 15 minutes.',
+    message: 'Too many authentication attempts, please try again after 15 minutes.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -51,7 +53,8 @@ exports.emailLimiter = rateLimit({
   max: 15, // limit each IP to 15 email requests per hour
   message: {
     success: false,
-    error: 'Too many email requests, please try again after 1 hour.'
+    error: 'Too many email requests, please try again after 1 hour.',
+    message: 'Too many email requests, please try again after 1 hour.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -65,7 +68,8 @@ exports.loginLimiter = rateLimit({
   max: 5, // limit each IP to 5 login attempts per windowMs
   message: {
     success: false,
-    error: 'Too many login attempts, please try again after 15 minutes.'
+    error: 'Too many login attempts, please try again after 15 minutes.',
+    message: 'Too many login attempts, please try again after 15 minutes.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -80,7 +84,8 @@ exports.contactLimiter = rateLimit({
   max: 5, // limit each IP to 5 contact form submissions per 15 minutes
   message: {
     success: false,
-    error: 'Too many contact requests, please try again after 15 minutes.'
+    error: 'Too many contact requests, please try again after 15 minutes.',
+    message: 'Too many contact requests, please try again after 15 minutes.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -95,7 +100,8 @@ exports.authenticatedLimiter = rateLimit({
   max: 1000, // limit authenticated users to 1000 requests per 15 minutes
   message: {
     success: false,
-    error: 'Too many requests, please try again later.'
+    error: 'Too many requests, please try again later.',
+    message: 'Too many requests, please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -188,6 +194,7 @@ exports.aiRateLimiter = (feature) => {
       return {
         success: false,
         error: `Too many ${feature} requests. Please try again later.${upgradeMsg}`,
+        message: `Too many ${feature} requests. Please try again later.${upgradeMsg}`,
         upgradeAvailable: userMode !== 'vip'
       };
     },
@@ -213,7 +220,8 @@ exports.messageLimiter = rateLimit({
   max: 60, // 60 messages per minute
   message: {
     success: false,
-    error: 'Too many messages sent. Please slow down.'
+    error: 'Too many messages sent. Please slow down.',
+    message: 'Too many messages sent. Please slow down.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -234,7 +242,8 @@ exports.interactionLimiter = rateLimit({
   max: 30, // 30 interactions per minute
   message: {
     success: false,
-    error: 'Too many interactions. Please slow down.'
+    error: 'Too many interactions. Please slow down.',
+    message: 'Too many interactions. Please slow down.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -250,7 +259,7 @@ exports.interactionLimiter = rateLimit({
 exports.tutorMessageLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
-  message: { success: false, error: 'Too many tutor messages. Slow down a sec.' },
+  message: { success: false, error: 'Too many tutor messages. Slow down a sec.', message: 'Too many tutor messages. Slow down a sec.' },
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => req.user ? `tutormsg:${req.user.id}` : `tutormsg:${req.ip}`,
@@ -264,7 +273,8 @@ exports.reportLimiter = rateLimit({
   max: 10, // 10 reports per hour
   message: {
     success: false,
-    error: 'Too many reports submitted. Please try again later.'
+    error: 'Too many reports submitted. Please try again later.',
+    message: 'Too many reports submitted. Please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -281,7 +291,8 @@ exports.searchLimiter = rateLimit({
   max: 20, // 20 searches per minute
   message: {
     success: false,
-    error: 'Too many search requests. Please slow down.'
+    error: 'Too many search requests. Please slow down.',
+    message: 'Too many search requests. Please slow down.'
   },
   standardHeaders: true,
   legacyHeaders: false,
