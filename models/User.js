@@ -1013,8 +1013,8 @@ UserSchema.methods.generateEmailVerificationCode = function () {
     .update(code)
     .digest('hex');
   
-  // Set expiration (5 minutes)
-  this.emailVerificationExpire = Date.now() + 5 * 60 * 1000;
+  // Set expiration (15 minutes — accommodates slow email delivery and slow connections)
+  this.emailVerificationExpire = Date.now() + 15 * 60 * 1000;
   
   return code; // Return unhashed code to send via email
 };

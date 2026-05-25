@@ -772,7 +772,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   });
 
   // Email content (same as before)
-  const message = `Your verification code for Bananatalk is: ${code}. This code will expire in 5 minutes.`;
+  const message = `Your verification code for Bananatalk is: ${code}. This code will expire in 15 minutes.`;
   
   const html = `
 <!DOCTYPE html>
@@ -818,7 +818,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
                 <tr>
                   <td>
                     <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                      ⏰ <strong>Important:</strong> This code will expire in <strong>5 minutes</strong>. Please complete your registration soon!
+                      ⏰ <strong>Important:</strong> This code will expire in <strong>15 minutes</strong>. Please complete your registration soon!
                     </p>
                   </td>
                 </tr>
@@ -859,7 +859,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
       message: 'Verification code sent to your email',
       data: {
         email: user.email,
-        expiresIn: '5 minutes'
+        expiresIn: '15 minutes'
       }
     });
   } catch (err) {
