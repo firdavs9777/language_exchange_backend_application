@@ -1,0 +1,54 @@
+{
+  "chat_message": {
+    "title": "{senderName}",
+    "body": "{message}"
+  },
+  "moment_like_single": {
+    "title": "❤️ {actorName}",
+    "body": "liked your moment"
+  },
+  "moment_like_bundle": {
+    "title": "❤️ {actorName} and {othersCount} others",
+    "body": "liked your moment"
+  },
+  "moment_comment": {
+    "title": "💬 {actorName}",
+    "body": "commented: {snippet}"
+  },
+  "comment_reply": {
+    "title": "↩️ {actorName} replied",
+    "body": "{snippet}"
+  },
+  "comment_reaction": {
+    "title": "{emoji} {actorName} reacted",
+    "body": "Tap to view"
+  },
+  "comment_mention": {
+    "title": "@ {actorName} mentioned you",
+    "body": "{snippet}"
+  },
+  "friend_request_single": {
+    "title": "👋 {actorName}",
+    "body": "started following you"
+  },
+  "friend_request_bundle": {
+    "title": "👋 {count} new followers",
+    "body": "Tap to see who"
+  },
+  "profile_visit_single": {
+    "title": "👀 {actorName} viewed your profile",
+    "body": "Tap to see who"
+  },
+  "profile_visit_bundle": {
+    "title": "👀 {count} new profile visitors",
+    "body": "Tap to see who's interested"
+  },
+  "follower_moment_single": {
+    "title": "📸 {actorName} shared a moment",
+    "body": "Tap to view"
+  },
+  "follower_moment_bundle": {
+    "title": "📸 {actorName} and {othersCount} others shared moments",
+    "body": "Tap to view"
+  }
+}
