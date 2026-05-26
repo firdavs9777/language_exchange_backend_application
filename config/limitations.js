@@ -63,13 +63,14 @@ module.exports = {
     maxVideoUploadMB: 50,
     maxVoiceUploadMB: 10,
 
-    // Step 13A: AI tutor chip daily quotas
+    // AI tutor chip daily quotas — unified 5/day per chip across all tiers
+    // since VIP gating has been disabled product-wide.
     tutorDailyQuotas: {
-      chat:          3,
-      roleplay:      0,
-      story:         0,
-      photo:         0,
-      pronunciation: 0,
+      chat:          5,
+      roleplay:      5,
+      story:         5,
+      photo:         5,
+      pronunciation: 5,
     },
   },
 
@@ -123,13 +124,12 @@ module.exports = {
     maxVideoUploadMB: 50,
     maxVoiceUploadMB: 10,
 
-    // Step 13A: AI tutor chip daily quotas
     tutorDailyQuotas: {
-      chat:          10,
-      roleplay:      1,
-      story:         1,
-      photo:         2,
-      pronunciation: 1,
+      chat:          5,
+      roleplay:      5,
+      story:         5,
+      photo:         5,
+      pronunciation: 5,
     },
   },
 
@@ -198,13 +198,12 @@ module.exports = {
     undoMessage: true,
     scheduleMessages: true,
 
-    // Step 13A: AI tutor chip daily quotas (-1 = unlimited)
     tutorDailyQuotas: {
-      chat:          -1,
-      roleplay:      -1,
-      story:         -1,
-      photo:         -1,
-      pronunciation: -1,
+      chat:          5,
+      roleplay:      5,
+      story:         5,
+      photo:         5,
+      pronunciation: 5,
     },
   },
 
