@@ -3,7 +3,6 @@ const ErrorResponse  = require('../utils/errorResponse');
 const TutorMemory    = require('../models/TutorMemory');
 const AITutorSession = require('../models/AITutorSession');
 const User           = require('../models/User');
-const LearningProgress = require('../models/LearningProgress');
 const Vocabulary = require('../models/Vocabulary');
 const tutorService   = require('../services/tutorService');
 const scenarios      = require('../services/tutorScenarios');
@@ -17,16 +16,27 @@ const VALID_PERSONAS = ['nana', 'sensei', 'riko'];
 
 /**
  * Ensure a TutorMemory exists for the user; lazy-create with profile defaults
- * pulled from User + LearningProgress. Returns the memory doc.
+ * pulled from User. Returns the memory doc.
+ *
+ * Level source: User.languageLevel (user-picked CEFR), not learningStats /
+ * LearningProgress (gamification-derived). For existing memories, the cached
+ * proficiencyLevel is auto-healed on every call so a profile edit takes
+ * effect on the next tutor turn without a backfill.
  */
 const ensureMemory = async (userId) => {
-  let mem = await TutorMemory.findOne({ user: userId });
-  if (mem) return mem;
+  const user = await User.findById(userId)
+    .select('name native_language language_to_learn languageLevel')
+    .lean();
+  const desiredLevel = user?.languageLevel || 'A1';
 
-  const [user, progress] = await Promise.all([
-    User.findById(userId).select('name native_language language_to_learn').lean(),
-    LearningProgress.findOne({ user: userId }).select('proficiencyLevel').lean(),
-  ]);
+  let mem = await TutorMemory.findOne({ user: userId });
+  if (mem) {
+    if (mem.proficiencyLevel !== desiredLevel) {
+      mem.proficiencyLevel = desiredLevel;
+      await mem.save();
+    }
+    return mem;
+  }
 
   // `language_to_learn` is singular on the User schema; normalize into an array.
   const targets = user?.language_to_learn
@@ -35,7 +45,7 @@ const ensureMemory = async (userId) => {
 
   mem = await TutorMemory.create({
     user: userId,
-    proficiencyLevel: progress?.proficiencyLevel || 'A1',
+    proficiencyLevel: desiredLevel,
     targetLanguages:  targets,
     nativeLanguage:   user?.native_language || '',
   });

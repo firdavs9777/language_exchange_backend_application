@@ -533,10 +533,10 @@ exports.getRecommendedLessons = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
   const { language, sourceLanguage } = req.query;
 
-  const user = await User.findById(userId).select('language_to_learn native_language learningStats');
+  const user = await User.findById(userId).select('language_to_learn native_language languageLevel');
   const targetLanguage = language || user?.language_to_learn;
   const nativeLanguage = sourceLanguage || user?.native_language;
-  const userLevel = user?.learningStats?.proficiencyLevel || 'A1';
+  const userLevel = user?.languageLevel || 'A1';
 
   const recommended = await Lesson.getRecommended(userId, targetLanguage, userLevel, 5, nativeLanguage);
 

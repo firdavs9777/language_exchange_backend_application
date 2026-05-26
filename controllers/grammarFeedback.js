@@ -24,7 +24,7 @@ exports.requestFeedback = asyncHandler(async (req, res, next) => {
   }
 
   // Get user's default settings if not provided
-  const user = await User.findById(userId).select('language_to_learn native_language learningStats');
+  const user = await User.findById(userId).select('language_to_learn native_language languageLevel');
 
   // Check rate limits
   const userTier = req.user.subscription?.tier || 'free';
@@ -42,7 +42,7 @@ exports.requestFeedback = asyncHandler(async (req, res, next) => {
     text,
     targetLanguage: targetLanguage || user?.language_to_learn || 'es',
     nativeLanguage: nativeLanguage || user?.native_language || 'en',
-    cefrLevel: cefrLevel || user?.learningStats?.proficiencyLevel || 'A1',
+    cefrLevel: cefrLevel || user?.languageLevel || 'A1',
     messageId,
     aiConversationId,
     requestedBy: 'user'
@@ -182,13 +182,13 @@ exports.explainRule = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Grammar rule is required', 400));
   }
 
-  const user = await User.findById(req.user.id).select('language_to_learn native_language learningStats');
+  const user = await User.findById(req.user.id).select('language_to_learn native_language languageLevel');
 
   const explanation = await grammarFeedbackService.explainRule({
     rule,
     targetLanguage: targetLanguage || user?.language_to_learn || 'es',
     nativeLanguage: nativeLanguage || user?.native_language || 'en',
-    cefrLevel: cefrLevel || user?.learningStats?.proficiencyLevel || 'A1',
+    cefrLevel: cefrLevel || user?.languageLevel || 'A1',
     context
   });
 

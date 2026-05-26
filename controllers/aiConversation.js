@@ -20,8 +20,9 @@ exports.startConversation = asyncHandler(async (req, res, next) => {
     settings
   } = req.body;
 
-  // Get user's default language settings if not provided
-  const user = await User.findById(userId).select('language_to_learn native_language learningStats');
+  // Get user's default language settings if not provided.
+  // CEFR level sourced from User.languageLevel (user-picked) — not learningStats.
+  const user = await User.findById(userId).select('language_to_learn native_language languageLevel');
 
   // Check rate limits
   const userTier = req.user.subscription?.tier || 'free';
@@ -37,7 +38,7 @@ exports.startConversation = asyncHandler(async (req, res, next) => {
   const result = await aiConversationService.startConversation({
     userId,
     targetLanguage: targetLanguage || user?.language_to_learn || 'es',
-    cefrLevel: cefrLevel || user?.learningStats?.proficiencyLevel || 'A1',
+    cefrLevel: cefrLevel || user?.languageLevel || 'A1',
     nativeLanguage: nativeLanguage || user?.native_language || 'en',
     topicId,
     scenarioId,
