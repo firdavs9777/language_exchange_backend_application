@@ -548,13 +548,18 @@ exports.generateStory = asyncHandler(async (req, res, next) => {
  */
 exports.listScenarios = asyncHandler(async (req, res) => {
   const mem = await ensureMemory(req.user._id);
+  // Note: the Flutter ApiClient unwraps body['data'] for responses without a
+  // pagination key, so userContext has to live INSIDE the data object — a
+  // top-level userContext would be silently dropped on the client.
   res.status(200).json({
     success: true,
-    data: scenarios.list(),
-    userContext: {
-      level: mem.proficiencyLevel || 'A1',
-      targetLanguage: (mem.targetLanguages || [])[0] || null,
-      nativeLanguage: mem.nativeLanguage || null,
+    data: {
+      scenarios: scenarios.list(),
+      userContext: {
+        level: mem.proficiencyLevel || 'A1',
+        targetLanguage: (mem.targetLanguages || [])[0] || null,
+        nativeLanguage: mem.nativeLanguage || null,
+      },
     },
   });
 });
