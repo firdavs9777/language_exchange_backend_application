@@ -542,10 +542,21 @@ exports.generateStory = asyncHandler(async (req, res, next) => {
 
 /**
  * @route   GET /api/v1/tutor/scenarios
- * @desc    List available roleplay scenarios (no auth needed beyond protect)
+ * @desc    List available roleplay scenarios + the user's current level &
+ *          target language. Frontend uses userContext to render a guide
+ *          header and group scenarios by relative difficulty.
  */
 exports.listScenarios = asyncHandler(async (req, res) => {
-  res.status(200).json({ success: true, data: scenarios.list() });
+  const mem = await ensureMemory(req.user._id);
+  res.status(200).json({
+    success: true,
+    data: scenarios.list(),
+    userContext: {
+      level: mem.proficiencyLevel || 'A1',
+      targetLanguage: (mem.targetLanguages || [])[0] || null,
+      nativeLanguage: mem.nativeLanguage || null,
+    },
+  });
 });
 
 /**
