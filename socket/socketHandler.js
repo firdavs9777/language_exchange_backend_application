@@ -1290,7 +1290,11 @@ const registerPresenceHandlers = (socket, io) => {
   
   socket.on('requestStatusUpdates', async (data) => {
     try {
-      const userIds = data?.userIds || [];
+      // Sanitize client-supplied IDs: drop empty/malformed values so a single
+      // bad entry can't throw an ObjectId CastError and fail the whole batch.
+      const userIds = (data?.userIds || []).filter(
+        (id) => typeof id === 'string' && /^[0-9a-fA-F]{24}$/.test(id)
+      );
 
       if (!Array.isArray(userIds) || userIds.length === 0) {
         return;
