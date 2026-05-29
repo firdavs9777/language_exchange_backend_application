@@ -411,15 +411,18 @@ const _handleFailedTokens = async (userId, tokens, responses) => {
     responses.forEach((response, idx) => {
       if (!response.success) {
         const errorCode = response.error?.code;
-        
-        // Remove invalid, unregistered, or expired tokens
+        // Always surface the exact failure so delivery problems are diagnosable.
+        console.log(`⚠️ FCM send failed [${tokens[idx].platform}] user ${userId}: code=${errorCode} message=${response.error?.message}`);
+
+        // Only remove tokens FCM reports as genuinely dead. NOT invalid-argument:
+        // that signals a malformed message payload (a server bug), not a bad
+        // token — deleting valid tokens for it silently breaks notifications.
         if (
           errorCode === 'messaging/invalid-registration-token' ||
-          errorCode === 'messaging/registration-token-not-registered' ||
-          errorCode === 'messaging/invalid-argument'
+          errorCode === 'messaging/registration-token-not-registered'
         ) {
           tokensToRemove.push(tokens[idx].token);
-          console.log(`🗑️ Removing invalid token for user ${userId}`);
+          console.log(`🗑️ Removing dead token for user ${userId} (code=${errorCode})`);
         }
       }
     });
