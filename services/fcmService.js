@@ -28,17 +28,6 @@ const TYPE_TO_CATEGORY = {
   profile_visit: 'PROFILE_SOCIAL',
 };
 
-// Android equivalent of the iOS category actions. FCM passes
-// `android.notification.actions` directly to the system tray on Android 7+.
-const ANDROID_ACTIONS = {
-  CHAT_MESSAGE: [
-    { action: 'reply', title: 'Reply' },
-    { action: 'view', title: 'View' },
-  ],
-  MOMENT_SOCIAL: [{ action: 'view', title: 'View' }],
-  PROFILE_SOCIAL: [{ action: 'profile', title: 'View Profile' }],
-};
-
 /**
  * Check whether a user has hit a daily or weekly cap for a notification type.
  * @param {Object} user - User document (Mongoose doc or plain object for tests)
@@ -380,21 +369,21 @@ const _buildMessage = (token, notification, data, platform, badges = {}) => {
     };
   }
 
-  // Wire notification action buttons per notification type.
-  // - iOS: APNS category must match a UNNotificationCategory the client has
-  //   registered locally (CHAT_MESSAGE / MOMENT_SOCIAL / PROFILE_SOCIAL).
-  // - Android: the equivalent action list is sent inline via FCM.
-  // Additive only — types not in TYPE_TO_CATEGORY keep the existing default.
+  // Wire iOS action buttons per notification type: the APNS category must match
+  // a UNNotificationCategory the client registered locally (CHAT_MESSAGE /
+  // MOMENT_SOCIAL / PROFILE_SOCIAL). Additive only — types not in
+  // TYPE_TO_CATEGORY keep the existing default.
+  //
+  // Android note: FCM's AndroidNotification has NO `actions` field, so action
+  // buttons cannot be sent inline — doing so makes FCM reject the whole message
+  // with invalid-argument. The Android client builds its own actions from
+  // data.type instead.
   const category = TYPE_TO_CATEGORY[data && data.type];
   if (category) {
     message.apns = message.apns || { payload: { aps: {} } };
     message.apns.payload = message.apns.payload || { aps: {} };
     message.apns.payload.aps = message.apns.payload.aps || {};
     message.apns.payload.aps.category = category;
-
-    message.android = message.android || { notification: {} };
-    message.android.notification = message.android.notification || {};
-    message.android.notification.actions = ANDROID_ACTIONS[category];
   }
 
   return message;
