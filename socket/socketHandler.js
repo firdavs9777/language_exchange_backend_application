@@ -204,7 +204,20 @@ const setupTokenExpiryMonitor = (socket) => {
  * Initialize Socket.IO with all event handlers
  */
 const initializeSocket = (io) => {
-  
+
+  // Reconcile stale presence on startup. At boot there are zero live socket
+  // connections, so any isOnline:true left in the DB is stale — the process
+  // restarted before those users' disconnect handlers could flip the flag,
+  // leaving them "forever online". Reconnecting clients re-set the flag via
+  // the connection handler below.
+  User.updateMany({ isOnline: true }, { $set: { isOnline: false } })
+    .then((res) => {
+      if (res.modifiedCount > 0) {
+        console.log(`🧹 Presence reconciliation: reset ${res.modifiedCount} stale isOnline flag(s) on startup`);
+      }
+    })
+    .catch((err) => console.error('❌ Presence reconciliation on startup failed:', err.message));
+
   // Apply authentication middleware
   io.use(socketAuth);
   

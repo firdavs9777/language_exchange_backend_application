@@ -8,7 +8,6 @@ const notificationService = require('../services/notificationService');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 const cache = require('../services/cacheService');
 const mongoose = require('mongoose');
-const { onlineUsersCache } = require('../socket/socketHandler');
 
 // ============================================
 // NEARBY USERS
@@ -116,14 +115,14 @@ exports.getNearbyUsers = asyncHandler(async (req, res, next) => {
     }
   ];
 
-  // Online only filter — intersect with in-memory presence store
+  // Online only filter — use the persisted isOnline flag (maintained by socket
+  // connect/disconnect), the same field that drives the green presence dots.
+  // The previous in-memory presence cache diverged after restarts / across
+  // instances, so the filter returned nothing while dots still showed online.
   if (onlineOnly === 'true') {
-    const onlineIds = Array.from(onlineUsersCache.entries())
-      .filter(([, data]) => data.status === 'online')
-      .map(([id]) => new mongoose.Types.ObjectId(id));
     // $geoNear query already applied; push a post-geo $match to restrict to online users
     pipeline.push({
-      $match: { _id: { $in: onlineIds } }
+      $match: { isOnline: true }
     });
   }
 
@@ -458,12 +457,10 @@ exports.getTopicUsers = asyncHandler(async (req, res, next) => {
     filter._id = { $ne: userId, $nin: blockedUserIds };
   }
 
-  // Online only filter — intersect with in-memory presence store
+  // Online only filter — use the persisted isOnline flag (maintained by socket
+  // connect/disconnect), the same field that drives the green presence dots.
   if (onlineOnly === 'true' || online === 'true') {
-    const onlineIds = Array.from(onlineUsersCache.entries())
-      .filter(([, data]) => data.status === 'online')
-      .map(([id]) => new mongoose.Types.ObjectId(id));
-    filter._id = { ...(filter._id || {}), $in: onlineIds };
+    filter.isOnline = true;
   }
 
   const [users, total] = await Promise.all([

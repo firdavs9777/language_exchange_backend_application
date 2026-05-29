@@ -7,8 +7,6 @@ const path = require('path');
 const fs = require('fs').promises;
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
-const mongoose = require('mongoose');
-const { onlineUsersCache } = require('../socket/socketHandler');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
 const USER_PUBLIC_FIELDS = 'name username bio images native_language language_to_learn level languageLevel streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
@@ -166,13 +164,13 @@ async function buildUsersQuery(req) {
     }
   }
 
-  // Online only filter — intersect with in-memory presence store
+  // Online only filter — use the persisted isOnline flag, the same field that
+  // drives the green presence dots (socket connect/disconnect maintains it).
+  // The previous in-memory presence cache diverged from this flag after server
+  // restarts / across instances, so the filter returned nothing while dots
+  // still showed users online.
   if (req.query.onlineOnly === 'true' || req.query.online === 'true') {
-    const onlineIds = Array.from(onlineUsersCache.entries())
-      .filter(([, data]) => data.status === 'online')
-      .map(([id]) => new mongoose.Types.ObjectId(id));
-    // Merge with any existing _id constraint (e.g. $nin from blocked users)
-    query._id = { ...(query._id || {}), $in: onlineIds };
+    query.isOnline = true;
   }
 
   // Country filter (available to all users)
