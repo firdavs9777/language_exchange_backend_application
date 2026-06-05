@@ -29,25 +29,31 @@ const ensureMemory = async (userId) => {
     .lean();
   const desiredLevel = user?.languageLevel || 'A1';
 
-  let mem = await TutorMemory.findOne({ user: userId });
-  if (mem) {
-    if (mem.proficiencyLevel !== desiredLevel) {
-      mem.proficiencyLevel = desiredLevel;
-      await mem.save();
-    }
-    return mem;
-  }
-
   // `language_to_learn` is singular on the User schema; normalize into an array.
   const targets = user?.language_to_learn
     ? (Array.isArray(user.language_to_learn) ? user.language_to_learn : [user.language_to_learn])
     : [];
+  const nativeLang = user?.native_language || '';
+
+  let mem = await TutorMemory.findOne({ user: userId });
+  if (mem) {
+    // Heal all profile-derived fields on every call so that profile edits
+    // (language, level) take effect on the next tutor session without a backfill.
+    let dirty = false;
+    if (mem.proficiencyLevel !== desiredLevel) { mem.proficiencyLevel = desiredLevel; dirty = true; }
+    if (JSON.stringify(mem.targetLanguages) !== JSON.stringify(targets) && targets.length > 0) {
+      mem.targetLanguages = targets; dirty = true;
+    }
+    if (nativeLang && mem.nativeLanguage !== nativeLang) { mem.nativeLanguage = nativeLang; dirty = true; }
+    if (dirty) await mem.save();
+    return mem;
+  }
 
   mem = await TutorMemory.create({
     user: userId,
     proficiencyLevel: desiredLevel,
     targetLanguages:  targets,
-    nativeLanguage:   user?.native_language || '',
+    nativeLanguage:   nativeLang,
   });
   return mem;
 };
