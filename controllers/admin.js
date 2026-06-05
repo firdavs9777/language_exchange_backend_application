@@ -1,6 +1,7 @@
 const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const AdminAuditLog = require('../models/AdminAuditLog');
+const AIUsageLog = require('../models/AIUsageLog');
 const ErrorResponse = require('../utils/errorResponse');
 const banService = require('../services/banService');
 
@@ -334,4 +335,45 @@ exports.getAuditLog = asyncHandler(async (req, res, next) => {
       hasMore: skip + entries.length < total,
     },
   });
+});
+
+/**
+ * @desc    AI feature usage counts grouped by feature and day
+ * @route   GET /api/v1/admin/ai-usage
+ * @access  Admin
+ * @query   feature (string, optional) — filter to one feature
+ *          from (ISO date, optional) — start of range, default 30 days ago
+ *          to   (ISO date, optional) — end of range, default now
+ */
+exports.getAIUsage = asyncHandler(async (req, res) => {
+  const to = req.query.to ? new Date(req.query.to) : new Date();
+  const from = req.query.from
+    ? new Date(req.query.from)
+    : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const match = { timestamp: { $gte: from, $lte: to } };
+  if (req.query.feature) match.feature = req.query.feature;
+
+  const [byFeature, byDay, total] = await Promise.all([
+    AIUsageLog.aggregate([
+      { $match: match },
+      { $group: { _id: '$feature', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $project: { _id: 0, feature: '$_id', count: 1 } },
+    ]),
+    AIUsageLog.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$timestamp' } },
+          count: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+      { $project: { _id: 0, date: '$_id', count: 1 } },
+    ]),
+    AIUsageLog.countDocuments(match),
+  ]);
+
+  res.status(200).json({ success: true, data: { total, byFeature, byDay } });
 });
