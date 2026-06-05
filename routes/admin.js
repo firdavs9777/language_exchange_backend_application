@@ -9,6 +9,7 @@ const {
   changeRole,
   getAuditLog,
   getStats,
+  getAIUsage,
 } = require('../controllers/admin');
 
 // Every endpoint in this file requires an authenticated admin.
@@ -23,5 +24,6 @@ router.put('/users/:id/role', changeRole);
 
 router.get('/audit-log', getAuditLog);
 router.get('/stats', getStats);
+router.get('/ai-usage', getAIUsage);
 
 module.exports = router;
