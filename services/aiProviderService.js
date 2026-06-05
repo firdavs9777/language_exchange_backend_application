@@ -5,6 +5,7 @@
  */
 
 const { AI_PROVIDERS, AI_RATE_LIMITS, CEFR_MODIFIERS } = require('../config/aiConfig');
+const AIUsageLog = require('../models/AIUsageLog');
 
 // Lazy load OpenAI to avoid initialization issues if not configured
 let openaiClient = null;
@@ -647,16 +648,11 @@ const checkUsageLimit = async (userId, feature, userTier = 'free') => {
  * @param {Object} options - Usage options
  */
 const trackUsage = async (options) => {
-  const {
-    userId,
-    feature,
-    tokensUsed,
-    provider = 'openai'
-  } = options;
-
-  // This would typically save to a database
-  // For now, just log
-  console.log(`AI Usage: User ${userId}, Feature: ${feature}, Tokens: ${JSON.stringify(tokensUsed)}`);
+  const { userId, feature } = options;
+  if (!userId || !feature) return;
+  AIUsageLog.create({ userId, feature }).catch((err) =>
+    console.error('[AIUsageLog] write failed:', err.message)
+  );
 };
 
 module.exports = {
