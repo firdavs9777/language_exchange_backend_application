@@ -715,7 +715,7 @@ exports.scorePronunciationAttempt = asyncHandler(async (req, res, next) => {
   let transcribed;
   try {
     transcribed = await speechService.transcribeAudio({
-      audioBuffer: file.buffer,
+      audioFile: file,
       userId: req.user._id,
     });
   } catch (e) {
