@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Moment = require('../models/Moment');
 const Comment = require('../models/Comment');
 const Story = require('../models/Story');
+const { trackActivity } = require('./activityTracking');
 
 // Protect routes - require authentication
 exports.protect = asyncHandler(async (req, res, next) => {
@@ -41,6 +42,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
       ));
     }
 
+    trackActivity(req.user._id);
     next();
   } catch (err) {
     return next(new ErrorResponse('Not authorize to access this route', 401));

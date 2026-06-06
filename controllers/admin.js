@@ -2,6 +2,8 @@ const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const AdminAuditLog = require('../models/AdminAuditLog');
 const AIUsageLog = require('../models/AIUsageLog');
+const Message = require('../models/Message');
+const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
 const banService = require('../services/banService');
 
@@ -66,20 +68,37 @@ exports.searchUsers = asyncHandler(async (req, res, next) => {
  * @access  Admin
  */
 exports.getUserDetail = asyncHandler(async (req, res, next) => {
-  const user = await User.findById(req.params.id)
-    .select(ADMIN_USER_FIELDS)
-    .lean();
-  if (!user) return next(new ErrorResponse('User not found', 404));
+  const uid = req.params.id;
+  const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  const recentActions = await AdminAuditLog.find({ target: req.params.id })
-    .sort({ timestamp: -1 })
-    .limit(20)
-    .populate('moderator', 'name email')
-    .lean();
+  const [user, recentActions, lastMessage, messagesLast30d, lastMoment, momentsLast30d] =
+    await Promise.all([
+      User.findById(uid).select(ADMIN_USER_FIELDS).lean(),
+      AdminAuditLog.find({ target: uid })
+        .sort({ timestamp: -1 })
+        .limit(20)
+        .populate('moderator', 'name email')
+        .lean(),
+      Message.findOne({ sender: uid }).sort({ createdAt: -1 }).select('createdAt').lean(),
+      Message.countDocuments({ sender: uid, createdAt: { $gte: since30d } }),
+      Moment.findOne({ user: uid }).sort({ createdAt: -1 }).select('createdAt').lean(),
+      Moment.countDocuments({ user: uid, createdAt: { $gte: since30d } }),
+    ]);
+
+  if (!user) return next(new ErrorResponse('User not found', 404));
 
   res.status(200).json({
     success: true,
-    data: { ...user, recentActions },
+    data: {
+      ...user,
+      recentActions,
+      activitySummary: {
+        lastMessageAt: lastMessage?.createdAt ?? null,
+        messagesLast30d,
+        lastMomentAt: lastMoment?.createdAt ?? null,
+        momentsLast30d,
+      },
+    },
   });
 });
 
