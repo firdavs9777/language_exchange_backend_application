@@ -345,6 +345,48 @@ exports.getAuditLog = asyncHandler(async (req, res, next) => {
  *          from (ISO date, optional) — start of range, default 30 days ago
  *          to   (ISO date, optional) — end of range, default now
  */
+/**
+ * @desc    Paginated raw AI usage log entries with user info
+ * @route   GET /api/v1/admin/ai-usage/logs
+ * @access  Admin
+ * @query   feature (optional), from (ISO date), to (ISO date), page, limit (max 100)
+ */
+exports.getAIUsageLogs = asyncHandler(async (req, res) => {
+  const to = req.query.to ? new Date(req.query.to) : new Date();
+  const from = req.query.from
+    ? new Date(req.query.from)
+    : new Date(to.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+  const skip = (page - 1) * limit;
+
+  const match = { timestamp: { $gte: from, $lte: to } };
+  if (req.query.feature) match.feature = req.query.feature;
+
+  const [logs, total] = await Promise.all([
+    AIUsageLog.find(match)
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('userId', 'name email username')
+      .lean(),
+    AIUsageLog.countDocuments(match),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    data: logs.map((l) => ({
+      id: l._id,
+      user: l.userId
+        ? { id: l.userId._id, name: l.userId.name, email: l.userId.email }
+        : null,
+      feature: l.feature,
+      timestamp: l.timestamp,
+    })),
+    pagination: { total, page, limit, hasMore: skip + logs.length < total },
+  });
+});
+
 exports.getAIUsage = asyncHandler(async (req, res) => {
   const to = req.query.to ? new Date(req.query.to) : new Date();
   const from = req.query.from
