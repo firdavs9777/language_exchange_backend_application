@@ -438,3 +438,55 @@ exports.getAIUsage = asyncHandler(async (req, res) => {
 
   res.status(200).json({ success: true, data: { total, byFeature, byDay } });
 });
+
+/**
+ * @desc    User activity overview — active counts + recently active users list
+ * @route   GET /api/v1/admin/activity
+ * @access  Admin
+ * @query   limit (int, max 100, default 50) — number of recently active users to return
+ */
+exports.getActivity = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+
+  const [activeToday, activeWeek, activeMonth, total, recentlyActive] =
+    await Promise.all([
+      User.countDocuments({ lastActive: { $gte: startOfToday } }),
+      User.countDocuments({ lastActive: { $gte: sevenDaysAgo } }),
+      User.countDocuments({ lastActive: { $gte: thirtyDaysAgo } }),
+      User.countDocuments({}),
+      User.find({ lastActive: { $gte: thirtyDaysAgo } })
+        .select('name email username images imageUrls lastActive native_language language_to_learn')
+        .sort({ lastActive: -1 })
+        .limit(limit)
+        .lean(),
+    ]);
+
+  res.status(200).json({
+    success: true,
+    data: {
+      counts: { today: activeToday, week: activeWeek, month: activeMonth, total },
+      recentlyActive: recentlyActive.map((u) => {
+        const imgs = [
+          ...((u.imageUrls || []).filter(Boolean)),
+          ...((u.images || []).filter(Boolean)),
+        ];
+        return {
+          id: u._id,
+          name: u.name,
+          email: u.email,
+          username: u.username,
+          avatar: imgs.find((s) => s.startsWith('http')) ?? null,
+          lastActive: u.lastActive,
+          nativeLanguage: u.native_language,
+          learningLanguage: u.language_to_learn,
+        };
+      }),
+    },
+  });
+});
