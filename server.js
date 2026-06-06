@@ -154,6 +154,10 @@ app.use((req, res, next) => {
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: false }));
 
+// Middleware - Strip lone UTF-16 surrogates from all API responses
+const sanitizeResponse = require('./middleware/sanitizeResponse');
+app.use(sanitizeResponse);
+
 // Middleware - Compression (reduce response sizes)
 const compression = require('compression');
 app.use(compression());
