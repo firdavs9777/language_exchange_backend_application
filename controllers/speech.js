@@ -79,15 +79,20 @@ exports.transcribeFromUrl = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('audioUrl is required', 400));
   }
 
-  const transcript = await speechService.transcribeFromUrl(audioUrl, {
-    language,
-    userId: req.user.id
-  });
+  try {
+    const transcript = await speechService.transcribeFromUrl(audioUrl, {
+      language,
+      userId: req.user.id
+    });
 
-  res.status(200).json({
-    success: true,
-    data: { transcript }
-  });
+    res.status(200).json({
+      success: true,
+      data: { transcript }
+    });
+  } catch (err) {
+    console.error('[transcribeFromUrl] error:', err?.message || err);
+    return next(new ErrorResponse(err?.message || 'Transcription failed', 500));
+  }
 });
 
 /**

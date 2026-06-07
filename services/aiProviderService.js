@@ -274,6 +274,7 @@ const getMimeType = (filename) => {
     'mp3': 'audio/mpeg',
     'mp4': 'audio/mp4',
     'm4a': 'audio/m4a',
+    'aac': 'audio/aac',
     'wav': 'audio/wav',
     'webm': 'audio/webm',
     'ogg': 'audio/ogg',
