@@ -13,6 +13,16 @@ exports.getAppConfig = asyncHandler(async (req, res) => {
   const androidUrl = process.env.APP_ANDROID_URL || DEFAULT_ANDROID_URL;
   const releaseNotes = process.env.APP_RELEASE_NOTES || '';
 
+  const announcement = {
+    active: process.env.ANNOUNCEMENT_ACTIVE === 'true',
+    id: process.env.ANNOUNCEMENT_ID || '',
+    title: process.env.ANNOUNCEMENT_TITLE || '',
+    body: process.env.ANNOUNCEMENT_BODY || '',
+    emoji: process.env.ANNOUNCEMENT_EMOJI || '📢',
+    buttonLabel: process.env.ANNOUNCEMENT_BUTTON_LABEL || '',
+    buttonUrl: process.env.ANNOUNCEMENT_BUTTON_URL || '',
+  };
+
   res.status(200).json({
     success: true,
     data: {
@@ -22,6 +32,7 @@ exports.getAppConfig = asyncHandler(async (req, res) => {
       iosUrl,
       androidUrl,
       releaseNotes,
+      announcement,
     },
   });
 });
