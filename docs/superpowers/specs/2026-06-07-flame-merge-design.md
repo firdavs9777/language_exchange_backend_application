@@ -27,7 +27,7 @@ Port the Python (FastAPI) Flame backend at `~/Desktop/Flame/flame_backend` into 
 
 - ~7,600 lines of Python → idiomatic Node.js/Express across 6 modules.
 - Realtime chat ported from raw `websockets` to a Socket.IO namespace (`/flame`) on the existing `io` instance, matching BananaTalk's realtime style.
-- Estimated effort: **~9–13 working days** of focused work (~2 weeks elapsed).
+- Estimated effort: **~10–14 working days** of focused work (~2–3 weeks elapsed).
 
 ## Architecture
 
@@ -69,8 +69,14 @@ backend/
     │   ├── chatService.js
     │   ├── postService.js
     │   └── commentService.js
-    ├── sockets/
+    ├── sockets/                       ← mirrors BananaTalk/socket/* patterns, separate files
     │   ├── index.js                   ← registerFlameSockets(io): mounts /flame namespace
+    │   ├── config.js                  ← heartbeat, timeouts, bucket sizes
+    │   ├── state.js                   ← userConnections, socketMetadata, connection lifecycle
+    │   ├── rateLimit.js               ← token bucket for sendMessage etc.
+    │   ├── offlineQueue.js            ← deliver-on-reconnect queue
+    │   ├── typing.js                  ← typing-indicator timeouts
+    │   ├── userCache.js               ← TTL'd in-memory user cache
     │   └── chatSocket.js              ← per-connection chat handlers
     └── utils/
         ├── errors.js                  ← FlameError / AuthError / NotFoundError / ValidationError
@@ -198,7 +204,7 @@ Two independent JWT systems on one server:
 
 A Flame token presented to a BananaTalk route fails signature verification → 401. Vice versa. Cross-contamination is structurally impossible, not just convention.
 
-### WebSockets — share `io`, isolate via namespace
+### WebSockets — share `io`, isolate via namespace, mirror BananaTalk's patterns
 
 Rather than spinning up a second WS server, Flame mounts a namespace on BananaTalk's existing `io` instance:
 
@@ -220,7 +226,26 @@ module.exports = function registerFlameSockets(io) {
 
 Clients connect via `io('/flame', { auth: { token } })`. BananaTalk clients continue using the default namespace `/`. Same server, same port, fully isolated event bus and auth middleware.
 
-Porting from Python's raw `websockets` to Socket.IO gains reconnection, ack support, and room semantics — the main pain points of the FastAPI version.
+**Mirror BananaTalk's hardened patterns, don't reinvent them.** BananaTalk's `socket/socketHandler.js` (~2,400 lines) has been hardened in production. Flame copies the *patterns*, not the code, into `flame/sockets/`. Patterns to mirror verbatim (see `socket/socketHandler.js` for the canonical implementation):
+
+| Pattern | Why it matters | Where it lives in Flame |
+|---|---|---|
+| Multi-device connection map (`userId → Set<socketId>`) | One user, many tabs/devices — must broadcast to all | `flame/sockets/state.js` |
+| Socket metadata map (`socketId → { userId, deviceId, connectedAt }`) | Fast lookup on disconnect & audit | `flame/sockets/state.js` |
+| Heartbeat config (`HEARTBEAT_INTERVAL=30s`, `HEARTBEAT_TIMEOUT=120s`) | Detect dead connections without false positives | `flame/sockets/config.js` |
+| Reconnect grace period (~10s before marking offline) | Avoid online/offline flicker on flaky networks | `flame/sockets/state.js` |
+| Token-bucket rate limiter (`sendMessage`: capacity 10, refill 1/sec) | Stop spam without dropping legitimate bursts | `flame/sockets/rateLimit.js` |
+| Offline message queue (per-user cap ~50) | Deliver-on-reconnect for messages sent while offline | `flame/sockets/offlineQueue.js` |
+| Typing timeouts with auto-cleanup | Stale "typing…" indicators are a UX bug magnet | `flame/sockets/typing.js` |
+| User cache with TTL (`USER_CACHE_TTL=60s`, max 1000 entries) | Avoid hammering the DB on every socket event | `flame/sockets/userCache.js` |
+| Modular handler registration (`registerXHandlers(ns, socket)`) | Keeps the connection callback small & testable | each `flame/sockets/*Handler.js` |
+| Graceful `io.close()` in SIGTERM handler | Drain in-flight events on deploy | `server.js` (already in BananaTalk's path; namespace closes with parent) |
+
+**No cross-imports.** Same rule as the S3 client: `flame/sockets/` does not `require('../../socket/socketHandler.js')`. Patterns and constants are duplicated into Flame's files, so BananaTalk can tune its rate limits / heartbeats independently. Same approach, separate files — the cost of isolation we agreed to.
+
+**Auth middleware:** Flame's socket auth verifies `FLAME_JWT_SECRET`, BananaTalk's verifies `JWT_SECRET`. A Flame token presented to BananaTalk's namespace fails signature check; vice versa. Same structural isolation as HTTP routes.
+
+Porting from Python's raw `websockets` to Socket.IO gains reconnection, ack support, and room semantics — and inheriting BananaTalk's connection-lifecycle patterns means Flame's chat is production-stable from day one rather than after months of incident-driven hardening.
 
 ## Module port plan
 
@@ -348,9 +373,9 @@ All loaded and validated in `flame/config/env.js` at startup. Missing required v
 | Port `auth` (JWT, social login) | 1–2 |
 | Port `users` (incl. avatar upload wiring) | 1 |
 | Port `community` (posts, comments, likes, post images) | 1–2 |
-| Port `chat` (incl. Socket.IO namespace, attachments) | 2–3 |
+| Port `chat` (incl. Socket.IO namespace + BananaTalk-style connection lifecycle, attachments) | 3–4 |
 | Tests, smoke check on `api.bananatalk.com/flamebackend/v1/*` | 1–2 |
-| **Total** | **~9–13 working days (~2 weeks elapsed)** |
+| **Total** | **~10–14 working days (~2–3 weeks elapsed)** |
 
 ## Open questions for implementation phase
 
