@@ -6,7 +6,7 @@
 const User = require('../models/User');
 const fcmService = require('../services/fcmService');
 const templates = require('../utils/notificationTemplates');
-const notificationService = require('../services/notificationService');
+const { shouldNotify } = require('../services/notificationService');
 
 /**
  * Clean up inactive FCM tokens
@@ -110,49 +110,54 @@ const testAndCleanTokens = async () => {
 const sendReengagementNotifications = async () => {
   try {
     console.log('\n💌 Sending re-engagement notifications...');
-    
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    
-    // Find inactive users who have marketing notifications enabled
-    const inactiveUsers = await User.find({
-      lastActivityAt: { $lt: sevenDaysAgo },
-      'notificationSettings.enabled': true,
-      'notificationSettings.marketing': true,
-      'fcmTokens.0': { $exists: true } // Has at least one token
-    }).limit(500); // Process 500 users per run
-    
-    let sent = 0;
-    let failed = 0;
-    
-    for (const user of inactiveUsers) {
-      const notification = templates.getReengagementTemplate(user);
 
-      const result = await notificationService.send(
-        user._id,
-        'system',
-        notification
-      );
-      
-      if (result.success && !result.skipped) {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const inactiveUsers = await User.find({
+      $or: [
+        { lastSeenAt: { $lt: sevenDaysAgo } },
+        { lastSeenAt: null, lastActive: { $lt: sevenDaysAgo } },
+      ],
+      'fcmTokens.0': { $exists: true },
+    })
+      .select('_id name language_to_learn notificationPreferences fcmTokens lastReengagementAt')
+      .limit(500);
+
+    let sent = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (const user of inactiveUsers) {
+      try {
+        if (!shouldNotify(user, 'reengagement')) { skipped++; continue; }
+
+        const sixDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
+        if (user.lastReengagementAt && user.lastReengagementAt > sixDaysAgo) { skipped++; continue; }
+
+        const hasActiveToken = user.fcmTokens.some(t => t.active !== false);
+        if (!hasActiveToken) { skipped++; continue; }
+
+        const notification = templates.getReengagementTemplate(user);
+
+        await fcmService.sendToUser(
+          user._id,
+          { title: notification.title, body: notification.body },
+          { type: 'reengagement', route: '/home' }
+        );
+
+        await User.updateOne({ _id: user._id }, { lastReengagementAt: new Date() });
         sent++;
-      } else {
+      } catch (err) {
+        console.error('[reengagement] per-user error:', user._id, err.message);
         failed++;
       }
     }
-    
-    console.log(`✅ Re-engagement complete: ${sent} sent, ${failed} failed`);
-    
-    return {
-      success: true,
-      sent,
-      failed
-    };
+
+    console.log(`✅ Re-engagement complete: ${sent} sent, ${skipped} skipped, ${failed} failed`);
+    return { success: true, sent, skipped, failed };
   } catch (error) {
     console.error('❌ Re-engagement notifications failed:', error);
-    return {
-      success: false,
-      error: error.message
-    };
+    return { success: false, error: error.message };
   }
 };
 

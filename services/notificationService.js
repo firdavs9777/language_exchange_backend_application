@@ -23,7 +23,12 @@ function shouldNotify(user, type) {
   if (!user) return false;
   const prefs = user.notificationPreferences;
   if (!prefs) return true;  // missing field = use defaults (all true)
-  return prefs[type] !== false;
+  switch (type) {
+    case 'reengagement':
+      return prefs?.marketing !== false;
+    default:
+      return prefs[type] !== false;
+  }
 }
 
 /**

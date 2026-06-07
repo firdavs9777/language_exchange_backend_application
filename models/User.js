@@ -602,6 +602,10 @@ bannedAt: {
     type: Date,
     default: Date.now
   },
+  lastReengagementAt: {
+    type: Date,
+    default: null,
+  },
   lastSeenAt: {
     type: Date,
     default: null
