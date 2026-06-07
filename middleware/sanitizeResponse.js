@@ -5,6 +5,12 @@
  * res.json() and recursively cleans every string before it leaves the server,
  * so the Flutter app never receives malformed Unicode regardless of what is
  * stored in MongoDB.
+ *
+ * Strategy: first convert to a plain JSON-round-tripped object so that
+ * Mongoose ObjectIds, Dates, and other special objects are serialised to their
+ * primitive equivalents (via .toJSON()) and circular references are eliminated.
+ * Then run the surrogate-strip pass on the resulting plain data.
+ * If the initial JSON round-trip itself fails we fall back to the original data.
  */
 
 function stripLoneSurrogates(str) {
@@ -38,6 +44,7 @@ function stripLoneSurrogates(str) {
   return result.join('');
 }
 
+// Only called on plain JSON-round-tripped data (strings/arrays/plain objects/primitives).
 function deepClean(value) {
   if (typeof value === 'string') return stripLoneSurrogates(value);
   if (Array.isArray(value)) return value.map(deepClean);
@@ -53,7 +60,17 @@ function deepClean(value) {
 
 const sanitizeResponse = (req, res, next) => {
   const originalJson = res.json.bind(res);
-  res.json = (data) => originalJson(deepClean(data));
+  res.json = (data) => {
+    try {
+      // JSON round-trip: serialises ObjectIds/Dates via .toJSON() and removes
+      // circular references. deepClean then only sees plain primitives.
+      const plain = JSON.parse(JSON.stringify(data));
+      return originalJson(deepClean(plain));
+    } catch (_) {
+      // Fallback: send original data untouched if round-trip fails.
+      return originalJson(data);
+    }
+  };
   next();
 };
 
