@@ -245,7 +245,14 @@ Porting from Python's raw `websockets` to Socket.IO gains reconnection, ack supp
 
 ### Shared infrastructure ported alongside the modules
 
-- **Image upload (S3/Spaces)** — implemented as `flame/utils/s3.js`, ported once during the `core` step. Used by `users` (avatars), `community` (post images), and `chat` (attachments). Not a standalone module.
+- **Image & video upload (DigitalOcean Spaces / S3)** — implemented as `flame/utils/s3.js`, ported once during the `core` step. Used by `users` (avatars), `community` (post media), and `chat` (attachments). Not a standalone module.
+
+  **Credentials are shared with BananaTalk, storage is isolated.** The Flame S3 client reuses the existing BananaTalk env vars `SPACES_ENDPOINT`, `DO_SPACES_KEY`, `DO_SPACES_SECRET` (same DigitalOcean account), but writes to a **separate bucket** identified by a new env var `FLAME_SPACES_BUCKET`. Effect: one set of credentials to rotate, but Flame and BananaTalk objects can never collide, and either bucket can be wiped/migrated independently.
+
+  Implementation note: `flame/utils/s3.js` does not `require('../../config/spaces.js')` — it constructs its own `AWS.S3` instance from the same env vars. This preserves the "no cross-imports from `flame/` into BananaTalk code" rule, at the cost of one duplicated 5-line client setup.
+
+  Video handling in this phase is upload + store only (no server-side transcoding), matching the Python source which uses Pillow for images and stores other media as-is.
+
 - **Redis** — optional. Used in Python Flame for caching and rate limiting. Decision deferred to the `core` step: include if the original logic genuinely depends on it, otherwise drop and use in-memory rate limiting for v1.
 
 ### Port order
@@ -310,10 +317,7 @@ FLAME_MONGO_URI=
 FLAME_JWT_SECRET=
 FLAME_JWT_REFRESH_SECRET=
 FLAME_REDIS_URL=          # optional; only if Flame needs caching/rate limiting
-FLAME_S3_ENDPOINT=
-FLAME_S3_BUCKET=
-FLAME_S3_KEY=
-FLAME_S3_SECRET=
+FLAME_SPACES_BUCKET=      # Flame's own bucket; SPACES_ENDPOINT/DO_SPACES_KEY/DO_SPACES_SECRET are shared with BananaTalk
 FLAME_GOOGLE_CLIENT_ID=
 FLAME_APPLE_CLIENT_ID=
 FLAME_ALLOWED_ORIGINS=    # comma-separated for CORS scoped to /flamebackend/v1
@@ -352,4 +356,4 @@ All loaded and validated in `flame/config/env.js` at startup. Missing required v
 
 - Exact field-level diff between Python schemas and the Node.js Mongoose schemas — to be enumerated during the `models` step, not now.
 - Whether Flame's existing Redis usage (caching, rate limiting) is required from day one or can be deferred — to be decided when porting `core`.
-- Whether Flame's image-upload pipeline keeps existing object-storage keys (so existing URLs continue to work) or starts fresh — to be confirmed before porting upload code.
+- Whether Flame's image-upload pipeline keeps existing object-storage keys (so existing URLs continue to work) or starts fresh in the new `FLAME_SPACES_BUCKET` — to be confirmed before porting upload code. If existing keys must survive, a one-time copy from the Python-era bucket into `FLAME_SPACES_BUCKET` is required.
