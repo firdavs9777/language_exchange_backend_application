@@ -243,11 +243,16 @@ Porting from Python's raw `websockets` to Socket.IO gains reconnection, ack supp
 - **No top-level try/catch boilerplate**: an `asyncHandler` wrapper around controllers forwards rejections to the error middleware.
 - **Explicit indexes**: every queried field gets a declared index in the model file.
 
+### Shared infrastructure ported alongside the modules
+
+- **Image upload (S3/Spaces)** — implemented as `flame/utils/s3.js`, ported once during the `core` step. Used by `users` (avatars), `community` (post images), and `chat` (attachments). Not a standalone module.
+- **Redis** — optional. Used in Python Flame for caching and rate limiting. Decision deferred to the `core` step: include if the original logic genuinely depends on it, otherwise drop and use in-memory rate limiting for v1.
+
 ### Port order
 
 Each module ships behind a smoke test before the next one starts — we never have 7,600 lines half-ported.
 
-1. **core + db** (scaffolding)
+1. **core + db + shared utils (s3, optional redis)** (scaffolding)
 2. **models** (everyone depends on these)
 3. **auth** (everything else gates on it)
 4. **users** (simplest CRUD; validates the stack end-to-end)
@@ -334,13 +339,12 @@ All loaded and validated in `flame/config/env.js` at startup. Missing required v
 | Task | Days |
 |---|---|
 | Set up dual-DB infra + `/flamebackend/v1/*` mount + `server.js` patch | 0.5 |
-| Port `core` (config, deps, error handling, middleware) | 1 |
+| Port `core` (config, env validation, error handling, middleware, s3 util, optional redis) | 1.5–2 |
 | Port `models` | 1 |
 | Port `auth` (JWT, social login) | 1–2 |
-| Port `users` | 1 |
-| Port `community` (posts, comments, likes) | 1–2 |
-| Port `chat` (incl. Socket.IO namespace) | 2–3 |
-| Image upload (S3/Spaces), Redis cache if needed | 1 |
+| Port `users` (incl. avatar upload wiring) | 1 |
+| Port `community` (posts, comments, likes, post images) | 1–2 |
+| Port `chat` (incl. Socket.IO namespace, attachments) | 2–3 |
 | Tests, smoke check on `api.bananatalk.com/flamebackend/v1/*` | 1–2 |
 | **Total** | **~9–13 working days (~2 weeks elapsed)** |
 
