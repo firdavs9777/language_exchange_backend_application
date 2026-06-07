@@ -14,10 +14,10 @@ const bundlingService = require('./notificationBundlingService');
  * Returns true if the user has not opted out of `type` notifications.
  * Missing notificationPreferences = use defaults (all true).
  *
- * @param {Object} user - User document with notificationPreferences populated
+ * @param {Object} user - User document with notificationSettings populated
  * @param {string} type - One of: 'chat', 'wave', 'voiceRoomStart',
  *                        'scheduledRoomReminder', 'followerMoment',
- *                        'visitorAlert', 'matchAlert'
+ *                        'visitorAlert', 'matchAlert', 'reengagement'
  */
 function shouldNotify(user, type) {
   if (!user) return false;
@@ -25,7 +25,7 @@ function shouldNotify(user, type) {
   if (!prefs) return true;  // missing field = use defaults (all true)
   switch (type) {
     case 'reengagement':
-      return prefs?.marketing !== false;
+      return user.notificationSettings?.marketing !== false;
     default:
       return prefs[type] !== false;
   }

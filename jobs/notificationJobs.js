@@ -112,6 +112,7 @@ const sendReengagementNotifications = async () => {
     console.log('\n💌 Sending re-engagement notifications...');
 
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const sixDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
 
     const inactiveUsers = await User.find({
       $or: [
@@ -131,7 +132,6 @@ const sendReengagementNotifications = async () => {
       try {
         if (!shouldNotify(user, 'reengagement')) { skipped++; continue; }
 
-        const sixDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000);
         if (user.lastReengagementAt && user.lastReengagementAt > sixDaysAgo) { skipped++; continue; }
 
         const hasActiveToken = user.fcmTokens.some(t => t.active !== false);
