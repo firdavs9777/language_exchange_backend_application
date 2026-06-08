@@ -62,6 +62,61 @@ exports.searchUsers = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    List all currently banned user accounts (with OAuth IDs for blacklist preview).
+ * @route   GET /api/v1/admin/banned-users
+ * @access  Admin
+ */
+exports.getBannedUsers = asyncHandler(async (req, res) => {
+  const page  = Math.max(1, parseInt(req.query.page)  || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+  const skip  = (page - 1) * limit;
+
+  const filter = { isBanned: true };
+  if (req.query.search && req.query.search.trim()) {
+    const rx = new RegExp(escapeRegex(req.query.search.trim()), 'i');
+    filter.$or = [{ email: rx }, { name: rx }, { username: rx }];
+  }
+
+  const BANNED_USER_FIELDS =
+    '_id name email username images isBanned banReason bannedAt googleId facebookId appleId createdAt';
+
+  const [users, total] = await Promise.all([
+    User.find(filter)
+      .select(BANNED_USER_FIELDS)
+      .sort({ bannedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    User.countDocuments(filter),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    data: users,
+    pagination: { total, page, limit, hasMore: skip + users.length < total },
+  });
+});
+
+/**
+ * @desc    Permanently delete a banned user account and blacklist their identifiers.
+ * @route   DELETE /api/v1/admin/users/:id
+ * @access  Admin
+ */
+exports.hardDeleteUser = asyncHandler(async (req, res, next) => {
+  const result = await banService.hardDeleteUser({
+    userId: req.params.id,
+    moderatorId: req.user.id,
+  });
+
+  if (!result.ok) {
+    const status = result.error.includes('not found') ? 404 : 400;
+    return next(new ErrorResponse(result.error, status));
+  }
+
+  res.status(200).json({ success: true, message: 'Account permanently deleted and blacklisted.' });
+});
+
+/**
  * @desc    Get a user's admin-view detail (richer fields + recent audit
  *          actions targeting this user).
  * @route   GET /api/v1/admin/users/:id
