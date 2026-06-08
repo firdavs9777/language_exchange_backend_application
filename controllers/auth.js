@@ -37,7 +37,14 @@ passport.use(
       try {
         const { id, emails, name, photos } = profile;
         const email = emails && emails[0] ? emails[0].value : null;
-        
+
+        const banCheck = await banService.checkBannedIdentity({ facebookId: id, email });
+        if (banCheck.banned) {
+          const err = new Error('This account has been permanently suspended and cannot be reactivated.');
+          err.code = 'BANNED';
+          return done(err, null);
+        }
+
         // Try to find existing user by Facebook ID first
         let user = await User.findOne({ facebookId: id });
         
@@ -95,7 +102,14 @@ passport.use(
       try {
         const { id, emails, name, photos } = profile;
         const email = emails && emails[0] ? emails[0].value : null;
-        
+
+        const banCheck = await banService.checkBannedIdentity({ googleId: id, email });
+        if (banCheck.banned) {
+          const err = new Error('This account has been permanently suspended and cannot be reactivated.');
+          err.code = 'BANNED';
+          return done(err, null);
+        }
+
         // Try to find existing user by Google ID first
         let user = await User.findOne({ googleId: id });
         
@@ -280,6 +294,9 @@ exports.facebookLogin = (req, res, next) => {
 exports.facebookCallback = asyncHandler(async (req, res, next) => {
   passport.authenticate('facebook', { session: false }, async (err, user) => {
     if (err) {
+      if (err.code === 'BANNED') {
+        return next(new ErrorResponse(err.message, 403));
+      }
       console.error('Facebook auth callback error:', err);
       logSecurityEvent('FACEBOOK_AUTH_FAILED', {
         error: err.message
@@ -321,6 +338,9 @@ exports.googleLogin = (req, res, next) => {
 exports.googleCallback = asyncHandler(async (req, res, next) => {
   passport.authenticate('google', { session: false }, async (err, user) => {
     if (err) {
+      if (err.code === 'BANNED') {
+        return next(new ErrorResponse(err.message, 403));
+      }
       console.error('Google auth callback error:', err);
       logSecurityEvent('GOOGLE_AUTH_FAILED', {
         error: err.message
