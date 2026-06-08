@@ -207,11 +207,11 @@ exports.hardDeleteUser = async function ({ userId, moderatorId }) {
     return { ok: false, error: 'User not found' };
   }
 
-  if (!user.isBanned) {
+  if (user.isBanned !== true) {
     return { ok: false, error: 'User is not banned — ban the account first' };
   }
 
-  await BannedIdentity.create({
+  const bannedDoc = await BannedIdentity.create({
     email:          user.email || null,
     googleId:       user.googleId || null,
     facebookId:     user.facebookId || null,
@@ -226,7 +226,7 @@ exports.hardDeleteUser = async function ({ userId, moderatorId }) {
   try {
     await User.findByIdAndDelete(userId);
   } catch (err) {
-    BannedIdentity.deleteOne({ originalUserId: String(userId) }).catch((rbErr) =>
+    BannedIdentity.deleteOne({ _id: bannedDoc._id }).catch((rbErr) =>
       console.error('[banService] hardDeleteUser rollback failed:', rbErr.message)
     );
     throw err;

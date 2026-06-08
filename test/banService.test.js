@@ -57,6 +57,14 @@ test('checkBannedIdentity — excludes undefined fields from $or query', async (
   await banService.checkBannedIdentity({ email: 'x@y.com' });
 });
 
+test('checkBannedIdentity — returns banned:true with reason:null when match has no reason', async () => {
+  mockFindOne.mock.mockImplementationOnce(() =>
+    Promise.resolve({ reason: undefined })
+  );
+  const result = await banService.checkBannedIdentity({ email: 'noreason@b.com' });
+  assert.deepEqual(result, { banned: true, reason: null });
+});
+
 test('checkBannedIdentity — returns banned:false immediately when no identifiers provided', async () => {
   const callsBefore = mockFindOne.mock.calls.length;
   const result = await banService.checkBannedIdentity({});
@@ -93,7 +101,7 @@ test('hardDeleteUser — creates BannedIdentity and deletes user on success', as
     bannedAt: new Date('2026-01-01'),
   };
   mockUserFindById.mock.mockImplementationOnce(() => Promise.resolve(fakeUser));
-  mockCreate.mock.mockImplementationOnce(() => Promise.resolve({}));
+  mockCreate.mock.mockImplementationOnce(() => Promise.resolve({ _id: 'bannedDoc1' }));
   mockUserFindByIdAndDelete.mock.mockImplementationOnce(() => Promise.resolve({}));
   mockAuditLogAction.mock.mockImplementationOnce(() => Promise.resolve());
 
@@ -104,4 +112,43 @@ test('hardDeleteUser — creates BannedIdentity and deletes user on success', as
   assert.equal(result.ok, true);
   assert.equal(mockCreate.mock.calls.length, callsBefore + 1);
   assert.equal(mockUserFindByIdAndDelete.mock.calls.length, deleteBefore + 1);
+
+  // Verify the payload passed to BannedIdentity.create
+  const createPayload = mockCreate.mock.calls[callsBefore].arguments[0];
+  assert.equal(createPayload.email, 'bad@b.com');
+  assert.equal(createPayload.moderatorId, 'mod1');
+  assert.equal(createPayload.originalUserId, 'abc123');
+});
+
+test('hardDeleteUser — calls BannedIdentity.deleteOne for rollback when User.findByIdAndDelete throws', async () => {
+  const fakeUser = {
+    _id: 'abc123',
+    isBanned: true,
+    email: 'bad@b.com',
+    googleId: null,
+    facebookId: null,
+    appleId: null,
+    banReason: 'spam',
+    bannedAt: new Date('2026-01-01'),
+  };
+  mockUserFindById.mock.mockImplementationOnce(() => Promise.resolve(fakeUser));
+  mockCreate.mock.mockImplementationOnce(() => Promise.resolve({ _id: 'bannedDoc2' }));
+  mockUserFindByIdAndDelete.mock.mockImplementationOnce(() =>
+    Promise.reject(new Error('DB error'))
+  );
+  mockDeleteOne.mock.mockImplementationOnce(() => Promise.resolve());
+
+  const deleteOneBefore = mockDeleteOne.mock.calls.length;
+
+  await assert.rejects(
+    () => banService.hardDeleteUser({ userId: 'abc123', moderatorId: 'mod1' }),
+    /DB error/
+  );
+
+  // Give the fire-and-forget deleteOne a tick to run
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(mockDeleteOne.mock.calls.length, deleteOneBefore + 1);
+  const rollbackQuery = mockDeleteOne.mock.calls[deleteOneBefore].arguments[0];
+  assert.deepEqual(rollbackQuery, { _id: 'bannedDoc2' });
 });

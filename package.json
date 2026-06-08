@@ -12,7 +12,7 @@
     "migrate:chat-performance": "node migrations/addChatPerformanceIndexes.js",
     "migrate:leaderboard-indexes": "node migrations/addLeaderboardMatchingIndexes.js",
     "migrate:notif-v2-c1": "node migrations/addQuietHoursAndCounters.js",
-    "test": "node --test services/*.test.js"
+    "test": "node --experimental-test-module-mocks --test services/*.test.js test/*.test.js"
   },
   "author": "Firdavs Mutalipov",
   "license": "ISC",
