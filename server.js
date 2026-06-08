@@ -7,6 +7,8 @@ const colors = require('colors');
 const cookieParser = require('cookie-parser');
 const errorHandler = require('./middleware/error');
 const connectDb = require('./config/db');
+const flameRouter = require('./flame');
+const flameDb = require('./flame/db');
 const mongoSanitize = require('express-mongo-sanitize');
 const helmet = require('helmet');
 const xss = require('xss-clean');
@@ -24,6 +26,9 @@ dotenv.config({ path: './config/config.env' });
 
 // Connect to database
 connectDb();
+flameDb.connect().catch((err) => {
+  console.error('🔥 Flame disabled:', err.message);
+});
 
 // Route files
 const moments = require('./routes/moments');
@@ -320,6 +325,9 @@ app.use('/api/v1/fitbowl/kitchen', fitbowlKitchen);
 app.use('/api/v1/fitbowl/reviews', fitbowlReviews);
 app.use('/api/v1/fitbowl/promos', fitbowlPromos);
 
+// Flame sub-app (isolated DB, JWT secret, Spaces bucket)
+app.use('/flamebackend/v1', flameRouter);
+
 // Error request logger (logs failed requests)
 app.use(errorRequestLogger);
 
@@ -388,6 +396,7 @@ const gracefulShutdown = async (signal, exitCode = 0) => {
     console.log('🗄️  Closing database connection...'.cyan);
     const mongoose = require('mongoose');
     await mongoose.connection.close();
+    try { await flameDb.close(); } catch (e) { console.error('Flame close error:', e.message); }
 
     // 4. Clear the force exit timeout
     clearTimeout(forceExitTimeout);
