@@ -9,7 +9,7 @@ const mongoose = require('mongoose');
  */
 const BannedIdentitySchema = new mongoose.Schema(
   {
-    email:          { type: String, index: true, sparse: true },
+    email:          { type: String, index: true, sparse: true, lowercase: true },
     googleId:       { type: String, index: true, sparse: true },
     facebookId:     { type: String, index: true, sparse: true },
     appleId:        { type: String, index: true, sparse: true },

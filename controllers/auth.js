@@ -180,6 +180,7 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
 
     const banCheck = await banService.checkBannedIdentity({ appleId, email: email || null });
     if (banCheck.banned) {
+      logSecurityEvent('BANNED_IDENTITY_REJECTED', { endpoint: 'appleMobileLogin' });
       return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
     }
 
@@ -295,6 +296,7 @@ exports.facebookCallback = asyncHandler(async (req, res, next) => {
   passport.authenticate('facebook', { session: false }, async (err, user) => {
     if (err) {
       if (err.code === 'BANNED') {
+        logSecurityEvent('BANNED_IDENTITY_REJECTED', { endpoint: 'facebookCallback' });
         return next(new ErrorResponse(err.message, 403));
       }
       console.error('Facebook auth callback error:', err);
@@ -339,6 +341,7 @@ exports.googleCallback = asyncHandler(async (req, res, next) => {
   passport.authenticate('google', { session: false }, async (err, user) => {
     if (err) {
       if (err.code === 'BANNED') {
+        logSecurityEvent('BANNED_IDENTITY_REJECTED', { endpoint: 'googleCallback' });
         return next(new ErrorResponse(err.message, 403));
       }
       console.error('Google auth callback error:', err);
@@ -411,6 +414,7 @@ exports.register = asyncHandler(async (req, res, next) => {
 
   const banCheck = await banService.checkBannedIdentity({ email });
   if (banCheck.banned) {
+    logSecurityEvent('BANNED_IDENTITY_REJECTED', { endpoint: 'register' });
     return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
   }
 
@@ -496,6 +500,7 @@ exports.login = asyncHandler(async (req, res, next) => {
 
   const banCheck = await banService.checkBannedIdentity({ email });
   if (banCheck.banned) {
+    logSecurityEvent('BANNED_IDENTITY_REJECTED', { endpoint: 'login' });
     return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
   }
 
@@ -769,6 +774,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
 
   const banCheck = await banService.checkBannedIdentity({ email });
   if (banCheck.banned) {
+    logSecurityEvent('BANNED_IDENTITY_REJECTED', { endpoint: 'sendVerificationCode' });
     return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
   }
 
@@ -1469,6 +1475,7 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
 
     const banCheck = await banService.checkBannedIdentity({ googleId, email });
     if (banCheck.banned) {
+      logSecurityEvent('BANNED_IDENTITY_REJECTED', { endpoint: 'googleMobileLogin' });
       return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
     }
 

@@ -188,7 +188,7 @@ exports.changeUserRole = async function ({
 
 exports.checkBannedIdentity = async function ({ email, googleId, facebookId, appleId } = {}) {
   const conditions = [];
-  if (email)      conditions.push({ email });
+  if (email)      conditions.push({ email: email.toLowerCase() });
   if (googleId)   conditions.push({ googleId });
   if (facebookId) conditions.push({ facebookId });
   if (appleId)    conditions.push({ appleId });
@@ -212,7 +212,7 @@ exports.hardDeleteUser = async function ({ userId, moderatorId }) {
   }
 
   const bannedDoc = await BannedIdentity.create({
-    email:          user.email || null,
+    email:          user.email ? user.email.toLowerCase() : null,
     googleId:       user.googleId || null,
     facebookId:     user.facebookId || null,
     appleId:        user.appleId || null,
