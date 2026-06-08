@@ -48,17 +48,10 @@ exports.banUser = async function ({ userId, reason, moderatorId, source, io }) {
     return { ok: false, error: 'User not found' };
   }
 
-  await User.findByIdAndUpdate(userId, {
-    isBanned: true,
-    banReason: reason || 'Banned by moderator',
-    bannedAt: new Date(),
-  });
+  const banReason = reason || 'Banned by moderator';
+  const bannedAt = new Date();
 
-  // Auto-end active voice rooms hosted by the banned user. Mirrors the
-  // canonical flow at controllers/voiceRooms.js#endVoiceRoom — room.end()
-  // (instance method sets status='ended', endedAt=now) → livekitAdmin.endRoom()
-  // → socket emits to both the room channel and the lobby. This evicts
-  // participants from LiveKit audio AND updates the lobby listing.
+  // Auto-end active voice rooms hosted by the banned user.
   const activeRooms = await VoiceRoom.find({
     host: userId,
     status: { $in: ['waiting', 'active'] },
@@ -84,19 +77,33 @@ exports.banUser = async function ({ userId, reason, moderatorId, source, io }) {
     }
   }
 
-  // Clear FCM tokens so banned user stops getting push.
-  await User.findByIdAndUpdate(userId, { $set: { fcmTokens: [] } });
-
-  // Send the banned user an email explaining the ban. Fire-and-forget.
-  emailService.sendBanNotification(userId, reason).catch((err) =>
+  // Send ban email before deleting the user — emailService does its own
+  // User.findById internally, so it must run while the record still exists.
+  await emailService.sendBanNotification(userId, banReason).catch((err) =>
     console.error('[banService] sendBanNotification failed:', err.message)
   );
+
+  // Permanently blacklist the user's identifiers so they cannot re-register.
+  await BannedIdentity.create({
+    email:          user.email ? user.email.toLowerCase() : null,
+    googleId:       user.googleId   || null,
+    facebookId:     user.facebookId || null,
+    appleId:        user.appleId    || null,
+    reason:         banReason,
+    bannedAt,
+    deletedAt:      new Date(),
+    moderatorId:    String(moderatorId),
+    originalUserId: String(user._id),
+  });
+
+  // Hard-delete the user record.
+  await User.findByIdAndDelete(userId);
 
   await AdminAuditLog.logAction({
     moderator: moderatorId,
     action: 'user_banned',
     target: userId,
-    reason,
+    reason: banReason,
     source,
     details: { activeRoomsEnded: activeRooms.length },
   });
