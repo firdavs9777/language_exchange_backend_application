@@ -1,5 +1,12 @@
 const mongoose = require('mongoose');
 
+/**
+ * BannedIdentity — permanent account blacklist.
+ *
+ * Stores identifiers (email + social IDs) from hard-deleted banned users.
+ * Checked at every auth entry point to prevent re-registration.
+ * Append-only; no TTL — bans must be permanent by design.
+ */
 const BannedIdentitySchema = new mongoose.Schema(
   {
     email:          { type: String, index: true, sparse: true },
