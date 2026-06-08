@@ -31,6 +31,7 @@
 const User = require('../models/User');
 const VoiceRoom = require('../models/VoiceRoom');
 const AdminAuditLog = require('../models/AdminAuditLog');
+const BannedIdentity = require('../models/BannedIdentity');
 const livekitAdmin = require('./livekitAdminService');
 const emailService = require('./emailService');
 
@@ -183,4 +184,63 @@ exports.changeUserRole = async function ({
   });
 
   return { ok: true, previousRole, newRole: role };
+};
+
+exports.checkBannedIdentity = async function ({ email, googleId, facebookId, appleId } = {}) {
+  const conditions = [];
+  if (email)      conditions.push({ email });
+  if (googleId)   conditions.push({ googleId });
+  if (facebookId) conditions.push({ facebookId });
+  if (appleId)    conditions.push({ appleId });
+
+  if (conditions.length === 0) return { banned: false };
+
+  const match = await BannedIdentity.findOne({ $or: conditions });
+  if (!match) return { banned: false };
+  return { banned: true, reason: match.reason || null };
+};
+
+exports.hardDeleteUser = async function ({ userId, moderatorId }) {
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return { ok: false, error: 'User not found' };
+  }
+
+  if (!user.isBanned) {
+    return { ok: false, error: 'User is not banned — ban the account first' };
+  }
+
+  await BannedIdentity.create({
+    email:          user.email || null,
+    googleId:       user.googleId || null,
+    facebookId:     user.facebookId || null,
+    appleId:        user.appleId || null,
+    reason:         user.banReason || null,
+    bannedAt:       user.bannedAt || null,
+    deletedAt:      new Date(),
+    moderatorId:    String(moderatorId),
+    originalUserId: String(user._id),
+  });
+
+  try {
+    await User.findByIdAndDelete(userId);
+  } catch (err) {
+    BannedIdentity.deleteOne({ originalUserId: String(userId) }).catch((rbErr) =>
+      console.error('[banService] hardDeleteUser rollback failed:', rbErr.message)
+    );
+    throw err;
+  }
+
+  AdminAuditLog.logAction({
+    moderator: moderatorId,
+    action: 'user_hard_deleted',
+    target: userId,
+    reason: user.banReason || null,
+    source: 'manual',
+  }).catch((err) =>
+    console.error('[banService] hardDeleteUser audit log failed:', err.message)
+  );
+
+  return { ok: true };
 };
