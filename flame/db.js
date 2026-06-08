@@ -3,11 +3,14 @@ const logger = require('./utils/logger');
 
 let flameConn = null;
 
-async function connect() {
-  if (flameConn && flameConn.readyState === 1) return flameConn;
+// Lazily create the connection object so model files can call getConn() at
+// module-load time without first awaiting connect(). mongoose.createConnection()
+// returns synchronously; models can bind to a connection that is still opening.
+function ensureConn() {
+  if (flameConn) return flameConn;
 
   const uri = process.env.FLAME_MONGO_URI;
-  if (!uri) throw new Error('FLAME_MONGO_URI not set');
+  if (!uri) throw new Error('FLAME_MONGO_URI not set — check config/config.env');
 
   flameConn = mongoose.createConnection(uri, {
     maxPoolSize: 10,
@@ -20,13 +23,17 @@ async function connect() {
   flameConn.on('error',        (err) => logger.error(`Mongo error: ${err.message}`));
   flameConn.on('disconnected', () => logger.warn('MongoDB disconnected'));
 
-  await flameConn.asPromise();
+  return flameConn;
+}
+
+async function connect() {
+  ensureConn();
+  if (flameConn.readyState !== 1) await flameConn.asPromise();
   return flameConn;
 }
 
 function getConn() {
-  if (!flameConn) throw new Error('Flame DB not initialized — call connect() first');
-  return flameConn;
+  return ensureConn();
 }
 
 async function close() {

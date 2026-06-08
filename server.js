@@ -7,8 +7,6 @@ const colors = require('colors');
 const cookieParser = require('cookie-parser');
 const errorHandler = require('./middleware/error');
 const connectDb = require('./config/db');
-const flameRouter = require('./flame');
-const flameDb = require('./flame/db');
 const mongoSanitize = require('express-mongo-sanitize');
 const helmet = require('helmet');
 const xss = require('xss-clean');
@@ -23,6 +21,11 @@ const { initializeFitBowlSocket } = require('./socket/fitbowlHandler');
 
 // Load environment variables
 dotenv.config({ path: './config/config.env' });
+
+// Flame requires MUST come AFTER dotenv.config() — flame/models/User.js calls
+// getConn() at module-load time, which reads FLAME_MONGO_URI from process.env.
+const flameDb = require('./flame/db');
+const flameRouter = require('./flame');
 
 // Connect to database
 connectDb();
