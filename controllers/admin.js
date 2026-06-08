@@ -65,8 +65,9 @@ exports.searchUsers = asyncHandler(async (req, res, next) => {
  * @desc    List all currently banned user accounts (with OAuth IDs for blacklist preview).
  * @route   GET /api/v1/admin/banned-users
  * @access  Admin
+ * @query   page (default 1), limit (default 20, max 50), search (email/name/username)
  */
-exports.getBannedUsers = asyncHandler(async (req, res) => {
+exports.getBannedUsers = asyncHandler(async (req, res, next) => {
   const page  = Math.max(1, parseInt(req.query.page)  || 1);
   const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
   const skip  = (page - 1) * limit;
