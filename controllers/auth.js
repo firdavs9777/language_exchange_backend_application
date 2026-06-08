@@ -3,6 +3,7 @@ const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const sendEmail = require('../utils/sendEmail');
 const emailService = require('../services/emailService');
+const banService = require('../services/banService');
 const crypto = require('crypto');
 const passport = require('passport');
 const FacebookStrategy = require('passport-facebook').Strategy;
@@ -162,6 +163,11 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
     });
     
     const { sub: appleId, email } = appleResponse;
+
+    const banCheck = await banService.checkBannedIdentity({ appleId, email: email || null });
+    if (banCheck.banned) {
+      return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
+    }
 
     // Try to find existing user by Apple ID
     let user = await User.findOne({ appleId });
@@ -383,6 +389,11 @@ exports.register = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Native language and language to learn cannot be the same', 400));
   }
 
+  const banCheck = await banService.checkBannedIdentity({ email });
+  if (banCheck.banned) {
+    return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
+  }
+
   // Find user by email
   const user = await User.findOne({ email });
 
@@ -462,7 +473,12 @@ exports.login = asyncHandler(async (req, res, next) => {
   if (!email || !password) {
     return next(new ErrorResponse('Please provide an email and password', 400));
   }
-  
+
+  const banCheck = await banService.checkBannedIdentity({ email });
+  if (banCheck.banned) {
+    return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
+  }
+
   // Check for user
   const user = await User.findOne({ email }).select('+password +loginAttempts +lockUntil');
   
@@ -729,6 +745,11 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   const emailRegex = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
   if (!emailRegex.test(email)) {
     return next(new ErrorResponse('Please provide a valid email address', 400));
+  }
+
+  const banCheck = await banService.checkBannedIdentity({ email });
+  if (banCheck.banned) {
+    return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
   }
 
   // Check if user already exists and is fully registered
@@ -1425,6 +1446,11 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
     
     const payload = ticket.getPayload();
     const { sub: googleId, email, name, picture } = payload;
+
+    const banCheck = await banService.checkBannedIdentity({ googleId, email });
+    if (banCheck.banned) {
+      return next(new ErrorResponse('This account has been permanently suspended and cannot be reactivated.', 403));
+    }
 
     // Try to find existing user by Google ID
     let user = await User.findOne({ googleId });
