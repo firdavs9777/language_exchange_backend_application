@@ -12,6 +12,8 @@ const {
   getAIUsage,
   getAIUsageLogs,
   getActivity,
+  getBannedUsers,
+  hardDeleteUser,
 } = require('../controllers/admin');
 
 // Every endpoint in this file requires an authenticated admin.
@@ -23,6 +25,8 @@ router.get('/users/:id', getUserDetail);
 router.post('/users/:id/ban', banUser);
 router.post('/users/:id/unban', unbanUser);
 router.put('/users/:id/role', changeRole);
+router.get('/banned-users', getBannedUsers);
+router.delete('/users/:id', hardDeleteUser);
 
 router.get('/audit-log', getAuditLog);
 router.get('/stats', getStats);
