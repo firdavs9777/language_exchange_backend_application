@@ -473,6 +473,18 @@ bannedAt: {
     type: String,
     default: ''
   },
+  occupation: {
+    type: String,
+    default: '',
+    maxlength: 80,
+    trim: true
+  },
+  school: {
+    type: String,
+    default: '',
+    maxlength: 80,
+    trim: true
+  },
   birth_year: {
     type: String,
     required: function() {
@@ -490,6 +502,13 @@ bannedAt: {
     required: function() {
       return !this.googleId && !this.facebookId && !this.appleId;
     }
+  },
+  // Tracks every successful birthdate change. updateUser caps it to ≤3 inside
+  // any trailing 60-day window. Array stays small in practice — kept inline
+  // rather than in a sub-collection.
+  birthDateChangesAt: {
+    type: [Date],
+    default: []
   },
   images: {
     type: [String],

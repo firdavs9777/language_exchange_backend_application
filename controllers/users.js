@@ -9,8 +9,8 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
-const USER_PUBLIC_FIELDS = 'name username bio images native_language language_to_learn level languageLevel streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
-const USER_LIST_FIELDS = 'name username images native_language language_to_learn level languageLevel userMode location followers following isOnline lastActive gender birth_year birth_month birth_day bio vipSubscription.isActive topics createdAt';
+const USER_PUBLIC_FIELDS = 'name username bio occupation school images native_language language_to_learn level languageLevel streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
+const USER_LIST_FIELDS = 'name username images native_language language_to_learn level languageLevel userMode location followers following isOnline lastActive gender birth_year birth_month birth_day bio occupation school vipSubscription.isActive topics createdAt';
 
 
 
@@ -442,8 +442,10 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not authorized to update this user', 403));
   }
 
-  // Filter out sensitive fields that users cannot update themselves
-  const restrictedFields = ['role', 'userMode', 'vipSubscription', 'fcmTokens', 'password', 'email'];
+  // Filter out sensitive fields that users cannot update themselves.
+  // birthDateChangesAt is a server-managed audit trail — clients can never
+  // write it directly (we append to it ourselves below when birth changes).
+  const restrictedFields = ['role', 'userMode', 'vipSubscription', 'fcmTokens', 'password', 'email', 'birthDateChangesAt'];
   const updateData = { ...req.body };
 
   // Only admins can update restricted fields
@@ -452,12 +454,84 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
   }
 
   // Validate that native_language and language_to_learn are different
-  const existingUser = await User.findById(req.params.id).select('native_language language_to_learn');
+  const existingUser = await User.findById(req.params.id).select('native_language language_to_learn birth_year birth_month birth_day birthDateChangesAt');
   const newNativeLanguage = (updateData.native_language || existingUser?.native_language || '').toLowerCase().trim();
   const newLanguageToLearn = (updateData.language_to_learn || existingUser?.language_to_learn || '').toLowerCase().trim();
 
   if (newNativeLanguage && newLanguageToLearn && newNativeLanguage === newLanguageToLearn) {
     return next(new ErrorResponse('Native language and language to learn cannot be the same', 400));
+  }
+
+  // Birthdate change handling: validate the proposed date, enforce the
+  // ≤3-changes-per-60-days cap (sliding window), and append a timestamp to
+  // birthDateChangesAt on accept. Admins bypass the cap so support can fix
+  // user mistakes.
+  const birthTouched = ['birth_year', 'birth_month', 'birth_day'].some(
+    f => f in updateData
+  );
+  if (birthTouched && existingUser) {
+    const currentDate = `${existingUser.birth_year}-${existingUser.birth_month}-${existingUser.birth_day}`;
+    const newYear = updateData.birth_year ?? existingUser.birth_year ?? '';
+    const newMonth = updateData.birth_month ?? existingUser.birth_month ?? '';
+    const newDay = updateData.birth_day ?? existingUser.birth_day ?? '';
+    const newDate = `${newYear}-${newMonth}-${newDay}`;
+
+    if (newDate !== currentDate) {
+      // Real-date validation — reject e.g. 2025-02-31 by round-tripping
+      // through Date and confirming the components survived.
+      const y = parseInt(newYear, 10);
+      const m = parseInt(newMonth, 10);
+      const d = parseInt(newDay, 10);
+      const dt = new Date(y, m - 1, d);
+      if (
+        !y || !m || !d ||
+        dt.getFullYear() !== y ||
+        dt.getMonth() !== m - 1 ||
+        dt.getDate() !== d
+      ) {
+        return next(new ErrorResponse('Invalid birthdate', 400));
+      }
+
+      // Min age 13 (COPPA floor).
+      const now = new Date();
+      let age = now.getFullYear() - y;
+      const beforeBirthdayThisYear =
+        now.getMonth() < m - 1 ||
+        (now.getMonth() === m - 1 && now.getDate() < d);
+      if (beforeBirthdayThisYear) age -= 1;
+      if (age < 13) {
+        return next(new ErrorResponse('You must be at least 13 years old', 400));
+      }
+
+      // Rate limit: ≤3 changes in any trailing 60-day window. Admins skip
+      // the cap so support can correct mistakes.
+      if (req.user.role !== 'admin') {
+        const windowMs = 60 * 24 * 60 * 60 * 1000;
+        const cutoff = Date.now() - windowMs;
+        const recent = (existingUser.birthDateChangesAt || [])
+          .map(d => new Date(d))
+          .filter(d => d.getTime() > cutoff);
+        if (recent.length >= 3) {
+          const earliestInWindow = recent
+            .slice()
+            .sort((a, b) => a.getTime() - b.getTime())[0];
+          const nextAvailableAt = new Date(earliestInWindow.getTime() + windowMs);
+          return res.status(429).json({
+            success: false,
+            error: 'Birthdate can be changed at most 3 times per 60 days',
+            nextAvailableAt: nextAvailableAt.toISOString(),
+            remainingChanges: 0,
+          });
+        }
+      }
+
+      // Record the change (server-controlled — we already stripped any
+      // client-supplied birthDateChangesAt above).
+      updateData.birthDateChangesAt = [
+        ...(existingUser.birthDateChangesAt || []),
+        new Date(),
+      ];
+    }
   }
 
   const user = await User.findByIdAndUpdate(req.params.id, updateData, {

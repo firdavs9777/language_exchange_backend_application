@@ -73,6 +73,7 @@ const languages = [
   // === CENTRAL ASIAN ===
   { code: 'uz', name: 'Uzbek', nativeName: 'Oʻzbekcha', flag: '🇺🇿' },
   { code: 'kk', name: 'Kazakh', nativeName: 'Қазақша', flag: '🇰🇿' },
+  { code: 'tg', name: 'Tajik', nativeName: 'Тоҷикӣ', flag: '🇹🇯' },
   { code: 'mn', name: 'Mongolian', nativeName: 'Монгол', flag: '🇲🇳' },
 ];
 
