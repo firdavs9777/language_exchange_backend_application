@@ -64,17 +64,116 @@ const languages = [
   { code: 'hu', name: 'Hungarian', nativeName: 'Magyar', flag: '🇭🇺' },
   { code: 'tr', name: 'Turkish', nativeName: 'Türkçe', flag: '🇹🇷' },
 
+  // === ENGLISH VARIANTS ===
+  { code: 'en-US', name: 'English (US)', nativeName: 'English (US)', flag: '🇺🇸' },
+  { code: 'en-GB', name: 'English (UK)', nativeName: 'English (UK)', flag: '🇬🇧' },
+
+  // === MORE EAST ASIAN ===
+  { code: 'zh-HK', name: 'Cantonese', nativeName: '粵語', flag: '🇭🇰' },
+
+  // === MORE SOUTH ASIAN ===
+  { code: 'pa', name: 'Punjabi', nativeName: 'ਪੰਜਾਬੀ', flag: '🇮🇳' },
+  { code: 'gu', name: 'Gujarati', nativeName: 'ગુજરાતી', flag: '🇮🇳' },
+  { code: 'kn', name: 'Kannada', nativeName: 'ಕನ್ನಡ', flag: '🇮🇳' },
+  { code: 'ml', name: 'Malayalam', nativeName: 'മലയാളം', flag: '🇮🇳' },
+  { code: 'or', name: 'Odia', nativeName: 'ଓଡ଼ିଆ', flag: '🇮🇳' },
+  { code: 'as', name: 'Assamese', nativeName: 'অসমীয়া', flag: '🇮🇳' },
+  { code: 'sd', name: 'Sindhi', nativeName: 'سنڌي', flag: '🇵🇰' },
+  { code: 'ks', name: 'Kashmiri', nativeName: 'کٲشُر', flag: '🇮🇳' },
+  { code: 'dv', name: 'Dhivehi', nativeName: 'ދިވެހި', flag: '🇲🇻' },
+
   // === MIDDLE EAST & AFRICA ===
   { code: 'he', name: 'Hebrew', nativeName: 'עברית', flag: '🇮🇱' },
   { code: 'fa', name: 'Persian', nativeName: 'فارسی', flag: '🇮🇷' },
+  { code: 'ps', name: 'Pashto', nativeName: 'پښتو', flag: '🇦🇫' },
+  { code: 'prs', name: 'Dari', nativeName: 'دری', flag: '🇦🇫' },
+  { code: 'ku', name: 'Kurdish', nativeName: 'Kurdî', flag: '🇮🇶' },
   { code: 'sw', name: 'Swahili', nativeName: 'Kiswahili', flag: '🇰🇪' },
   { code: 'am', name: 'Amharic', nativeName: 'አማርኛ', flag: '🇪🇹' },
+  { code: 'ti', name: 'Tigrinya', nativeName: 'ትግርኛ', flag: '🇪🇷' },
+  { code: 'om', name: 'Oromo', nativeName: 'Afaan Oromoo', flag: '🇪🇹' },
+  { code: 'so', name: 'Somali', nativeName: 'Soomaali', flag: '🇸🇴' },
+  { code: 'af', name: 'Afrikaans', nativeName: 'Afrikaans', flag: '🇿🇦' },
+  { code: 'zu', name: 'Zulu', nativeName: 'isiZulu', flag: '🇿🇦' },
+  { code: 'xh', name: 'Xhosa', nativeName: 'isiXhosa', flag: '🇿🇦' },
+  { code: 'st', name: 'Sesotho', nativeName: 'Sesotho', flag: '🇱🇸' },
+  { code: 'tn', name: 'Setswana', nativeName: 'Setswana', flag: '🇧🇼' },
+  { code: 'sn', name: 'Shona', nativeName: 'chiShona', flag: '🇿🇼' },
+  { code: 'rw', name: 'Kinyarwanda', nativeName: 'Ikinyarwanda', flag: '🇷🇼' },
+  { code: 'lg', name: 'Luganda', nativeName: 'Oluganda', flag: '🇺🇬' },
+  { code: 'ny', name: 'Chichewa', nativeName: 'Chichewa', flag: '🇲🇼' },
+  { code: 'mg', name: 'Malagasy', nativeName: 'Malagasy', flag: '🇲🇬' },
+  { code: 'yo', name: 'Yoruba', nativeName: 'Yorùbá', flag: '🇳🇬' },
+  { code: 'ig', name: 'Igbo', nativeName: 'Igbo', flag: '🇳🇬' },
+  { code: 'ha', name: 'Hausa', nativeName: 'Hausa', flag: '🇳🇬' },
+  { code: 'wo', name: 'Wolof', nativeName: 'Wolof', flag: '🇸🇳' },
+  { code: 'ff', name: 'Fula', nativeName: 'Fulfulde', flag: '🇸🇳' },
 
   // === CENTRAL ASIAN ===
   { code: 'uz', name: 'Uzbek', nativeName: 'Oʻzbekcha', flag: '🇺🇿' },
   { code: 'kk', name: 'Kazakh', nativeName: 'Қазақша', flag: '🇰🇿' },
+  { code: 'ky', name: 'Kyrgyz', nativeName: 'Кыргызча', flag: '🇰🇬' },
   { code: 'tg', name: 'Tajik', nativeName: 'Тоҷикӣ', flag: '🇹🇯' },
+  { code: 'tk', name: 'Turkmen', nativeName: 'Türkmençe', flag: '🇹🇲' },
   { code: 'mn', name: 'Mongolian', nativeName: 'Монгол', flag: '🇲🇳' },
+
+  // === CAUCASUS ===
+  { code: 'ka', name: 'Georgian', nativeName: 'ქართული', flag: '🇬🇪' },
+  { code: 'hy', name: 'Armenian', nativeName: 'Հայերեն', flag: '🇦🇲' },
+  { code: 'az', name: 'Azerbaijani', nativeName: 'Azərbaycanca', flag: '🇦🇿' },
+
+  // === MORE EUROPEAN — SLAVIC ===
+  { code: 'bg', name: 'Bulgarian', nativeName: 'Български', flag: '🇧🇬' },
+  { code: 'sr', name: 'Serbian', nativeName: 'Српски', flag: '🇷🇸' },
+  { code: 'hr', name: 'Croatian', nativeName: 'Hrvatski', flag: '🇭🇷' },
+  { code: 'sk', name: 'Slovak', nativeName: 'Slovenčina', flag: '🇸🇰' },
+  { code: 'sl', name: 'Slovenian', nativeName: 'Slovenščina', flag: '🇸🇮' },
+  { code: 'bs', name: 'Bosnian', nativeName: 'Bosanski', flag: '🇧🇦' },
+  { code: 'mk', name: 'Macedonian', nativeName: 'Македонски', flag: '🇲🇰' },
+  { code: 'be', name: 'Belarusian', nativeName: 'Беларуская', flag: '🇧🇾' },
+
+  // === MORE EUROPEAN — BALTIC ===
+  { code: 'et', name: 'Estonian', nativeName: 'Eesti', flag: '🇪🇪' },
+  { code: 'lv', name: 'Latvian', nativeName: 'Latviešu', flag: '🇱🇻' },
+  { code: 'lt', name: 'Lithuanian', nativeName: 'Lietuvių', flag: '🇱🇹' },
+
+  // === MORE EUROPEAN — ROMANCE / GERMANIC / CELTIC / OTHER ===
+  { code: 'ca', name: 'Catalan', nativeName: 'Català', flag: '🇪🇸' },
+  { code: 'gl', name: 'Galician', nativeName: 'Galego', flag: '🇪🇸' },
+  { code: 'eu', name: 'Basque', nativeName: 'Euskara', flag: '🇪🇸' },
+  { code: 'oc', name: 'Occitan', nativeName: 'Occitan', flag: '🇫🇷' },
+  { code: 'is', name: 'Icelandic', nativeName: 'Íslenska', flag: '🇮🇸' },
+  { code: 'lb', name: 'Luxembourgish', nativeName: 'Lëtzebuergesch', flag: '🇱🇺' },
+  { code: 'fy', name: 'Frisian', nativeName: 'Frysk', flag: '🇳🇱' },
+  { code: 'fo', name: 'Faroese', nativeName: 'Føroyskt', flag: '🇫🇴' },
+  { code: 'ga', name: 'Irish', nativeName: 'Gaeilge', flag: '🇮🇪' },
+  { code: 'cy', name: 'Welsh', nativeName: 'Cymraeg', flag: '🏴󠁧󠁢󠁷󠁬󠁳󠁿' },
+  { code: 'gd', name: 'Scottish Gaelic', nativeName: 'Gàidhlig', flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿' },
+  { code: 'br', name: 'Breton', nativeName: 'Brezhoneg', flag: '🇫🇷' },
+  { code: 'mt', name: 'Maltese', nativeName: 'Malti', flag: '🇲🇹' },
+  { code: 'sq', name: 'Albanian', nativeName: 'Shqip', flag: '🇦🇱' },
+
+  // === PACIFIC / OCEANIA ===
+  { code: 'mi', name: 'Maori', nativeName: 'Te Reo Māori', flag: '🇳🇿' },
+  { code: 'sm', name: 'Samoan', nativeName: 'Gagana Samoa', flag: '🇼🇸' },
+  { code: 'to', name: 'Tongan', nativeName: 'Lea Faka-Tonga', flag: '🇹🇴' },
+  { code: 'fj', name: 'Fijian', nativeName: 'Vosa Vakaviti', flag: '🇫🇯' },
+  { code: 'haw', name: 'Hawaiian', nativeName: 'ʻŌlelo Hawaiʻi', flag: '🇺🇸' },
+
+  // === AMERICAS — INDIGENOUS & CREOLE ===
+  { code: 'ht', name: 'Haitian Creole', nativeName: 'Kreyòl Ayisyen', flag: '🇭🇹' },
+  { code: 'qu', name: 'Quechua', nativeName: 'Runa Simi', flag: '🇵🇪' },
+  { code: 'gn', name: 'Guarani', nativeName: 'Avañeʼẽ', flag: '🇵🇾' },
+
+  // === CONSTRUCTED / CLASSICAL ===
+  { code: 'eo', name: 'Esperanto', nativeName: 'Esperanto', flag: '🌐' },
+  { code: 'la', name: 'Latin', nativeName: 'Latina', flag: '🏛️' },
+
+  // === SIGN LANGUAGES ===
+  { code: 'ase', name: 'American Sign Language', nativeName: 'ASL', flag: '🤟' },
+  { code: 'bfi', name: 'British Sign Language', nativeName: 'BSL', flag: '🤟' },
+  { code: 'jsl', name: 'Japanese Sign Language', nativeName: '日本手話', flag: '🤟' },
+  { code: 'kvk', name: 'Korean Sign Language', nativeName: '한국 수어', flag: '🤟' },
 ];
 
 const seedLanguages = async () => {
