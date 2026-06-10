@@ -1,0 +1,35 @@
+name: Seed languages
+
+# Manually triggered: GitHub UI → Actions → "Seed languages" → Run workflow.
+# Uses the same DigitalOcean droplet credentials as deploy.yml. The seed
+# does deleteMany({}) + create(...) on the Language collection — safe
+# because users reference languages by string name/code, not Mongo _id.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: seed-languages-production
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: Run language seed on droplet
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and run seed
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USER }}
+          key: ${{ secrets.DROPLET_SSH_KEY }}
+          port: ${{ secrets.DROPLET_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -e
+            cd /home/language_exchange_backend_application
+            echo "==> Pulling latest from main (ensures seed file is current)"
+            git fetch --all
+            git reset --hard origin/main
+            echo "==> Running language seed"
+            node seeds/languages.js
+            echo "==> Seed complete"
