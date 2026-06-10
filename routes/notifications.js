@@ -16,6 +16,7 @@ const {
 
 const {
   registerToken,
+  registerVoipToken,
   removeToken,
   getSettings,
   updateSettings,
@@ -50,6 +51,11 @@ router.post(
   validate,
   registerToken
 );
+
+// iOS-only PushKit VoIP token registration. Validation is intentionally
+// lightweight — the controller checks presence and the token shape is
+// platform-supplied (Apple) hex.
+router.post('/register-voip-token', registerVoipToken);
 
 // Settings Management
 router.get('/settings', getSettings);

@@ -58,6 +58,51 @@ exports.registerToken = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * @desc    Register iOS PushKit VoIP token
+ * @route   POST /api/v1/notifications/register-voip-token
+ * @access  Private
+ *
+ * VoIP tokens are distinct from FCM tokens and only exist on iOS. They
+ * require their own APNs auth key with the "VoIP Services" capability;
+ * see services/voipPushService.js for the sender.
+ */
+exports.registerVoipToken = asyncHandler(async (req, res, next) => {
+  const { voipToken, deviceId } = req.body;
+  const userId = req.user.id;
+
+  if (!voipToken || !deviceId) {
+    return next(new ErrorResponse('voipToken and deviceId are required', 400));
+  }
+
+  const user = await User.findById(userId);
+  if (!user) {
+    return next(new ErrorResponse('User not found', 404));
+  }
+
+  if (!Array.isArray(user.voipTokens)) {
+    user.voipTokens = [];
+  }
+
+  const idx = user.voipTokens.findIndex(t => t.deviceId === deviceId);
+  if (idx !== -1) {
+    user.voipTokens[idx].token = voipToken;
+    user.voipTokens[idx].lastUpdated = new Date();
+    user.voipTokens[idx].active = voipToken.length > 0;
+  } else if (voipToken.length > 0) {
+    user.voipTokens.push({
+      token: voipToken,
+      deviceId,
+      lastUpdated: new Date(),
+      active: true
+    });
+  }
+
+  await user.save();
+  console.log(`✅ Registered VoIP token for user ${userId}, device ${deviceId}`);
+  res.status(200).json({ success: true, data: { deviceId } });
+});
+
+/**
  * @desc    Remove FCM token
  * @route   DELETE /api/v1/notifications/remove-token/:deviceId
  * @access  Public (can be called during/after logout)

@@ -17,6 +17,7 @@ const User = require('../models/User');
 const { mintRoomToken } = require('../services/livekitService');
 const livekitAdmin = require('../services/livekitAdminService');
 const fcmService = require('../services/fcmService');
+const voipPushService = require('../services/voipPushService');
 const { shouldNotify } = require('../services/notificationService');
 
 /**
@@ -231,6 +232,25 @@ exports.initiateCall = asyncHandler(async (req, res, next) => {
         roomName,
       }
     ).catch(err => console.error('[calls.initiate] FCM error:', err.message));
+
+    // iOS PushKit VoIP delivery — separate from FCM because Apple
+    // aggressively throttles silent pushes when the app is killed.
+    // VoIP pushes bypass that throttling and wake the app for CallKit.
+    // Payload keys here MUST match what AppDelegate.swift parses in
+    // pushRegistry(_:didReceiveIncomingPushWith:...).
+    voipPushService.sendToUser(receiver, {
+      id: call._id.toString(),
+      nameCaller: caller.name || 'Caller',
+      handle: callerId,
+      isVideo: type === 'video',
+      callType: type,
+      callerId,
+      callerName: caller.name || '',
+      callerProfilePicture: callerAvatar,
+      livekitToken: receiverToken.token,
+      livekitUrl: receiverToken.url,
+      roomName,
+    }).catch(err => console.error('[calls.initiate] VoIP push error:', err.message));
   } else {
     console.log(`[calls.initiate] Skipping FCM push to ${receiverId} (calls pref off)`);
   }

@@ -96,6 +96,19 @@ const UserSchema = new mongoose.Schema({
       default: true
     }
   }],
+
+  // VoIP push tokens (iOS PushKit only). Stored separately from fcmTokens
+  // because Apple issues a distinct token for VoIP that requires its own
+  // APNs auth key with the "VoIP Services" capability. Incoming-call pushes
+  // dispatched via this token reach the device even when the app is killed,
+  // bypassing the silent-FCM-push throttling that makes regular pushes
+  // unreliable for ringing UX on iOS. See services/voipPushService.js.
+  voipTokens: [{
+    token: { type: String, required: true },
+    deviceId: { type: String, required: true },
+    lastUpdated: { type: Date, default: Date.now },
+    active: { type: Boolean, default: true }
+  }],
   
   // NOTIFICATION SETTINGS
   notificationSettings: {
