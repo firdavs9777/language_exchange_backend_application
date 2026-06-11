@@ -911,201 +911,248 @@ Server Uptime: ${stats.backendHealth?.uptime || 'N/A'}`
 
 /**
  * New user registration notification for admin
+ *
+ * Redesigned layout — single scannable card with compact hero, stats strip,
+ * profile / languages / location / bio / signup-tech / photos sections.
+ * `context` is optional and carries request-time info (platform, device,
+ * totalUsers) that the User document doesn't have.
  */
-exports.newUserNotificationEmail = (user) => {
-  // Ensure images is a valid array of strings
+exports.newUserNotificationEmail = (user, context = {}) => {
   const images = Array.isArray(user.images)
     ? user.images.filter(img => img && typeof img === 'string' && img.startsWith('http'))
     : [];
-
-  // Get profile photo URL (first image)
   const profilePhoto = images.length > 0 ? images[0] : null;
 
-  // Get location info
+  // ----- Computed display values -----
   const location = user.location || {};
-  const locationStr = [location.city, location.country].filter(Boolean).join(', ') || 'Not specified';
+  const locationStr = [location.city, location.state, location.country].filter(Boolean).join(', ') || '—';
+  const hasCoords = Array.isArray(location.coordinates) && location.coordinates.length === 2;
+  const mapsLink = hasCoords
+    ? `https://www.google.com/maps?q=${location.coordinates[1]},${location.coordinates[0]}`
+    : null;
 
-  // Get birth date
   const birthDate = user.birth_year && user.birth_month && user.birth_day
-    ? `${user.birth_year}-${user.birth_month}-${user.birth_day}`
-    : 'Not specified';
+    ? `${user.birth_year}-${String(user.birth_month).padStart(2, '0')}-${String(user.birth_day).padStart(2, '0')}`
+    : null;
 
-  // Generate photo gallery HTML
-  const photoGalleryHtml = images.length > 0
-    ? `
-      <h3 style="color: #11998e; margin: 25px 0 15px 0; font-size: 16px;">Photos (${images.length}):</h3>
-      <table width="100%" cellpadding="5" cellspacing="0">
-        <tr>
-          ${images.slice(0, 5).map((img, i) => `
-            <td width="20%" align="center" style="vertical-align: top;">
-              <a href="${img}" target="_blank">
-                <img src="${img}" alt="Photo ${i + 1}" style="width: 100px; height: 100px; object-fit: cover; border-radius: 8px; border: 2px solid #e0e0e0;">
-              </a>
-            </td>
-          `).join('')}
-        </tr>
-      </table>
-      <p style="font-size: 12px; color: #888; margin: 10px 0 0 0;">Click photos to view full size</p>
-    `
-    : '<p style="color: #888; font-style: italic;">No photos uploaded</p>';
+  // Age computed from birthdate, with a sanity floor (negative or >120 → null)
+  let age = null;
+  if (user.birth_year) {
+    const now = new Date();
+    const yearDiff = now.getFullYear() - parseInt(user.birth_year, 10);
+    if (Number.isFinite(yearDiff) && yearDiff > 0 && yearDiff < 120) {
+      const m = parseInt(user.birth_month, 10);
+      const d = parseInt(user.birth_day, 10);
+      const hadBirthdayThisYear = m && d
+        ? (now.getMonth() + 1 > m) || (now.getMonth() + 1 === m && now.getDate() >= d)
+        : true;
+      age = hadBirthdayThisYear ? yearDiff : yearDiff - 1;
+    }
+  }
 
+  // Auth provider — derived from which *Id field is populated
+  const provider = user.googleId ? 'Google'
+    : user.facebookId ? 'Facebook'
+    : user.appleId ? 'Apple'
+    : 'Email';
+
+  // Platform badge — prefer the request-time value, fall back to persisted field
+  const platform = (context.platform || user.signupPlatform || 'unknown').toLowerCase();
+  const platformBadges = {
+    ios:     { label: 'iOS',     emoji: '📱', color: '#007aff' },
+    android: { label: 'Android', emoji: '🤖', color: '#3ddc84' },
+    web:     { label: 'Web',     emoji: '🌐', color: '#6c757d' },
+    unknown: { label: 'Unknown', emoji: '❔', color: '#999999' }
+  };
+  const pBadge = platformBadges[platform] || platformBadges.unknown;
+
+  const totalUsers = Number.isFinite(context.totalUsers) ? context.totalUsers : null;
+  const userOrdinal = totalUsers ? `#${totalUsers.toLocaleString()}` : null;
+
+  const device = context.device || {};
+  const userAgentShort = (device.userAgent || '').slice(0, 140);
+
+  const isVip = !!user.vipSubscription?.isActive;
+  const followersCount = Array.isArray(user.followers) ? user.followers.length : 0;
+  const followingCount = Array.isArray(user.following) ? user.following.length : 0;
+
+  // ----- Small reusable bits -----
+  const row = (label, value) => `
+    <tr>
+      <td style="font-size:13px;color:#888;padding:6px 0;width:140px;">${label}</td>
+      <td style="font-size:14px;color:#222;padding:6px 0;font-weight:500;">${value || '<span style="color:#bbb;font-weight:normal;">—</span>'}</td>
+    </tr>`;
+
+  const card = (title, accent, rowsHtml) => `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fafbfc;border-left:3px solid ${accent};border-radius:8px;margin:14px 0;">
+      <tr><td style="padding:16px 20px;">
+        <div style="font-size:12px;font-weight:600;color:${accent};letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px;">${title}</div>
+        <table width="100%" cellpadding="0" cellspacing="0">${rowsHtml}</table>
+      </td></tr>
+    </table>`;
+
+  const statChip = (emoji, label, value) => `
+    <td align="center" valign="top" style="padding:8px 4px;">
+      <div style="font-size:20px;line-height:1;">${emoji}</div>
+      <div style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-top:6px;">${label}</div>
+      <div style="font-size:14px;color:#222;font-weight:600;margin-top:2px;">${value || '—'}</div>
+    </td>`;
+
+  // ----- Sections -----
+  const heroAvatar = profilePhoto
+    ? `<a href="${profilePhoto}" target="_blank"><img src="${profilePhoto}" alt="${user.name}" style="width:84px;height:84px;border-radius:50%;object-fit:cover;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.15);"></a>`
+    : `<div style="width:84px;height:84px;border-radius:50%;background:rgba(255,255,255,.25);text-align:center;line-height:84px;font-size:36px;color:#fff;">👤</div>`;
+
+  const heroBadgesHtml = `
+    <span style="display:inline-block;background:rgba(255,255,255,.22);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin-right:6px;">${pBadge.emoji} ${pBadge.label}</span>
+    <span style="display:inline-block;background:rgba(255,255,255,.22);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin-right:6px;">${provider}</span>
+    ${isVip ? `<span style="display:inline-block;background:#f7971e;color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin-right:6px;">👑 VIP</span>` : ''}
+    ${userOrdinal ? `<span style="display:inline-block;background:rgba(255,255,255,.22);color:#fff;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;">User ${userOrdinal}</span>` : ''}
+  `;
+
+  const statsStripHtml = `
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f6f8fb;border-radius:8px;margin:16px 0 8px 0;">
+      <tr>
+        ${statChip('🎂', 'Age', age ?? '—')}
+        ${statChip('⚧', 'Gender', user.gender || '—')}
+        ${statChip('🌍', 'Country', location.country || '—')}
+        ${statChip('🗣️', 'Native', user.native_language || '—')}
+        ${statChip('🎯', 'Learning', user.language_to_learn || '—')}
+      </tr>
+    </table>`;
+
+  const accountRows =
+    row('User ID', `<span style="font-family:monospace;font-size:12px;">${user._id || ''}</span>`) +
+    row('Username', user.username ? `@${user.username}` : '') +
+    row('Email', `<a href="mailto:${user.email}" style="color:#11998e;text-decoration:none;">${user.email}</a>`) +
+    row('Auth Provider', provider) +
+    row('Account Created', user.createdAt ? new Date(user.createdAt).toLocaleString() : '') +
+    row('Email Verified', user.isEmailVerified ? '✅ Yes' : '❌ No') +
+    row('Terms Accepted', user.termsAccepted ? `✅ Yes${user.termsAcceptedDate ? ` (${new Date(user.termsAcceptedDate).toLocaleDateString()})` : ''}` : '❌ No') +
+    row('User Mode', user.userMode || 'regular') +
+    row('VIP', isVip ? `👑 ${user.vipSubscription.plan || 'Active'}` : 'No') +
+    row('Followers / Following', `${followersCount} / ${followingCount}`);
+
+  const profileRows =
+    row('Birth Date', birthDate) +
+    row('Age', age) +
+    row('Gender', user.gender) +
+    row('MBTI', user.mbti) +
+    row('Blood Type', user.bloodType) +
+    row('Occupation', user.occupation) +
+    row('School', user.school);
+
+  const langRows =
+    row('Native Language', user.native_language) +
+    row('Learning', user.language_to_learn);
+
+  const locationRows =
+    row('Address', location.formattedAddress) +
+    row('City', location.city) +
+    row('State / Region', location.state) +
+    row('Country', location.country) +
+    row('Coordinates', hasCoords
+      ? `<a href="${mapsLink}" target="_blank" style="color:#11998e;text-decoration:none;">${location.coordinates[1].toFixed(4)}, ${location.coordinates[0].toFixed(4)} ↗</a>`
+      : '');
+
+  const bioHtml = user.bio
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="background:#fff9e6;border-left:3px solid #f7971e;border-radius:8px;margin:14px 0;">
+         <tr><td style="padding:16px 20px;">
+           <div style="font-size:12px;font-weight:600;color:#f7971e;letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px;">Bio</div>
+           <div style="font-size:14px;color:#333;line-height:1.6;font-style:italic;">“${user.bio}”</div>
+         </td></tr>
+       </table>`
+    : '';
+
+  const signupTechRows =
+    row('Platform', `${pBadge.emoji} <span style="color:${pBadge.color};font-weight:600;">${pBadge.label}</span>`) +
+    row('Device Type', device.device) +
+    row('IP Address', device.ipAddress ? `<span style="font-family:monospace;font-size:12px;">${device.ipAddress}</span>` : '') +
+    row('User Agent', userAgentShort ? `<span style="font-family:monospace;font-size:11px;color:#555;word-break:break-all;">${userAgentShort}</span>` : '');
+
+  const photosHtml = images.length > 0
+    ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:14px 0;">
+         <tr><td style="padding:0;">
+           <div style="font-size:12px;font-weight:600;color:#11998e;letter-spacing:.5px;text-transform:uppercase;margin-bottom:10px;">Photos (${images.length})</div>
+           <table cellpadding="0" cellspacing="6"><tr>
+             ${images.slice(0, 6).map((img) => `
+               <td valign="top">
+                 <a href="${img}" target="_blank"><img src="${img}" alt="" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid #e0e0e0;display:block;"></a>
+               </td>`).join('')}
+           </tr></table>
+           ${images.length > 6 ? `<div style="font-size:12px;color:#999;margin-top:8px;">+${images.length - 6} more</div>` : ''}
+         </td></tr>
+       </table>`
+    : '';
+
+  // ----- Compose -----
   const content = `
     <tr>
-      <td style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">New User Completed Profile!</h1>
-        <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 10px 0 0 0;">${new Date().toLocaleString()}</p>
+      <td style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 28px 30px;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td width="94" valign="top">${heroAvatar}</td>
+            <td valign="top" style="padding-left:18px;">
+              <div style="color:rgba(255,255,255,.85);font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:600;">New User Joined</div>
+              <h1 style="color:#fff;margin:4px 0 2px 0;font-size:22px;line-height:1.2;">${user.name || 'Unnamed'}</h1>
+              <div style="color:rgba(255,255,255,.9);font-size:13px;margin-bottom:10px;">@${user.username || 'no-username'} · ${user.email}</div>
+              ${heroBadgesHtml}
+              <div style="color:rgba(255,255,255,.75);font-size:11px;margin-top:10px;">${new Date().toLocaleString()}</div>
+            </td>
+          </tr>
+        </table>
       </td>
     </tr>
     <tr>
-      <td style="padding: 40px 30px;">
-
-        <!-- Profile Header with Photo -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 25px;">
-          <tr>
-            <td width="120" style="vertical-align: top;">
-              ${profilePhoto
-                ? `<a href="${profilePhoto}" target="_blank"><img src="${profilePhoto}" alt="${user.name}" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 4px solid #11998e;"></a>`
-                : `<div style="width: 100px; height: 100px; border-radius: 50%; background: #e0e0e0; display: flex; align-items: center; justify-content: center; font-size: 36px; color: #999;">👤</div>`
-              }
-            </td>
-            <td style="vertical-align: middle; padding-left: 20px;">
-              <h2 style="margin: 0; color: #333; font-size: 24px;">${user.name}</h2>
-              <p style="margin: 5px 0 0 0; color: #11998e; font-size: 16px; font-weight: bold;">@${user.username || 'N/A'}</p>
-              <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">${user.email}</p>
-            </td>
-          </tr>
-        </table>
-
-        <!-- User Details -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9ff; border-radius: 12px; padding: 20px; margin: 20px 0;">
-          <tr>
-            <td>
-              <h3 style="color: #11998e; margin: 0 0 15px 0; font-size: 16px;">Basic Info:</h3>
-              <table width="100%" cellpadding="8" cellspacing="0">
-                <tr>
-                  <td style="font-size: 14px; color: #666; width: 140px;">User ID:</td>
-                  <td style="font-size: 14px; color: #333; font-family: monospace;">${user._id || 'N/A'}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 14px; color: #666;">Gender:</td>
-                  <td style="font-size: 14px; color: #333; font-weight: bold;">${user.gender || 'Not specified'}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 14px; color: #666;">Birth Date:</td>
-                  <td style="font-size: 14px; color: #333;">${birthDate}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 14px; color: #666;">Location:</td>
-                  <td style="font-size: 14px; color: #333;">${locationStr}</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-
-        <!-- Language Info -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fff4; border-radius: 12px; padding: 20px; margin: 20px 0;">
-          <tr>
-            <td>
-              <h3 style="color: #11998e; margin: 0 0 15px 0; font-size: 16px;">Language Info:</h3>
-              <table width="100%" cellpadding="8" cellspacing="0">
-                <tr>
-                  <td style="font-size: 14px; color: #666; width: 140px;">Native Language:</td>
-                  <td style="font-size: 14px; color: #333; font-weight: bold;">${user.native_language || 'Not specified'}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 14px; color: #666;">Learning:</td>
-                  <td style="font-size: 14px; color: #333; font-weight: bold;">${user.language_to_learn || 'Not specified'}</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-
-        <!-- Bio -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff9e6; border-radius: 12px; padding: 20px; margin: 20px 0;">
-          <tr>
-            <td>
-              <h3 style="color: #f7971e; margin: 0 0 10px 0; font-size: 16px;">Bio:</h3>
-              <p style="font-size: 14px; color: #333; line-height: 1.6; margin: 0; font-style: italic;">"${user.bio || 'No bio provided'}"</p>
-            </td>
-          </tr>
-        </table>
-
-        <!-- Additional Info -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f5; border-radius: 12px; padding: 20px; margin: 20px 0;">
-          <tr>
-            <td>
-              <h3 style="color: #666; margin: 0 0 15px 0; font-size: 16px;">Additional Info:</h3>
-              <table width="100%" cellpadding="8" cellspacing="0">
-                <tr>
-                  <td style="font-size: 14px; color: #666; width: 140px;">MBTI:</td>
-                  <td style="font-size: 14px; color: #333;">${user.mbti || 'Not specified'}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 14px; color: #666;">Blood Type:</td>
-                  <td style="font-size: 14px; color: #333;">${user.bloodType || 'Not specified'}</td>
-                </tr>
-                <tr>
-                  <td style="font-size: 14px; color: #666;">VIP Status:</td>
-                  <td style="font-size: 14px; color: ${user.vipSubscription?.isActive ? '#f7971e' : '#666'}; font-weight: bold;">
-                    ${user.vipSubscription?.isActive ? '👑 VIP (' + (user.vipSubscription.plan || 'Active') + ')' : 'Regular User'}
-                  </td>
-                </tr>
-                <tr>
-                  <td style="font-size: 14px; color: #666;">Account Created:</td>
-                  <td style="font-size: 14px; color: #333;">${user.createdAt ? new Date(user.createdAt).toLocaleString() : 'N/A'}</td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-
-        <!-- Photo Gallery -->
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff; border: 1px solid #e0e0e0; border-radius: 12px; padding: 20px; margin: 20px 0;">
-          <tr>
-            <td>
-              ${photoGalleryHtml}
-            </td>
-          </tr>
-        </table>
-
-        <!-- Photo URLs (for easy copying) -->
-        ${images.length > 0 ? `
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0f0f0; border-radius: 8px; padding: 15px; margin: 20px 0;">
-          <tr>
-            <td>
-              <h4 style="color: #666; margin: 0 0 10px 0; font-size: 14px;">Photo URLs (click to copy):</h4>
-              ${images.map((img, i) => `
-                <p style="font-size: 12px; color: #333; margin: 5px 0; word-break: break-all;">
-                  <strong>Photo ${i + 1}:</strong> <a href="${img}" target="_blank" style="color: #11998e;">${img}</a>
-                </p>
-              `).join('')}
-            </td>
-          </tr>
-        </table>
-        ` : ''}
-
-        <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
-          This is an automated notification for ${APP_NAME} administrators.
+      <td style="padding: 24px 30px;">
+        ${statsStripHtml}
+        ${card('Account', '#11998e', accountRows)}
+        ${card('Profile', '#5865f2', profileRows)}
+        ${card('Languages', '#38ef7d', langRows)}
+        ${card('Location', '#11998e', locationRows)}
+        ${bioHtml}
+        ${card('Signup Environment', '#999999', signupTechRows)}
+        ${photosHtml}
+        <p style="font-size:12px;color:#999;text-align:center;margin:24px 0 0 0;">
+          Automated admin notification · ${APP_NAME}
         </p>
       </td>
     </tr>
   `;
 
+  // Plain-text fallback — kept structured but compact
+  const textLines = [
+    `New user joined ${APP_NAME}`,
+    `─────────────────────────`,
+    `Name:        ${user.name || '—'}`,
+    `Username:    @${user.username || '—'}`,
+    `Email:       ${user.email}`,
+    `Provider:    ${provider}`,
+    `Platform:    ${pBadge.label}`,
+    userOrdinal ? `User #:      ${userOrdinal}` : null,
+    `Age:         ${age ?? '—'}`,
+    `Gender:      ${user.gender || '—'}`,
+    `Birth Date:  ${birthDate || '—'}`,
+    `MBTI:        ${user.mbti || '—'}`,
+    `Blood Type:  ${user.bloodType || '—'}`,
+    `Occupation:  ${user.occupation || '—'}`,
+    `School:      ${user.school || '—'}`,
+    `Native:      ${user.native_language || '—'}`,
+    `Learning:    ${user.language_to_learn || '—'}`,
+    `Location:    ${locationStr}`,
+    `VIP:         ${isVip ? (user.vipSubscription.plan || 'Active') : 'No'}`,
+    `Verified:    ${user.isEmailVerified ? 'Yes' : 'No'}`,
+    `Created:     ${user.createdAt ? new Date(user.createdAt).toLocaleString() : '—'}`,
+    `IP:          ${device.ipAddress || '—'}`,
+    `User-Agent:  ${userAgentShort || '—'}`,
+    `Bio:         ${user.bio || '—'}`,
+    images.length ? `Photos:      ${images.length}\n  - ${images.join('\n  - ')}` : `Photos:      None`
+  ].filter(Boolean);
+
   return {
-    subject: `[${APP_NAME}] New User: ${user.name} (@${user.username || 'N/A'}) completed profile!`,
+    subject: `[${APP_NAME}] ${pBadge.emoji} ${user.name || 'New user'} (@${user.username || '?'}) · ${pBadge.label}${userOrdinal ? ` · ${userOrdinal}` : ''}`,
     html: baseTemplate(content, '#11998e'),
-    text: `New user completed profile on ${APP_NAME}:
-Name: ${user.name}
-Username: @${user.username || 'N/A'}
-Email: ${user.email}
-Gender: ${user.gender || 'N/A'}
-Location: ${locationStr}
-Native Language: ${user.native_language || 'N/A'}
-Learning: ${user.language_to_learn || 'N/A'}
-Bio: ${user.bio || 'N/A'}
-Photos: ${images.length > 0 ? images.join('\n') : 'None'}`
+    text: textLines.join('\n')
   };
 };
 

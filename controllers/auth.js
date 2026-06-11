@@ -10,7 +10,7 @@ const FacebookStrategy = require('passport-facebook').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
 const { logSecurityEvent } = require('../utils/securityLogger');
-const { getDeviceInfo } = require('../validators/authValidator');
+const { getDeviceInfo, detectPlatform } = require('../validators/authValidator');
 const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
 const { generateUsername } = require('../utils/generateUsername');
 
@@ -466,6 +466,13 @@ exports.register = asyncHandler(async (req, res, next) => {
     user.termsAcceptedDate = new Date();
   }
 
+  // Capture signup environment (best-effort, never blocks registration)
+  user.signupPlatform = detectPlatform(req);
+  const signupContext = {
+    platform: user.signupPlatform,
+    device: getDeviceInfo(req)
+  };
+
   await user.save();
 
   // Send welcome email (async, don't block response)
@@ -475,7 +482,7 @@ exports.register = asyncHandler(async (req, res, next) => {
 
   // Send new user notification to admin with full user data (async, don't block response)
   User.findById(user._id).lean().then(fullUser => {
-    emailService.sendNewUserNotification(ADMIN_EMAIL, fullUser).catch(err =>
+    emailService.sendNewUserNotification(ADMIN_EMAIL, fullUser, signupContext).catch(err =>
       console.error('Failed to send new user notification to admin:', err)
     );
   });
@@ -1258,8 +1265,15 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
   }
 
   // Check if profile was previously incomplete (for sending notification)
-  const userBeforeUpdate = await User.findById(req.user.id).select('profileCompleted username name email gender native_language language_to_learn');
+  const userBeforeUpdate = await User.findById(req.user.id).select('profileCompleted username name email gender native_language language_to_learn signupPlatform');
   const wasProfileIncomplete = !userBeforeUpdate?.profileCompleted;
+
+  // Capture signupPlatform on first profile completion (OAuth users skip the
+  // email /register path, so this is the earliest reliable moment for them).
+  // We only set it if it's still 'unknown' to avoid overwriting prior captures.
+  if (wasProfileIncomplete && (!userBeforeUpdate?.signupPlatform || userBeforeUpdate.signupPlatform === 'unknown')) {
+    fieldsToUpdate.signupPlatform = detectPlatform(req);
+  }
 
   // If user explicitly sets profileCompleted to true, respect that
   // Otherwise auto-set based on required fields being present
@@ -1298,7 +1312,11 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
       console.log(`🎉 New user completed profile: ${user.email}`);
       // Fetch full user data for the notification email (including all fields)
       const fullUser = await User.findById(user._id).lean();
-      emailService.sendNewUserNotification(ADMIN_EMAIL, fullUser).catch(err =>
+      const signupContext = {
+        platform: fullUser?.signupPlatform || detectPlatform(req),
+        device: getDeviceInfo(req)
+      };
+      emailService.sendNewUserNotification(ADMIN_EMAIL, fullUser, signupContext).catch(err =>
         console.error('Failed to send new user notification to admin:', err)
       );
     }

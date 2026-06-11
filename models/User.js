@@ -265,6 +265,15 @@ const UserSchema = new mongoose.Schema({
   type: Boolean,
   default: false
 },
+// Client OS at signup, inferred from the User-Agent header. Best-effort —
+// see detectPlatform() in validators/authValidator.js. Captured once at
+// register/profile-completion and never updated, so this reflects the
+// original signup environment even if the user later switches devices.
+signupPlatform: {
+  type: String,
+  enum: ['ios', 'android', 'web', 'unknown'],
+  default: 'unknown'
+},
 role: {
   type: String,
   enum: ['user', 'admin'],  // Add enum

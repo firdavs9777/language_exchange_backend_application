@@ -308,7 +308,7 @@ exports.acceptTermsValidation = [
 exports.getDeviceInfo = (req) => {
   const userAgent = req.get('user-agent') || 'Unknown';
   const ipAddress = req.ip || req.connection.remoteAddress || 'Unknown';
-  
+
   // Simple device detection
   let device = 'Unknown';
   if (userAgent.includes('Mobile')) {
@@ -318,11 +318,26 @@ exports.getDeviceInfo = (req) => {
   } else if (userAgent.includes('Desktop') || userAgent.includes('Windows') || userAgent.includes('Mac') || userAgent.includes('Linux')) {
     device = 'Desktop';
   }
-  
+
   return {
     device,
     ipAddress,
     userAgent
   };
+};
+
+// Best-effort OS detection from the User-Agent header. Mobile HTTP clients
+// (CFNetwork on iOS, okhttp on Android) leak enough fingerprints to classify
+// most native/RN signups without any client cooperation. Returns one of
+// 'ios' | 'android' | 'web' | 'unknown'. Treat as a hint, not a source of
+// truth — the authoritative value is fcmTokens[].platform once the device
+// registers for push.
+exports.detectPlatform = (req) => {
+  const ua = (req.get('user-agent') || '').toLowerCase();
+  if (!ua) return 'unknown';
+  if (/(iphone|ipad|ipod|cfnetwork|darwin|ios)/.test(ua)) return 'ios';
+  if (/(android|okhttp|dalvik)/.test(ua)) return 'android';
+  if (/(mozilla|chrome|safari|firefox|edge|webkit)/.test(ua)) return 'web';
+  return 'unknown';
 };
 

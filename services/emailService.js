@@ -267,19 +267,30 @@ exports.sendPromotionalEmail = async (user, promoData) => {
 
 /**
  * Send new user notification to admin
+ *
+ * @param adminEmail   recipient
+ * @param user         lean User document (already fetched by caller)
+ * @param context      { platform, device } captured at the HTTP entry point
  */
-exports.sendNewUserNotification = async (adminEmail, user) => {
+exports.sendNewUserNotification = async (adminEmail, user, context = {}) => {
   try {
-    // Log user data for debugging
     console.log(`📧 Preparing new user notification for: ${user.email}`);
     console.log(`   - Name: ${user.name}`);
     console.log(`   - Username: @${user.username || 'N/A'}`);
+    console.log(`   - Platform: ${context.platform || user.signupPlatform || 'unknown'}`);
     console.log(`   - Images: ${user.images ? user.images.length : 0} photo(s)`);
-    if (user.images && user.images.length > 0) {
-      user.images.forEach((img, i) => console.log(`     Photo ${i + 1}: ${img}`));
+
+    // User count milestone — counts only fully-registered accounts so the
+    // number matches what the admin sees in dashboards. A best-effort lookup;
+    // fall back to null if the count fails so the email still sends.
+    let totalUsers = null;
+    try {
+      totalUsers = await User.countDocuments({ isRegistrationComplete: true });
+    } catch (err) {
+      console.error('Failed to count users for new-user notification:', err.message);
     }
 
-    const template = templates.newUserNotificationEmail(user);
+    const template = templates.newUserNotificationEmail(user, { ...context, totalUsers });
     await sendEmail({
       email: adminEmail,
       subject: template.subject,
