@@ -1064,9 +1064,17 @@ exports.newUserNotificationEmail = (user, context = {}) => {
        </table>`
     : '';
 
+  // Prefer the rich device fields (deviceModel/osVersion/appVersion) when the
+  // Flutter client sent them via clientInfo; fall back to the UA-derived
+  // device bucket otherwise.
+  const appVersionLabel = device.appVersion
+    ? `${device.appVersion}${device.appBuild ? ` (${device.appBuild})` : ''}`
+    : '';
   const signupTechRows =
     row('Platform', `${pBadge.emoji} <span style="color:${pBadge.color};font-weight:600;">${pBadge.label}</span>`) +
-    row('Device Type', device.device) +
+    row('Device', device.deviceModel || device.device) +
+    row('OS Version', device.osVersion) +
+    row('App Version', appVersionLabel) +
     row('IP Address', device.ipAddress ? `<span style="font-family:monospace;font-size:12px;">${device.ipAddress}</span>` : '') +
     row('User Agent', userAgentShort ? `<span style="font-family:monospace;font-size:11px;color:#555;word-break:break-all;">${userAgentShort}</span>` : '');
 
@@ -1143,6 +1151,9 @@ exports.newUserNotificationEmail = (user, context = {}) => {
     `VIP:         ${isVip ? (user.vipSubscription.plan || 'Active') : 'No'}`,
     `Verified:    ${user.isEmailVerified ? 'Yes' : 'No'}`,
     `Created:     ${user.createdAt ? new Date(user.createdAt).toLocaleString() : '—'}`,
+    `Device:      ${device.deviceModel || device.device || '—'}`,
+    device.osVersion ? `OS:          ${device.osVersion}` : null,
+    appVersionLabel ? `App:         ${appVersionLabel}` : null,
     `IP:          ${device.ipAddress || '—'}`,
     `User-Agent:  ${userAgentShort || '—'}`,
     `Bio:         ${user.bio || '—'}`,

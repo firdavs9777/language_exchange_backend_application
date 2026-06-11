@@ -341,3 +341,27 @@ exports.detectPlatform = (req) => {
   return 'unknown';
 };
 
+// Authoritative client info — the Flutter app sends device_info_plus /
+// package_info_plus values in `req.body.clientInfo` on /auth/register and
+// /auth/updatedetails (Dart's default User-Agent matches none of the
+// detectPlatform regex tokens, so UA-only attribution buckets every native
+// signup as 'unknown'). Returns a sanitized object plus a `platform` value
+// that prefers the body field and falls back to the UA sniff.
+const ALLOWED_PLATFORMS = new Set(['ios', 'android', 'web', 'unknown']);
+const truncate = (v, max = 120) =>
+  typeof v === 'string' ? v.trim().slice(0, max) : '';
+
+exports.pickClientInfo = (req) => {
+  const raw = (req.body && typeof req.body.clientInfo === 'object' && req.body.clientInfo) || {};
+  const bodyPlatform = typeof raw.platform === 'string' ? raw.platform.toLowerCase() : '';
+  const platform = ALLOWED_PLATFORMS.has(bodyPlatform) ? bodyPlatform : exports.detectPlatform(req);
+
+  return {
+    platform,
+    deviceModel: truncate(raw.deviceModel),
+    osVersion: truncate(raw.osVersion),
+    appVersion: truncate(raw.appVersion, 40),
+    appBuild: truncate(raw.appBuild, 40),
+  };
+};
+

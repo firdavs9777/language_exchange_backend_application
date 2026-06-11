@@ -10,7 +10,7 @@ const FacebookStrategy = require('passport-facebook').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
 const { logSecurityEvent } = require('../utils/securityLogger');
-const { getDeviceInfo, detectPlatform } = require('../validators/authValidator');
+const { getDeviceInfo, detectPlatform, pickClientInfo } = require('../validators/authValidator');
 const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
 const { generateUsername } = require('../utils/generateUsername');
 
@@ -466,11 +466,15 @@ exports.register = asyncHandler(async (req, res, next) => {
     user.termsAcceptedDate = new Date();
   }
 
-  // Capture signup environment (best-effort, never blocks registration)
-  user.signupPlatform = detectPlatform(req);
+  // Capture signup environment (best-effort, never blocks registration). The
+  // Flutter app posts device_info_plus / package_info_plus values under
+  // req.body.clientInfo; pickClientInfo prefers them over UA sniffing because
+  // Dart's default User-Agent matches none of the detectPlatform regex tokens.
+  const clientInfo = pickClientInfo(req);
+  user.signupPlatform = clientInfo.platform;
   const signupContext = {
-    platform: user.signupPlatform,
-    device: getDeviceInfo(req)
+    platform: clientInfo.platform,
+    device: { ...getDeviceInfo(req), ...clientInfo }
   };
 
   await user.save();
@@ -1271,8 +1275,9 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
   // Capture signupPlatform on first profile completion (OAuth users skip the
   // email /register path, so this is the earliest reliable moment for them).
   // We only set it if it's still 'unknown' to avoid overwriting prior captures.
+  const profileClientInfo = pickClientInfo(req);
   if (wasProfileIncomplete && (!userBeforeUpdate?.signupPlatform || userBeforeUpdate.signupPlatform === 'unknown')) {
-    fieldsToUpdate.signupPlatform = detectPlatform(req);
+    fieldsToUpdate.signupPlatform = profileClientInfo.platform;
   }
 
   // If user explicitly sets profileCompleted to true, respect that
@@ -1313,8 +1318,8 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
       // Fetch full user data for the notification email (including all fields)
       const fullUser = await User.findById(user._id).lean();
       const signupContext = {
-        platform: fullUser?.signupPlatform || detectPlatform(req),
-        device: getDeviceInfo(req)
+        platform: fullUser?.signupPlatform || profileClientInfo.platform,
+        device: { ...getDeviceInfo(req), ...profileClientInfo }
       };
       emailService.sendNewUserNotification(ADMIN_EMAIL, fullUser, signupContext).catch(err =>
         console.error('Failed to send new user notification to admin:', err)

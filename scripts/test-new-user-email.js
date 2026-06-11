@@ -74,7 +74,11 @@ const mockContext = {
   device: {
     device: 'Mobile',
     ipAddress: '203.0.113.42',
-    userAgent: 'Bananatalk/3.2.1 (iPhone; iOS 17.5.1; Scale/3.00) CFNetwork/1494.0.7 Darwin/23.5.0'
+    userAgent: 'Bananatalk/3.2.1 (iPhone; iOS 17.5.1; Scale/3.00) CFNetwork/1494.0.7 Darwin/23.5.0',
+    deviceModel: 'iPhone16,1',
+    osVersion: 'iOS 17.5.1',
+    appVersion: '3.2.1',
+    appBuild: '482'
   }
 };
 
