@@ -20,6 +20,9 @@ const mongoose = require('mongoose');
 
 // Cache TTL
 const RECOMMENDATIONS_CACHE_TTL = 1800; // 30 minutes
+const SEEN_SET_TTL = 24 * 60 * 60;      // 24h — keep the "recently shown" decay window in sync with this
+const SEEN_SET_MAX = 200;               // cap the seen-set so we don't grow it unbounded per user
+const CONVO_RECENCY_DAYS = 14;          // only exclude conversation partners with messages in the last N days
 
 /**
  * @desc    Get personalized language partner recommendations
@@ -46,7 +49,7 @@ exports.getRecommendations = asyncHandler(async (req, res, next) => {
 
   // Get current user data
   const currentUser = await User.findById(userId).select(
-    'native_language language_to_learn location interests following followers blockedUsers blockedBy lastActive'
+    'native_language language_to_learn location blockedUsers blockedBy lastActive'
   );
 
   if (!currentUser) {
@@ -56,34 +59,50 @@ exports.getRecommendations = asyncHandler(async (req, res, next) => {
   // Get blocked user IDs
   const blockedIds = await getBlockedUserIds(userId);
 
-  // Get users already in conversation
-  const existingConvos = await Conversation.find({
-    participants: userId
+  // Only exclude conversation partners we've actually been talking to in the
+  // last N days — old one-off chats shouldn't bury someone from recommendations
+  // forever. Uses the existing {participants:1, lastMessageAt:-1} compound index.
+  const convoRecencyCutoff = new Date(Date.now() - CONVO_RECENCY_DAYS * 24 * 60 * 60 * 1000);
+  const recentConvos = await Conversation.find({
+    participants: userId,
+    lastMessageAt: { $gte: convoRecencyCutoff }
   }).select('participants');
 
-  const existingPartnerIds = existingConvos.flatMap(c =>
+  const recentPartnerIds = recentConvos.flatMap(c =>
     c.participants.filter(p => p.toString() !== userId).map(p => p.toString())
   );
 
-  // Build exclusion list
+  // Follows/followers are intentionally NOT excluded — mutuals are usually
+  // *better* candidates, not worse. The seen-set penalty below keeps them from
+  // dominating consecutive loads.
   const excludeIds = [
     userId,
     ...blockedIds,
-    ...existingPartnerIds,
-    ...(currentUser.following || []).map(f => f.toString()),
-    ...(currentUser.followers || []).map(f => f.toString())
+    ...recentPartnerIds
   ].map(id => new mongoose.Types.ObjectId(id));
 
-  // Scoring weights
+  // Recently-shown decay: users surfaced in the last 24h get a penalty so the
+  // same handful of profiles don't dominate every refresh. Best-effort — if the
+  // cache read fails or the entry is missing, no penalty applies.
+  const seenKey = `seen:${userId}`;
+  const seenList = (await cache.get(seenKey, async () => null, 1)) || [];
+  const seenIdsObj = seenList
+    .filter(id => mongoose.Types.ObjectId.isValid(id))
+    .map(id => new mongoose.Types.ObjectId(id));
+
+  // Scoring weights. languageMatch (50) stays the single dominant signal —
+  // sum of everything else maxes around ~40, so a perfect-language partner
+  // with zero bonuses still beats a partial-language match maxed on extras.
   const WEIGHTS = {
     languageMatch: 50,       // Perfect language exchange pair
     languagePartial: 20,     // Partial language match
     activeRecently: 15,      // Active in last 24h
     activeThisWeek: 10,      // Active in last 7 days
-    sameTimezone: 10,        // Within 3 hour timezone difference
-    hasInterests: 5,         // Has shared interests
+    sameCity: 8,             // Same city as me
+    sameCountry: 4,          // Same country (fallback when city doesn't match)
+    levelComplement: 6,      // Their CEFR level in my native is B1+ (can chat fluently)
     profileComplete: 5,      // Has photos and bio
-    responseRate: 10         // High response rate
+    recentlyShown: -10       // Penalty for users surfaced in the last 24h
   };
 
   // Build aggregation pipeline for smart matching
@@ -160,6 +179,63 @@ exports.getRecommendations = asyncHandler(async (req, res, next) => {
           ]
         },
 
+        // Location proximity — same city is much stronger signal than same country,
+        // so they're tiered, not additive. Falsy values on either side never match.
+        locationScore: {
+          $switch: {
+            branches: [
+              {
+                case: {
+                  $and: [
+                    { $ne: ['$location.city', null] },
+                    { $ne: ['$location.city', ''] },
+                    { $eq: ['$location.city', currentUser.location?.city || null] }
+                  ]
+                },
+                then: WEIGHTS.sameCity
+              },
+              {
+                case: {
+                  $and: [
+                    { $ne: ['$location.country', null] },
+                    { $ne: ['$location.country', ''] },
+                    { $eq: ['$location.country', currentUser.location?.country || null] }
+                  ]
+                },
+                then: WEIGHTS.sameCountry
+              }
+            ],
+            default: 0
+          }
+        },
+
+        // CEFR-complement bonus — a partner whose level in MY native language is
+        // B1+ can actually hold a conversation with me. Only credited when their
+        // language_to_learn matches my native_language (otherwise the level field
+        // describes proficiency in a language I don't speak).
+        levelComplementScore: {
+          $cond: [
+            {
+              $and: [
+                { $eq: ['$language_to_learn', currentUser.native_language] },
+                { $in: ['$languageLevel', ['B1', 'B2', 'C1', 'C2']] }
+              ]
+            },
+            WEIGHTS.levelComplement,
+            0
+          ]
+        },
+
+        // Recently-shown decay — penalize profiles surfaced in the last 24h
+        // so the same handful of users don't dominate every refresh.
+        seenPenalty: {
+          $cond: [
+            { $in: ['$_id', seenIdsObj] },
+            WEIGHTS.recentlyShown,
+            0
+          ]
+        },
+
         // Random factor for variety
         randomFactor: { $multiply: [{ $rand: {} }, 5] }
       }
@@ -169,7 +245,15 @@ exports.getRecommendations = asyncHandler(async (req, res, next) => {
     {
       $addFields: {
         matchScore: {
-          $add: ['$languageScore', '$activityScore', '$profileScore', '$randomFactor']
+          $add: [
+            '$languageScore',
+            '$activityScore',
+            '$profileScore',
+            '$locationScore',
+            '$levelComplementScore',
+            '$seenPenalty',
+            '$randomFactor'
+          ]
         }
       }
     },
@@ -240,6 +324,16 @@ exports.getRecommendations = asyncHandler(async (req, res, next) => {
 
   // Cache results
   await cache.set(cacheKey, enhancedRecommendations, RECOMMENDATIONS_CACHE_TTL);
+
+  // Record the surfaced IDs into the seen-set so the next call applies the
+  // recently-shown penalty. Cap to SEEN_SET_MAX (FIFO) to avoid unbounded
+  // growth — at the cap, the penalty effectively rotates off the oldest IDs.
+  if (enhancedRecommendations.length > 0) {
+    const newIds = enhancedRecommendations.map(u => u._id.toString());
+    const merged = [...newIds, ...seenList.filter(id => !newIds.includes(id))]
+      .slice(0, SEEN_SET_MAX);
+    await cache.set(seenKey, merged, SEEN_SET_TTL);
+  }
 
   res.status(200).json({
     success: true,

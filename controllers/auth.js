@@ -13,6 +13,7 @@ const { logSecurityEvent } = require('../utils/securityLogger');
 const { getDeviceInfo, detectPlatform, pickClientInfo } = require('../validators/authValidator');
 const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
 const { generateUsername } = require('../utils/generateUsername');
+const cache = require('../services/redisService');
 
 // Admin email for notifications
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'bananatalkmain@gmail.com';
@@ -1310,6 +1311,15 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
 
     if (!user) {
       return next(new ErrorResponse(`User not found`, 404));
+    }
+
+    // Invalidate the matching-recommendations cache when the user's language
+    // pair changes, otherwise the 30-min cache keeps returning partners chosen
+    // for the OLD language pair until it expires.
+    if (fieldsToUpdate.native_language || fieldsToUpdate.language_to_learn) {
+      cache.invalidate(`recommendations:${req.user.id}`).catch(err =>
+        console.error('Failed to invalidate recommendations cache:', err.message)
+      );
     }
 
     // Send admin notification when profile is completed for the first time
