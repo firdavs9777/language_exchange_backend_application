@@ -1686,30 +1686,64 @@ exports.deleteAccount = asyncHandler(async (req, res, next) => {
     }
 
     // --- Cascade delete related user data ---
+    // Goal: when a user deletes their account, every artefact they own
+    // disappears (moments, messages, comments, calls, AI traces) AND every
+    // reference TO them in other users' documents is pulled (reactions
+    // they left, follows, blocks, room participants). Bookkeeping that
+    // outlives the user — AdminAuditLog, BannedIdentity — is intentionally
+    // kept; safety/audit beats database cleanliness here.
     const mongoose = require('mongoose');
 
-    // Load models for cleanup (only if they exist)
+    // Snapshot the user's owned moment IDs BEFORE we delete the Moment rows
+    // so we can also wipe orphan comments that reference those moments.
+    let userMomentIds = [];
+    try {
+      const Moment = mongoose.model('Moment');
+      const owned = await Moment.find({ user: userId }).select('_id').lean();
+      userMomentIds = owned.map(m => m._id);
+    } catch (_) {
+      // Model not registered yet — non-fatal.
+    }
+
+    // Top-level documents this user owns or co-owns. Each entry is run via
+    // deleteMany with the listed query; failures are absorbed so a single
+    // missing model doesn't abort the whole cleanup.
     const modelsToClean = [
+      // --- Messaging / social graph ---
       { name: 'Message', query: { $or: [{ sender: userId }, { receiver: userId }] } },
       { name: 'Conversation', query: { participants: userId } },
+      { name: 'Call', query: { participants: userId } },
+      { name: 'Wave', query: { $or: [{ sender: userId }, { receiver: userId }] } },
+      // --- Posts / feeds ---
       { name: 'Moment', query: { user: userId } },
       { name: 'Comment', query: { user: userId } },
       { name: 'Story', query: { user: userId } },
       { name: 'StoryHighlight', query: { user: userId } },
+      { name: 'Poll', query: { creator: userId } },
+      // --- Notifications / activity ---
       { name: 'Notification', query: { $or: [{ user: userId }, { sender: userId }] } },
       { name: 'ProfileVisit', query: { $or: [{ visitor: userId }, { visited: userId }] } },
       { name: 'UserInteraction', query: { $or: [{ user: userId }, { targetUser: userId }] } },
-      { name: 'Wave', query: { $or: [{ sender: userId }, { receiver: userId }] } },
+      { name: 'WebVisit', query: { user: userId } },
+      { name: 'ConversationActivity', query: { user: userId } },
+      // --- Learning / progress / achievements ---
       { name: 'LearningProgress', query: { user: userId } },
       { name: 'LessonProgress', query: { user: userId } },
+      { name: 'LessonRecommendation', query: { user: userId } },
       { name: 'QuizAttempt', query: { user: userId } },
-      { name: 'AIConversation', query: { user: userId } },
-      { name: 'AIGeneratedQuiz', query: { user: userId } },
       { name: 'Vocabulary', query: { user: userId } },
       { name: 'PronunciationAttempt', query: { user: userId } },
       { name: 'GrammarFeedback', query: { user: userId } },
+      { name: 'ChallengeProgress', query: { user: userId } },
+      { name: 'UserAchievement', query: { user: userId } },
+      // --- AI traces ---
+      { name: 'AIConversation', query: { user: userId } },
+      { name: 'AIGeneratedQuiz', query: { user: userId } },
+      { name: 'AITutorSession', query: { user: userId } },
+      { name: 'AIUsageLog', query: { userId: userId } },
+      { name: 'TutorMemory', query: { user: userId } },
+      // --- Misc ---
       { name: 'Report', query: { $or: [{ reporter: userId }, { reported: userId }] } },
-      { name: 'Poll', query: { creator: userId } },
     ];
 
     const cleanupResults = await Promise.allSettled(
@@ -1725,19 +1759,88 @@ exports.deleteAccount = asyncHandler(async (req, res, next) => {
       })
     );
 
-    // Remove user from other users' followers/following lists
+    // Orphan cleanup: comments OTHER users left on the moments we just
+    // deleted. Without this, comment rows linger pointing at dead moment
+    // IDs and bloat the table.
+    if (userMomentIds.length > 0) {
+      try {
+        const Comment = mongoose.model('Comment');
+        await Comment.deleteMany({ moment: { $in: userMomentIds } });
+      } catch (err) {
+        console.error('⚠️ Orphan-comment cleanup error (non-blocking):', err.message);
+      }
+    }
+
+    // VoiceRoom special-case: delete rooms the user was hosting, but only
+    // pull from rooms where they were a participant (the room belongs to
+    // its host, who shouldn't lose it).
+    try {
+      const VoiceRoom = mongoose.model('VoiceRoom');
+      await VoiceRoom.deleteMany({ host: userId });
+      await VoiceRoom.updateMany(
+        { 'participants.user': userId },
+        { $pull: { participants: { user: userId } } }
+      );
+    } catch (_) {
+      // Model not registered — skip
+    }
+
+    // Pull this user from every reference array on remaining User docs:
+    // followers, following, blockedUsers, blockedBy. Existing relations
+    // would otherwise dangle and surface "Unknown user" placeholders.
     try {
       await User.updateMany(
-        { followers: userId },
-        { $pull: { followers: userId } }
-      );
-      await User.updateMany(
-        { following: userId },
-        { $pull: { following: userId } }
+        {
+          $or: [
+            { followers: userId },
+            { following: userId },
+            { blockedUsers: userId },
+            { blockedBy: userId },
+          ],
+        },
+        {
+          $pull: {
+            followers: userId,
+            following: userId,
+            blockedUsers: userId,
+            blockedBy: userId,
+          },
+        }
       );
     } catch (err) {
-      console.error('⚠️ Follower cleanup error (non-blocking):', err.message);
+      console.error('⚠️ User-ref cleanup error (non-blocking):', err.message);
     }
+
+    // Pull this user's reactions / saves from OTHER people's content
+    // (moments, messages, comments). These are embedded arrays on the
+    // host document, so the host doc itself stays — just our footprint
+    // inside it is removed.
+    try {
+      const Moment = mongoose.model('Moment');
+      await Moment.updateMany(
+        { $or: [{ 'reactions.user': userId }, { savedBy: userId }] },
+        {
+          $pull: {
+            reactions: { user: userId },
+            savedBy: userId,
+          },
+        }
+      );
+    } catch (_) {}
+    try {
+      const Message = mongoose.model('Message');
+      await Message.updateMany(
+        { 'reactions.user': userId },
+        { $pull: { reactions: { user: userId } } }
+      );
+    } catch (_) {}
+    try {
+      const Comment = mongoose.model('Comment');
+      await Comment.updateMany(
+        { 'reactions.user': userId },
+        { $pull: { reactions: { user: userId } } }
+      );
+    } catch (_) {}
 
     // Log cleanup summary
     const deletedCounts = cleanupResults
