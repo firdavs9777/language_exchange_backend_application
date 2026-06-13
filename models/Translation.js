@@ -27,7 +27,7 @@ const TranslationSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['libretranslate', 'google', 'deepl', 'microsoft'],
+    enum: ['libretranslate', 'google', 'deepl', 'microsoft', 'openai'],
     default: 'libretranslate'
   },
   cached: {

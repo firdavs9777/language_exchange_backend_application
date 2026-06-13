@@ -1227,7 +1227,7 @@ exports.translateMoment = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Target language is required', 400));
   }
 
-  // Validate language code
+  // Validate language code (the existing translationService helper)
   const translationService = require('../services/translationService');
   if (!translationService.isValidLanguageCode(targetLanguage)) {
     return next(new ErrorResponse(`Unsupported language code: ${targetLanguage}`, 400));
@@ -1250,37 +1250,80 @@ exports.translateMoment = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Moment has no text to translate', 400));
   }
 
-  // Auto-detect source language at translation time. We used to pass
-  // `moment.language` here, but that field is creator-supplied and is
-  // frequently mislabeled — e.g. an Arabic moment tagged 'en'. When the
-  // mislabel matched the user's pick, the identity short-circuit in
-  // translationService.translateText returned the Arabic source verbatim
-  // (and even cached it). Passing null forces LibreTranslate's detector
-  // to look at the actual text on every run, which is the only label we
-  // can trust.
-  const sourceLanguage = null;
+  // Use the same OpenAI-backed pipeline as chat messages instead of
+  // LibreTranslate. The free LibreTranslate instance was flaky on the
+  // moment-translate path (timeouts / rate limits / mislabeled detection),
+  // and switching providers gives us identical quality + reliability to
+  // /messages/:id/translate. We still cache results in the Translation
+  // collection so the next read for the same (moment, targetLanguage) is
+  // instant.
+  const Translation = require('../models/Translation');
 
   try {
-    // Get or create translation
-    const translation = await translationService.getOrCreateTranslation(
-      momentId,
-      'moment',
-      sourceText,
+    // Cache lookup — auto-heal poisoned identity rows from the prior
+    // LibreTranslate era; otherwise serve the cached translation as-is.
+    let cached = await Translation.getTranslation(momentId, 'moment', targetLanguage);
+    if (cached && cached.sourceLanguage === cached.targetLanguage) {
+      try { await cached.deleteOne(); } catch (_) {}
+      cached = null;
+    }
+    if (cached && cached.translatedText) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          language: cached.targetLanguage,
+          translatedText: cached.translatedText,
+          translatedAt: cached.cachedAt
+        },
+        cached: true
+      });
+    }
+
+    // Translate via OpenAI (same provider chat messages use).
+    const aiTranslationService = require('../services/aiTranslationService');
+    const result = await aiTranslationService.getEnhancedTranslation({
+      text: sourceText,
+      sourceLanguage: 'auto',
       targetLanguage,
-      sourceLanguage
-    );
+      userId: req.user._id,
+      includeBreakdown: false,
+      includeGrammar: false,
+      includeIdioms: false
+    });
+
+    const translatedText = (result && result.translation ? result.translation : '').trim();
+    if (!translatedText) {
+      return next(new ErrorResponse('Translation produced empty result', 500));
+    }
+
+    // Persist for the next call. sourceLanguage is recorded as 'auto'
+    // because OpenAI detects internally and doesn't surface the detected
+    // code in its response — and since target is never 'auto', the
+    // identity-pollution bug class can't happen with these rows.
+    try {
+      await Translation.saveTranslation({
+        sourceId: momentId,
+        sourceType: 'moment',
+        sourceLanguage: 'auto',
+        targetLanguage,
+        translatedText,
+        provider: 'openai'
+      });
+    } catch (cacheErr) {
+      console.error('Moment translation cache save error (non-blocking):', cacheErr.message);
+    }
 
     res.status(200).json({
       success: true,
       data: {
-        language: translation.language,
-        translatedText: translation.translatedText,
-        translatedAt: translation.translatedAt
+        language: targetLanguage,
+        translatedText,
+        translatedAt: new Date()
       },
-      cached: translation.cached
+      cached: false
     });
   } catch (error) {
-    console.error('Translation error:', error);
+    console.error('Moment translation error:', error);
     return next(new ErrorResponse(`Translation failed: ${error.message}`, 500));
   }
 });
