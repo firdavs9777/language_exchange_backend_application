@@ -167,15 +167,24 @@ exports.getOrCreateTranslation = async (sourceId, sourceType, sourceText, target
   try {
     // Check cache first
     const cached = await Translation.getTranslation(sourceId, sourceType, targetLanguage);
-    
+
     if (cached && cached.cached) {
-      return {
-        language: cached.targetLanguage,
-        translatedText: cached.translatedText,
-        translatedAt: cached.cachedAt,
-        cached: true,
-        provider: cached.provider
-      };
+      // Auto-heal poisoned rows from before the identity-skip fix. A row
+      // where sourceLanguage === targetLanguage is not a real translation
+      // — it was a same-language short-circuit that should never have been
+      // persisted. Drop it inline and fall through to a fresh translate so
+      // every call auto-cleans without needing the offline purge script.
+      if (cached.sourceLanguage === cached.targetLanguage) {
+        try { await cached.deleteOne(); } catch (_) {}
+      } else {
+        return {
+          language: cached.targetLanguage,
+          translatedText: cached.translatedText,
+          translatedAt: cached.cachedAt,
+          cached: true,
+          provider: cached.provider
+        };
+      }
     }
 
     // Auto-detect source language if not provided
