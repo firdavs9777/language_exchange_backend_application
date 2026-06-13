@@ -1250,8 +1250,15 @@ exports.translateMoment = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Moment has no text to translate', 400));
   }
 
-  // Get source language from moment or auto-detect
-  const sourceLanguage = moment.language || null;
+  // Auto-detect source language at translation time. We used to pass
+  // `moment.language` here, but that field is creator-supplied and is
+  // frequently mislabeled — e.g. an Arabic moment tagged 'en'. When the
+  // mislabel matched the user's pick, the identity short-circuit in
+  // translationService.translateText returned the Arabic source verbatim
+  // (and even cached it). Passing null forces LibreTranslate's detector
+  // to look at the actual text on every run, which is the only label we
+  // can trust.
+  const sourceLanguage = null;
 
   try {
     // Get or create translation

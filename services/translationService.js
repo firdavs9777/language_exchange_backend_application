@@ -186,15 +186,25 @@ exports.getOrCreateTranslation = async (sourceId, sourceType, sourceText, target
     // Translate text
     const translationResult = await translateText(sourceText, targetLanguage, sourceLanguage);
 
-    // Save to cache
-    await Translation.saveTranslation({
-      sourceId,
-      sourceType,
-      sourceLanguage: translationResult.sourceLanguage,
-      targetLanguage,
-      translatedText: translationResult.translatedText,
-      provider: translationResult.provider
-    });
+    // Don't persist identity returns (source === target). translateText
+    // short-circuits and returns the original text in that case; caching
+    // that as a "translation" pollutes the table — the next request for the
+    // same target finds the bad row and returns the source-as-translation
+    // forever. Skip the save and never mark it cached.
+    const isIdentity =
+      translationResult.sourceLanguage &&
+      translationResult.sourceLanguage === targetLanguage;
+
+    if (!isIdentity) {
+      await Translation.saveTranslation({
+        sourceId,
+        sourceType,
+        sourceLanguage: translationResult.sourceLanguage,
+        targetLanguage,
+        translatedText: translationResult.translatedText,
+        provider: translationResult.provider
+      });
+    }
 
     return {
       language: targetLanguage,
