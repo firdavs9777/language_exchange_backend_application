@@ -362,11 +362,16 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
           imageUrls: '$user.images',
           userMode: '$user.userMode',
           vipSubscription: '$user.vipSubscription',
+          // Native language drives the flag overlay on chat-list avatars.
+          native_language: '$user.native_language',
           lastMessage: {
             message: '$lastMessage.message',
             createdAt: '$lastMessage.createdAt',
             _id: '$lastMessage._id',
-            media: '$lastMessage.media'
+            media: '$lastMessage.media',
+            // Sender id powers the "My turn" filter (partner sent last
+            // message → it's the user's turn to reply).
+            sender: '$lastMessage.sender'
           },
           unreadCount: 1,
           // Add conversation data
