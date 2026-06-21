@@ -316,6 +316,7 @@ app.use('/api/v1/livekit', livekit);
 app.use('/api/v1/tutor', tutor);
 app.use('/api/v1/admin', admin);
 app.use('/api/v1/analytics', require('./routes/analytics'));
+app.use('/api/v1/users/chat-phrases', require('./routes/chatPhrases'));
 
 // FitBowl API Routes
 app.use('/api/v1/fitbowl/auth', fitbowlAuth);

@@ -299,6 +299,13 @@ bannedAt: {
     default: 'regular'
   },
 
+  // HelloTalk-style "Most Used" chat phrases for the in-chat phrases panel.
+  // Stored newest-first; capped at 100 entries on add to bound document size.
+  chatPhrases: {
+    type: [String],
+    default: []
+  },
+
   // VIP subscription details
   vipSubscription: {
     isActive: {
