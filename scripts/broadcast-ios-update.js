@@ -24,8 +24,8 @@ const LIMIT_FLAG_IDX = process.argv.indexOf('--limit');
 const LIMIT = LIMIT_FLAG_IDX > -1 ? parseInt(process.argv[LIMIT_FLAG_IDX + 1], 10) : null;
 
 // ─── Notification payload ────────────────────────────────────────────
-const TITLE = '🚀 BananaTalk update available';
-const BODY  = 'New version on the App Store — one-tap translation, voice & video calls, smarter matching. Tap to update.';
+const TITLE = '🚀 BananaTalk 1.9.1 is here';
+const BODY  = 'VIP in 18 languages, language flags on every profile, in-chat phrases & topics, KakaoTalk-style reactions, smoother filters. Tap to update → https://apps.apple.com/app/id6755862146';
 const DATA  = {
   type: 'app_update',
   target_url: 'https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146',
