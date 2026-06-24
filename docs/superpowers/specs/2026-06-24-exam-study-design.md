@@ -95,23 +95,22 @@ Language (English, Spanish, French, German, Chinese, Korean, Japanese, Italian)
 }
 ```
 
-**`user_exam_progress`**
+**`user_exam_progress`** (one record per user + exam)
 ```javascript
 {
   _id: ObjectId,
   userId: ObjectId,
   examId: ObjectId,
-  sectionId: ObjectId,
-  questionsAttempted: Number,
-  questionsCorrect: Number,
-  totalScore: Number,
+  questionsAttempted: Number,           // total across all sections
+  questionsCorrect: Number,             // total across all sections
   sectionScores: {
-    reading: Number,
-    writing: Number,
-    speaking: Number,
-    listening: Number,
-    vocabulary: Number
+    reading: { attempted: 5, correct: 4, score: 80 },
+    writing: { attempted: 3, correct: 2, score: 67 },
+    speaking: { attempted: 0, correct: 0, score: null },
+    listening: { attempted: 0, correct: 0, score: null },
+    vocabulary: { attempted: 8, correct: 6, score: 75 }
   },
+  overallScore: Number,                 // average of completed sections
   lastAttemptedQuestionId: ObjectId,
   lastUpdated: Date
 }
@@ -153,11 +152,29 @@ Language (English, Spanish, French, German, Chinese, Korean, Japanese, Italian)
 {
   _id: ObjectId,
   questionId: ObjectId,
-  userAnswer: String,       // hash of answer for quick lookup
+  userId: ObjectId,
+  answerHash: String,       // SHA-256 hash of answer
   score: Number,
   feedback: String,
   evaluatedAt: Date,
-  ttl: 7776000              // 90 days; auto-cleanup
+  ttl: 7776000              // 90 days; auto-cleanup via MongoDB TTL index
+}
+```
+**Cache Key:** `{ questionId, userId, answerHash }` to avoid collisions.
+
+**`evaluation_jobs`** (for async essay/speaking evaluation)
+```javascript
+{
+  _id: ObjectId,
+  userId: ObjectId,
+  questionId: ObjectId,
+  userAnswer: String,
+  status: String,           // "pending", "completed", "failed"
+  score: Number,            // null until completed
+  feedback: String,         // null until completed
+  createdAt: Date,
+  completedAt: Date,
+  ttl: 604800               // 7 days; auto-cleanup
 }
 ```
 
@@ -211,7 +228,26 @@ Language (English, Spanish, French, German, Chinese, Korean, Japanese, Italian)
 
 ---
 
-## API Endpoints
+## API Endpoints & Error Handling
+
+### Error Response Format
+All error responses follow this format:
+```javascript
+{
+  success: false,
+  statusCode: Number,
+  code: String,                // Error code (EXAM_NOT_FOUND, QUESTION_NOT_FOUND, AI_TIMEOUT, QUOTA_EXCEEDED, INVALID_ANSWER)
+  message: String              // Human-readable error message
+}
+```
+
+**Common Error Codes:**
+- `EXAM_NOT_FOUND` (404): Exam or section doesn't exist
+- `QUESTION_NOT_FOUND` (404): Question ID invalid
+- `INVALID_ANSWER` (400): Answer format invalid (wrong type, too long, etc.)
+- `AI_TIMEOUT` (503): OpenAI service timeout
+- `QUOTA_EXCEEDED` (429): User exceeded AI evaluation quota
+- `UNAUTHORIZED` (401): User not authenticated
 
 ### Content Retrieval
 
@@ -236,9 +272,22 @@ Language (English, Spanish, French, German, Chinese, Korean, Japanese, Italian)
 
 **POST `/api/exam-study/questions/:questionId/submit-answer`**
 - Body: `{ userAnswer: String, timeSpent: Number }`
-- Returns: `{ score: Number, feedback: String, explanation: String, isCorrect: Boolean }`
-- AI evaluates essays/speaking; instant feedback for multiple-choice
-- Saves progress to `user_exam_progress`
+- **Behavior by question type:**
+  - **Multiple-choice:** Instant response (200 OK) with `{ score, isCorrect, explanation }`
+  - **Essay/Speaking:** Async response (202 Accepted) with polling URL; AI evaluates in background
+- Response (immediate, MC only): `{ score: Number, feedback: String, explanation: String, isCorrect: Boolean }`
+- Response (async, essays): `{ statusCode: 202, pollUrl: "/api/exam-study/evaluations/:evaluationId" }`
+- AI evaluates essays/speaking via OpenAI; saves progress to `user_exam_progress`
+- **Answer Validation Rules:**
+  - Multiple-choice: `userAnswer` must be one of the provided options
+  - Essay: Min 50 chars, max 5000 chars
+  - Speaking: Audio file max 30MB, formats: mp3, m4a, wav
+- **Rate Limits:** 10 submissions per minute per user (prevents quota abuse)
+
+**GET `/api/exam-study/evaluations/:evaluationId`** (polling endpoint for async evaluation)
+- Returns: `{ status: "pending" | "completed" | "failed", score: Number, feedback: String }`
+- Used by: Client polls this endpoint until `status !== "pending"`
+- Interval: Client should poll every 2-3 seconds
 
 **GET `/api/exam-study/users/:userId/exams/:examId/progress`**
 - Returns: Detailed progress for user in an exam
@@ -259,11 +308,23 @@ Language (English, Spanish, French, German, Chinese, Korean, Japanese, Italian)
 
 ## AI Integration Points
 
+### OpenAI Configuration
+All AI calls must disable training data usage for privacy compliance:
+```javascript
+// In aiProviderService.js: disable_training = true
+const response = await openai.chat.completions.create({
+  model: "gpt-4",
+  messages: [...],
+  temperature: 0.7,
+  disable_training: true  // User data NOT used to train OpenAI models
+})
+```
+
 ### 1. Question Generation
 - **When:** User exhausts pre-built questions or requests variety
 - **How:** OpenAI generates new questions matching exam style + difficulty
-- **Stored:** As `source: "ai-generated"` in `exam_questions`
-- **Cost:** ~$0.02-0.05 per question (cached after first generation)
+- **Stored:** As `source: "ai-generated"` in `exam_questions` (shared cache — not per-user)
+- **Cost:** ~$0.02-0.05 per question, one-time cost per section (subsequent users reuse)
 
 ### 2. Answer Evaluation
 - **Essay questions:** OpenAI evaluates against rubric (grammar, vocabulary, structure, coherence)
