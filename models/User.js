@@ -138,7 +138,7 @@ const UserSchema = new mongoose.Schema({
     },
     marketing: {
       type: Boolean,
-      default: false
+      default: true
     },
     sound: {
       type: Boolean,
