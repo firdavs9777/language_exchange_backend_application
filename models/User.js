@@ -789,7 +789,13 @@ bannedAt: {
   // Activity tracking for inactivity emails
   lastActivityAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
+    index: true
+  },
+  lastLogin: {
+    type: Date,
+    default: null,
+    index: true
   },
   inactivityEmailsSent: {
     type: [String],

@@ -260,12 +260,18 @@ exports.appleMobileLogin = asyncHandler(async (req, res, next) => {
     }
 
     const deviceInfo = getDeviceInfo(req);
+
+    // Update lastLogin and lastActivityAt timestamps
+    user.lastLogin = new Date();
+    user.lastActivityAt = new Date();
+    await user.save({ validateBeforeSave: false });
+
     logSecurityEvent('APPLE_MOBILE_LOGIN_SUCCESS', {
       userId: user._id,
       email: user.email,
       ipAddress: deviceInfo.ipAddress
     });
-    
+
     sendTokenResponse(user, 200, res, req, deviceInfo);
     
   } catch (error) {
@@ -312,6 +318,12 @@ exports.facebookCallback = asyncHandler(async (req, res, next) => {
     }
 
     const deviceInfo = getDeviceInfo(req);
+
+    // Update lastLogin and lastActivityAt timestamps
+    user.lastLogin = new Date();
+    user.lastActivityAt = new Date();
+    await user.save({ validateBeforeSave: false });
+
     logSecurityEvent('FACEBOOK_LOGIN_SUCCESS', {
       userId: user._id,
       email: user.email,
@@ -357,6 +369,12 @@ exports.googleCallback = asyncHandler(async (req, res, next) => {
     }
 
     const deviceInfo = getDeviceInfo(req);
+
+    // Update lastLogin and lastActivityAt timestamps
+    user.lastLogin = new Date();
+    user.lastActivityAt = new Date();
+    await user.save({ validateBeforeSave: false });
+
     logSecurityEvent('GOOGLE_LOGIN_SUCCESS', {
       userId: user._id,
       email: user.email,
@@ -588,7 +606,11 @@ exports.login = asyncHandler(async (req, res, next) => {
   if (user.loginHistory.length > 20) {
     user.loginHistory = user.loginHistory.slice(-20);
   }
-  
+
+  // Update lastLogin and lastActive timestamps
+  user.lastLogin = new Date();
+  user.lastActivityAt = new Date();
+
   await user.save({ validateBeforeSave: false });
   
   logSecurityEvent('LOGIN_SUCCESS', {
@@ -1585,6 +1607,12 @@ exports.googleMobileLogin = asyncHandler(async (req, res, next) => {
     }
 
     const deviceInfo = getDeviceInfo(req);
+
+    // Update lastLogin and lastActivityAt timestamps
+    user.lastLogin = new Date();
+    user.lastActivityAt = new Date();
+    await user.save({ validateBeforeSave: false });
+
     logSecurityEvent('GOOGLE_MOBILE_LOGIN_SUCCESS', {
       userId: user._id,
       email: user.email,
