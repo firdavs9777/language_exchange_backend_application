@@ -340,11 +340,18 @@ async function _evaluateSpeakingInBackground(jobId, audioBuffer, mimeType) {
     job = await EvaluationJob.findById(jobId);
     if (!job) return;
 
-    // 1. Whisper STT. Pass through the buffer + mime so speechService
-    // can hand it to OpenAI's audio.transcriptions.
+    // 1. Whisper STT. Map MIME type to file extension and create an
+    // audioFile object so Whisper sees the correct codec extension.
+    const extMap = {
+      'audio/mpeg': 'mp3', 'audio/mp3': 'mp3', 'audio/mp4': 'mp4',
+      'audio/m4a': 'm4a', 'audio/x-m4a': 'm4a', 'audio/wav': 'wav',
+      'audio/x-wav': 'wav', 'audio/webm': 'webm', 'audio/ogg': 'ogg',
+      'audio/flac': 'flac', 'audio/aac': 'aac',
+    };
+    const ext = extMap[mimeType] || 'mp3';
     const transcription = await transcribeAudio({
       audioBuffer,
-      mimeType,
+      audioFile: { buffer: audioBuffer, originalname: `audio.${ext}` },
       // Let Whisper auto-detect language by default. For higher
       // accuracy we could plumb through the exam's language code,
       // but the default is fine for MVP.
