@@ -12,9 +12,25 @@ const UserStudyPlan = require('../models/UserStudyPlan');
 const EvaluationJob = require('../models/EvaluationJob');
 const examEvaluationService = require('../services/examEvaluationService');
 const examStudyPlanService = require('../services/examStudyPlanService');
+const multer = require('multer');
+const { transcribeAudio } = require('../services/speechService');
 
 // All exam-study endpoints require auth — practice + progress are user-scoped.
 router.use(protect);
+
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = [
+      'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a',
+      'audio/wav', 'audio/webm', 'audio/ogg', 'audio/flac',
+      'audio/x-m4a', 'audio/x-wav', 'audio/aac',
+    ];
+    if (allowedMimes.includes(file.mimetype)) cb(null, true);
+    else cb(new Error(`Invalid audio mime type: ${file.mimetype}`), false);
+  },
+});
 
 // GET /api/v1/exam-study/languages
 // Used by: app's language picker on the Exam Study tab.
@@ -181,13 +197,15 @@ router.post(
       });
     }
 
-    // Speaking-prompt — still not wired (no Whisper integration yet).
+    // Speaking is handled by the dedicated /submit-audio multipart
+    // endpoint — keeps JSON essay submissions and audio uploads on
+    // separate middleware stacks.
     if (question.questionType === 'speaking-prompt') {
-      return res.status(501).json({
+      return res.status(400).json({
         success: false,
-        code: 'NOT_IMPLEMENTED',
+        code: 'USE_AUDIO_ENDPOINT',
         message:
-          'Speaking evaluation is not yet available. Please check back soon.',
+          'Speaking submissions must use POST /submit-audio with multipart/form-data and field name "audio".',
       });
     }
 
@@ -195,6 +213,77 @@ router.post(
       success: false,
       code: 'INVALID_QUESTION_TYPE',
       message: 'Unknown question type',
+    });
+  })
+);
+
+// POST /api/v1/exam-study/questions/:questionId/submit-audio
+// Multipart audio upload for speaking-prompt questions. Creates an
+// EvaluationJob, kicks off Whisper STT + AI eval in the background,
+// returns 202 with a poll URL. The client polls the same
+// /evaluations/:evaluationId endpoint that essays use.
+router.post(
+  '/questions/:questionId/submit-audio',
+  audioUpload.single('audio'),
+  asyncHandler(async (req, res) => {
+    const { questionId } = req.params;
+    const userId = req.user._id;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        code: 'NO_AUDIO',
+        message: 'Audio file is required (multipart field "audio").',
+      });
+    }
+
+    const question = await ExamQuestion.findById(questionId);
+    if (!question) {
+      return res.status(404).json({
+        success: false,
+        code: 'QUESTION_NOT_FOUND',
+        message: 'Question not found',
+      });
+    }
+    if (question.questionType !== 'speaking-prompt') {
+      return res.status(400).json({
+        success: false,
+        code: 'NOT_A_SPEAKING_QUESTION',
+        message:
+          'Use POST /submit-answer (JSON) for multiple-choice and essay questions.',
+      });
+    }
+
+    // Naive audio-duration floor: most usable speech responses are at
+    // least a few KB. Reject < 8 KB as accidental taps without trying
+    // to parse the actual audio header (varies by codec).
+    if (req.file.size < 8 * 1024) {
+      return res.status(400).json({
+        success: false,
+        code: 'AUDIO_TOO_SHORT',
+        message: 'Recording is too short. Please speak for at least a few seconds.',
+      });
+    }
+
+    const job = await EvaluationJob.create({
+      userId,
+      questionId: question._id,
+      userAnswer: `[speaking response — ${req.file.size} bytes]`,
+      status: 'pending',
+    });
+
+    // Fire-and-forget. Failures mark the job as failed; never crash
+    // the request.
+    _evaluateSpeakingInBackground(job._id, req.file.buffer, req.file.mimetype).catch(
+      (err) => {
+        console.error('[examStudy] background speaking eval crashed:', err);
+      }
+    );
+
+    return res.status(202).json({
+      success: true,
+      statusCode: 202,
+      pollUrl: `/api/v1/exam-study/evaluations/${job._id}`,
     });
   })
 );
@@ -238,6 +327,76 @@ router.get(
     });
   })
 );
+
+/**
+ * Speaking equivalent of _evaluateInBackground.
+ * 1) Transcribe the audio with Whisper.
+ * 2) Evaluate the transcript with examEvaluationService.evaluateSpeaking.
+ * 3) Write transcript + score + feedback to the job, bump progress.
+ */
+async function _evaluateSpeakingInBackground(jobId, audioBuffer, mimeType) {
+  let job;
+  try {
+    job = await EvaluationJob.findById(jobId);
+    if (!job) return;
+
+    // 1. Whisper STT. Pass through the buffer + mime so speechService
+    // can hand it to OpenAI's audio.transcriptions.
+    const transcription = await transcribeAudio({
+      audioBuffer,
+      mimeType,
+      // Let Whisper auto-detect language by default. For higher
+      // accuracy we could plumb through the exam's language code,
+      // but the default is fine for MVP.
+    });
+    const transcript = transcription?.text || transcription || '';
+    job.transcript = transcript;
+    await job.save();
+
+    if (!transcript || transcript.trim().length < 5) {
+      job.status = 'failed';
+      job.errorMessage = 'Could not transcribe audio — please re-record.';
+      job.completedAt = new Date();
+      await job.save();
+      return;
+    }
+
+    // 2. Evaluate transcript.
+    const result = await examEvaluationService.evaluateSpeaking({ transcript });
+    job.status = 'completed';
+    job.score = result.score;
+    job.feedback = result.feedback;
+    job.strengths = result.strengths;
+    job.improvements = result.improvements;
+    job.completedAt = new Date();
+    await job.save();
+
+    // 3. Bump progress — same threshold as essay (≥ 60 counts as
+    // "correct" so the section score reflects partial credit).
+    const question = await ExamQuestion.findById(job.questionId).select(
+      'examId sectionId'
+    );
+    if (question) {
+      const sectionKey = await _resolveSectionKey(question.sectionId);
+      const passed = result.score >= 60;
+      await _bumpProgress({
+        userId: job.userId,
+        examId: question.examId,
+        sectionKey,
+        attempted: 1,
+        correct: passed ? 1 : 0,
+        lastQuestionId: question._id,
+      });
+    }
+  } catch (err) {
+    if (job) {
+      job.status = 'failed';
+      job.errorMessage = err.message || 'Speaking evaluation failed';
+      job.completedAt = new Date();
+      try { await job.save(); } catch (_) {}
+    }
+  }
+}
 
 /**
  * Run the essay evaluation in the background and update the job row.
