@@ -11,7 +11,15 @@ const ExamTypeSchema = new mongoose.Schema({
   sections: [
     {
       type: String,
-      enum: ['reading', 'writing', 'speaking', 'listening', 'vocabulary'],
+      enum: [
+        'reading',
+        'writing',
+        'writing-task-1',
+        'writing-task-2',
+        'speaking',
+        'listening',
+        'vocabulary',
+      ],
     },
   ],
   durationMinutes: Number,

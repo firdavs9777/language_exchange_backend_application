@@ -36,7 +36,7 @@ const EXAM_DATA = [
     name: 'IELTS',
     languageCode: 'en',
     description: 'International English Language Testing System.',
-    sections: ['reading', 'writing'],
+    sections: ['reading', 'writing-task-1', 'writing-task-2'],
     durationMinutes: 170,
     scoringType: 'band',
     maxScore: 9,
@@ -45,7 +45,7 @@ const EXAM_DATA = [
     name: 'DELE',
     languageCode: 'es',
     description: 'Diplomas de Español como Lengua Extranjera.',
-    sections: ['reading', 'writing'],
+    sections: ['reading', 'writing-task-1', 'writing-task-2'],
     durationMinutes: 160,
     scoringType: 'score',
     maxScore: 100,
@@ -54,17 +54,30 @@ const EXAM_DATA = [
     name: 'TOPIK',
     languageCode: 'ko',
     description: 'Test of Proficiency in Korean.',
-    sections: ['reading', 'writing'],
+    sections: ['reading', 'writing-task-1', 'writing-task-2'],
     durationMinutes: 180,
     scoringType: 'score',
     maxScore: 300,
   },
 ];
 
-// Reading + Writing for every exam.
+// Reading + Writing Task 1 + Writing Task 2 for every exam. Task 1 is
+// the shorter response (letter / chart / short essay); Task 2 is the
+// long-form opinion / discussion essay.
 const SECTION_DATA = [
   { type: 'reading', name: 'Reading', durationMinutes: 60, questionCount: 20 },
-  { type: 'writing', name: 'Writing', durationMinutes: 60, questionCount: 2 },
+  {
+    type: 'writing-task-1',
+    name: 'Writing — Task 1',
+    durationMinutes: 20,
+    questionCount: 5,
+  },
+  {
+    type: 'writing-task-2',
+    name: 'Writing — Task 2',
+    durationMinutes: 40,
+    questionCount: 5,
+  },
 ];
 
 // Sample questions per (exam, section). Tagged with `topic` so the app's
@@ -168,7 +181,58 @@ const QUESTION_DATA = {
       difficulty: 'medium',
     },
   ],
-  'IELTS:writing': [
+  // Writing Task 1 (IELTS General Training: informal letter, ~150 words).
+  'IELTS:writing-task-1': [
+    {
+      topic: 'Travel',
+      questionText:
+        'You recently stayed at a hotel and were unhappy with the service. Write a letter to the hotel manager. In your letter:\n• describe what went wrong\n• explain how it affected your stay\n• say what action you would like the hotel to take.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Use a semi-formal tone, address each bullet, and keep paragraphs purposeful.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Work',
+      questionText:
+        'You are going to start a new job in another city and need to find somewhere to live. Write a letter to a real estate agency. In your letter:\n• describe the type of accommodation you need\n• say when you need it\n• ask for further information.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation: 'Be specific about requirements (rooms, location, budget) and timeline.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        'A friend has invited you to study a short course with them next month, but you cannot attend. Write a letter to your friend. In your letter:\n• thank them for the invitation\n• explain why you cannot attend\n• suggest another time you could meet.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation: 'Use a friendly tone, keep each bullet brief, and close with a clear next step.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        'You have decided to take a fitness class at a local sports centre. Write a letter to the centre. In your letter:\n• say what class you are interested in\n• ask about the timing and cost\n• explain any prior experience you have.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Open with the purpose, layer in concrete questions, and finish with a polite request for a reply.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        'You bought a piece of electronic equipment online and discovered it does not work properly. Write a letter to the company. In your letter:\n• describe what you bought\n• explain the problem\n• say what you want them to do about it.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation: 'Lead with the item + order date; describe the fault objectively; propose a specific remedy.',
+      difficulty: 'medium',
+    },
+  ],
+  // Writing Task 2 (long-form opinion essay, ~250 words).
+  'IELTS:writing-task-2': [
     {
       topic: 'Technology',
       questionText:
@@ -197,6 +261,36 @@ const QUESTION_DATA = {
       correctAnswer: null,
       explanation:
         'Balanced essays that explore both perspectives before concluding tend to score highest.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Work',
+      questionText:
+        'In many countries, the number of people working from home is increasing. What are the advantages and disadvantages of this trend? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Cover both sides; structure with one paragraph per advantage / disadvantage; conclude with a balanced view.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        'Some people argue that governments should require citizens to exercise regularly to reduce healthcare costs. Do you agree or disagree? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Pick a clear stance early and develop it with two or three reasons, each backed by an example.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Travel',
+      questionText:
+        'Tourism brings both benefits and problems to local communities. Discuss both sides and give your opinion on whether the benefits outweigh the problems. Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Lead with a thesis, dedicate paragraphs to each side, close with a personal verdict.',
       difficulty: 'medium',
     },
   ],
@@ -250,17 +344,50 @@ const QUESTION_DATA = {
       difficulty: 'medium',
     },
   ],
-  'DELE:writing': [
+  // DELE Task 1 — short formal/informal correspondence (~150 palabras).
+  'DELE:writing-task-1': [
     {
       topic: 'Work',
       questionText:
-        'Escriba una carta formal a una empresa solicitando información sobre un puesto de trabajo. Mínimo 150 palabras.',
+        'Escriba una carta formal a una empresa solicitando información sobre un puesto de trabajo. En su carta:\n• preséntese brevemente\n• explique por qué le interesa el puesto\n• pida información sobre el proceso de selección.\n\nMínimo 150 palabras.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
-        'La carta debe seguir el formato formal: saludo, presentación, motivo, despedida.',
+        'Mantenga un tono formal: saludo, presentación, motivo, despedida.',
       difficulty: 'medium',
     },
+    {
+      topic: 'Travel',
+      questionText:
+        'Escriba un correo electrónico a un amigo invitándolo a un viaje. Incluya:\n• cuándo y a dónde irá\n• por qué quiere que lo acompañe\n• qué actividades han planeado.\n\nMínimo 120 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation: 'Tono cercano e informal; estructura clara y verbos en futuro.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        'Acaba de empezar un nuevo programa deportivo en su barrio. Escriba un mensaje al organizador para:\n• confirmar su asistencia\n• preguntar por el equipamiento necesario\n• proponer un horario alternativo.\n\nMínimo 120 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Use frases breves, exprese cortesía y aporte detalles concretos.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        'Compró un aparato electrónico por internet y llegó defectuoso. Escriba una reclamación formal a la tienda. Incluya:\n• descripción del producto y la fecha de compra\n• naturaleza del defecto\n• la solución que solicita.\n\nMínimo 150 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Use lenguaje formal y aporte los datos relevantes para que la empresa pueda actuar.',
+      difficulty: 'medium',
+    },
+  ],
+  // DELE Task 2 — long-form opinion / article (~200 palabras).
+  'DELE:writing-task-2': [
     {
       topic: 'Climate',
       questionText:
@@ -270,6 +397,26 @@ const QUESTION_DATA = {
       explanation:
         'Use ejemplos concretos y conecte las acciones individuales con el efecto colectivo.',
       difficulty: 'medium',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        'Algunas personas piensan que los estudiantes deberían aprender un oficio práctico en el colegio en lugar de solo asignaturas teóricas. ¿Está de acuerdo? Justifique su respuesta con ejemplos. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Tome una postura clara desde el principio y sostenga sus argumentos con ejemplos personales o sociales.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        '"Las redes sociales han transformado la manera en que nos relacionamos." Escriba un texto argumentativo discutiendo si este cambio ha sido positivo o negativo. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Equilibre ventajas y desventajas; cierre con una conclusión personal razonada.',
+      difficulty: 'hard',
     },
   ],
   'TOPIK:reading': [
@@ -319,7 +466,38 @@ const QUESTION_DATA = {
       difficulty: 'medium',
     },
   ],
-  'TOPIK:writing': [
+  // TOPIK Task 1 — 짧은 작문 (200~300자 정도의 짧은 글쓰기).
+  'TOPIK:writing-task-1': [
+    {
+      topic: 'Health',
+      questionText:
+        '아래 글의 빈칸에 들어갈 내용을 200~300자로 쓰십시오.\n\n현대인들은 운동이 부족합니다. 그래서 ____________ . 운동을 꾸준히 하면 건강이 좋아집니다.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation: '문맥에 맞고 자연스러운 한국어 표현을 사용해야 합니다.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Work',
+      questionText:
+        '회사 동료에게 휴가를 함께 가자는 짧은 글을 200~300자로 쓰십시오. 다음 내용을 포함하십시오.\n• 언제 갈 것인가\n• 어디로 갈 것인가\n• 왜 함께 가고 싶은가',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation: '친근한 어투로 일관되게 쓰고, 세 가지 요점을 모두 포함하세요.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        '대학교 수업에 참여하지 못한 이유를 교수님께 설명하는 이메일을 200~300자로 쓰십시오. 정중한 표현을 사용하십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation: '존댓말과 격식 있는 표현을 사용하고, 사과 → 이유 → 부탁 순서로 정리하세요.',
+      difficulty: 'medium',
+    },
+  ],
+  // TOPIK Task 2 — 긴 작문 (600~700자 정도의 의견 글).
+  'TOPIK:writing-task-2': [
     {
       topic: 'Climate',
       questionText:
@@ -340,6 +518,24 @@ const QUESTION_DATA = {
         '문화의 역사와 현재적 의미를 함께 설명하면 좋은 점수를 받기 쉽습니다.',
       difficulty: 'medium',
     },
+    {
+      topic: 'Technology',
+      questionText:
+        '인공지능 기술이 일자리에 미치는 영향에 대해 600~700자로 논하시오. 긍정적 측면과 부정적 측면을 모두 다루십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation: '양면을 균형 있게 다루고, 마지막 단락에서 본인의 견해를 명확하게 밝히세요.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        '"평생 교육이 왜 필요한가"에 대해 자신의 의견과 그 이유를 600~700자로 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation: '현대 사회 변화와 연결지어 구체적 예시를 제시하면 설득력이 높아집니다.',
+      difficulty: 'medium',
+    },
   ],
 };
 
@@ -350,6 +546,35 @@ async function seed() {
     maxPoolSize: 10,
   });
   console.log('✅ Connected');
+
+  // 0. Migrate legacy writing sections. Pre-Chunk-F seeds created a
+  // single section with sectionType='writing'; we now split into
+  // writing-task-1 / writing-task-2 so progress tracks each task.
+  // Move legacy rows to writing-task-2 (existing questions are all
+  // long-form essays). Idempotent — only runs when legacy rows exist.
+  const legacy = await ExamSection.find({ sectionType: 'writing' });
+  for (const row of legacy) {
+    row.sectionType = 'writing-task-2';
+    row.sectionName = 'Writing — Task 2';
+    await row.save();
+    console.log(`~ Migrated legacy Writing section ${row._id} → writing-task-2`);
+  }
+  // Also update ExamType.sections arrays so the section list is
+  // consistent with the new section types.
+  await ExamType.updateMany(
+    { sections: 'writing' },
+    {
+      $set: {
+        'sections.$[el]': 'writing-task-2',
+      },
+    },
+    { arrayFilters: [{ el: 'writing' }] }
+  );
+  // Ensure every exam also lists writing-task-1 (idempotent).
+  await ExamType.updateMany(
+    { sections: { $ne: 'writing-task-1' } },
+    { $addToSet: { sections: 'writing-task-1' } }
+  );
 
   // 1. Languages.
   const languageByCode = {};

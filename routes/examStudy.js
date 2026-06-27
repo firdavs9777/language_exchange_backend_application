@@ -122,51 +122,15 @@ router.post(
         String(userAnswer).trim() === String(question.correctAnswer).trim();
       const score = isCorrect ? 100 : 0;
 
-      // Upsert progress doc for this user/exam, then increment counters.
-      // findOneAndUpdate avoids race conditions on rapid submissions.
       const sectionKey = await _resolveSectionKey(question.sectionId);
-      const incPath = sectionKey
-        ? {
-            questionsAttempted: 1,
-            questionsCorrect: isCorrect ? 1 : 0,
-            [`sectionScores.${sectionKey}.attempted`]: 1,
-            [`sectionScores.${sectionKey}.correct`]: isCorrect ? 1 : 0,
-          }
-        : {
-            questionsAttempted: 1,
-            questionsCorrect: isCorrect ? 1 : 0,
-          };
-
-      const progress = await UserExamProgress.findOneAndUpdate(
-        { userId, examId: question.examId },
-        {
-          $inc: incPath,
-          $set: {
-            lastAttemptedQuestionId: question._id,
-            lastUpdated: new Date(),
-          },
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-
-      // Recompute section score percentage (correct/attempted * 100).
-      if (sectionKey) {
-        const section = progress.sectionScores[sectionKey];
-        const pct = section.attempted > 0
-          ? Math.round((section.correct / section.attempted) * 100)
-          : null;
-        progress.sectionScores[sectionKey].score = pct;
-        // Overall = average of completed-enough sections (>0 attempted).
-        const sectionPcts = Object.values(progress.sectionScores)
-          .map((s) => s?.score)
-          .filter((v) => typeof v === 'number');
-        progress.overallScore = sectionPcts.length
-          ? Math.round(
-              sectionPcts.reduce((a, b) => a + b, 0) / sectionPcts.length
-            )
-          : null;
-        await progress.save();
-      }
+      const progress = await _bumpProgress({
+        userId,
+        examId: question.examId,
+        sectionKey,
+        attempted: 1,
+        correct: isCorrect ? 1 : 0,
+        lastQuestionId: question._id,
+      });
 
       return res.json({
         success: true,
@@ -302,41 +266,14 @@ async function _evaluateInBackground(jobId, essay) {
     if (!question) return;
     const sectionKey = await _resolveSectionKey(question.sectionId);
     const passed = result.score >= 60;
-    const incPath = sectionKey
-      ? {
-          questionsAttempted: 1,
-          questionsCorrect: passed ? 1 : 0,
-          [`sectionScores.${sectionKey}.attempted`]: 1,
-          [`sectionScores.${sectionKey}.correct`]: passed ? 1 : 0,
-        }
-      : {
-          questionsAttempted: 1,
-          questionsCorrect: passed ? 1 : 0,
-        };
-    const progress = await UserExamProgress.findOneAndUpdate(
-      { userId: job.userId, examId: question.examId },
-      {
-        $inc: incPath,
-        $set: {
-          lastAttemptedQuestionId: question._id,
-          lastUpdated: new Date(),
-        },
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-    if (sectionKey && progress.sectionScores[sectionKey].attempted > 0) {
-      const s = progress.sectionScores[sectionKey];
-      progress.sectionScores[sectionKey].score = Math.round(
-        (s.correct / s.attempted) * 100
-      );
-      const pcts = Object.values(progress.sectionScores)
-        .map((sc) => sc?.score)
-        .filter((v) => typeof v === 'number');
-      progress.overallScore = pcts.length
-        ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length)
-        : null;
-      await progress.save();
-    }
+    await _bumpProgress({
+      userId: job.userId,
+      examId: question.examId,
+      sectionKey,
+      attempted: 1,
+      correct: passed ? 1 : 0,
+      lastQuestionId: question._id,
+    });
   } catch (err) {
     if (job) {
       job.status = 'failed';
@@ -507,6 +444,63 @@ router.get(
     res.json({ success: true, data: plan });
   })
 );
+
+/**
+ * Atomically bump per-user-per-exam progress counters and recompute the
+ * section-percentage + overall score. Sole writer of UserExamProgress
+ * so both MC (route handler) and essay (background eval) paths go
+ * through the same place.
+ *
+ * sectionScores is a Map<String, SectionScore>, so we use dot-notation
+ * paths in $inc to grow the Map server-side without a read-modify-write
+ * round-trip. Mongoose translates these into proper Map operations.
+ */
+async function _bumpProgress({
+  userId,
+  examId,
+  sectionKey,
+  attempted,
+  correct,
+  lastQuestionId,
+}) {
+  const inc = {
+    questionsAttempted: attempted,
+    questionsCorrect: correct,
+  };
+  if (sectionKey) {
+    inc[`sectionScores.${sectionKey}.attempted`] = attempted;
+    inc[`sectionScores.${sectionKey}.correct`] = correct;
+  }
+  const progress = await UserExamProgress.findOneAndUpdate(
+    { userId, examId },
+    {
+      $inc: inc,
+      $set: {
+        lastAttemptedQuestionId: lastQuestionId,
+        lastUpdated: new Date(),
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  if (!sectionKey) return progress;
+
+  // Recompute the section %; iterate the Map for the overall average.
+  const section = progress.sectionScores.get(sectionKey);
+  if (section && section.attempted > 0) {
+    section.score = Math.round((section.correct / section.attempted) * 100);
+    progress.sectionScores.set(sectionKey, section);
+  }
+  const pcts = [];
+  for (const sc of progress.sectionScores.values()) {
+    if (sc && typeof sc.score === 'number') pcts.push(sc.score);
+  }
+  progress.overallScore = pcts.length
+    ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length)
+    : null;
+  await progress.save();
+  return progress;
+}
 
 // Resolve a section's `sectionType` ("reading", "writing", …) from its id.
 // Memoized via a tiny in-process cache because the section id → type

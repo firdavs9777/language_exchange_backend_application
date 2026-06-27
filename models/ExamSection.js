@@ -9,7 +9,18 @@ const ExamSectionSchema = new mongoose.Schema({
   sectionName: { type: String, required: true },
   sectionType: {
     type: String,
-    enum: ['reading', 'writing', 'speaking', 'listening', 'vocabulary'],
+    // `writing` is kept as a legacy value for any pre-split rows; new
+    // seed migration uses writing-task-1 / writing-task-2 so progress
+    // tracks each task independently.
+    enum: [
+      'reading',
+      'writing',
+      'writing-task-1',
+      'writing-task-2',
+      'speaking',
+      'listening',
+      'vocabulary',
+    ],
     required: true,
   },
   description: String,

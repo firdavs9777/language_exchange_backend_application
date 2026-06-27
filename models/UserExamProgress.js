@@ -24,15 +24,15 @@ const UserExamProgressSchema = new mongoose.Schema({
   },
   questionsAttempted: { type: Number, default: 0 },
   questionsCorrect: { type: Number, default: 0 },
-  // One sub-doc per section type. Backend MVP only writes reading + writing,
-  // but the rest are pre-declared so Phase 2 (speaking/listening/vocab)
-  // doesn't need a migration.
+  // Per-section tallies, keyed by `ExamSection.sectionType`. Stored as a
+  // Map<String, SectionScore> so adding new section variants
+  // (writing-task-1, writing-task-2, vocabulary-a1, …) doesn't require
+  // a schema change. Mongoose serialises Maps to plain objects, so the
+  // API contract reads identically to clients.
   sectionScores: {
-    reading: { type: SectionScoreSchema, default: () => ({}) },
-    writing: { type: SectionScoreSchema, default: () => ({}) },
-    speaking: { type: SectionScoreSchema, default: () => ({}) },
-    listening: { type: SectionScoreSchema, default: () => ({}) },
-    vocabulary: { type: SectionScoreSchema, default: () => ({}) },
+    type: Map,
+    of: SectionScoreSchema,
+    default: () => new Map(),
   },
   overallScore: Number,
   lastAttemptedQuestionId: mongoose.Schema.Types.ObjectId,
