@@ -67,11 +67,14 @@ const SECTION_DATA = [
   { type: 'writing', name: 'Writing', durationMinutes: 60, questionCount: 2 },
 ];
 
-// Sample questions per (exam, section). Keep small + obviously synthetic
+// Sample questions per (exam, section). Tagged with `topic` so the app's
+// topic picker has something to group by. Keep small + obviously synthetic
 // so we don't accidentally ship licensed copy in the demo seed.
 const QUESTION_DATA = {
   'IELTS:reading': [
+    // Climate
     {
+      topic: 'Climate',
       questionText:
         'According to the passage, the author argues that renewable energy is most effective when:',
       questionType: 'multiple-choice',
@@ -87,6 +90,7 @@ const QUESTION_DATA = {
       difficulty: 'medium',
     },
     {
+      topic: 'Climate',
       questionText:
         'The word "abundant" in paragraph 2 is closest in meaning to:',
       questionType: 'multiple-choice',
@@ -95,9 +99,78 @@ const QUESTION_DATA = {
       explanation: '"Abundant" means existing in large quantities — i.e. plentiful.',
       difficulty: 'easy',
     },
+    // Technology
+    {
+      topic: 'Technology',
+      questionText:
+        'The passage suggests that artificial intelligence is most useful when it is:',
+      questionType: 'multiple-choice',
+      options: [
+        'A) Replacing human judgement entirely',
+        'B) Augmenting human decision-making',
+        'C) Trained on a single source of data',
+        'D) Kept hidden from end users',
+      ],
+      correctAnswer: 'B',
+      explanation:
+        'The author argues AI works best as an augmentation tool rather than a replacement.',
+      difficulty: 'medium',
+    },
+    // Travel
+    {
+      topic: 'Travel',
+      questionText:
+        'What does the author identify as the primary benefit of slow travel?',
+      questionType: 'multiple-choice',
+      options: [
+        'A) Lower cost',
+        'B) Deeper cultural understanding',
+        'C) More social media content',
+        'D) Faster transportation',
+      ],
+      correctAnswer: 'B',
+      explanation:
+        'The passage frames slow travel as a path to deeper cultural connection.',
+      difficulty: 'easy',
+    },
+    // Education
+    {
+      topic: 'Education',
+      questionText:
+        'Which of the following best summarises the author\'s view on standardised testing?',
+      questionType: 'multiple-choice',
+      options: [
+        'A) Tests measure all the skills students need',
+        'B) Tests are useful but should not be the sole measure of learning',
+        'C) Tests should be abolished entirely',
+        'D) Tests should be given more frequently',
+      ],
+      correctAnswer: 'B',
+      explanation:
+        'The author advocates a balanced view — useful, but not the only metric.',
+      difficulty: 'medium',
+    },
+    // Health
+    {
+      topic: 'Health',
+      questionText:
+        'According to the passage, regular exercise primarily benefits cognitive function by:',
+      questionType: 'multiple-choice',
+      options: [
+        'A) Increasing blood flow to the brain',
+        'B) Reducing the need for sleep',
+        'C) Replacing the need for proper nutrition',
+        'D) Lowering body temperature',
+      ],
+      correctAnswer: 'A',
+      explanation:
+        'The author cites improved cerebral blood flow as the key mechanism.',
+      difficulty: 'medium',
+    },
   ],
   'IELTS:writing': [
     {
+      topic: 'Technology',
       questionText:
         'Some people believe that technology has made our lives easier, while others argue it has made them more complicated. Discuss both views and give your own opinion. Write at least 250 words.',
       questionType: 'essay',
@@ -106,9 +179,30 @@ const QUESTION_DATA = {
         'A strong response addresses both sides with clear examples and ends with a reasoned personal opinion.',
       difficulty: 'medium',
     },
+    {
+      topic: 'Climate',
+      questionText:
+        'Many governments are now investing heavily in renewable energy. Do you think this is the best way to tackle climate change, or are there more effective approaches? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Take a clear stance, support it with examples, and acknowledge alternative approaches.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        'Some argue universities should focus on preparing students for the workforce, while others believe their role is to foster broad intellectual development. Discuss both views and give your opinion. Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Balanced essays that explore both perspectives before concluding tend to score highest.',
+      difficulty: 'medium',
+    },
   ],
   'DELE:reading': [
     {
+      topic: 'Work',
       questionText:
         'En el texto, el autor sugiere que el éxito profesional depende principalmente de:',
       questionType: 'multiple-choice',
@@ -123,9 +217,42 @@ const QUESTION_DATA = {
         'El texto enfatiza el esfuerzo continuo como factor clave del éxito.',
       difficulty: 'medium',
     },
+    {
+      topic: 'Travel',
+      questionText:
+        'Según el pasaje, ¿qué recomienda el autor para viajar de manera sostenible?',
+      questionType: 'multiple-choice',
+      options: [
+        'A) Volar siempre en primera clase',
+        'B) Elegir transportes locales y alojamientos pequeños',
+        'C) Visitar únicamente grandes ciudades',
+        'D) Llevar mucho equipaje',
+      ],
+      correctAnswer: 'B',
+      explanation:
+        'El autor recomienda transportes locales y alojamientos comunitarios.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        '¿Cuál es la idea principal del texto sobre la dieta mediterránea?',
+      questionType: 'multiple-choice',
+      options: [
+        'A) Es difícil de seguir',
+        'B) Combina sabor con beneficios cardiovasculares',
+        'C) Está prohibida en muchos países',
+        'D) Solo incluye pescado',
+      ],
+      correctAnswer: 'B',
+      explanation:
+        'El texto destaca el equilibrio entre placer y salud cardiovascular.',
+      difficulty: 'medium',
+    },
   ],
   'DELE:writing': [
     {
+      topic: 'Work',
       questionText:
         'Escriba una carta formal a una empresa solicitando información sobre un puesto de trabajo. Mínimo 150 palabras.',
       questionType: 'essay',
@@ -134,9 +261,20 @@ const QUESTION_DATA = {
         'La carta debe seguir el formato formal: saludo, presentación, motivo, despedida.',
       difficulty: 'medium',
     },
+    {
+      topic: 'Climate',
+      questionText:
+        'Escriba un artículo de opinión sobre las medidas que cada persona puede tomar para reducir su impacto ambiental. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Use ejemplos concretos y conecte las acciones individuales con el efecto colectivo.',
+      difficulty: 'medium',
+    },
   ],
   'TOPIK:reading': [
     {
+      topic: 'Culture',
       questionText:
         '다음 글의 주제로 가장 알맞은 것은?\n\n"한국의 사계절은 각각 뚜렷한 특징을 가지고 있다. 봄에는 꽃이 피고, 여름에는 덥고 비가 많이 온다."',
       questionType: 'multiple-choice',
@@ -150,15 +288,56 @@ const QUESTION_DATA = {
       explanation: '글의 주제는 명확하게 사계절에 관한 내용입니다.',
       difficulty: 'easy',
     },
+    {
+      topic: 'Technology',
+      questionText:
+        '"스마트폰은 우리의 일상생활을 편리하게 해주지만, 동시에 사람들 사이의 직접적인 대화를 줄이기도 합니다."\n\n이 글의 핵심 주장은 무엇입니까?',
+      questionType: 'multiple-choice',
+      options: [
+        'A) 스마트폰은 사용해서는 안 된다',
+        'B) 스마트폰은 장점과 단점을 모두 가진다',
+        'C) 스마트폰은 미래에 사라질 것이다',
+        'D) 스마트폰은 어린이에게만 유익하다',
+      ],
+      correctAnswer: 'B',
+      explanation: '글은 편리함과 부작용 양면을 동시에 언급합니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        '"평생 학습은 변화하는 사회에서 필수가 되었다."\n\n이 문장이 의미하는 바와 가장 가까운 것은?',
+      questionType: 'multiple-choice',
+      options: [
+        'A) 학교를 마치면 공부할 필요가 없다',
+        'B) 사회 변화에 적응하려면 계속 배워야 한다',
+        'C) 평생 학교에 다녀야 한다',
+        'D) 학습은 어린 시절에만 가능하다',
+      ],
+      correctAnswer: 'B',
+      explanation: '"평생 학습"은 사회 변화에 적응하기 위한 지속적 학습을 의미합니다.',
+      difficulty: 'medium',
+    },
   ],
   'TOPIK:writing': [
     {
+      topic: 'Climate',
       questionText:
         '"환경 보호의 중요성"에 대해 600~700자 분량의 글을 쓰십시오.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
         '환경 보호의 필요성과 구체적인 실천 방안을 논리적으로 제시해야 합니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Culture',
+      questionText:
+        '여러분의 나라의 전통문화 중 가장 자랑스러운 것을 하나 골라 600~700자로 소개하십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '문화의 역사와 현재적 의미를 함께 설명하면 좋은 점수를 받기 쉽습니다.',
       difficulty: 'medium',
     },
   ],
@@ -249,7 +428,16 @@ async function seed() {
         sectionId: section._id,
         questionText: q.questionText,
       });
-      if (existing) continue;
+      if (existing) {
+        // Backfill the topic field on already-seeded rows so the topic
+        // picker has something to group by after a fresh seed run.
+        if (!existing.topic && q.topic) {
+          existing.topic = q.topic;
+          await existing.save();
+          console.log(`~ Backfilled topic for ${examName}/${sectionType} question`);
+        }
+        continue;
+      }
       await ExamQuestion.create({
         examId: exam._id,
         sectionId: section._id,

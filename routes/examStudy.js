@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
 const asyncHandler = require('../middleware/async');
@@ -46,21 +47,45 @@ router.get(
 );
 
 // GET /api/v1/exam-study/sections/:sectionId/questions
-// Query params: limit, skip, difficulty, source
+// Query params: limit, skip, difficulty, source, topic
 router.get(
   '/sections/:sectionId/questions',
   asyncHandler(async (req, res) => {
     const { sectionId } = req.params;
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 100);
     const skip = parseInt(req.query.skip, 10) || 0;
-    const { difficulty, source } = req.query;
+    const { difficulty, source, topic } = req.query;
 
     const query = { sectionId };
     if (difficulty) query.difficulty = difficulty;
     if (source) query.source = source;
+    if (topic) query.topic = topic;
 
     const questions = await ExamQuestion.find(query).skip(skip).limit(limit);
     res.json({ success: true, data: questions });
+  })
+);
+
+// GET /api/v1/exam-study/sections/:sectionId/topics
+// Returns the distinct list of topics in this section, with question
+// counts so the picker can show "Climate · 4 questions" style chips.
+router.get(
+  '/sections/:sectionId/topics',
+  asyncHandler(async (req, res) => {
+    const { sectionId } = req.params;
+    const sectionObjectId = new mongoose.Types.ObjectId(sectionId);
+    const rows = await ExamQuestion.aggregate([
+      { $match: { sectionId: sectionObjectId, topic: { $ne: null, $ne: '' } } },
+      { $group: { _id: '$topic', questionCount: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]);
+    res.json({
+      success: true,
+      data: rows.map((r) => ({
+        topic: r._id,
+        questionCount: r.questionCount,
+      })),
+    });
   })
 );
 
