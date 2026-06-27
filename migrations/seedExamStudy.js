@@ -36,7 +36,14 @@ const EXAM_DATA = [
     name: 'IELTS',
     languageCode: 'en',
     description: 'International English Language Testing System.',
-    sections: ['reading', 'writing-task-1', 'writing-task-2'],
+    sections: [
+      'reading',
+      'writing-task-1',
+      'writing-task-2',
+      'speaking-part-1',
+      'speaking-part-2',
+      'speaking-part-3',
+    ],
     durationMinutes: 170,
     scoringType: 'band',
     maxScore: 9,
@@ -45,7 +52,14 @@ const EXAM_DATA = [
     name: 'DELE',
     languageCode: 'es',
     description: 'Diplomas de Español como Lengua Extranjera.',
-    sections: ['reading', 'writing-task-1', 'writing-task-2'],
+    sections: [
+      'reading',
+      'writing-task-1',
+      'writing-task-2',
+      'speaking-part-1',
+      'speaking-part-2',
+      'speaking-part-3',
+    ],
     durationMinutes: 160,
     scoringType: 'score',
     maxScore: 100,
@@ -54,7 +68,14 @@ const EXAM_DATA = [
     name: 'TOPIK',
     languageCode: 'ko',
     description: 'Test of Proficiency in Korean.',
-    sections: ['reading', 'writing-task-1', 'writing-task-2'],
+    sections: [
+      'reading',
+      'writing-task-1',
+      'writing-task-2',
+      'speaking-part-1',
+      'speaking-part-2',
+      'speaking-part-3',
+    ],
     durationMinutes: 180,
     scoringType: 'score',
     maxScore: 300,
@@ -77,6 +98,24 @@ const SECTION_DATA = [
     name: 'Writing — Task 2',
     durationMinutes: 40,
     questionCount: 5,
+  },
+  {
+    type: 'speaking-part-1',
+    name: 'Speaking — Part 1',
+    durationMinutes: 5,
+    questionCount: 6,
+  },
+  {
+    type: 'speaking-part-2',
+    name: 'Speaking — Part 2',
+    durationMinutes: 4,
+    questionCount: 4,
+  },
+  {
+    type: 'speaking-part-3',
+    name: 'Speaking — Part 3',
+    durationMinutes: 5,
+    questionCount: 4,
   },
 ];
 
@@ -537,6 +576,75 @@ const QUESTION_DATA = {
       difficulty: 'medium',
     },
   ],
+
+  // IELTS Speaking Part 1 — short introductory Q&A (~30s answers).
+  'IELTS:speaking-part-1': [
+    { topic: 'Home', questionText: 'Where do you live? Can you describe your hometown briefly?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Aim for 2-3 connected sentences with a personal detail.', difficulty: 'easy' },
+    { topic: 'Hobbies', questionText: 'What do you enjoy doing in your free time? Why?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'A simple reason for each activity helps the answer feel complete.', difficulty: 'easy' },
+    { topic: 'Work', questionText: 'Do you work or are you a student? Tell me a little about what you do.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Mention the role and one thing you like or find challenging.', difficulty: 'easy' },
+    { topic: 'Food', questionText: 'What kind of food do you like? Has your taste changed over the years?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Use past + present tense — examiners look for tense variety.', difficulty: 'medium' },
+    { topic: 'Travel', questionText: 'Have you travelled recently? Where did you go and what was it like?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Past tense narrative with one specific detail (a meal, a place, a person).', difficulty: 'medium' },
+    { topic: 'Culture', questionText: 'What festivals or holidays are important in your culture?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Pick one festival and describe what people do — concrete > abstract.', difficulty: 'medium' },
+  ],
+  // IELTS Speaking Part 2 — cue card monologue (1-2 min).
+  'IELTS:speaking-part-2': [
+    { topic: 'Travel', questionText: 'Describe a memorable trip you have taken. You should say:\n• where you went\n• who you went with\n• what you did there\n• and explain why it was memorable.\n\nSpeak for 1–2 minutes.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Cover all four bullets in order; finish with the "why" — it carries the strongest band signal.', difficulty: 'medium' },
+    { topic: 'Education', questionText: 'Describe a teacher who influenced you. You should say:\n• who they were\n• what they taught\n• how they taught\n• and explain why they had an impact on you.\n\nSpeak for 1–2 minutes.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Use specific anecdotes — the examiner rewards concrete narrative over generic praise.', difficulty: 'medium' },
+    { topic: 'Technology', questionText: 'Describe a piece of technology you use every day. You should say:\n• what it is\n• how often you use it\n• what you use it for\n• and explain why it is important to you.\n\nSpeak for 1–2 minutes.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Avoid listing features — focus on how it changed your routine.', difficulty: 'medium' },
+    { topic: 'Health', questionText: 'Describe a change you made to your lifestyle. You should say:\n• what the change was\n• when you made it\n• why you made it\n• and how it affected you.\n\nSpeak for 1–2 minutes.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Past-to-present arc shows tense control. End with a reflective sentence.', difficulty: 'hard' },
+  ],
+  // IELTS Speaking Part 3 — deeper discussion (4-5 min total).
+  'IELTS:speaking-part-3': [
+    { topic: 'Technology', questionText: 'How has technology changed the way people communicate? Do you think these changes are mostly positive or negative?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Take a clear stance, give 2 examples, acknowledge a counter-point.', difficulty: 'hard' },
+    { topic: 'Education', questionText: 'Some people think university should be free for everyone. Do you agree? What are the implications either way?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Discuss societal vs individual benefit; avoid one-sided answers.', difficulty: 'hard' },
+    { topic: 'Climate', questionText: 'What do you think individuals can do to reduce their impact on the environment? Are individual actions enough?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Mix concrete actions (recycling, transport) with structural commentary (policy, business).', difficulty: 'hard' },
+    { topic: 'Work', questionText: 'How has the rise of remote work changed our lives? Do you think it will continue to grow?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Compare pre- and post-2020; offer a future-tense prediction with a justification.', difficulty: 'hard' },
+  ],
+
+  // DELE Hablar — Monólogo (~2 min individual presentation).
+  'DELE:speaking-part-1': [
+    { topic: 'Home', questionText: 'Preséntese y describa la ciudad donde vive. Hable durante aproximadamente un minuto.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Use el presente y al menos un adjetivo descriptivo por idea.', difficulty: 'easy' },
+    { topic: 'Hobbies', questionText: 'Cuente brevemente cuáles son sus pasatiempos favoritos y por qué le gustan.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Justifique cada pasatiempo con una razón concreta.', difficulty: 'easy' },
+    { topic: 'Work', questionText: 'Hable sobre su trabajo o sus estudios actuales y qué espera lograr en los próximos años.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Alterne entre presente y futuro — el examinador valora la variedad temporal.', difficulty: 'medium' },
+    { topic: 'Travel', questionText: 'Describa un viaje reciente: a dónde fue, qué hizo y qué recuerda con más cariño.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Use el pretérito indefinido y termine con una valoración personal.', difficulty: 'medium' },
+    { topic: 'Culture', questionText: 'Hable sobre una fiesta o tradición importante de su cultura. ¿Qué se hace y por qué es relevante?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Conecte el qué con el porqué — los datos sin contexto pesan poco.', difficulty: 'medium' },
+  ],
+  // DELE Hablar — Diálogo (interacción con el examinador).
+  'DELE:speaking-part-2': [
+    { topic: 'Health', questionText: 'Imagine que está en una farmacia y necesita comprar medicamentos sin receta para un resfriado. Inicie y mantenga la conversación con el farmacéutico (examinador).', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Use fórmulas de cortesía: "Disculpe", "¿Podría…?". Cierre la conversación con una despedida.', difficulty: 'medium' },
+    { topic: 'Travel', questionText: 'Está reservando una habitación de hotel por teléfono. Negocie con el recepcionista (examinador) detalles como precio, fechas y servicios incluidos.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Practique condicionales ("¿Sería posible…?") y formas de petición.', difficulty: 'medium' },
+    { topic: 'Work', questionText: 'Está en una entrevista de trabajo. Responda a las preguntas del entrevistador (examinador) sobre su experiencia y motivación.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Combine pasado (lo que ha hecho) y futuro (lo que aportaría).', difficulty: 'hard' },
+    { topic: 'Education', questionText: 'Quiere matricularse en un curso de español avanzado. Pida información a la secretaría (examinador) sobre horarios, precios y nivel requerido.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Estructure preguntas claras y reformule cuando no entienda la respuesta.', difficulty: 'medium' },
+  ],
+  // DELE Hablar — Conversación (debate sobre un tema).
+  'DELE:speaking-part-3': [
+    { topic: 'Climate', questionText: '"Los gobiernos deberían prohibir los coches de gasolina en las ciudades para 2030." ¿Está de acuerdo? Defienda su postura con argumentos.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Use conectores ("por un lado", "sin embargo", "en conclusión") para articular el debate.', difficulty: 'hard' },
+    { topic: 'Technology', questionText: '¿Cree que las redes sociales han mejorado o empeorado la calidad de nuestras relaciones? Argumente su opinión.', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Mencione ejemplos personales o sociales para apoyar cada argumento.', difficulty: 'hard' },
+    { topic: 'Education', questionText: 'Algunas universidades están eliminando los exámenes presenciales. ¿Cree que esto es positivo? ¿Por qué?', questionType: 'speaking-prompt', correctAnswer: null, explanation: 'Aborde tanto al estudiante como al profesor en su análisis.', difficulty: 'hard' },
+  ],
+
+  // TOPIK 말하기 — Part 1 (짧은 답변, ~30초).
+  'TOPIK:speaking-part-1': [
+    { topic: 'Home', questionText: '자기소개를 해 주세요. 이름, 직업, 사는 곳을 포함해서 30초 정도로 말해 주세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '존댓말을 일관되게 사용하고, 정보를 간결하게 정리하세요.', difficulty: 'easy' },
+    { topic: 'Hobbies', questionText: '여가 시간에 주로 무엇을 하는지 짧게 말해 주세요. 그 활동을 좋아하는 이유도 포함하세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '이유를 한 문장으로 명확히 표현하세요.', difficulty: 'easy' },
+    { topic: 'Food', questionText: '가장 좋아하는 한국 음식이 있으면 무엇인지, 어떤 점이 좋은지 말해 주세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '맛, 추억, 재료 중 하나를 골라 구체적으로 설명하세요.', difficulty: 'easy' },
+    { topic: 'Work', questionText: '현재 하고 있는 일이나 공부에 대해 간단히 설명해 주세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '직무 한 가지, 좋은 점 한 가지를 짚어 주세요.', difficulty: 'medium' },
+    { topic: 'Culture', questionText: '자신의 나라에서 중요한 명절이나 행사 하나를 짧게 소개해 주세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '무엇을 하는지 → 왜 중요한지 순서로 정리하세요.', difficulty: 'medium' },
+  ],
+  // TOPIK 말하기 — Part 2 (긴 답변, 1–2분).
+  'TOPIK:speaking-part-2': [
+    { topic: 'Travel', questionText: '가장 기억에 남는 여행 경험에 대해 1~2분 정도 말해 주세요. 어디로, 누구와, 무엇을 했는지 포함하세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '시간 순서 표현(처음에, 그다음에, 마지막에)을 사용하면 논리적으로 들립니다.', difficulty: 'medium' },
+    { topic: 'Education', questionText: '본인에게 영향을 준 선생님이나 멘토에 대해 1~2분 동안 이야기해 주세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '구체적인 일화 하나를 중심으로 발표를 구성하세요.', difficulty: 'medium' },
+    { topic: 'Technology', questionText: '최근에 새로 배운 기술이나 앱에 대해 소개해 주세요. 어떻게 사용하는지, 왜 유용한지 설명하세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '기능 나열보다 사용자 경험 중심으로 말하세요.', difficulty: 'medium' },
+    { topic: 'Health', questionText: '건강을 위해 최근에 바꾼 습관이나 시도한 일이 있다면 1~2분 동안 말해 주세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '과거형과 현재형을 함께 사용해 변화의 흐름을 보여 주세요.', difficulty: 'hard' },
+  ],
+  // TOPIK 말하기 — Part 3 (토론 / 의견).
+  'TOPIK:speaking-part-3': [
+    { topic: 'Technology', questionText: '인공지능 기술이 일자리에 미치는 영향에 대해 본인의 의견을 말해 주세요. 긍정적·부정적 측면을 모두 다루세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '두 측면을 균형 있게 다루고 마지막에 본인의 견해를 밝히세요.', difficulty: 'hard' },
+    { topic: 'Education', questionText: '온라인 수업과 오프라인 수업의 장단점을 비교해서 의견을 말해 주세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '비교 표현("~보다", "~에 비해")을 자연스럽게 사용하세요.', difficulty: 'hard' },
+    { topic: 'Climate', questionText: '환경 보호를 위해 개인이 실천할 수 있는 일에는 어떤 것들이 있는지, 그리고 개인의 노력만으로 충분한지에 대해 말해 주세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '개인 → 사회 → 정부 순으로 시야를 넓혀 설득력을 높이세요.', difficulty: 'hard' },
+    { topic: 'Work', questionText: '재택근무가 늘어나는 추세에 대해 어떻게 생각하는지 의견을 말해 주세요. 앞으로의 전망도 포함하세요.', questionType: 'speaking-prompt', correctAnswer: null, explanation: '미래 시제와 가정 표현("~할 것 같다", "~게 된다면")을 활용하세요.', difficulty: 'hard' },
+  ],
 };
 
 async function seed() {
@@ -575,6 +683,13 @@ async function seed() {
     { sections: { $ne: 'writing-task-1' } },
     { $addToSet: { sections: 'writing-task-1' } }
   );
+  // Ensure every exam lists speaking-part-1/2/3 (idempotent).
+  for (const sp of ['speaking-part-1', 'speaking-part-2', 'speaking-part-3']) {
+    await ExamType.updateMany(
+      { sections: { $ne: sp } },
+      { $addToSet: { sections: sp } }
+    );
+  }
 
   // 1. Languages.
   const languageByCode = {};
@@ -634,6 +749,37 @@ async function seed() {
         });
         sectionsByExam[exam.name][sectionDef.type] = created;
         console.log(`+ Created section ${exam.name}/${sectionDef.type}`);
+      }
+    }
+  }
+
+  // 3b. Localise speaking section names per exam — section rows already
+  // exist with English defaults from the loop above. This block is
+  // idempotent: only writes when the name still matches the default.
+  const SPEAKING_NAME_OVERRIDES = {
+    DELE: {
+      'speaking-part-1': 'Hablar — Monólogo',
+      'speaking-part-2': 'Hablar — Diálogo',
+      'speaking-part-3': 'Hablar — Conversación',
+    },
+    TOPIK: {
+      'speaking-part-1': '말하기 — 짧은 답변',
+      'speaking-part-2': '말하기 — 긴 답변',
+      'speaking-part-3': '말하기 — 토론',
+    },
+  };
+  for (const [examName, overrides] of Object.entries(SPEAKING_NAME_OVERRIDES)) {
+    const exam = examByName[examName];
+    if (!exam) continue;
+    for (const [sectionType, localisedName] of Object.entries(overrides)) {
+      const section = sectionsByExam[examName]?.[sectionType];
+      if (!section) continue;
+      // Only rename if still on the default English name — keeps the
+      // migration idempotent without clobbering admin edits.
+      if (section.sectionName && section.sectionName.startsWith('Speaking — ')) {
+        section.sectionName = localisedName;
+        await section.save();
+        console.log(`~ Localised ${examName}/${sectionType} → ${localisedName}`);
       }
     }
   }
