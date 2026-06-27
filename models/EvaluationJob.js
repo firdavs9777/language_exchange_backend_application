@@ -21,6 +21,11 @@ const EvaluationJobSchema = new mongoose.Schema({
   feedback: String,         // populated when status='completed'
   strengths: [String],      // optional; bullets pulled from AI response
   improvements: [String],   // optional; same
+  // Whisper-STT output for speaking jobs. Null for essay jobs.
+  transcript: String,
+  // S3 URL for the persisted audio, only set when SPEECH_PERSIST_AUDIO
+  // is true. Null otherwise.
+  audioUrl: String,
   errorMessage: String,     // populated when status='failed'
   createdAt: { type: Date, default: Date.now },
   completedAt: Date,

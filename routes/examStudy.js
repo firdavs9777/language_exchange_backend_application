@@ -230,6 +230,8 @@ router.get(
         feedback: job.feedback,
         strengths: job.strengths,
         improvements: job.improvements,
+        transcript: job.transcript,
+        audioUrl: job.audioUrl,
         errorMessage: job.errorMessage,
         completedAt: job.completedAt,
       },
