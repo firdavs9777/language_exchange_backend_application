@@ -309,6 +309,126 @@ const QUESTION_DATA = {
         'Lead with the date and ticket type; describe the fault objectively; propose a specific remedy.',
       difficulty: 'medium',
     },
+    {
+      topic: 'Education',
+      questionText:
+        'The bar chart shows the percentage of students achieving a top grade in three subjects (Mathematics, Literature, Science) at four schools (A, B, C, D) in 2024.\n\nSchool A: Mathematics 28%, Literature 41%, Science 33%\nSchool B: Mathematics 52%, Literature 36%, Science 47%\nSchool C: Mathematics 19%, Literature 24%, Science 22%\nSchool D: Mathematics 44%, Literature 31%, Science 38%\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Overview sentence first; group schools by performance; cover all three subjects but use one trend per paragraph.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        'The bar chart compares average daily exercise time (in minutes) of men and women across four age groups in 2020 and 2024.\n\n18–29:  Men 2020 → 38, Men 2024 → 45, Women 2020 → 34, Women 2024 → 42\n30–44:  Men 2020 → 29, Men 2024 → 35, Women 2020 → 32, Women 2024 → 39\n45–59:  Men 2020 → 22, Men 2024 → 28, Women 2020 → 26, Women 2024 → 34\n60+:    Men 2020 → 18, Men 2024 → 23, Women 2020 → 21, Women 2024 → 27\n\nSummarise the main trends and make comparisons.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Group by year-over-year change AND by gender. End the body with the clearest trend, not the smallest detail.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Travel',
+      questionText:
+        'The bar chart shows the number of international tourists (in millions) visiting five countries (France, Spain, the United States, Thailand, and Italy) in 2019 and 2024.\n\nFrance:  2019 → 90, 2024 → 84\nSpain:   2019 → 84, 2024 → 88\nUSA:     2019 → 79, 2024 → 67\nThailand:2019 → 40, 2024 → 36\nItaly:   2019 → 65, 2024 → 71\n\nSummarise the main features and make comparisons.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Pick out winners (Spain, Italy) and losers (USA, Thailand). Mention the overall European resilience.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Environment',
+      questionText:
+        'The line graph shows the average concentration of three air pollutants (PM2.5, NO2, and Ozone) in a major city over five years (2020–2024). All values are in micrograms per cubic metre.\n\nPM2.5:  2020 → 32, 2021 → 29, 2022 → 26, 2023 → 24, 2024 → 22\nNO2:    2020 → 41, 2021 → 39, 2022 → 38, 2023 → 35, 2024 → 31\nOzone:  2020 → 58, 2021 → 60, 2022 → 63, 2023 → 65, 2024 → 67\n\nSummarise the main trends and make comparisons.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Two opposing trends — PM2.5 and NO2 fell, Ozone rose. The overview should name this contrast.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        'The line graph shows the percentage of households owning four electronic devices (Television, Desktop Computer, Smartphone, Smart Speaker) in a country between 2014 and 2024.\n\nTelevision:       2014 → 96%, 2019 → 94%, 2024 → 89%\nDesktop Computer: 2014 → 71%, 2019 → 58%, 2024 → 41%\nSmartphone:       2014 → 62%, 2019 → 89%, 2024 → 97%\nSmart Speaker:    2014 → 1%,  2019 → 22%, 2024 → 54%\n\nSummarise the information by selecting and reporting the main features, and make comparisons.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Cluster the four lines into rising (Smartphone, Smart Speaker) and falling (TV, Desktop). Mention turning points.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Work',
+      questionText:
+        'The pie chart shows how a typical office worker in a European country spends a working day in 2024.\n\nMeetings: 28%\nEmail and messages: 22%\nFocused individual work: 30%\nBreaks and lunch: 9%\nTravel between meetings: 6%\nTraining and learning: 5%\n\nSummarise the information by selecting and reporting the main features.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Largest slice gets the overview. Group small slices (training, travel) for a clean comparison.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Food',
+      questionText:
+        'The pie charts compare how a typical household budget in two countries (the United Kingdom and Brazil) is divided across six categories in 2024.\n\nUnited Kingdom: Housing 33%, Food 14%, Transport 13%, Health 8%, Education 5%, Leisure 27%\nBrazil:         Housing 24%, Food 28%, Transport 17%, Health 11%, Education 9%, Leisure 11%\n\nSummarise the main features and make comparisons.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Find the biggest cross-country gap (Food, Leisure) and lead with it. Use proportional language: "twice as much", "a third".',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        'The table shows the percentage of adults aged 25–64 with different highest qualifications in four countries in 2023.\n\nCountry  | No formal qualification | Secondary | Vocational | University\nGermany  | 4%                      | 38%       | 32%        | 26%\nKorea    | 8%                      | 28%       | 12%        | 52%\nBrazil   | 23%                     | 42%       | 14%        | 21%\nFinland  | 5%                      | 32%       | 21%        | 42%\n\nSummarise the main features and make comparisons.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Compare by category, not by country list. Highlight Korea\'s university dominance and Brazil\'s broad mid-range.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Travel',
+      questionText:
+        'The table compares the average price (USD), travel time, and emissions per passenger of four ways to travel between two large cities (~700 km apart) in 2024.\n\nMode      | Price | Time     | CO2 per passenger\nAir       | $180  | 3h 20m   | 110 kg\nHigh-speed rail | $90   | 4h 10m   | 14 kg\nIntercity coach | $40   | 9h 00m   | 22 kg\nPrivate car | $75   | 7h 30m   | 95 kg\n\nSummarise the main features and make comparisons.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Each mode wins on one dimension; structure the body around trade-offs rather than mode by mode.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Environment',
+      questionText:
+        'The diagram describes the seven-stage process by which plastic bottles are recycled.\n\n1. Used bottles are placed in dedicated recycling bins.\n2. Collection trucks transport the bottles to a sorting facility.\n3. Bottles are separated by colour and material using optical scanners.\n4. The bottles are crushed and washed in hot water.\n5. The clean fragments are shredded into small flakes.\n6. The flakes are melted and extruded into pellets.\n7. The pellets are sold to manufacturers to make new products.\n\nSummarise the information by selecting and reporting the main features.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Passive voice is your friend in process descriptions. Use sequencing connectors (first, next, subsequently, finally).',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Food',
+      questionText:
+        'The diagram shows the seven stages of producing chocolate from harvested cacao pods.\n\n1. Ripe cacao pods are harvested from cacao trees by hand.\n2. The pods are cut open and the seeds (cacao beans) are removed.\n3. The beans are fermented for 5–7 days in covered boxes.\n4. The fermented beans are dried in the sun for one week.\n5. The dried beans are roasted in industrial ovens.\n6. The roasted beans are ground into a thick paste called cocoa liquor.\n7. Sugar, milk, and cocoa butter are mixed in to produce solid chocolate.\n\nSummarise the information by selecting and reporting the main features.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Group stages into natural phases: harvest, processing, finishing. Use "once", "after which", "finally".',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Home',
+      questionText:
+        'The two maps show changes to a town centre between 2000 and 2024.\n\nIn 2000, the town centre had:\n- a small open-air car park in the north\n- a row of three independent shops in the centre\n- a public library in the south-east\n- a small park in the south-west\n\nIn 2024, the town centre has:\n- a multi-storey car park in the north (built on the same site)\n- a single shopping mall replacing the row of independent shops\n- a pedestrian plaza where the library used to stand\n- the public library has been moved to a larger building next to the park, which is now twice as big\n\nSummarise the information by selecting and reporting the main changes.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Past passive ("has been replaced", "was demolished") plus directional language (north, south-east). One sentence per major change.',
+      difficulty: 'hard',
+    },
 ],
   // Writing Task 2 (long-form opinion essay, ~250 words).
   'IELTS:writing-task-2': [
