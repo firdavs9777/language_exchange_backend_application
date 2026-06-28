@@ -7,13 +7,14 @@ const ExamLanguage = require('../models/ExamLanguage');
 const ExamType = require('../models/ExamType');
 const ExamSection = require('../models/ExamSection');
 const ExamQuestion = require('../models/ExamQuestion');
+const ExamVocabularyWord = require('../models/ExamVocabularyWord');
 const UserExamProgress = require('../models/UserExamProgress');
 const UserStudyPlan = require('../models/UserStudyPlan');
 const EvaluationJob = require('../models/EvaluationJob');
 const examEvaluationService = require('../services/examEvaluationService');
 const examStudyPlanService = require('../services/examStudyPlanService');
 const multer = require('multer');
-const { transcribeAudio } = require('../services/speechService');
+const { transcribeAudio, generateTTS } = require('../services/speechService');
 
 // All exam-study endpoints require auth — practice + progress are user-scoped.
 router.use(protect);
@@ -683,5 +684,289 @@ async function _resolveSectionKey(sectionId) {
   _sectionTypeCache.set(String(sectionId), section.sectionType);
   return section.sectionType;
 }
+
+// =============================================================================
+// VOCABULARY — browse + level/topic pickers + practice quiz
+// =============================================================================
+
+// In-process quiz cache: { quizId → { items: [{wordId, correctChoice}], expiresAt } }
+// Submit endpoint validates against this so the client can't trust-bypass scoring.
+// 30 min TTL; entries removed lazily on access.
+const _quizCache = new Map();
+const QUIZ_TTL_MS = 30 * 60 * 1000;
+
+function _purgeExpiredQuizzes() {
+  const now = Date.now();
+  for (const [id, entry] of _quizCache) {
+    if (entry.expiresAt < now) _quizCache.delete(id);
+  }
+}
+
+function _newQuizId() {
+  return new mongoose.Types.ObjectId().toString();
+}
+
+// GET /api/v1/exam-study/vocabulary?examId=&level=&topic=&limit=&skip=
+router.get(
+  '/vocabulary',
+  asyncHandler(async (req, res) => {
+    const { examId, level, topic } = req.query;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 200);
+    const skip = parseInt(req.query.skip, 10) || 0;
+
+    if (!examId) {
+      return res.status(400).json({ success: false, error: 'examId is required' });
+    }
+    if (!mongoose.isValidObjectId(examId)) {
+      return res.status(400).json({ success: false, error: 'Invalid examId' });
+    }
+
+    const filter = { examIds: examId };
+    if (level) filter.level = level;
+    if (topic) filter.topic = topic;
+
+    const [words, total] = await Promise.all([
+      ExamVocabularyWord.find(filter)
+        .sort({ word: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      ExamVocabularyWord.countDocuments(filter),
+    ]);
+
+    res.json({ success: true, data: { words, total, limit, skip } });
+  }),
+);
+
+// GET /api/v1/exam-study/vocabulary/levels?examId=
+// Returns only levels that have ≥1 word — keeps empty tiles off the picker.
+router.get(
+  '/vocabulary/levels',
+  asyncHandler(async (req, res) => {
+    const { examId } = req.query;
+    if (!examId || !mongoose.isValidObjectId(examId)) {
+      return res.status(400).json({ success: false, error: 'examId is required' });
+    }
+    const levels = await ExamVocabularyWord.distinct('level', { examIds: examId });
+    const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    levels.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    res.json({ success: true, data: { levels } });
+  }),
+);
+
+// GET /api/v1/exam-study/vocabulary/topics?examId=&level=
+router.get(
+  '/vocabulary/topics',
+  asyncHandler(async (req, res) => {
+    const { examId, level } = req.query;
+    if (!examId || !mongoose.isValidObjectId(examId)) {
+      return res.status(400).json({ success: false, error: 'examId is required' });
+    }
+    const filter = { examIds: examId };
+    if (level) filter.level = level;
+    const topics = (await ExamVocabularyWord.distinct('topic', filter))
+      .filter(Boolean)
+      .sort();
+    res.json({ success: true, data: { topics } });
+  }),
+);
+
+// POST /api/v1/exam-study/vocabulary/quiz/start
+// body: { examId, level, topic?, size=10 }
+router.post(
+  '/vocabulary/quiz/start',
+  asyncHandler(async (req, res) => {
+    const { examId, level, topic } = req.body || {};
+    const size = Math.min(Math.max(parseInt(req.body?.size, 10) || 10, 5), 20);
+    if (!examId || !mongoose.isValidObjectId(examId)) {
+      return res.status(400).json({ success: false, error: 'examId is required' });
+    }
+    if (!level) {
+      return res.status(400).json({ success: false, error: 'level is required' });
+    }
+
+    const filter = { examIds: examId, level };
+    if (topic) filter.topic = topic;
+
+    const pool = await ExamVocabularyWord.find(filter).lean();
+    if (pool.length < 4) {
+      return res.status(400).json({
+        success: false,
+        error: 'NOT_ENOUGH_WORDS',
+        message: 'Not enough words at this level/topic to build a quiz.',
+      });
+    }
+
+    // Pull distractor pool from the same level (any topic) so we always have
+    // enough non-target options even on tiny topics.
+    const distractorPool = await ExamVocabularyWord.find({
+      examIds: examId,
+      level,
+      _id: { $nin: pool.map(p => p._id) },
+    }).select('definition').lean();
+
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const chosen = shuffled.slice(0, Math.min(size, pool.length));
+
+    const questions = chosen.map(word => {
+      // Build 3 distractor definitions; fall back to other-in-pool definitions
+      // if the same-level pool is thin.
+      const others = [
+        ...distractorPool,
+        ...pool.filter(p => String(p._id) !== String(word._id)),
+      ];
+      const distractors = [...others]
+        .sort(() => Math.random() - 0.5)
+        .map(p => p.definition)
+        .filter((d, i, arr) => arr.indexOf(d) === i && d !== word.definition)
+        .slice(0, 3);
+
+      const allOptions = [word.definition, ...distractors];
+      const shuffledOptions = allOptions.sort(() => Math.random() - 0.5);
+      const correctIndex = shuffledOptions.indexOf(word.definition);
+
+      return {
+        id: String(word._id),
+        prompt: `What does "${word.word}" mean?`,
+        options: shuffledOptions,
+        // Note: correctChoice + explanation kept server-side only.
+        _correctChoice: correctIndex,
+        _word: word.word,
+        _example: word.exampleSentence,
+      };
+    });
+
+    const quizId = _newQuizId();
+    _quizCache.set(quizId, {
+      examId,
+      userId: String(req.user._id),
+      items: questions.map(q => ({
+        wordId: q.id,
+        correctChoice: q._correctChoice,
+        word: q._word,
+        example: q._example,
+      })),
+      expiresAt: Date.now() + QUIZ_TTL_MS,
+    });
+    _purgeExpiredQuizzes();
+
+    const clientQuestions = questions.map(({ _correctChoice, _word, _example, ...rest }) => rest);
+    res.json({ success: true, data: { quizId, questions: clientQuestions } });
+  }),
+);
+
+// POST /api/v1/exam-study/vocabulary/quiz/:quizId/submit
+// body: { answers: [{ questionId, choice }] }
+router.post(
+  '/vocabulary/quiz/:quizId/submit',
+  asyncHandler(async (req, res) => {
+    const { quizId } = req.params;
+    const answers = Array.isArray(req.body?.answers) ? req.body.answers : [];
+
+    _purgeExpiredQuizzes();
+    const entry = _quizCache.get(quizId);
+    if (!entry) {
+      return res.status(410).json({
+        success: false,
+        error: 'QUIZ_EXPIRED',
+        message: 'This quiz has expired. Please start a new one.',
+      });
+    }
+
+    const lookup = new Map(entry.items.map(it => [it.wordId, it]));
+    let correctCount = 0;
+    const results = answers.map(a => {
+      const item = lookup.get(String(a.questionId));
+      if (!item) {
+        return { questionId: a.questionId, isCorrect: false, correctChoice: null };
+      }
+      const isCorrect = Number(a.choice) === Number(item.correctChoice);
+      if (isCorrect) correctCount += 1;
+      return {
+        questionId: a.questionId,
+        isCorrect,
+        correctChoice: item.correctChoice,
+        word: item.word,
+        example: item.example,
+      };
+    });
+
+    const total = entry.items.length;
+    const score = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+
+    // One-shot: invalidate so the same quiz can't be re-submitted.
+    _quizCache.delete(quizId);
+
+    // Bump vocabulary section progress so the dashboard shows movement.
+    // Best-effort: failures here must not block the response.
+    try {
+      if (entry.userId && entry.examId) {
+        await _bumpVocabProgress(entry.userId, entry.examId, correctCount, total);
+      }
+    } catch (e) {
+      // ignore — progress is a nicety, not a correctness signal
+    }
+
+    res.json({
+      success: true,
+      data: { score, correctCount, total, results },
+    });
+  }),
+);
+
+async function _bumpVocabProgress(userId, examId, correctCount, total) {
+  if (!mongoose.isValidObjectId(examId)) return;
+  const progress = await UserExamProgress.findOne({ userId, examId });
+  const fresh = progress || new UserExamProgress({ userId, examId, sectionScores: {} });
+  const existing = fresh.sectionScores.get('vocabulary') || { attempted: 0, correct: 0 };
+  fresh.sectionScores.set('vocabulary', {
+    attempted: (existing.attempted || 0) + total,
+    correct: (existing.correct || 0) + correctCount,
+  });
+  fresh.lastActivityAt = new Date();
+  await fresh.save();
+}
+
+// GET /api/v1/exam-study/vocabulary/:wordId/audio
+// Lazily generates + caches a TTS clip; mutates the word's audioUrl on first hit.
+router.get(
+  '/vocabulary/:wordId/audio',
+  asyncHandler(async (req, res) => {
+    const { wordId } = req.params;
+    if (!mongoose.isValidObjectId(wordId)) {
+      return res.status(400).json({ success: false, error: 'Invalid wordId' });
+    }
+    const word = await ExamVocabularyWord.findById(wordId).populate('languageId', 'code name');
+    if (!word) {
+      return res.status(404).json({ success: false, error: 'Word not found' });
+    }
+
+    if (word.audioUrl) {
+      return res.json({ success: true, data: { audioUrl: word.audioUrl, cached: true } });
+    }
+
+    try {
+      const langCode = word.languageId && word.languageId.code ? word.languageId.code : 'en';
+      const ttsLang = langCode === 'ko' ? 'korean'
+                     : langCode === 'es' ? 'spanish'
+                     : 'english';
+      const result = await generateTTS({
+        text: word.word,
+        language: ttsLang,
+        sourceType: 'exam-vocab',
+        userId: req.user && req.user._id,
+      });
+      word.audioUrl = result.audioUrl;
+      await word.save();
+      res.json({ success: true, data: { audioUrl: result.audioUrl, cached: false } });
+    } catch (err) {
+      res.status(500).json({
+        success: false,
+        error: 'TTS_FAILED',
+        message: err.message || 'Failed to generate pronunciation audio',
+      });
+    }
+  }),
+);
 
 module.exports = router;
