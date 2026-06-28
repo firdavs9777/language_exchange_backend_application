@@ -1196,7 +1196,10 @@ async function seed() {
 
   const examByCode = {};
   for (const code of ['IELTS', 'DELE', 'TOPIK']) {
-    const exam = await ExamType.findOne({ code });
+    // ExamType has `name` but no `code` field — looking up by `code`
+    // silently returned the first doc (always IELTS), which mis-tagged
+    // every Spanish/Korean word as IELTS. Look up by name instead.
+    const exam = await ExamType.findOne({ name: code });
     if (!exam) throw new Error(`Exam ${code} not found \u2014 run seedExamStudy.js first`);
     examByCode[code] = exam;
   }
