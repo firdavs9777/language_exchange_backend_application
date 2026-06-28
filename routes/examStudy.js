@@ -19,19 +19,52 @@ const { transcribeAudio, generateTTS } = require('../services/speechService');
 // All exam-study endpoints require auth — practice + progress are user-scoped.
 router.use(protect);
 
-const audioUpload = multer({
+const ALLOWED_AUDIO_MIMES = [
+  'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a',
+  'audio/wav', 'audio/webm', 'audio/ogg', 'audio/flac',
+  'audio/x-m4a', 'audio/x-wav', 'audio/aac',
+  // Some uploaders (curl, older browsers) send octet-stream when they
+  // can't classify; accept it for known audio extensions and let the
+  // STT layer reject if the bytes are bogus.
+  'application/octet-stream',
+];
+
+const _multerAudio = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
   fileFilter: (req, file, cb) => {
-    const allowedMimes = [
-      'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a',
-      'audio/wav', 'audio/webm', 'audio/ogg', 'audio/flac',
-      'audio/x-m4a', 'audio/x-wav', 'audio/aac',
-    ];
-    if (allowedMimes.includes(file.mimetype)) cb(null, true);
-    else cb(new Error(`Invalid audio mime type: ${file.mimetype}`), false);
+    if (ALLOWED_AUDIO_MIMES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid audio mime type: ${file.mimetype}`), false);
+    }
   },
 });
+
+// Wrap multer so its errors become a clean JSON 400 instead of the
+// default Express 500 that surfaces opaquely on the client. Logs the
+// incoming mime + size so backend logs make this debuggable next time.
+function audioUpload(req, res, next) {
+  _multerAudio.single('audio')(req, res, (err) => {
+    if (err) {
+      const code =
+        err.code === 'LIMIT_FILE_SIZE' ? 'AUDIO_TOO_LARGE' : 'BAD_AUDIO_UPLOAD';
+      console.warn('[examStudy] audio upload rejected:', err.message);
+      return res.status(400).json({
+        success: false,
+        code,
+        message: err.message,
+      });
+    }
+    if (req.file) {
+      console.log(
+        `[examStudy] audio upload accepted: mimetype=${req.file.mimetype} ` +
+          `size=${req.file.size} originalname=${req.file.originalname}`,
+      );
+    }
+    next();
+  });
+}
 
 // GET /api/v1/exam-study/languages
 // Used by: app's language picker on the Exam Study tab.
@@ -225,7 +258,7 @@ router.post(
 // /evaluations/:evaluationId endpoint that essays use.
 router.post(
   '/questions/:questionId/submit-audio',
-  audioUpload.single('audio'),
+  audioUpload,
   asyncHandler(async (req, res) => {
     const { questionId } = req.params;
     const userId = req.user._id;
