@@ -8,6 +8,7 @@ const ExamType = require('../models/ExamType');
 const ExamSection = require('../models/ExamSection');
 const ExamQuestion = require('../models/ExamQuestion');
 const ExamVocabularyWord = require('../models/ExamVocabularyWord');
+const ExamStudyTip = require('../models/ExamStudyTip');
 const UserExamProgress = require('../models/UserExamProgress');
 const UserStudyPlan = require('../models/UserStudyPlan');
 const EvaluationJob = require('../models/EvaluationJob');
@@ -999,6 +1000,28 @@ router.get(
         message: err.message || 'Failed to generate pronunciation audio',
       });
     }
+  }),
+);
+
+// =============================================================================
+// STUDY TIPS — curated strategy notes and teaching techniques per exam
+// =============================================================================
+
+// GET /api/v1/exam-study/exams/:examId/tips?sectionType=&category=
+router.get(
+  '/exams/:examId/tips',
+  asyncHandler(async (req, res) => {
+    const { examId } = req.params;
+    if (!mongoose.isValidObjectId(examId)) {
+      return res.status(400).json({ success: false, error: 'Invalid examId' });
+    }
+    const filter = { examId };
+    if (req.query.sectionType) filter.sectionType = req.query.sectionType;
+    if (req.query.category) filter.category = req.query.category;
+    const tips = await ExamStudyTip.find(filter)
+      .sort({ category: 1, order: 1, createdAt: 1 })
+      .lean();
+    res.json({ success: true, data: tips });
   }),
 );
 
