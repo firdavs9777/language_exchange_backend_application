@@ -750,7 +750,7 @@ router.get(
     const levels = await ExamVocabularyWord.distinct('level', { examIds: examId });
     const order = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
     levels.sort((a, b) => order.indexOf(a) - order.indexOf(b));
-    res.json({ success: true, data: { levels } });
+    res.json({ success: true, data: levels });
   }),
 );
 
@@ -767,7 +767,7 @@ router.get(
     const topics = (await ExamVocabularyWord.distinct('topic', filter))
       .filter(Boolean)
       .sort();
-    res.json({ success: true, data: { topics } });
+    res.json({ success: true, data: topics });
   }),
 );
 
