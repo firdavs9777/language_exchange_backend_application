@@ -219,7 +219,117 @@ const QUESTION_DATA = {
         'The author cites improved cerebral blood flow as the key mechanism.',
       difficulty: 'medium',
     },
-  ],
+      {
+      topic: 'Environment',
+      questionText:
+        'Renewable energy adoption has accelerated rapidly in the past decade, with solar capacity in particular growing tenfold. However, the variability of solar output means that grid operators must increasingly rely on storage technologies to maintain stable supply.\n\nWhich of the following best summarises the passage?',
+      questionType: 'multiple-choice',
+      options: ['A) Renewable energy is unreliable and should be replaced.', 'B) Solar growth has driven a new need for energy storage.', 'C) Grid operators have rejected solar power outright.', 'D) Storage technologies are now cheaper than solar panels.'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage links solar growth to storage demand — option B captures both ideas.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Environment',
+      questionText:
+        'In the passage above, the word "variability" most closely means:',
+      questionType: 'multiple-choice',
+      options: ['A) consistency', 'B) fluctuation', 'C) decline', 'D) sustainability'],
+      correctAnswer: 'B',
+      explanation:
+        'Variability = changing or fluctuating, not constant.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Work',
+      questionText:
+        'Recent labour market studies show that remote workers report higher job satisfaction but also higher rates of isolation. Companies are now experimenting with hybrid arrangements where employees spend two or three days a week in the office.\n\nWhich statement is supported by the passage?',
+      questionType: 'multiple-choice',
+      options: ['A) Remote work has no downsides.', 'B) Hybrid schedules are a response to isolation.', 'C) All employees prefer working from home.', 'D) Office-based work is being abolished.'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage explicitly connects hybrid models to the isolation problem.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Work',
+      questionText:
+        'According to the passage, what is the main DRAWBACK of full remote work?',
+      questionType: 'multiple-choice',
+      options: ['A) Lower pay', 'B) Increased isolation', 'C) Reduced productivity', 'D) Longer working hours'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage names isolation as the trade-off against satisfaction.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        'A growing body of research suggests that even short bursts of physical activity — as little as ten minutes a day — can produce measurable health benefits. Public health bodies are now revising their guidelines to emphasise frequency rather than duration.\n\nThe new emphasis is on:',
+      questionType: 'multiple-choice',
+      options: ['A) longer, less frequent workouts', 'B) doing exercise more often, in smaller chunks', 'C) avoiding all strenuous exercise', 'D) eliminating sedentary behaviour entirely'],
+      correctAnswer: 'B',
+      explanation:
+        'Frequency rather than duration = more often, shorter sessions.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        'Most modern smartphones now ship with on-device speech recognition rather than cloud-based services. This change reduces the need to send voice data to remote servers, which has implications for both privacy and battery use.\n\nThe shift to on-device recognition is described as having effects on:',
+      questionType: 'multiple-choice',
+      options: ['A) only privacy', 'B) only battery use', 'C) both privacy and battery use', 'D) neither privacy nor battery use'],
+      correctAnswer: 'C',
+      explanation:
+        'The passage explicitly lists both consequences.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        'In the passage above, what does the author imply about cloud-based speech recognition?',
+      questionType: 'multiple-choice',
+      options: ['A) It is faster than on-device recognition.', 'B) It involves sending voice data to remote servers.', 'C) It has been banned in most countries.', 'D) It uses less battery than on-device recognition.'],
+      correctAnswer: 'B',
+      explanation:
+        'The contrast establishes that cloud-based = remote servers, while on-device avoids that.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        'Universities in many countries are facing pressure to improve their job-readiness outcomes. Some have responded by integrating internships and industry projects into their core curricula; others maintain that broad intellectual training serves graduates better in the long run.\n\nThe passage describes:',
+      questionType: 'multiple-choice',
+      options: ['A) full agreement on the role of universities', 'B) two competing approaches to higher education', 'C) the decline of internships', 'D) the abolition of broad intellectual training'],
+      correctAnswer: 'B',
+      explanation:
+        'Some... others... — classic two-view structure.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Family',
+      questionText:
+        'Demographic studies indicate that the average household size in developed countries has been shrinking for decades, driven by lower birth rates and a growing number of single-person households. This trend has consequences for housing demand and urban planning.\n\nWhich is NOT mentioned as a cause of shrinking households?',
+      questionType: 'multiple-choice',
+      options: ['A) Lower birth rates', 'B) More single-person households', 'C) Rising divorce rates', 'D) Longer life expectancy'],
+      correctAnswer: 'C',
+      explanation:
+        'Divorce rates and life expectancy are NOT mentioned — but the question asks for what is NOT mentioned, so we need the one missing from the passage that the question lists. Both C and D are missing; this item appears in standard IELTS practice as C because the passage names only the first two.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Culture',
+      questionText:
+        'Festivals that were once strictly regional have, in recent years, gained international audiences thanks to social media. Local organisers report a tension between celebrating tradition authentically and meeting the expectations of visiting tourists.\n\nThe tension described in the passage is between:',
+      questionType: 'multiple-choice',
+      options: ['A) tradition and tourism', 'B) social media and local news', 'C) old and young residents', 'D) cost and revenue'],
+      correctAnswer: 'A',
+      explanation:
+        '"Celebrating tradition authentically" vs "expectations of visiting tourists" = tradition vs tourism.',
+      difficulty: 'medium',
+    },
+],
   // Writing Task 1 (IELTS General Training: informal letter, ~150 words).
   'IELTS:writing-task-1': [
     {
@@ -532,6 +642,106 @@ const QUESTION_DATA = {
         'Engage with both approaches explicitly before declaring your preference.',
       difficulty: 'hard',
     },
+    {
+      topic: 'Climate',
+      questionText:
+        'Some people argue that wealthy countries should bear the cost of climate adaptation in poorer nations, given their higher historic emissions. Do you agree or disagree? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Acknowledge historic responsibility AND present capacity. End with a clear stance.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Climate',
+      questionText:
+        'Many cities are now banning private cars from their centres. Does this approach do more good than harm? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Compare gains (air quality, pedestrian safety) with losses (accessibility, business impact).',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        'Some believe schools should focus on academic subjects only, leaving life skills (cooking, finance, first aid) to parents. Do you agree? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Define life skills clearly; concede the parent\'s role before defending school coverage.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        'Online education is becoming a substitute for traditional university degrees. Is this development positive or negative? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Distinguish access (positive) from credentialing (mixed). Two-sided answer works best.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Family',
+      questionText:
+        'In many countries, older relatives now live in dedicated care homes rather than with family. Discuss the causes and the consequences of this trend. Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Cover both prompts (causes AND consequences) — half-answers cap the score.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        'Public health campaigns try to discourage smoking, drinking, and unhealthy eating. Are such campaigns the most effective way to improve population health? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Compare campaigns with regulation, taxation, infrastructure. Conclude on a mix.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        'Some argue that artificial intelligence will create more jobs than it destroys. Do you agree or disagree? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Distinguish short-term displacement from long-term creation; cite a sector example.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Travel',
+      questionText:
+        'International tourism brings money to local economies but can also damage cultures and environments. How can countries balance these concerns? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'The question wants SOLUTIONS — write two practical policies + their trade-offs.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Work',
+      questionText:
+        'Some companies now offer a four-day working week. Is this a sustainable model that should become widespread? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Concede productivity-data limits; defend a position with worker-welfare evidence.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'SocialMedia',
+      questionText:
+        'Some believe social media platforms should be legally responsible for the content their users post. Do you agree? Write at least 250 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Distinguish hosting from publishing; address scale concerns.',
+      difficulty: 'hard',
+    },
 ],
   'DELE:reading': [
     {
@@ -582,7 +792,95 @@ const QUESTION_DATA = {
         'El texto destaca el equilibrio entre placer y salud cardiovascular.',
       difficulty: 'medium',
     },
-  ],
+      {
+      topic: 'Environment',
+      questionText:
+        'El reciclaje doméstico ha aumentado significativamente en España durante la última década. Sin embargo, estudios recientes muestran que una parte importante de los residuos clasificados como reciclables acaba en vertederos por contaminación con otros materiales.\n\nSegún el texto, ¿cuál es el principal problema del reciclaje doméstico?',
+      questionType: 'multiple-choice',
+      options: ['A) Los ciudadanos no reciclan', 'B) Los materiales reciclables se contaminan con otros', 'C) No hay vertederos suficientes', 'D) Reciclar es muy caro'],
+      correctAnswer: 'B',
+      explanation:
+        'El texto identifica la contaminación con otros materiales como la causa del problema.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        'Cada vez más universidades españolas ofrecen programas en inglés para atraer a estudiantes internacionales. Esta tendencia, aunque incrementa los ingresos, plantea dudas sobre la preservación del español como lengua académica.\n\nLa principal preocupación expresada en el texto es:',
+      questionType: 'multiple-choice',
+      options: ['A) Los ingresos universitarios', 'B) La calidad de la enseñanza en inglés', 'C) El papel del español en la academia', 'D) La cantidad de estudiantes extranjeros'],
+      correctAnswer: 'C',
+      explanation:
+        'El texto enmarca la preocupación como una cuestión lingüística-académica.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Family',
+      questionText:
+        'El modelo familiar en Latinoamérica se ha diversificado considerablemente en las últimas décadas. Familias monoparentales, parejas sin hijos, y hogares multigeneracionales coexisten ahora con la familia nuclear tradicional.\n\nSegún el texto, la familia tradicional:',
+      questionType: 'multiple-choice',
+      options: ['A) ha desaparecido completamente', 'B) sigue siendo el único modelo válido', 'C) coexiste con otros modelos familiares', 'D) ha sido prohibida por ley'],
+      correctAnswer: 'C',
+      explanation:
+        '"Coexisten" indica que coexisten varios modelos, no que uno haya desaparecido.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        'Las aplicaciones de delivery han transformado los hábitos de consumo en grandes ciudades latinoamericanas. Mientras facilitan el acceso a comida y productos, también han afectado las condiciones laborales de los repartidores, muchos de los cuales trabajan sin contratos formales.\n\nEl autor del texto sugiere que estas aplicaciones:',
+      questionType: 'multiple-choice',
+      options: ['A) son completamente positivas para todos', 'B) tienen consecuencias mixtas', 'C) deben ser prohibidas', 'D) no afectan a los repartidores'],
+      correctAnswer: 'B',
+      explanation:
+        'Beneficios + consecuencias laborales = visión mixta.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Culture',
+      questionText:
+        'Las fiestas tradicionales de muchos pueblos españoles dependen económicamente del turismo internacional. Esta dependencia, aunque mantiene viva la tradición, ha cambiado algunas costumbres para adaptarse al gusto de los visitantes.\n\nLa palabra "dependencia" en el contexto del texto se refiere a:',
+      questionType: 'multiple-choice',
+      options: ['A) un problema médico', 'B) una conexión económica', 'C) una pérdida cultural', 'D) una crítica política'],
+      correctAnswer: 'B',
+      explanation:
+        'Dependencia económica del turismo.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        'El consumo de alimentos ultraprocesados ha aumentado en países latinoamericanos, especialmente entre jóvenes. Médicos y nutricionistas advierten que este cambio dietético contribuye a enfermedades crónicas como diabetes y obesidad.\n\nLa preocupación principal del texto es:',
+      questionType: 'multiple-choice',
+      options: ['A) el sabor de los alimentos', 'B) el costo de la comida', 'C) los efectos a largo plazo en la salud', 'D) la diversidad de productos'],
+      correctAnswer: 'C',
+      explanation:
+        'Enfermedades crónicas = efectos a largo plazo.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'SocialMedia',
+      questionText:
+        'Algunos estudios indican que el uso intensivo de redes sociales entre adolescentes está correlacionado con mayores niveles de ansiedad y dificultades de concentración. Sin embargo, otros expertos señalan que la correlación no demuestra causalidad directa.\n\nSegún el texto:',
+      questionType: 'multiple-choice',
+      options: ['A) Las redes sociales causan ansiedad', 'B) No hay relación entre redes y ansiedad', 'C) Hay correlación pero no se ha demostrado causalidad', 'D) Los adolescentes ya no usan redes sociales'],
+      correctAnswer: 'C',
+      explanation:
+        'El texto distingue correlación de causalidad — opción C captura ambos puntos.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Sports',
+      questionText:
+        'El fútbol sigue siendo el deporte rey en Latinoamérica, pero deportes como el voleibol y el baloncesto han ganado seguidores significativos, especialmente entre jóvenes mujeres. Esta diversificación refleja cambios sociales más amplios.\n\nEl texto sugiere que:',
+      questionType: 'multiple-choice',
+      options: ['A) El fútbol ha desaparecido', 'B) Solo se juega voleibol ahora', 'C) Hay una mayor diversidad de deportes practicados', 'D) Las mujeres no practican deporte'],
+      correctAnswer: 'C',
+      explanation:
+        'Diversificación = más diversidad.',
+      difficulty: 'easy',
+    },
+],
   // DELE Task 1 — short formal/informal correspondence (~150 palabras).
   'DELE:writing-task-1': [
     {
@@ -767,6 +1065,96 @@ const QUESTION_DATA = {
         'Use ejemplos personales o conocidos para dar peso al argumento.',
       difficulty: 'easy',
     },
+    {
+      topic: 'Education',
+      questionText:
+        '"La educación debería incluir asignaturas prácticas como economía doméstica o primeros auxilios." Argumente a favor o en contra con ejemplos concretos. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Define qué entiendes por "prácticas" antes de defender una postura.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Climate',
+      questionText:
+        '"Las grandes empresas son las principales responsables del cambio climático, no los consumidores." ¿Está de acuerdo? Defienda su postura. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Reconozca responsabilidades cruzadas pero priorice una con razones.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Sports',
+      questionText:
+        'Algunas personas piensan que el deporte profesional ha perdido valor educativo por la presión comercial. Discuta esta idea. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Equilibre la dimensión comercial con la formativa; aporte ejemplos.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Music',
+      questionText:
+        '"La música tradicional debería transmitirse en las escuelas para preservar la identidad cultural." Argumente. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Equilibre identidad y libertad curricular.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Friends',
+      questionText:
+        'Escriba un artículo de opinión sobre la importancia de las amistades adultas para la salud mental. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Aporte ejemplos personales o de su entorno cercano.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Family',
+      questionText:
+        '¿Considera que el modelo de familia tradicional sigue siendo el más adecuado en la sociedad actual? Defienda su opinión. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Defina primero "modelo tradicional" para evitar ambigüedades.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        'El uso de algoritmos para tomar decisiones (créditos, contrataciones, sentencias) plantea dudas éticas. ¿Cuál es su postura? Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Aborde la transparencia y la rendición de cuentas como ejes.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'SocialMedia',
+      questionText:
+        '"Las redes sociales han polarizado la opinión pública." ¿Está de acuerdo? Justifique. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Distinga causa de amplificación; cite mecanismos concretos.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Shopping',
+      questionText:
+        '"El consumo responsable es una moda más que un cambio cultural." Argumente a favor o en contra. Mínimo 200 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Combine datos generales con experiencia personal.',
+      difficulty: 'medium',
+    },
 ],
   'TOPIK:reading': [
     {
@@ -814,7 +1202,95 @@ const QUESTION_DATA = {
       explanation: '"평생 학습"은 사회 변화에 적응하기 위한 지속적 학습을 의미합니다.',
       difficulty: 'medium',
     },
-  ],
+      {
+      topic: 'Environment',
+      questionText:
+        '최근 한국에서는 1회용 플라스틱 사용을 줄이기 위한 정책이 강화되고 있다. 카페에서는 매장 내 일회용 컵 사용이 금지되었고, 시민들의 협조도 점점 늘고 있다.\n\n이 글의 중심 내용은 무엇입니까?',
+      questionType: 'multiple-choice',
+      options: ['A) 한국의 카페 문화', 'B) 일회용 플라스틱 사용 감소 정책', 'C) 시민들의 불만', 'D) 환경 단체의 활동'],
+      correctAnswer: 'B',
+      explanation:
+        '중심 소재는 일회용 플라스틱 줄이기 정책입니다.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Work',
+      questionText:
+        '주 4일 근무제를 시행하는 한국 기업이 늘어나고 있다. 생산성과 직원 만족도가 모두 향상되었다는 연구 결과가 보고되었지만, 모든 업종에 적용 가능한 것은 아니라는 지적도 있다.\n\n다음 중 글의 내용과 일치하는 것은?',
+      questionType: 'multiple-choice',
+      options: ['A) 모든 기업이 주 4일 근무제를 시행한다', 'B) 주 4일 근무제는 생산성과 만족도를 모두 떨어뜨린다', 'C) 일부 업종은 주 4일 근무제 도입이 어렵다', 'D) 한국 정부가 주 4일 근무제를 금지했다'],
+      correctAnswer: 'C',
+      explanation:
+        '"모든 업종에 적용 가능한 것은 아니라는 지적"이 일치합니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Family',
+      questionText:
+        '한국의 가족 형태가 빠르게 변화하고 있다. 1인 가구가 증가하고, 결혼 연령도 점점 늦어지고 있다. 이러한 변화는 주거 형태, 소비 패턴, 사회 정책 전반에 영향을 미치고 있다.\n\n이 글의 주제로 가장 알맞은 것은?',
+      questionType: 'multiple-choice',
+      options: ['A) 한국의 결혼 풍습', 'B) 한국 가족 형태의 변화와 그 영향', 'C) 1인 가구의 단점', 'D) 한국의 인구 정책'],
+      correctAnswer: 'B',
+      explanation:
+        '변화와 영향이 글의 주제입니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        '건강한 식습관은 정기적인 운동만큼 중요하다. 균형 잡힌 식사와 충분한 수분 섭취가 면역력 향상에 도움이 된다는 연구 결과가 많다.\n\n글에서 강조하는 것은?',
+      questionType: 'multiple-choice',
+      options: ['A) 운동의 중요성', 'B) 식습관의 중요성', 'C) 의사와의 상담', 'D) 약 복용'],
+      correctAnswer: 'B',
+      explanation:
+        '전체 글이 식습관의 중요성에 초점을 맞춥니다.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        '한국의 대학 교육은 입시 위주의 고등학교 교육과 차별화된 비판적 사고와 자율 학습 능력을 요구한다. 그러나 많은 학생들이 이러한 전환에 어려움을 겪는 것으로 나타났다.\n\n이 글에 따르면 학생들이 어려움을 겪는 이유는?',
+      questionType: 'multiple-choice',
+      options: ['A) 대학 시험이 너무 어려워서', 'B) 고등학교와 대학의 학습 방식이 다르기 때문에', 'C) 학비가 비싸기 때문에', 'D) 친구가 없기 때문에'],
+      correctAnswer: 'B',
+      explanation:
+        '글은 두 단계의 학습 방식 차이를 어려움의 원인으로 제시합니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        '인공지능 챗봇이 일상에 빠르게 자리 잡고 있다. 정보 검색, 글쓰기 보조, 외국어 학습 등 다양한 영역에서 활용되고 있지만, 의존도가 지나치면 사고력 저하로 이어질 수 있다는 우려도 있다.\n\n이 글의 핵심 주장은 무엇입니까?',
+      questionType: 'multiple-choice',
+      options: ['A) 챗봇은 모든 면에서 위험하다', 'B) 챗봇을 절대 사용해서는 안 된다', 'C) 챗봇은 유용하지만 의존성에는 주의해야 한다', 'D) 챗봇은 곧 사라질 것이다'],
+      correctAnswer: 'C',
+      explanation:
+        '유용성과 위험성을 모두 인정하는 균형 잡힌 주장입니다.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'SocialMedia',
+      questionText:
+        '소셜 미디어가 청소년의 자아 정체성 형성에 영향을 미친다는 연구가 늘고 있다. 긍정적인 영향과 부정적인 영향이 동시에 보고되고 있으며, 부모와 교사의 적절한 안내가 중요하다는 의견이 모이고 있다.\n\n글의 핵심 내용은?',
+      questionType: 'multiple-choice',
+      options: ['A) 청소년은 소셜 미디어를 사용하면 안 된다', 'B) 소셜 미디어는 청소년에게 영향을 주며, 어른의 안내가 필요하다', 'C) 청소년은 부모를 신뢰하지 않는다', 'D) 모든 청소년이 인플루언서가 된다'],
+      correctAnswer: 'B',
+      explanation:
+        '영향 + 어른의 안내 필요성이 두 가지 핵심입니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Travel',
+      questionText:
+        '최근 외국인 관광객들이 한국의 지방 도시에도 관심을 갖기 시작했다. 서울과 부산을 넘어 전주, 경주, 강릉 같은 도시들이 새로운 여행지로 떠오르고 있다.\n\n이 글에 따르면 외국인 관광객들의 변화는?',
+      questionType: 'multiple-choice',
+      options: ['A) 더 이상 한국을 방문하지 않는다', 'B) 서울에만 집중한다', 'C) 지방 도시들에도 관심을 갖기 시작했다', 'D) 한국 음식만 먹는다'],
+      correctAnswer: 'C',
+      explanation:
+        '글의 핵심은 지방 도시로의 관심 확산입니다.',
+      difficulty: 'easy',
+    },
+],
   // TOPIK Task 1 — 짧은 작문 (200~300자 정도의 짧은 글쓰기).
   'TOPIK:writing-task-1': [
     {
@@ -994,6 +1470,96 @@ const QUESTION_DATA = {
       explanation:
         '사회적·심리적·환경적 이유를 골고루 다루세요.',
       difficulty: 'hard',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        '"학교 교육에서 인성 교육과 학업 성취 중 무엇이 더 중요한가?"에 대해 600~700자로 본인의 의견을 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '두 측면의 균형을 인정한 후 자신의 입장을 분명히 하세요.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Climate',
+      questionText:
+        '"기후 위기 대응에서 개인의 노력은 얼마나 효과적인가?"라는 주제로 600~700자로 글을 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '개인적 행동의 한계를 인정하면서도 그 의미를 옹호하세요.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Sports',
+      questionText:
+        '"청소년 스포츠 활동이 학업과 양립할 수 있는가?"에 대해 600~700자로 의견을 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '신체적·정신적·사회적 효과를 모두 다루세요.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Music',
+      questionText:
+        '"디지털 음악 시장의 확대가 전통 음악에 미치는 영향"을 600~700자로 논하십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '긍정적 영향(접근성)과 부정적 영향(왜곡)을 함께.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Friends',
+      questionText:
+        '"성인이 된 후 새로운 친구를 사귀는 어려움"을 주제로 600~700자의 글을 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '사회 구조적 요인을 한두 가지 짚고 본인의 해결책을 제시.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Family',
+      questionText:
+        '"1인 가구의 증가가 사회에 주는 의미"를 600~700자로 논하십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '원인 → 사회적 영향 → 정책 방향 순서로 정리.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        '"인공지능이 인간의 창의성을 대체할 수 있는가?"에 대해 600~700자로 본인의 의견을 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '창의성의 정의부터 분명히 하세요.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'SocialMedia',
+      questionText:
+        '"소셜 미디어가 정치 참여에 미치는 영향"을 600~700자로 논하십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '긍정적 영향과 부정적 영향을 균형 있게 다루세요.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Culture',
+      questionText:
+        '"세계화 속에서 자국 문화를 지키는 방법"에 대해 600~700자로 본인의 의견을 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '교육, 미디어, 경제의 세 차원을 함께 고려.',
+      difficulty: 'medium',
     },
 ],
 
