@@ -114,7 +114,7 @@ function generateSpeakingQuestions(count, language = 'en') {
         .replace('[ACTIVITY]', topic.toLowerCase())
         .replace('[PAST_EVENT]', `when you ${topic.toLowerCase()}`)
         .replace('[BROADER_QUESTION]', `about the role of ${topic.toLowerCase()} in society`),
-      questionType: 'open-ended',
+      questionType: 'speaking-prompt',
       correctAnswer: null,
       explanation: 'This is an open-ended speaking task. Aim for fluency and natural expression.',
       difficulty: 'medium',
