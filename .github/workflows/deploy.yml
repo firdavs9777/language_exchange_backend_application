@@ -28,10 +28,26 @@ jobs:
             echo "==> Pulling latest from main"
             git fetch --all
             git reset --hard origin/main
-            echo "==> Installing production deps"
-            npm ci --omit=dev
-            echo "==> Restarting PM2 app"
+            echo "==> Verifying package-lock.json exists"
+            if [ ! -f package-lock.json ]; then
+              echo "ERROR: package-lock.json missing! Running npm install instead..."
+              npm install --omit=dev
+            else
+              echo "==> Installing production deps (clean install)"
+              npm ci --omit=dev
+            fi
+            echo "==> Verifying node_modules exists"
+            if [ ! -d node_modules ]; then
+              echo "ERROR: node_modules installation failed!"
+              exit 1
+            fi
+            echo "==> Stopping PM2 app gracefully"
+            pm2 stop language-app || true
+            sleep 2
+            echo "==> Restarting PM2 app with updated environment"
             pm2 restart language-app --update-env
+            sleep 2
             pm2 save
-            echo "==> Deploy complete"
+            echo "==> Checking app status"
             pm2 describe language-app | grep -E "status|uptime|restarts" || true
+            echo "==> Deploy complete"
