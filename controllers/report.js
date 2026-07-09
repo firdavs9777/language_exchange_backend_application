@@ -396,7 +396,7 @@ exports.getReportStats = asyncHandler(async (req, res, next) => {
  * @access  Private
  */
 exports.uploadEvidence = [
-  uploadToSpaces.single('file'),
+  uploadToSpaces.uploadSingle('file', 'reports'),
   async (req, res, next) => {
     try {
       // Validate report exists
