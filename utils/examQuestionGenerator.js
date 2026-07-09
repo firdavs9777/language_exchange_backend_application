@@ -19,9 +19,10 @@ const TOPICS = {
 function generateReadingQuestions(count, language = 'en') {
   const questions = [];
   const topicsToUse = TOPICS.reading;
+  const readingTypes = ['mainIdea', 'vocabulary', 'inference', 'newsArticle', 'opinionPiece', 'technicalContent'];
 
   for (let i = 0; i < count; i++) {
-    const templateType = ['mainIdea', 'vocabulary', 'inference'][i % 3];
+    const templateType = readingTypes[i % readingTypes.length];
     const templates = READING_TEMPLATES[templateType];
     const template = templates[Math.floor(Math.random() * templates.length)];
     const topic = topicsToUse[i % topicsToUse.length];
@@ -35,6 +36,7 @@ function generateReadingQuestions(count, language = 'en') {
       correctAnswer: 'B',
       explanation: template.template(topic, `the main discussion`).explanation,
       difficulty: difficulty,
+      templateType: templateType,
     };
 
     questions.push(question);
@@ -45,12 +47,17 @@ function generateReadingQuestions(count, language = 'en') {
 
 function generateWritingQuestions(count, language = 'en') {
   const questions = [];
-  const types = ['letter', 'essay', 'report', 'review'];
+  const types = ['letter', 'essay', 'report', 'review', 'email', 'creativePiece', 'summary', 'proposal', 'formalLetter'];
   const typeTemplates = {
     letter: WRITING_TEMPLATES.letter,
     essay: WRITING_TEMPLATES.essay,
     report: WRITING_TEMPLATES.report,
     review: WRITING_TEMPLATES.review,
+    email: WRITING_TEMPLATES.email,
+    creativePiece: WRITING_TEMPLATES.creativePiece,
+    summary: WRITING_TEMPLATES.summary,
+    proposal: WRITING_TEMPLATES.proposal,
+    formalLetter: WRITING_TEMPLATES.formalLetter,
   };
 
   for (let i = 0; i < count; i++) {
@@ -67,11 +74,15 @@ function generateWritingQuestions(count, language = 'en') {
         .replace('[RECIPIENT]', 'the relevant authority')
         .replace('[ACTION]', 'your situation')
         .replace('[REASON]', 'how this affects you')
-        .replace('[ITEM]', topic),
+        .replace('[ITEM]', topic)
+        .replace('[REQUEST]', 'assistance with ' + topic.toLowerCase())
+        .replace('[CLAIM]', topic.toLowerCase())
+        .replace('[OUTCOME]', 'their response'),
       questionType: 'essay',
       correctAnswer: null,
       explanation: `This task requires a structured ${type}. Focus on clear communication and appropriate tone.`,
       difficulty: difficulty,
+      templateType: type,
     };
 
     questions.push(question);
