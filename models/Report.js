@@ -41,6 +41,36 @@ const ReportSchema = new mongoose.Schema({
     maxlength: [500, "Description cannot exceed 500 characters"],
     trim: true,
   },
+  evidence: [
+    {
+      filename: {
+        type: String,
+        required: true,
+      },
+      url: {
+        type: String,
+        required: true,
+      },
+      type: {
+        type: String,
+        enum: ['image', 'text'],
+        required: true,
+      },
+      size: {
+        type: Number,
+        required: true,
+      },
+      uploadedAt: {
+        type: Date,
+        default: Date.now,
+      },
+      key: {
+        type: String,
+        required: true,
+      },
+      _id: false,
+    }
+  ],
   status: {
     type: String,
     enum: ["pending", "under_review", "resolved", "dismissed"],
