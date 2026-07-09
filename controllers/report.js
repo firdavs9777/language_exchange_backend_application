@@ -266,6 +266,19 @@ exports.resolveReport = asyncHandler(async (req, res, next) => {
     // No-op for type === 'profile' (handle via user_warned / user_banned instead).
   }
 
+  // Cleanup evidence files when report is resolved
+  if (report.evidence && report.evidence.length > 0) {
+    const fileKeys = report.evidence.map(e => e.key);
+    // Fire-and-forget cleanup — failures logged, don't block response
+    Promise.all(
+      fileKeys.map(key => deleteFromSpaces(key).catch(err =>
+        console.error(`Failed to delete evidence file ${key}:`, err.message)
+      ))
+    ).catch(() => {});
+    // Clear evidence array after deletion
+    report.evidence = [];
+  }
+
   // Notify the reporter that the report was reviewed (only on user-action
   // resolutions). no_violation + content_removed deliberately don't send,
   // to avoid leaking information about how the report was handled.

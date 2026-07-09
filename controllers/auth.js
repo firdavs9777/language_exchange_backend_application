@@ -1645,37 +1645,6 @@ exports.deleteAccount = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User not found', 404));
   }
 
-  // 🚨 CRITICAL: Prevent admin accounts from being deleted
-  if (user.role === 'admin') {
-    console.error(`🚨 SECURITY ALERT: Admin ${user.email} attempted account deletion!`);
-
-    // Log this security incident
-    try {
-      const AdminAuditLog = mongoose.model('AdminAuditLog');
-      await AdminAuditLog.create({
-        action: 'ADMIN_DELETION_BLOCKED',
-        moderator: user._id,
-        targetUser: user._id,
-        userEmail: user.email,
-        details: {
-          reason: 'Admin account deletion attempt blocked',
-          ip: req.ip,
-          timestamp: new Date()
-        },
-        timestamp: new Date()
-      });
-    } catch (auditErr) {
-      console.error('Failed to log security incident:', auditErr.message);
-    }
-
-    return next(new ErrorResponse(
-      '❌ ADMIN ACCOUNTS CANNOT BE DELETED\n\n' +
-      'For security reasons, administrator accounts are protected from deletion. ' +
-      'If you need to remove admin access, contact another administrator or support team.',
-      403
-    ));
-  }
-
   const isOAuthUser = !!(user.googleId || user.facebookId || user.appleId);
   // For OAuth users (Google, Facebook, Apple) - no password required
   if (!isOAuthUser) {

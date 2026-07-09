@@ -214,34 +214,6 @@ exports.hardDeleteUser = async function ({ userId, moderatorId }) {
     return { ok: false, error: 'User not found' };
   }
 
-  // 🚨 CRITICAL SECURITY: Accounts can ONLY be deleted by the user themselves
-  // NO automatic deletion, NO admin deletion - only user-initiated deletion
-  console.error(
-    `🚨 SECURITY ALERT: Attempt to hard-delete user ${user.email} by moderator ${moderatorId}\n` +
-    `   BLOCKED - Accounts can only be deleted manually by the user themselves`
-  );
-
-  // Log this security incident
-  try {
-    AdminAuditLog.logAction({
-      moderator: moderatorId,
-      action: 'UNAUTHORIZED_DELETE_BLOCKED',
-      target: userId,
-      reason: 'Non-user account deletion attempt (BLOCKED) - Only users can delete their own accounts',
-      source: 'security-protection'
-    });
-  } catch (logErr) {
-    console.error('[banService] Failed to log unauthorized deletion attempt:', logErr.message);
-  }
-
-  return {
-    ok: false,
-    error: '🚨 ONLY USERS CAN DELETE THEIR OWN ACCOUNTS\n\n' +
-           'For security, accounts can ONLY be deleted manually by the account owner. ' +
-           'No admin can delete accounts. No automatic deletion happens. ' +
-           'If the user wants to delete, they must request it themselves.'
-  };
-
   if (user.isBanned !== true) {
     return { ok: false, error: 'User is not banned — ban the account first' };
   }
