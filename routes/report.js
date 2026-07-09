@@ -10,7 +10,8 @@ const {
   resolveReport,
   dismissReport,
   deleteReport,
-  getReportStats
+  getReportStats,
+  uploadEvidence
 } = require('../controllers/report');
 
 const router = express.Router();
@@ -26,6 +27,9 @@ router.use(protect);
 // User routes - anyone can report content (rate limited to prevent abuse)
 router.post('/', reportLimiter, createReport);
 router.get('/my-reports', getMyReports);
+
+// Evidence upload route (private)
+router.post('/:reportId/evidence', uploadEvidence);
 
 // Admin only routes
 router.get('/', authorizeRole('admin'), getAllReports);

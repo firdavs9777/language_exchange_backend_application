@@ -5,6 +5,7 @@ const ErrorResponse = require('../utils/errorResponse');
 const { logSecurityEvent } = require('../utils/securityLogger');
 const emailService = require('../services/emailService');
 const banService = require('../services/banService');
+const uploadToSpaces = require('../middleware/uploadToSpaces');
 
 /**
  * @desc    Create a new report
@@ -375,3 +376,109 @@ exports.getReportStats = asyncHandler(async (req, res, next) => {
     }
   });
 });
+
+/**
+ * @desc    Upload evidence file for a report
+ * @route   POST /api/v1/reports/:reportId/evidence
+ * @access  Private
+ */
+exports.uploadEvidence = [
+  uploadToSpaces.single('file'),
+  async (req, res, next) => {
+    try {
+      // Validate report exists
+      const report = await Report.findById(req.params.reportId);
+      if (!report) {
+        return next(new ErrorResponse('Report not found', 404));
+      }
+
+      // Validate user is reporter or admin
+      const isReporter = report.reportedBy.toString() === req.user.id;
+      const isAdmin = req.user.role === 'admin';
+      if (!isReporter && !isAdmin) {
+        return next(new ErrorResponse('Not authorized to add evidence', 403));
+      }
+
+      // Validate file was uploaded
+      if (!req.file) {
+        return next(new ErrorResponse('No file provided', 400));
+      }
+
+      // Validate file type
+      const mimeType = req.file.mimetype;
+      const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'text/plain'];
+      if (!ALLOWED_TYPES.includes(mimeType)) {
+        // Delete the uploaded file before rejecting
+        await deleteFromSpaces(req.file.key);
+        return next(new ErrorResponse('Invalid file type. Allowed: JPG, PNG, TXT', 400));
+      }
+
+      // Validate file size (5 MB)
+      const MAX_FILE_SIZE = 5 * 1024 * 1024;
+      if (req.file.size > MAX_FILE_SIZE) {
+        await deleteFromSpaces(req.file.key);
+        return next(new ErrorResponse('File too large. Max 5 MB per file', 413));
+      }
+
+      // Validate max 5 files per report
+      if (report.evidence && report.evidence.length >= 5) {
+        await deleteFromSpaces(req.file.key);
+        return next(new ErrorResponse('Max 5 files per report', 400));
+      }
+
+      // Determine evidence type based on MIME type
+      let evidenceType = 'image';
+      if (mimeType === 'text/plain') {
+        evidenceType = 'text';
+      }
+
+      // Store evidence metadata in report
+      const evidenceFile = {
+        filename: req.file.originalname,
+        url: req.file.location,
+        type: evidenceType,
+        size: req.file.size,
+        uploadedAt: new Date(),
+        key: req.file.key,
+      };
+
+      if (!report.evidence) {
+        report.evidence = [];
+      }
+      report.evidence.push(evidenceFile);
+      await report.save();
+
+      res.status(201).json({
+        success: true,
+        data: evidenceFile,
+      });
+    } catch (err) {
+      // If upload partially succeeded but DB save failed, try to clean up
+      if (req.file && req.file.key) {
+        try {
+          await deleteFromSpaces(req.file.key);
+        } catch (cleanupErr) {
+          console.error('Failed to clean up orphaned file:', cleanupErr.message);
+        }
+      }
+      next(err);
+    }
+  }
+];
+
+// Helper: Delete file from DigitalOcean Spaces
+async function deleteFromSpaces(key) {
+  const s3 = require('../config/spaces');
+  return new Promise((resolve, reject) => {
+    s3.deleteObject(
+      {
+        Bucket: 'my-projects-media',
+        Key: key,
+      },
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
