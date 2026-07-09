@@ -1750,7 +1750,7 @@ exports.deleteAccount = asyncHandler(async (req, res, next) => {
       { name: 'Poll', query: { creator: userId } },
       // --- Notifications / activity ---
       { name: 'Notification', query: { $or: [{ user: userId }, { sender: userId }] } },
-      { name: 'ProfileVisit', query: { $or: [{ visitor: userId }, { visited: userId }] } },
+      { name: 'ProfileVisit', query: { $or: [{ visitor: userId }, { profileOwner: userId }] } },
       { name: 'UserInteraction', query: { $or: [{ user: userId }, { targetUser: userId }] } },
       { name: 'WebVisit', query: { user: userId } },
       { name: 'ConversationActivity', query: { user: userId } },
