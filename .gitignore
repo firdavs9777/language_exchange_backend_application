@@ -115,4 +115,5 @@ _data/
 *.key
 *.cert
 secrets/
-credentials/
+credentials/.superpowers/
+investigate_first_account.js
