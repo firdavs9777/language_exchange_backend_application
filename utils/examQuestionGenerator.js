@@ -195,6 +195,70 @@ function generateLanguageSpecificReadingQuestion(topic, questionType, language, 
   return questionTemplates[questionNumber % questionTemplates.length];
 }
 
+function generateReadingPassage(topic, language = 'en') {
+  // Language-specific reading passage templates
+  const passages = {
+    en: {
+      'Climate and Environment': 'Global warming is one of the most pressing issues facing modern society. Rising temperatures have led to significant changes in weather patterns, causing more frequent extreme weather events. Scientists agree that human activities, particularly the burning of fossil fuels, are the primary cause of climate change. Many countries are now implementing policies to reduce carbon emissions and transition to renewable energy sources.',
+      'Technology and Innovation': 'Artificial intelligence has revolutionized many industries over the past decade. From healthcare to finance, AI systems are being used to automate tasks and make better decisions. However, the rapid advancement of AI also raises concerns about job displacement and the need for proper regulation. Experts emphasize that responsible development is crucial to maximize benefits while minimizing risks.',
+      'Education and Learning': 'Traditional education methods are being challenged by the rise of online learning platforms. Digital education offers flexibility and access to resources for learners around the world. Yet, studies show that the quality of online education varies significantly, and students often struggle with motivation and engagement. A balanced approach combining digital and in-person learning may be the most effective solution.',
+      'Work and Career': 'The job market has undergone dramatic changes in recent years due to automation and globalization. Many traditional roles are disappearing, while new opportunities emerge in technology and creative sectors. Workers are now expected to continuously develop new skills and adapt to changing requirements. Lifelong learning has become essential for career success in the modern economy.',
+    },
+    fr: {
+      'Environnement et climat': 'Le réchauffement climatique est l\'une des questions les plus pressantes de la société moderne. L\'augmentation des températures a entraîné des changements importants dans les conditions météorologiques, provoquant des événements météorologiques extrêmes plus fréquents. Les scientifiques s\'accordent à dire que les activités humaines, en particulier la combustion des combustibles fossiles, sont la principale cause du changement climatique. De nombreux pays mettent désormais en place des politiques visant à réduire les émissions de carbone et à passer aux sources d\'énergie renouvelables.',
+      'Technologie et innovation': 'L\'intelligence artificielle a révolutionné de nombreux secteurs au cours de la dernière décennie. De la santé à la finance, les systèmes d\'IA sont utilisés pour automatiser les tâches et prendre de meilleures décisions. Cependant, les progrès rapides de l\'IA soulèvent également des préoccupations concernant le déplacement d\'emplois et le besoin d\'une réglementation appropriée. Les experts soulignent que le développement responsable est crucial pour maximiser les avantages tout en minimisant les risques.',
+      'Éducation et apprentissage': 'Les méthodes d\'éducation traditionnelles sont remises en question par la montée en puissance des plates-formes d\'apprentissage en ligne. L\'éducation numérique offre flexibilité et accès aux ressources pour les apprenants du monde entier. Cependant, les études montrent que la qualité de l\'éducation en ligne varie considérablement et que les étudiants ont souvent du mal à se motiver et à s\'engager. Une approche équilibrée combinant l\'apprentissage numérique et en personne peut être la solution la plus efficace.',
+      'Travail et carrière': 'Le marché du travail a connu des changements spectaculaires ces dernières années en raison de l\'automatisation et de la mondialisation. De nombreux rôles traditionnels disparaissent, tandis que de nouvelles opportunités émergent dans les secteurs technologiques et créatifs. On attend désormais des travailleurs qu\'ils développent continuellement de nouvelles compétences et s\'adaptent aux exigences changeantes. L\'apprentissage tout au long de la vie est devenu essentiel pour réussir sa carrière dans l\'économie moderne.',
+    },
+    de: {
+      'Umwelt und Klima': 'Die globale Erwärmung ist eines der drängendsten Probleme der modernen Gesellschaft. Der Anstieg der Temperaturen hat zu erheblichen Veränderungen der Wettermuster geführt und verursacht häufigere extreme Wetterereignisse. Wissenschaftler sind sich einig, dass menschliche Aktivitäten, insbesondere die Verbrennung fossiler Brennstoffe, die Hauptursache des Klimawandels sind. Viele Länder setzen jetzt Politik um, um Kohlenstoffemissionen zu reduzieren und zu erneuerbaren Energiequellen überzugehen.',
+      'Technologie und Innovation': 'Künstliche Intelligenz hat in der letzten Dekade viele Industrien revolutioniert. Von der Gesundheitswesen bis zur Finanzbranche werden KI-Systeme verwendet, um Aufgaben zu automatisieren und bessere Entscheidungen zu treffen. Allerdings werfen die schnellen Fortschritte der KI auch Bedenken hinsichtlich des Arbeitsplatzabbaus und der Notwendigkeit einer angemessenen Regulierung auf. Experten betonen, dass verantwortungsvolle Entwicklung entscheidend ist, um Vorteile zu maximieren und Risiken zu minimieren.',
+      'Bildung und Lernen': 'Traditionelle Bildungsmethoden werden durch den Aufstieg von Online-Lernplattformen in Frage gestellt. Digitale Bildung bietet Flexibilität und Zugang zu Ressourcen für Lernende auf der ganzen Welt. Studien zeigen jedoch, dass die Qualität der Online-Bildung erheblich variiert und Schüler häufig mit Motivations- und Engagement-Problemen kämpfen. Ein ausgewogener Ansatz, der digitales und persönliches Lernen kombiniert, könnte die effektivste Lösung sein.',
+      'Arbeit und Karriere': 'Der Arbeitsmarkt hat in den letzten Jahren aufgrund von Automatisierung und Globalisierung dramatische Veränderungen durchgemacht. Viele traditionelle Rollen verschwinden, während neue Chancen in Technologie- und Kreativsektoren entstehen. Es wird jetzt von Arbeitern erwartet, dass sie kontinuierlich neue Fähigkeiten entwickeln und sich an sich ändernde Anforderungen anpassen. Lebenslanges Lernen ist für den Karriereerfolg in der modernen Wirtschaft unverzichtbar geworden.',
+    },
+    zh: {
+      '环境与气候': '全球变暖是现代社会面临的最紧迫的问题之一。气温上升导致了天气模式的重大变化，导致极端天气事件更加频繁。科学家们一致认为，人类活动，特别是化石燃料的燃烧，是气候变化的主要原因。许多国家现在正在实施政策来减少碳排放并过渡到可再生能源。',
+      '科技与创新': '人工智能在过去十年中彻底改变了许多行业。从医疗保健到金融，人工智能系统被用于自动化任务和做出更好的决定。然而，人工智能的快速发展也引发了对失业和适当监管需要的担忧。专家强调，负责任的发展对于最大化利益同时最小化风险至关重要。',
+      '教育与学习': '由于在线学习平台的兴起，传统教育方法正受到挑战。数字教育为世界各地的学习者提供了灵活性和资源获取。然而，研究表明在线教育的质量差异很大，学生经常在动力和参与方面苦苦挣扎。结合数字和面对面学习的平衡方法可能是最有效的解决方案。',
+      '工作与职业': '由于自动化和全球化，工作市场近年来发生了巨大变化。许多传统角色正在消失，而技术和创意部门出现了新的机会。现在要求工人不断发展新技能并适应不断变化的要求。终身学习对现代经济中的职业成功至关重要。',
+    },
+    ja: {
+      '環境と気候': '地球温暖化は現代社会が直面する最も緊迫した問題の一つです。気温の上昇は気象パターンの大きな変化をもたらし、より頻繁な極端気象をもたらしています。科学者たちは、人間の活動、特に化石燃料の燃焼が気候変動の主な原因であることに同意しています。多くの国は現在、炭素排出を減らし、再生可能エネルギー源に移行するためのポリシーを実装しています。',
+      '技術と革新': '人工知能は過去10年間に多くの業界に革命をもたらしました。医療から金融まで、AI システムはタスクを自動化し、より良い決定を下すために使用されています。しかし、AI の急速な進歩は雇用喪失と適切な規制の必要性についての懸念も提起しています。専門家は、責任ある発展が利益を最大化しながらリスクを最小化するために重要であることを強調しています。',
+      '教育と学習': '従来の教育方法は、オンライン学習プラットフォームの台頭によって挑戦されています。デジタル教育は世界中の学習者に柔軟性とリソースへのアクセスを提供します。しかし、研究ではオンライン教育の品質が大きく異なることが示されており、学生は動機づけと従事に苦労することが多いです。デジタル学習と対面学習を組み合わせたバランスの取れたアプローチが最も効果的なソリューションかもしれません。',
+      '仕事とキャリア': 'オートメーションとグローバル化により、雇用市場はここ数年大きく変わっています。多くの伝統的な役割が消えている一方で、技術とクリエイティブセクターに新しい機会が生まれています。ワーカーは現在、継続的に新しいスキルを開発し、変化する要件に適応することが期待されています。生涯学習は現代経済でのキャリア成功に不可欠になっています。',
+    },
+    pt: {
+      'Ambiente e clima': 'O aquecimento global é uma das questões mais urgentes da sociedade moderna. O aumento das temperaturas levou a mudanças significativas nos padrões climáticos, causando eventos climáticos extremos mais frequentes. Os cientistas concordam que as atividades humanas, particularmente a queima de combustíveis fósseis, são a causa principal das mudanças climáticas. Muitos países estão agora implementando políticas para reduzir as emissões de carbono e fazer a transição para fontes de energia renováveis.',
+      'Tecnologia e inovação': 'A inteligência artificial revolucionou muitos setores na última década. Da saúde aos serviços financeiros, os sistemas de IA estão sendo usados ​​para automatizar tarefas e tomar melhores decisões. No entanto, o rápido avanço da IA também levanta preocupações sobre deslocamento de empregos e a necessidade de regulação adequada. Especialistas enfatizam que o desenvolvimento responsável é crucial para maximizar benefícios enquanto minimiza riscos.',
+      'Educação e aprendizagem': 'Os métodos tradicionais de educação estão sendo desafiados pelo surgimento de plataformas de aprendizagem online. A educação digital oferece flexibilidade e acesso a recursos para alunos em todo o mundo. No entanto, estudos mostram que a qualidade da educação online varia significativamente e os alunos muitas vezes enfrentam dificuldades com motivação e envolvimento. Uma abordagem equilibrada combinando aprendizagem digital e presencial pode ser a solução mais eficaz.',
+      'Trabalho e carreira': 'O mercado de trabalho passou por mudanças dramáticas nos últimos anos devido à automação e globalização. Muitos papéis tradicionais estão desaparecendo, enquanto novas oportunidades surgem nos setores de tecnologia e criatividade. Espera-se agora que os trabalhadores desenvolvam continuamente novas habilidades e se adaptem aos requisitos em mudança. O aprendizado contínuo tornou-se essencial para o sucesso na carreira na economia moderna.',
+    },
+    it: {
+      'Ambiente e clima': 'Il riscaldamento globale è uno dei problemi più urgenti della società moderna. L\'aumento delle temperature ha portato a cambiamenti significativi nei modelli meteorologici, causando eventi meteorologici estremi più frequenti. Gli scienziati concordano sul fatto che le attività umane, in particolare la combustione dei combustibili fossili, sono la causa principale del cambiamento climatico. Molti paesi stanno ora implementando politiche per ridurre le emissioni di carbonio e passare alle fonti di energia rinnovabili.',
+      'Tecnologia e innovazione': 'L\'intelligenza artificiale ha rivoluzionato molti settori nell\'ultimo decennio. Dall\'assistenza sanitaria alla finanza, i sistemi di IA vengono utilizzati per automatizzare le attività e prendere decisioni migliori. Tuttavia, il rapido progresso dell\'IA solleva anche preoccupazioni sulla perdita di posti di lavoro e la necessità di una regolamentazione appropriata. Gli esperti sottolineano che lo sviluppo responsabile è fondamentale per massimizzare i benefici riducendo al minimo i rischi.',
+      'Istruzione e apprendimento': 'I metodi educativi tradizionali vengono messi in discussione dall\'aumento delle piattaforme di apprendimento online. L\'istruzione digitale offre flessibilità e accesso alle risorse per gli studenti in tutto il mondo. Tuttavia, gli studi mostrano che la qualità dell\'istruzione online varia in modo significativo e gli studenti spesso faticano con la motivazione e l\'impegno. Un approccio equilibrato che combina l\'apprendimento digitale e in persona potrebbe essere la soluzione più efficace.',
+      'Lavoro e carriera': 'Il mercato del lavoro ha subito cambiamenti drammatici negli ultimi anni a causa dell\'automazione e della globalizzazione. Molti ruoli tradizionali stanno scomparendo, mentre emergono nuove opportunità nei settori della tecnologia e della creatività. Ci si aspetta che i lavoratori sviluppino continuamente nuove competenze e si adattino ai requisiti che cambiano. L\'apprendimento continuo è diventato essenziale per il successo professionale nell\'economia moderna.',
+    },
+    es: {
+      'Ambiente y clima': 'El calentamiento global es uno de los problemas más apremiantes de la sociedad moderna. El aumento de las temperaturas ha provocado cambios significativos en los patrones climáticos, causando eventos climáticos extremos más frecuentes. Los científicos están de acuerdo en que las actividades humanas, en particular la quema de combustibles fósiles, son la principal causa del cambio climático. Muchos países ahora están implementando políticas para reducir las emisiones de carbono y hacer la transición a fuentes de energía renovables.',
+      'Tecnología e innovación': 'La inteligencia artificial ha revolucionado muchas industrias en la última década. Desde la sanidad hasta las finanzas, los sistemas de IA se utilizan para automatizar tareas y tomar mejores decisiones. Sin embargo, el rápido avance de la IA también genera preocupaciones sobre el desplazamiento de empleos y la necesidad de una regulación adecuada. Los expertos enfatizan que el desarrollo responsable es crucial para maximizar los beneficios mientras se minimizan los riesgos.',
+      'Educación y aprendizaje': 'Los métodos educativos tradicionales se ven desafiados por el auge de las plataformas de aprendizaje en línea. La educación digital ofrece flexibilidad y acceso a recursos para estudiantes de todo el mundo. Sin embargo, los estudios muestran que la calidad de la educación en línea varía significativamente y los estudiantes a menudo luchan con la motivación y el compromiso. Un enfoque equilibrado que combine el aprendizaje digital y presencial puede ser la solución más efectiva.',
+      'Trabajo y carrera': 'El mercado laboral ha sufrido cambios drásticos en los últimos años debido a la automatización y la globalización. Muchos roles tradicionales están desapareciendo, mientras que emergen nuevas oportunidades en los sectores tecnológico y creativo. Ahora se espera que los trabajadores desarrollen continuamente nuevas habilidades y se adapten a los requisitos cambiantes. El aprendizaje continuo se ha convertido en esencial para el éxito profesional en la economía moderna.',
+    },
+    ko: {
+      '환경과 기후': '지구 온난화는 현대 사회가 직면한 가장 시급한 문제 중 하나입니다. 기온 상승으로 인해 날씨 패턴이 크게 변하고 있으며, 극단적인 기상 현상이 더욱 빈번해지고 있습니다. 과학자들은 화석 연료 연소를 포함한 인간 활동이 기후 변화의 주요 원인이라는 점에 동의합니다. 많은 국가들이 탄소 배출을 줄이고 재생 에너지로 전환하는 정책을 시행하고 있습니다.',
+      '기술과 혁신': '인공지능은 지난 10년간 많은 산업에 혁명을 일으켰습니다. 의료에서 금융에 이르기까지 AI 시스템은 작업 자동화와 더 나은 의사 결정을 위해 사용되고 있습니다. 그러나 AI의 빠른 발전은 일자리 감소와 적절한 규제의 필요성에 대한 우려를 낳고 있습니다. 전문가들은 책임감 있는 개발이 이점을 최대화하면서 위험을 최소화하는 데 중요하다고 강조합니다.',
+      '교육과 학습': '전통적인 교육 방법은 온라인 학습 플랫폼의 부상으로 인해 도전받고 있습니다. 디지털 교육은 전 세계 학습자를 위한 유연성과 자원 접근을 제공합니다. 그러나 연구에 따르면 온라인 교육의 품질은 크게 다르며 학생들은 동기 부여와 참여에 어려움을 겪습니다. 디지털 학습과 대면 학습을 결합한 균형 잡힌 접근 방식이 가장 효과적인 해결책이 될 수 있습니다.',
+      '일과 경력': '자동화와 세계화로 인해 노동 시장이 최근 몇 년간 크게 변했습니다. 많은 전통적 역할이 사라지는 반면, 기술과 창의적 부문에서 새로운 기회가 나타나고 있습니다. 근로자들은 이제 새로운 기술을 지속적으로 개발하고 변화하는 요구에 적응할 것으로 예상됩니다. 평생 학습은 현대 경제에서 직업 성공을 위해 필수가 되었습니다.',
+    }
+  };
+
+  // Get a passage for the topic, or use a default one
+  const languagePassages = passages[language] || passages['en'];
+  return languagePassages[topic] || 'The modern world is constantly changing with new technologies and innovations emerging every day. These changes affect various aspects of our lives, from work and education to communication and entertainment. Understanding these changes is important for adapting to the new environment and making informed decisions about the future.';
+}
+
 function generateReadingQuestions(count, language = 'en') {
   const questions = [];
   const config = getLanguageConfig(language);
@@ -206,11 +270,18 @@ function generateReadingQuestions(count, language = 'en') {
     const topic = topicsToUse[i % topicsToUse.length];
     const difficulty = ['easy', 'medium', 'hard'][Math.floor(i / (count / 3))];
 
-    const questionText = generateLanguageSpecificReadingQuestion(topic, questionType, language, i);
+    // Generate the reading passage
+    const passage = generateReadingPassage(topic, language);
+
+    // Generate the question prompt
+    const questionPrompt = generateLanguageSpecificReadingQuestion(topic, questionType, language, i);
+
+    // Combine passage + question into questionText
+    const fullQuestionText = `${passage}\n\n${questionPrompt} (Question ${i + 1})`;
 
     const question = {
       topic: topic,
-      questionText: `${questionText} (Question ${i + 1})`,
+      questionText: fullQuestionText,
       questionType: 'multiple-choice',
       options: generateLanguageSpecificOptions(language, difficulty),
       correctAnswer: 'B',

@@ -60,6 +60,7 @@ const matching = require('./routes/matching');
 const livekit = require('./routes/livekit');
 const tutor = require('./routes/tutor');
 const admin = require('./routes/admin');
+const broadcast = require('./routes/broadcast');
 
 // FitBowl Route files
 const fitbowlAuth = require('./routes/fitbowl/auth');
@@ -315,6 +316,7 @@ app.use('/api/v1/matching', matching);
 app.use('/api/v1/livekit', livekit);
 app.use('/api/v1/tutor', tutor);
 app.use('/api/v1/admin', admin);
+app.use('/api/v1/admin/broadcast', broadcast);
 app.use('/api/v1/analytics', require('./routes/analytics'));
 app.use('/api/v1/users/chat-phrases', require('./routes/chatPhrases'));
 app.use('/api/v1/exam-study', require('./routes/examStudy'));

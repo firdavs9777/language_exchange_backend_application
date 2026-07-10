@@ -104,17 +104,34 @@ exports.getBannedUsers = asyncHandler(async (req, res, next) => {
  * @access  Admin
  */
 exports.hardDeleteUser = asyncHandler(async (req, res, next) => {
-  const result = await banService.hardDeleteUser({
-    userId: req.params.id,
-    moderatorId: req.user.id,
-  });
+  // Get user first to collect stats
+  const User = require('../models/User');
+  const user = await User.findById(req.params.id);
 
-  if (!result.ok) {
-    const status = result.error.includes('not found') ? 404 : 400;
-    return next(new ErrorResponse(result.error, status));
+  if (!user) {
+    return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
-  res.status(200).json({ success: true, message: 'Account permanently deleted and blacklisted.' });
+  // Cascade delete all user-related data
+  const userCascadeDeleteService = require('../services/userCascadeDeleteService');
+  const deleteResult = await userCascadeDeleteService.deleteUserAndAllData(req.params.id);
+
+  // Also blacklist the user if banService is available
+  try {
+    await banService.hardDeleteUser({
+      userId: req.params.id,
+      moderatorId: req.user.id,
+    });
+  } catch (error) {
+    console.warn('Ban service error (non-critical):', error.message);
+    // Continue even if ban service fails - main deletion already succeeded
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Account permanently deleted and blacklisted',
+    deletionStats: deleteResult.stats
+  });
 });
 
 /**

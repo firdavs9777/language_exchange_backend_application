@@ -555,20 +555,27 @@ exports.deleteUser = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not authorized to delete this user', 403));
   }
 
-  const user = await User.findByIdAndDelete(req.params.id);
+  const user = await User.findById(req.params.id);
 
   if (!user) {
     return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
-  // Delete all user images
-  await Promise.all(
-    user.images.map(image => deleteFromSpaces(image))
-  );
+  // Delete all user images from S3/Spaces
+  if (user.images && user.images.length > 0) {
+    await Promise.all(
+      user.images.map(image => deleteFromSpaces(image))
+    );
+  }
+
+  // Cascade delete all user-related data
+  const userCascadeDeleteService = require('../services/userCascadeDeleteService');
+  const deleteResult = await userCascadeDeleteService.deleteUserAndAllData(req.params.id);
 
   res.status(200).json({
     success: true,
-    data: {}
+    message: 'User account and all associated data deleted successfully',
+    data: deleteResult
   });
 });
 
