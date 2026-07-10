@@ -15,7 +15,7 @@ const mongoose = require('mongoose');
 const ExamLanguage = require('../models/ExamLanguage');
 const ExamType = require('../models/ExamType');
 const ExamVocabularyWord = require('../models/ExamVocabularyWord');
-const { generateVocabularyWords } = require('../utils/examVocabularyGenerator');
+const { generateExpandedVocabulary } = require('../utils/examVocabularyExpanded');
 
 // Language to language code mapping
 const LANGUAGE_CODES = {
@@ -109,8 +109,8 @@ async function seedVocabulary() {
         continue;
       }
 
-      // Generate vocabulary
-      const vocabWords = generateVocabularyWords(100, langCode, standardLevel);
+      // Generate vocabulary (350 words per level with diverse topics)
+      const vocabWords = generateExpandedVocabulary(350, langCode, standardLevel);
 
       // Create vocabulary records
       const wordRecords = vocabWords.map(w => ({
