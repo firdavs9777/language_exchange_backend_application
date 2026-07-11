@@ -214,9 +214,10 @@ const getWaveTemplate = (waverName, isMutual, waveData = {}) => {
       type: 'wave_received',
       userId: waveData.userId || '',
       waveId: waveData.waveId || '',
+      senderName: waverName || '',
       isMutual: isMutual ? 'true' : 'false',
-      screen: 'community',
-      route: '/community?tab=waves'
+      screen: 'chat',
+      route: `/chat/${waveData.userId || ''}`
     }
   };
 };
