@@ -21,31 +21,44 @@ jobs:
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           port: ${{ secrets.DROPLET_PORT || 22 }}
+          command_timeout: 15m
           script_stop: true
           script: |
-            set -e
+            set -eo pipefail
             cd /home/language_exchange_backend_application
+
+            echo "==> Environment"
+            node -v || true
+            npm -v || true
+            echo "-- disk --"; df -h . || true
+            echo "-- memory --"; free -m || true
+
             echo "==> Pulling latest from main"
-            git fetch --all
+            git fetch --all --prune
             git reset --hard origin/main
-            echo "==> Verifying package-lock.json exists"
-            if [ ! -f package-lock.json ]; then
-              echo "ERROR: package-lock.json missing! Running npm install instead..."
-              npm install --omit=dev
+
+            echo "==> Installing production dependencies"
+            # Prefer a clean, reproducible install. If 'npm ci' fails (lockfile
+            # drift, partial tree, transient registry error) we DON'T abort the
+            # deploy — its output is printed above, then we fall back to a fresh
+            # 'npm install' so a release is never blocked by npm ci's strictness.
+            if [ -f package-lock.json ] && npm ci --omit=dev --no-audit --no-fund; then
+              echo "==> npm ci succeeded"
             else
-              echo "==> Installing production deps (clean install)"
-              npm ci --omit=dev
+              echo "WARN: npm ci unavailable/failed — falling back to npm install"
+              rm -rf node_modules
+              npm install --omit=dev --no-audit --no-fund
             fi
+
             echo "==> Verifying node_modules exists"
             if [ ! -d node_modules ]; then
-              echo "ERROR: node_modules installation failed!"
+              echo "ERROR: dependency installation failed!"
               exit 1
             fi
-            echo "==> Stopping PM2 app gracefully"
-            pm2 stop language-app || true
-            sleep 2
-            echo "==> Restarting PM2 app with updated environment"
-            pm2 restart language-app --update-env
+
+            echo "==> Restarting app via PM2"
+            # Restart if already registered; otherwise start it fresh.
+            pm2 restart language-app --update-env || pm2 start server.js --name language-app --update-env
             sleep 2
             pm2 save
             echo "==> Checking app status"
