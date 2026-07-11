@@ -1112,7 +1112,7 @@ UserSchema.methods.resetLoginAttempts = async function() {
 UserSchema.methods.generateRefreshToken = function(deviceInfo = {}) {
   const refreshToken = jwt.sign(
     { id: this._id, type: 'refresh' },
-    process.env.JWT_SECRET + '_refresh',
+    process.env.REFRESH_TOKEN_SECRET || (process.env.JWT_SECRET + '_refresh'),
     { expiresIn: '30d' }
   );
   

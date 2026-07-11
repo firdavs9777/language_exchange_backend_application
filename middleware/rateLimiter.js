@@ -38,7 +38,8 @@ exports.authLimiter = rateLimit({
   message: {
     success: false,
     error: 'Too many authentication attempts, please try again after 15 minutes.',
-    message: 'Too many authentication attempts, please try again after 15 minutes.'
+    message: 'Too many authentication attempts, please try again after 15 minutes.',
+    code: 'RATE_LIMITED'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -54,7 +55,8 @@ exports.emailLimiter = rateLimit({
   message: {
     success: false,
     error: 'Too many email requests, please try again after 1 hour.',
-    message: 'Too many email requests, please try again after 1 hour.'
+    message: 'Too many email requests, please try again after 1 hour.',
+    code: 'RATE_LIMITED'
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -69,7 +71,8 @@ exports.loginLimiter = rateLimit({
   message: {
     success: false,
     error: 'Too many login attempts, please try again after 15 minutes.',
-    message: 'Too many login attempts, please try again after 15 minutes.'
+    message: 'Too many login attempts, please try again after 15 minutes.',
+    code: 'RATE_LIMITED'
   },
   standardHeaders: true,
   legacyHeaders: false,
