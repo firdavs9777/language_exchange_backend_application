@@ -450,7 +450,7 @@ exports.register = asyncHandler(async (req, res, next) => {
 
   // Check if registration is already complete
   if (user.isRegistrationComplete) {
-    return next(new ErrorResponse('User already registered. Please login instead.', 400));
+    return next(new ErrorResponse('User already registered. Please login instead.', 400, 'EMAIL_EXISTS'));
   }
 
   // Generate unique username
@@ -556,7 +556,7 @@ exports.login = asyncHandler(async (req, res, next) => {
       lockTimeMinutes: lockTime,
       ipAddress: deviceInfo.ipAddress
     });
-    return next(new ErrorResponse(`Account is locked. Please try again in ${lockTime} minutes.`, 423));
+    return next(new ErrorResponse(`Account is locked. Please try again in ${lockTime} minutes.`, 423, 'ACCOUNT_LOCKED'));
   }
   
   // Check if user has completed registration
@@ -661,7 +661,23 @@ exports.logout = asyncHandler(async (req, res, next) => {
       });
     }
   }
-  
+
+  // Apple requires apps to revoke tokens when the user signs out (App Store guideline 4.8)
+  const fullUser = await User.findById(req.user.id).select('appleId email');
+  if (fullUser?.appleId && process.env.APPLE_CLIENT_SECRET) {
+    try {
+      const appleSignin = require('apple-signin-auth');
+      await appleSignin.revokeAuthorizationToken(process.env.APPLE_CLIENT_SECRET, {
+        clientId: process.env.APPLE_BUNDLE_ID || 'com.banatalk.app',
+        tokenTypeHint: 'access_token',
+      });
+      logSecurityEvent('APPLE_TOKEN_REVOKED_ON_LOGOUT', { userId: req.user.id });
+    } catch (appleErr) {
+      // Non-blocking: logout must still succeed
+      console.error('⚠️ Apple token revocation on logout failed (non-blocking):', appleErr.message);
+    }
+  }
+
   res.cookie('token', 'none', {
     expires: new Date(Date.now() + 10 * 1000), // 10 seconds
     httpOnly: true
@@ -716,8 +732,15 @@ exports.refreshToken = asyncHandler(async (req, res, next) => {
   
   try {
     // Verify refresh token
-    const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET + '_refresh');
-    
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET || (process.env.JWT_SECRET + '_refresh'));
+    } catch (primaryErr) {
+      if (primaryErr.name === 'TokenExpiredError') throw primaryErr;
+      // Legacy tokens issued before the secret split — accept during migration window
+      decoded = jwt.verify(refreshToken, process.env.JWT_SECRET + '_refresh');
+    }
+
     if (decoded.type !== 'refresh') {
       return next(new ErrorResponse('Invalid token type', 401));
     }
@@ -816,7 +839,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   let user = await User.findOne({ email }).select('+emailVerificationCode +emailVerificationExpire');
   
   if (user && user.isEmailVerified && user.isRegistrationComplete) {
-    return next(new ErrorResponse('A user with this email already exists. Please login instead.', 400));
+    return next(new ErrorResponse('A user with this email already exists. Please login instead.', 400, 'EMAIL_EXISTS'));
   }
 
   // Create user if doesn't exist (for email verification flow)
@@ -973,15 +996,19 @@ exports.verifyCode = asyncHandler(async (req, res, next) => {
     .update(code.toString())
     .digest('hex');
 
-  // Find user with matching email, code, and non-expired verification
+  // Find user by email + hashed code (without expiry filter) so we can distinguish
+  // "wrong code" from "expired code"
   const user = await User.findOne({
     email,
-    emailVerificationCode: hashedCode,
-    emailVerificationExpire: { $gt: Date.now() }
+    emailVerificationCode: hashedCode
   }).select('+emailVerificationCode +emailVerificationExpire');
 
   if (!user) {
-    return next(new ErrorResponse('Invalid or expired verification code', 400));
+    return next(new ErrorResponse('That code is not correct. Check the code and try again.', 400, 'CODE_INVALID'));
+  }
+
+  if (user.emailVerificationExpire < Date.now()) {
+    return next(new ErrorResponse('That code has expired. Request a new one.', 400, 'CODE_EXPIRED'));
   }
 
   // Mark email as verified and clear verification fields
@@ -1157,15 +1184,19 @@ exports.verifyResetCode = asyncHandler(async (req, res, next) => {
     .update(code.toString())
     .digest('hex');
 
-  // Find user with matching email, code, and non-expired reset code
+  // Find user by email + hashed code (without expiry filter) so we can distinguish
+  // "wrong code" from "expired code"
   const user = await User.findOne({
     email,
-    passwordResetCode: hashedCode,
-    passwordResetExpire: { $gt: Date.now() }
+    passwordResetCode: hashedCode
   }).select('+passwordResetCode +passwordResetExpire');
 
   if (!user) {
-    return next(new ErrorResponse('Invalid or expired reset code', 400));
+    return next(new ErrorResponse('That code is not correct. Check the code and try again.', 400, 'CODE_INVALID'));
+  }
+
+  if (user.passwordResetExpire < Date.now()) {
+    return next(new ErrorResponse('That code has expired. Request a new one.', 400, 'CODE_EXPIRED'));
   }
 
   res.status(200).json({ 
@@ -1292,7 +1323,7 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
   }
 
   // Check if profile was previously incomplete (for sending notification)
-  const userBeforeUpdate = await User.findById(req.user.id).select('profileCompleted username name email gender native_language language_to_learn signupPlatform');
+  const userBeforeUpdate = await User.findById(req.user.id).select('profileCompleted username name email gender birth_year native_language language_to_learn signupPlatform');
   const wasProfileIncomplete = !userBeforeUpdate?.profileCompleted;
 
   // Capture signupPlatform on first profile completion (OAuth users skip the
@@ -1303,21 +1334,29 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     fieldsToUpdate.signupPlatform = profileClientInfo.platform;
   }
 
-  // If user explicitly sets profileCompleted to true, respect that
-  // Otherwise auto-set based on required fields being present
-  if (profileCompleted === true) {
-    fieldsToUpdate.profileCompleted = true;
-  } else if (native_language && language_to_learn && gender && birth_year) {
-    // Auto-set profileCompleted when core fields are present
-    // Bio, images, location are optional — don't block profile completion
-    const hasRealLanguages = native_language !== language_to_learn;
+  // profileCompleted is ALWAYS derived server-side from core fields.
+  // Merge incoming update over stored values so partial updates still evaluate correctly.
+  const effective = {
+    gender: fieldsToUpdate.gender ?? userBeforeUpdate?.gender,
+    birth_year: fieldsToUpdate.birth_year ?? userBeforeUpdate?.birth_year,
+    native_language: fieldsToUpdate.native_language ?? userBeforeUpdate?.native_language,
+    language_to_learn: fieldsToUpdate.language_to_learn ?? userBeforeUpdate?.language_to_learn,
+  };
+  const coreComplete =
+    effective.gender && String(effective.gender).length > 0 &&
+    effective.birth_year && String(effective.birth_year).length > 0 &&
+    effective.native_language && effective.language_to_learn &&
+    effective.native_language !== effective.language_to_learn;
 
-    if (hasRealLanguages) {
-      fieldsToUpdate.profileCompleted = true;
-      console.log(`✅ Profile auto-completed for user ${req.user.id}`);
-    } else {
-      console.log(`⚠️ Profile NOT auto-completed for ${req.user.id}: same language selected for both`);
-    }
+  if (coreComplete) {
+    fieldsToUpdate.profileCompleted = true;
+  } else if (profileCompleted === true) {
+    // Client asked to complete but core fields are missing — refuse explicitly.
+    return next(new ErrorResponse(
+      'Profile is missing required fields (gender, birth date, languages). Native and learning languages must also be different.',
+      400,
+      'PROFILE_INCOMPLETE'
+    ));
   }
 
   try {
