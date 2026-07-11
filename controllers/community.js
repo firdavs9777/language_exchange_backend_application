@@ -204,13 +204,17 @@ exports.sendWave = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Cannot wave at yourself', 400));
   }
 
-  // Run validation queries in parallel for better performance
-  const [targetUser, recentWave] = await Promise.all([
+  // Run validation queries in parallel for better performance.
+  // `priorWave` is intentionally one-directional (from: me, to: target) and
+  // unbounded in age — "one wave per user pair, ever" means once I've waved
+  // at this person I can never wave at them again, regardless of how long
+  // ago or whether they read it. A wave from them to me does NOT count here
+  // (that's the mutual/wave-back path and must stay allowed).
+  const [targetUser, priorWave] = await Promise.all([
     User.findById(targetUserId).select('_id blockedUsers').lean(),
     Wave.findOne({
       from: fromUserId,
-      to: targetUserId,
-      createdAt: { $gt: new Date(Date.now() - 24 * 60 * 60 * 1000) }
+      to: targetUserId
     }).lean()
   ]);
 
@@ -226,8 +230,12 @@ exports.sendWave = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Cannot wave to this user', 403));
   }
 
-  if (recentWave) {
-    return next(new ErrorResponse('You already waved at this user recently', 429));
+  if (priorWave) {
+    return next(new ErrorResponse(
+      "You've already waved at this user — send them a message instead.",
+      400,
+      'ALREADY_WAVED'
+    ));
   }
 
   // Create wave and check mutual in parallel
