@@ -2,11 +2,13 @@
 const path = require('path');
 const asyncHandler = require('../middleware/async');
 const Moment = require('../models/Moment');
+const Prompt = require('../models/Prompt');
 const ErrorResponse = require('../utils/errorResponse');
 const { processUserImages, processMomentImages } = require('../utils/imageUtils');
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
 const { getVideoConstraints } = require('../utils/videoUtils');
+const { toIso } = require('../utils/languageCodes');
 
 // Minimal user fields for population (performance optimization)
 const USER_FIELDS = 'name email bio images native_language language_to_learn';
@@ -78,12 +80,52 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
     }
   }
 
+  // Feed mode: 'forYou' | 'following' (optional; absent => existing default
+  // behavior, byte-identical, for backward compatibility with old app builds).
+  // Feed modes require an authenticated user (optionalAuth may leave
+  // req.user unset); without one, silently fall back to the default feed.
+  const requestedFeed = req.query.feed;
+  let feedMode = 'default';
+  let sort = { createdAt: -1 };
+
+  if (requestedFeed === 'forYou' && req.user) {
+    const nativeIso = toIso(req.user.native_language);
+    const learningIso = toIso(req.user.language_to_learn);
+
+    if (nativeIso && learningIso && nativeIso !== learningIso) {
+      query.language = { $in: [nativeIso, learningIso] };
+      feedMode = 'forYou';
+      sort = { likeCount: -1, createdAt: -1 };
+    }
+    // else: both/either normalize to null or are equal -> fall back to default (no filter change)
+  } else if (requestedFeed === 'following' && req.user) {
+    const followingIds = req.user.following || [];
+
+    if (followingIds.length > 0) {
+      // Replace the default $or (public + own posts) query with one scoped to
+      // people the user follows, still honoring privacy/deletion/blocking.
+      const followingQuery = {
+        user: { $in: followingIds },
+        privacy: 'public',
+        isDeleted: { $ne: true }
+      };
+
+      if (blockedUserIds.length > 0) {
+        followingQuery.user = { $in: followingIds, $nin: blockedUserIds };
+      }
+
+      query = followingQuery;
+      feedMode = 'following';
+    }
+    // else: empty following list -> fall back to default (no filter change)
+  }
+
   // Optimize: Count and query in parallel
   const [totalMoments, moments] = await Promise.all([
     Moment.countDocuments(query),
     Moment.find(query)
       .populate('user', USER_FIELDS)
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip(skip)
       .limit(actualLimit)
       .lean() // Use lean() for read-only queries (faster)
@@ -106,6 +148,7 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     moments: momentsWithImages,
+    feedMode,
     pagination: {
       currentPage: page,
       totalPages,
@@ -118,6 +161,65 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
     }
   });
 });
+
+/**
+ * @desc    Get the deterministic prompt of the day for a language
+ * @route   GET /api/v1/moments/prompt-of-day?language=ko
+ * @access  Public (optionalAuth: uses req.user.language_to_learn when
+ *          `language` query param is absent)
+ */
+exports.getPromptOfDay = asyncHandler(async (req, res, next) => {
+  // language param wins; otherwise derive from the authenticated user's
+  // language_to_learn; fall back to 'en' if neither resolves to a known code.
+  let language = toIso(req.query.language) || null;
+
+  if (!language && req.user) {
+    language = toIso(req.user.language_to_learn);
+  }
+
+  if (!language) {
+    language = 'en';
+  }
+
+  let activePrompts = await Prompt.find({ language, active: true }).sort({ _id: 1 }).lean();
+
+  // Fall back to 'en' if there are no active prompts for the requested language.
+  if (activePrompts.length === 0 && language !== 'en') {
+    language = 'en';
+    activePrompts = await Prompt.find({ language, active: true }).sort({ _id: 1 }).lean();
+  }
+
+  if (activePrompts.length === 0) {
+    return next(new ErrorResponse('No prompts available', 404));
+  }
+
+  // Deterministic daily rotation: same prompt all day, rotates by day of year.
+  const dayOfYear = getDayOfYear(new Date());
+  const prompt = activePrompts[dayOfYear % activePrompts.length];
+
+  res.status(200).json({
+    success: true,
+    data: {
+      promptId: prompt._id,
+      text: prompt.text,
+      language: prompt.language,
+      emoji: prompt.emoji
+    }
+  });
+});
+
+/**
+ * Day of year (1-366) for a given Date, in UTC, so rotation is stable
+ * regardless of server timezone.
+ * @param {Date} date
+ * @returns {number}
+ */
+function getDayOfYear(date) {
+  const start = Date.UTC(date.getUTCFullYear(), 0, 1);
+  const current = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const oneDay = 24 * 60 * 60 * 1000;
+  return Math.floor((current - start) / oneDay);
+}
 
 /**
  * @desc    Get single moment
@@ -276,7 +378,8 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
     privacy,
     location,
     scheduledFor,
-    backgroundColor
+    backgroundColor,
+    promptId
   } = req.body;
 
   // Use authenticated user instead of body user (security)
@@ -328,7 +431,8 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
     language: language || 'en',
     privacy: privacy || 'public',
     scheduledFor: scheduledFor || null,
-    backgroundColor: backgroundColor || ''
+    backgroundColor: backgroundColor || '',
+    promptId: promptId || null
   };
 
   // If images were uploaded via multer-s3, add their CDN URLs
@@ -605,6 +709,102 @@ exports.momentVideoUpload = asyncHandler(async (req, res, next) => {
       mediaType: moment.mediaType
     },
     message: 'Video uploaded successfully'
+  });
+});
+
+/**
+ * @desc    Upload audio (voice note) to moment
+ * @route   PUT /api/v1/moments/:id/audio
+ * @access  Private
+ * @note    Audio must be under 60 seconds and max 10MB.
+ *          Uses the same Spaces upload helper as chat voice messages
+ *          (middleware/uploadToSpaces.js uploadSingle -> multer-s3).
+ */
+exports.momentAudioUpload = asyncHandler(async (req, res, next) => {
+  const moment = await Moment.findById(req.params.id);
+
+  if (!moment) {
+    return next(new ErrorResponse(`Moment not found with id of ${req.params.id}`, 404));
+  }
+
+  // Check ownership
+  if (moment.user.toString() !== req.user._id.toString()) {
+    return next(new ErrorResponse('Not authorized to upload audio to this moment', 403));
+  }
+
+  // Validate file upload - from multer-s3 (uploadSingle)
+  if (!req.file) {
+    return next(new ErrorResponse('Please upload an audio file', 400));
+  }
+
+  // Validate the uploaded file (format/mime/size) using the shared audio utils
+  const { validateAudioFile, MAX_FILE_SIZES } = require('../utils/audioUtils');
+  const validation = validateAudioFile(req.file, 'pronunciation'); // 10MB cap
+
+  if (!validation.valid) {
+    await deleteFromSpaces(req.file.location);
+    return next(new ErrorResponse(validation.errors.join(', '), 400));
+  }
+
+  // Enforce max moment audio duration (60 seconds), sent by the client
+  const duration = req.body.duration !== undefined ? parseFloat(req.body.duration) : null;
+  if (duration === null || Number.isNaN(duration)) {
+    await deleteFromSpaces(req.file.location);
+    return next(new ErrorResponse('Audio duration is required', 400));
+  }
+
+  if (duration <= 0) {
+    await deleteFromSpaces(req.file.location);
+    return next(new ErrorResponse('Audio duration must be greater than 0 seconds', 400));
+  }
+
+  if (duration > 60) {
+    await deleteFromSpaces(req.file.location);
+    return next(new ErrorResponse('Audio duration cannot exceed 60 seconds', 400));
+  }
+
+  // Parse waveform if provided (JSON string from multipart form or array)
+  let waveform = req.body.waveform;
+  if (typeof waveform === 'string') {
+    try {
+      waveform = JSON.parse(waveform);
+    } catch (e) {
+      waveform = [];
+    }
+  }
+  if (!Array.isArray(waveform)) {
+    waveform = [];
+  }
+
+  // Delete old audio from Spaces before replacing (mirrors video replace behavior)
+  if (moment.audio && moment.audio.url) {
+    try {
+      await deleteFromSpaces(moment.audio.url);
+    } catch (err) {
+      console.error('Failed to delete old audio:', err.message);
+    }
+  }
+
+  // Update moment with audio data (CDN URL from multer-s3)
+  moment.audio = {
+    url: req.file.location,
+    duration,
+    waveform,
+    mimeType: req.file.mimetype,
+    fileSize: req.file.size
+  };
+  moment.mediaType = 'audio';
+
+  await moment.save();
+
+  res.status(200).json({
+    success: true,
+    data: {
+      _id: moment._id,
+      audio: moment.audio,
+      mediaType: moment.mediaType
+    },
+    message: 'Audio uploaded successfully'
   });
 });
 

@@ -8,7 +8,7 @@ const crypto = require('crypto');
 
 // Supported audio formats
 const SUPPORTED_FORMATS = {
-  input: ['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm', 'ogg', 'flac'],
+  input: ['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm', 'ogg', 'flac', 'aac'],
   output: ['mp3', 'opus', 'aac', 'flac']
 };
 
@@ -42,7 +42,7 @@ const validateAudioFile = (file, purpose = 'stt') => {
   const validMimeTypes = [
     'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a',
     'audio/wav', 'audio/webm', 'audio/ogg', 'audio/flac',
-    'audio/x-m4a', 'audio/x-wav'
+    'audio/x-m4a', 'audio/x-wav', 'audio/aac', 'audio/x-aac'
   ];
   if (!validMimeTypes.includes(file.mimetype)) {
     errors.push(`Invalid MIME type: ${file.mimetype}`);

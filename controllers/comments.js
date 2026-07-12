@@ -174,6 +174,17 @@ exports.createComment = asyncHandler(async (req, res, next) => {
             }
         }
 
+        // Handle correction (whitelist fields; leave undefined if not provided)
+        if (req.body.correction) {
+            const { originalText, correctedText, explanation } = req.body.correction;
+            req.body.correction = { originalText, correctedText, explanation };
+            if (!req.body.text || !req.body.text.trim()) {
+                req.body.text = '✏️ Correction';
+            }
+        } else {
+            delete req.body.correction;
+        }
+
         const comment = await Comment.create(req.body);
 
         // If this is a reply, increment parent's reply count

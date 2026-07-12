@@ -3,11 +3,13 @@ const express = require('express');
 const {
   getMoments,
   getMoment,
+  getPromptOfDay,
   createMoment,
   updateMoment,
   deleteMoment,
   momentPhotoUpload,
   momentVideoUpload,
+  momentAudioUpload,
   deleteVideo,
   getVideoConfig,
   getUserMoments,
@@ -28,7 +30,7 @@ const {
 const { validate } = require('../middleware/validation');
 const { createMomentValidation, updateMomentValidation } = require('../validators/momentValidator');
 const { checkMomentLimit } = require('../middleware/checkLimitations');
-const { uploadMultipleCompressed } = require('../middleware/uploadToSpaces');
+const { uploadMultipleCompressed, uploadSingle } = require('../middleware/uploadToSpaces');
 const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVideoToSpaces');
 const commentRouter = require('./comment');
 const router = express.Router();
@@ -45,6 +47,7 @@ router.route('/video-config').get(getVideoConfig); // Get video upload constrain
 router.route('/trending').get(optionalAuth, getTrendingMoments);
 router.route('/explore').get(optionalAuth, exploreMoments);
 router.route('/user/:userId').get(optionalAuth, getUserMoments);
+router.route('/prompt-of-day').get(optionalAuth, getPromptOfDay);
 router.route('/:id').get(optionalAuth, getMoment);
 
 // ========== PROTECTED ROUTES ==========
@@ -76,6 +79,14 @@ router.route('/:id/video')
     momentVideoUpload
   )
   .delete(protect, deleteVideo);
+
+// Audio upload (voice-note moments, max 60 seconds)
+// Reuses the same Spaces upload helper as chat voice messages (uploadSingle)
+router.route('/:id/audio').put(
+  protect,
+  uploadSingle('audio', 'bananatalk/moments/audio'),
+  momentAudioUpload
+);
 
 // Interactions (rate limited to prevent spam)
 router.route('/:id/like').post(protect, interactionLimiter, likeMoment);

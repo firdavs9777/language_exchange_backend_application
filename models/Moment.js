@@ -194,16 +194,49 @@ const MomentSchema = new mongoose.Schema({
     }
   },
 
-  // Media type to distinguish between image and video moments
+  // Audio field for voice-note moments
+  audio: {
+    url: {
+      type: String,
+      default: null
+    },
+    duration: {
+      type: Number, // Duration in seconds
+      default: null,
+      max: [60, 'Audio duration cannot exceed 60 seconds']
+    },
+    waveform: {
+      type: [Number],
+      default: undefined
+    },
+    mimeType: {
+      type: String,
+      default: null
+    },
+    fileSize: {
+      type: Number, // Size in bytes
+      default: null
+    }
+  },
+
+  // Media type to distinguish between image, video, audio and text moments
   mediaType: {
     type: String,
-    enum: ['image', 'video', 'text'],
+    enum: ['image', 'video', 'audio', 'text'],
     default: 'text'
   },
 
   // NEW FIELD - Phase 1
   scheduledFor: {
     type: Date,
+    default: null
+  },
+
+  // Optional link to the daily prompt this moment was written in response to.
+  // No index needed at this scale.
+  promptId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Prompt',
     default: null
   },
 
