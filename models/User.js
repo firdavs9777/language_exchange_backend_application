@@ -568,6 +568,13 @@ bannedAt: {
     }
   },
   
+  // Sticky-leave marker for language rooms (Workstream D): hubs in this list
+  // are NOT re-auto-joined even if the hub matches the user's target language.
+  leftHubs: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Conversation'
+  }],
+
   // Close Friends list (for story privacy)
   closeFriends: [{
     type: mongoose.Schema.Types.ObjectId,
