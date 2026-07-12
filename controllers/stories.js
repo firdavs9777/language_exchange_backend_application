@@ -23,6 +23,110 @@ const debug = (...args) => {
   }
 };
 
+// Parse + validate the `poll` / `questionBox` multipart fields (sent as JSON-encoded strings).
+// Returns { poll, questionBox } payload fragments to merge into Story.create data, or throws
+// an ErrorResponse(400) on invalid input. At most one of poll/questionBox may be provided.
+function parseStickerFields(body, defaultExpiresAt) {
+  const result = {};
+
+  const rawPoll = body.poll;
+  const rawQuestionBox = body.questionBox;
+
+  if (rawPoll !== undefined && rawPoll !== null && rawPoll !== '' &&
+      rawQuestionBox !== undefined && rawQuestionBox !== null && rawQuestionBox !== '') {
+    throw new ErrorResponse('Only one of poll or questionBox may be attached to a story', 400);
+  }
+
+  if (rawPoll !== undefined && rawPoll !== null && rawPoll !== '') {
+    let pollData = rawPoll;
+    if (typeof pollData === 'string') {
+      try {
+        pollData = JSON.parse(pollData);
+      } catch (err) {
+        throw new ErrorResponse('Invalid poll or question data', 400);
+      }
+    }
+
+    if (!pollData || typeof pollData !== 'object') {
+      throw new ErrorResponse('Invalid poll or question data', 400);
+    }
+
+    const question = typeof pollData.question === 'string' ? pollData.question.trim() : '';
+    const rawOptions = Array.isArray(pollData.options) ? pollData.options : [];
+    const optionTexts = rawOptions
+      .map(opt => (typeof opt === 'string' ? opt : opt && opt.text))
+      .map(text => (typeof text === 'string' ? text.trim() : ''))
+      .filter(text => text.length > 0);
+
+    if (!question || optionTexts.length < 2 || optionTexts.length > 4) {
+      throw new ErrorResponse('Invalid poll or question data', 400);
+    }
+
+    result.poll = {
+      question,
+      options: optionTexts.map(text => ({ text, votes: [], voteCount: 0 })),
+      isAnonymous: pollData.isAnonymous === true,
+      expiresAt: pollData.expiresAt ? new Date(pollData.expiresAt) : defaultExpiresAt
+    };
+  } else if (rawQuestionBox !== undefined && rawQuestionBox !== null && rawQuestionBox !== '') {
+    let qbData = rawQuestionBox;
+    if (typeof qbData === 'string') {
+      try {
+        qbData = JSON.parse(qbData);
+      } catch (err) {
+        throw new ErrorResponse('Invalid poll or question data', 400);
+      }
+    }
+
+    if (!qbData || typeof qbData !== 'object') {
+      throw new ErrorResponse('Invalid poll or question data', 400);
+    }
+
+    const prompt = typeof qbData.prompt === 'string' ? qbData.prompt.trim() : '';
+    if (!prompt) {
+      throw new ErrorResponse('Invalid poll or question data', 400);
+    }
+
+    result.questionBox = {
+      prompt,
+      responses: []
+    };
+  }
+
+  return result;
+}
+
+// Parse the `hashtags` field, sent either as a JSON-encoded array (multipart)
+// or as a native array (JSON body). Normalizes to a deduped array of
+// lowercase strings without a leading '#', capped at 10 entries.
+function parseHashtags(body) {
+  let raw = body.hashtags;
+  if (raw === undefined || raw === null || raw === '') return [];
+
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch (err) {
+      // Fall back to comma-separated string
+      raw = raw.split(',');
+    }
+  }
+
+  if (!Array.isArray(raw)) return [];
+
+  const seen = new Set();
+  const tags = [];
+  for (const tag of raw) {
+    if (typeof tag !== 'string') continue;
+    const cleaned = tag.trim().replace(/^#/, '').toLowerCase();
+    if (!cleaned || seen.has(cleaned)) continue;
+    seen.add(cleaned);
+    tags.push(cleaned);
+    if (tags.length >= 10) break;
+  }
+  return tags;
+}
+
 /**
  * @desc    Get video upload configuration/constraints for stories
  * @route   GET /api/v1/stories/video-config
@@ -206,6 +310,14 @@ exports.createStory = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Either media or text required', 400));
     }
 
+    const defaultExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    let stickerFields;
+    try {
+      stickerFields = parseStickerFields(req.body, defaultExpiresAt);
+    } catch (err) {
+      return next(err);
+    }
+
     const storyData = {
       user: userId,
       mediaUrls,
@@ -215,6 +327,8 @@ exports.createStory = asyncHandler(async (req, res, next) => {
       textColor: textColor || '#ffffff',
       privacy: privacy || 'friends',
       overlays,
+      hashtags: parseHashtags(req.body),
+      ...stickerFields,
     };
 
     const story = await Story.create(storyData);
@@ -264,6 +378,14 @@ exports.createVideoStory = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse('Please upload a video file', 400));
     }
 
+    const videoDefaultExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    let stickerFields;
+    try {
+      stickerFields = parseStickerFields(req.body, videoDefaultExpiresAt);
+    } catch (err) {
+      return next(err);
+    }
+
     // Create story with video
     const storyData = {
       user: userId,
@@ -280,7 +402,9 @@ exports.createVideoStory = asyncHandler(async (req, res, next) => {
       text: text || null,
       backgroundColor: backgroundColor || '#000000',
       textColor: textColor || '#ffffff',
-      privacy: privacy || 'friends'
+      privacy: privacy || 'friends',
+      hashtags: parseHashtags(req.body),
+      ...stickerFields,
     };
 
     const story = await Story.create(storyData);

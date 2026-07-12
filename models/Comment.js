@@ -78,6 +78,26 @@ const CommentSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  // Optional correction (e.g. language-exchange partner correcting a post)
+  correction: {
+    type: new mongoose.Schema({
+      originalText: {
+        type: String,
+        maxlength: [2000, 'Original text can not be more than 2000 characters']
+      },
+      correctedText: {
+        type: String,
+        required: [true, 'Corrected text is required when a correction is provided'],
+        maxlength: [2000, 'Corrected text can not be more than 2000 characters']
+      },
+      explanation: {
+        type: String,
+        maxlength: [500, 'Explanation can not be more than 500 characters']
+      },
+    }, { _id: false }),
+    required: false,
+    default: undefined,
+  },
 });
 
 // Indexes for performance

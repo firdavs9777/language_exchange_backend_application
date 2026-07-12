@@ -1,0 +1,282 @@
+[
+  {
+    "text": "Describe your breakfast today 🍳",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "🍳",
+    "active": true
+  },
+  {
+    "text": "What's the weather like where you are right now? ☀️",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "☀️",
+    "active": true
+  },
+  {
+    "text": "Introduce yourself in three sentences 👋",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "👋",
+    "active": true
+  },
+  {
+    "text": "What did you do this weekend? 🎉",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "🎉",
+    "active": true
+  },
+  {
+    "text": "Name three things you're grateful for today 🙏",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "🙏",
+    "active": true
+  },
+  {
+    "text": "What's your favorite season and why? 🍂",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "🍂",
+    "active": true
+  },
+  {
+    "text": "Describe your morning routine step by step ⏰",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "⏰",
+    "active": true
+  },
+  {
+    "text": "What's a food from your country you think everyone should try? 🍜",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "🍜",
+    "active": true
+  },
+  {
+    "text": "Tell us about your favorite animal and why you like it 🐾",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "🐾",
+    "active": true
+  },
+  {
+    "text": "What are you looking forward to this week? 🌟",
+    "language": "en",
+    "level": "beginner",
+    "emoji": "🌟",
+    "active": true
+  },
+  {
+    "text": "오늘 아침에 무엇을 드셨나요? 🍚",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "🍚",
+    "active": true
+  },
+  {
+    "text": "가장 좋아하는 한국 음식은 무엇인가요? 🍲",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "🍲",
+    "active": true
+  },
+  {
+    "text": "오늘 날씨는 어떤가요? ☔",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "☔",
+    "active": true
+  },
+  {
+    "text": "자신을 세 문장으로 소개해 주세요 👋",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "👋",
+    "active": true
+  },
+  {
+    "text": "이번 주말에 무엇을 했나요? 🎈",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "🎈",
+    "active": true
+  },
+  {
+    "text": "좋아하는 계절은 언제이고 이유는 무엇인가요? 🍁",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "🍁",
+    "active": true
+  },
+  {
+    "text": "가장 좋아하는 한국 노래나 가수는 누구인가요? 🎤",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "🎤",
+    "active": true
+  },
+  {
+    "text": "가장 좋아하는 장소의 사진을 올리고 설명해 주세요 📸",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "📸",
+    "active": true
+  },
+  {
+    "text": "오늘 배운 새로운 한국어 단어는 무엇인가요? 📖",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "📖",
+    "active": true
+  },
+  {
+    "text": "이번 주에 기대하고 있는 일은 무엇인가요? 🌟",
+    "language": "ko",
+    "level": "beginner",
+    "emoji": "🌟",
+    "active": true
+  },
+  {
+    "text": "你今天早上吃了什么? 🥟",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "🥟",
+    "active": true
+  },
+  {
+    "text": "你最喜欢的中国菜是什么? 🍲",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "🍲",
+    "active": true
+  },
+  {
+    "text": "今天天气怎么样? ⛅",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "⛅",
+    "active": true
+  },
+  {
+    "text": "用三句话介绍一下你自己 👋",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "👋",
+    "active": true
+  },
+  {
+    "text": "这个周末你做了什么? 🎊",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "🎊",
+    "active": true
+  },
+  {
+    "text": "你最喜欢哪个季节? 为什么? 🍃",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "🍃",
+    "active": true
+  },
+  {
+    "text": "分享一张你最喜欢的地方的照片并描述一下 📷",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "📷",
+    "active": true
+  },
+  {
+    "text": "你今天学到的一个新汉字或词语是什么? 📚",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "📚",
+    "active": true
+  },
+  {
+    "text": "你最喜欢的中国电影或电视剧是什么? 🎬",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "🎬",
+    "active": true
+  },
+  {
+    "text": "这周你在期待什么事情? 🌟",
+    "language": "zh",
+    "level": "beginner",
+    "emoji": "🌟",
+    "active": true
+  },
+  {
+    "text": "What's a word in this language you love? Why? 💭",
+    "language": "en",
+    "level": "any",
+    "emoji": "💭",
+    "active": true
+  },
+  {
+    "text": "Post a photo of your favorite place and describe it 📍",
+    "language": "en",
+    "level": "any",
+    "emoji": "📍",
+    "active": true
+  },
+  {
+    "text": "What's the last song you couldn't stop listening to? 🎵",
+    "language": "en",
+    "level": "any",
+    "emoji": "🎵",
+    "active": true
+  },
+  {
+    "text": "Share a small win from today, no matter how tiny 🏆",
+    "language": "en",
+    "level": "any",
+    "emoji": "🏆",
+    "active": true
+  },
+  {
+    "text": "What's a tradition from your culture you'd like to share? 🎎",
+    "language": "en",
+    "level": "any",
+    "emoji": "🎎",
+    "active": true
+  },
+  {
+    "text": "If you could travel anywhere tomorrow, where would you go? ✈️",
+    "language": "en",
+    "level": "any",
+    "emoji": "✈️",
+    "active": true
+  },
+  {
+    "text": "What's a movie or show everyone should watch at least once? 🎬",
+    "language": "en",
+    "level": "any",
+    "emoji": "🎬",
+    "active": true
+  },
+  {
+    "text": "Describe your ideal lazy Sunday 🛋️",
+    "language": "en",
+    "level": "any",
+    "emoji": "🛋️",
+    "active": true
+  },
+  {
+    "text": "What's something you're currently learning outside of languages? 🎨",
+    "language": "en",
+    "level": "any",
+    "emoji": "🎨",
+    "active": true
+  },
+  {
+    "text": "Share a photo of something delicious you ate recently 😋",
+    "language": "en",
+    "level": "any",
+    "emoji": "😋",
+    "active": true
+  }
+]
