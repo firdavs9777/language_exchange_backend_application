@@ -31,6 +31,7 @@ const waveDailySummaryJob = require('./waveDailySummaryJob');
 const voiceRoomSchedulerJob = require('./voiceRoomSchedulerJob');
 const { purgeLegacyPronunciationAudio } = require('./pronunciationAudioPurgeJob');
 const { purgeAudioCacheOrphans } = require('./audioCacheOrphanPurgeJob');
+const { runDailyRoomPromptJob } = require('./dailyRoomPromptJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -237,6 +238,31 @@ const scheduleSrsReviewReminders = () => {
 
   const msUntilNextRun = getMillisecondsUntil(9, 0);
   console.log(`📅 SRS review reminders scheduled in ${Math.round(msUntilNextRun / 1000 / 60)} minutes`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
+ * Schedule the daily language-room ("hub") prompt job (daily at 8:30 AM KST).
+ * Staggered 30min before the 9 AM cluster (inactivity/subscription/SRS jobs)
+ * to avoid bursts. Posts one system prompt message per seeded hub — see
+ * jobs/dailyRoomPromptJob.js (Workstream D, Task 6). No-ops entirely if
+ * ROOMS_ENABLED is false.
+ */
+const scheduleDailyRoomPrompt = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled daily room prompt job...');
+    try {
+      await runDailyRoomPromptJob();
+    } catch (error) {
+      console.error('Scheduled daily room prompt job failed:', error);
+    }
+    // Schedule next run (24 hours from now)
+    setTimeout(runJob, 24 * 60 * 60 * 1000);
+  };
+
+  // Schedule first run at 8:30 AM KST
+  const msUntilNextRun = getMillisecondsUntil(8, 30);
+  console.log(`📅 Daily room prompt job scheduled in ${Math.round(msUntilNextRun / 1000 / 60)} minutes`);
   setTimeout(runJob, msUntilNextRun);
 };
 
@@ -463,6 +489,9 @@ const startScheduler = () => {
   schedulePronunciationAudioPurge();
   scheduleAudioCacheOrphanPurge();
 
+  // Language rooms ("hubs") daily prompt (8:30 AM KST, daily)
+  scheduleDailyRoomPrompt();
+
   console.log('✅ All jobs scheduled!\n');
 };
 
@@ -507,6 +536,9 @@ const runAllJobsNow = async () => {
     console.log('\n1️⃣1️⃣ Running promotional email...');
     await runPromotionalEmailJob();
 
+    console.log('\n1️⃣2️⃣ Running daily room prompt job...');
+    await runDailyRoomPromptJob();
+
     console.log('\n✅ All jobs completed!');
   } catch (error) {
     console.error('Error running jobs:', error);
@@ -529,6 +561,7 @@ module.exports = {
   schedulePromotionalEmail,
   scheduleDailyCounterReset,
   scheduleWeeklyCounterReset,
-  scheduleSrsReviewReminders
+  scheduleSrsReviewReminders,
+  scheduleDailyRoomPrompt
 };
 

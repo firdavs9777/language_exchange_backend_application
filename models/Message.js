@@ -187,7 +187,19 @@ const MessageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Poll'
   },
-  
+
+  // Prompt reference (Workstream D daily room-prompt job — Task 6). Set on
+  // messageType:'system' hub broadcast messages created by
+  // jobs/dailyRoomPromptJob.js, so the job's same-day dedup guard can query
+  // "has a prompt already been posted to this hub today" without relying on
+  // message text matching.
+  promptId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Prompt',
+    default: null,
+    index: true
+  },
+
   // Scheduled message reference
   isScheduled: {
     type: Boolean,
