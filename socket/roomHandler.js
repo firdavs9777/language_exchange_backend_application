@@ -11,15 +11,16 @@
  * write per-member `unreadCount[]`/`readBy[]` fan-out (a 240-member hub
  * must never pay that write-amplification cost per message).
  *
- * Gated by ROOMS_ENABLED (see lib/roomMembership.js:isRoomsEnabled — a
- * local stand-in until Task 7 centralizes the flag into
- * config/limitations.js).
+ * Gated by ROOMS_ENABLED (config/limitations.js — Task 7), accessed via
+ * lib/roomMembership.js:getRoomsEnabled().
  */
 
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const { deriveOnlineCount, buildRoomMessageDoc } = require('../lib/roomPresence');
-const { isRoomsEnabled } = require('../lib/roomMembership');
+const { getRoomsEnabled } = require('../lib/roomMembership');
+const { dispatchRoomMentionPushes } = require('../lib/roomMentions');
+const notificationService = require('../services/notificationService');
 
 // Token-bucket rate limiter for room:message, reusing the same shape/limits
 // as socketHandler.js's DM sendMessage bucket (capacity 10, refill 1/s) but
@@ -106,7 +107,7 @@ function registerRoomHandlers(socket, io) {
   if (!userId) return;
 
   socket.on('room:join', async ({ roomId } = {}) => {
-    if (!isRoomsEnabled()) return;
+    if (!getRoomsEnabled()) return;
     if (!roomId) return;
 
     try {
@@ -137,7 +138,7 @@ function registerRoomHandlers(socket, io) {
   });
 
   socket.on('room:message', async (data, callback) => {
-    if (!isRoomsEnabled()) return;
+    if (!getRoomsEnabled()) return;
 
     try {
       const roomId = data?.roomId;
@@ -168,6 +169,23 @@ function registerRoomHandlers(socket, io) {
       ).catch((err) => console.error('❌ Failed to update hub lastActivityAt:', err.message));
 
       io.to(`room_${roomId}`).emit('room:message', newMessage);
+
+      // Mention-only push (Task 7): NEVER push for the broadcast as a
+      // whole — a 240-member hub can't afford a per-message push fan-out.
+      // Only users explicitly @mentioned in this message get notified, one
+      // push each, fire-and-forget (mirrors controllers/comments.js's
+      // mention-notification loop). See lib/roomMentions.js — the
+      // recipient-resolution + dispatch decision is unit tested there.
+      dispatchRoomMentionPushes({
+        mentions: newMessage.mentions,
+        senderId: userId,
+        roomId,
+        messageText: message,
+        sendFn: (mentionedUserId, sender, room, text) =>
+          notificationService
+            .sendRoomMention(mentionedUserId, sender, room, text)
+            .catch((err) => console.error('❌ Room mention notification failed:', err.message))
+      });
 
       if (typeof callback === 'function') {
         callback({ status: 'success', message: newMessage });

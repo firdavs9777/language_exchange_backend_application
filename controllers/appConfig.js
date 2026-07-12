@@ -1,4 +1,5 @@
 const asyncHandler = require('../middleware/async');
+const { ROOMS_ENABLED } = require('../config/limitations');
 
 const DEFAULT_IOS_URL =
   'https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146';
@@ -57,6 +58,7 @@ exports.getAppConfig = asyncHandler(async (req, res) => {
       androidUrl,
       releaseNotes,
       announcement,
+      roomsEnabled: ROOMS_ENABLED,
     },
   });
 });

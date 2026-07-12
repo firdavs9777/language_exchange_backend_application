@@ -839,6 +839,55 @@ const sendCommentMention = async (mentionedUserId, mentionerId, momentId, commen
 };
 
 /**
+ * Send notification when someone @mentions a user in a language-room
+ * ("hub") message — Workstream D, Task 7. Mirrors sendCommentMention's
+ * shape. Deliberately mention-only: a plain (non-mention) hub message must
+ * NEVER call this — see socket/roomHandler.js's room:message handler, which
+ * only invokes this per mentioned user, never for the broadcast as a whole
+ * (a 240-member hub must not push on every message).
+ *
+ * @param {String} mentionedUserId
+ * @param {String} senderId - the message author
+ * @param {String} roomId - hub Conversation _id
+ * @param {String} messageText
+ * @returns {Object} - Result
+ */
+const sendRoomMention = async (mentionedUserId, senderId, roomId, messageText) => {
+  try {
+    const [sender, mentionedUser] = await Promise.all([
+      User.findById(senderId),
+      User.findById(mentionedUserId),
+    ]);
+    if (!sender) return { success: false, error: 'Sender not found' };
+
+    const snippet = messageText && messageText.length > 100
+      ? `${messageText.substring(0, 100)}...`
+      : (messageText || '');
+
+    const { title, body } = templateService.render(
+      'room_mention',
+      mentionedUser?.preferredLocale || 'en',
+      { actorName: sender.name, snippet },
+    );
+
+    const notification = {
+      title,
+      body,
+      data: { type: 'room_mention', userId: senderId, roomId: roomId.toString() }
+    };
+
+    if (sender.images && sender.images.length > 0) {
+      notification.imageUrl = sender.images[0];
+    }
+
+    return await send(mentionedUserId, 'room_mention', notification);
+  } catch (error) {
+    console.error('Error sending room mention notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Notify host + RSVPs when a scheduled room flips to active.
  * @param {string} userId - recipient user ID
  * @param {string|ObjectId} roomId
@@ -942,6 +991,7 @@ module.exports = {
   sendCommentReply,
   sendCommentReaction,
   sendCommentMention,
+  sendRoomMention,
   sendScheduledRoomStarted,
   sendScheduledRoomReminder,
   sendVipRenewalWarning,

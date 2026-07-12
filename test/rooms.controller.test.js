@@ -163,25 +163,28 @@ test('sortRoomsForCaller: does not mutate the input array', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ROOMS_ENABLED guard marker — Task 7 will centralize into config/limitations.js
+// ROOMS_ENABLED guard — centralized in config/limitations.js (Task 7).
+// lib/roomMembership.js:getRoomsEnabled() re-requires that module fresh on
+// every call, so toggling process.env.ROOMS_ENABLED + clearing
+// config/limitations.js's require cache is sufficient to observe the change.
 // ---------------------------------------------------------------------------
 
-test('roomsEnabled reads process.env.ROOMS_ENABLED with default-true', () => {
-  delete require.cache[require.resolve('../lib/roomMembership')];
+test('getRoomsEnabled reads config/limitations.js ROOMS_ENABLED with default-true', () => {
   const original = process.env.ROOMS_ENABLED;
   try {
     delete process.env.ROOMS_ENABLED;
+    delete require.cache[require.resolve('../config/limitations')];
     delete require.cache[require.resolve('../lib/roomMembership')];
-    const { isRoomsEnabled } = require('../lib/roomMembership');
-    assert.equal(isRoomsEnabled(), true);
+    const { getRoomsEnabled } = require('../lib/roomMembership');
+    assert.equal(getRoomsEnabled(), true);
 
     process.env.ROOMS_ENABLED = 'false';
-    delete require.cache[require.resolve('../lib/roomMembership')];
-    const reloaded = require('../lib/roomMembership');
-    assert.equal(reloaded.isRoomsEnabled(), false);
+    delete require.cache[require.resolve('../config/limitations')];
+    assert.equal(getRoomsEnabled(), false);
   } finally {
     if (original === undefined) delete process.env.ROOMS_ENABLED;
     else process.env.ROOMS_ENABLED = original;
+    delete require.cache[require.resolve('../config/limitations')];
     delete require.cache[require.resolve('../lib/roomMembership')];
   }
 });

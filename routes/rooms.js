@@ -2,19 +2,16 @@
  * Language Rooms ("hubs") REST routes — Workstream D, Task 4.
  * Mounted at /api/v1/rooms in server.js.
  *
- * Every route is wrapped by the ROOMS_ENABLED kill switch. Currently reads
- * process.env.ROOMS_ENABLED directly via lib/roomMembership.js:isRoomsEnabled
- * (default-true) — a clearly marked stand-in.
- *
- * TODO(Task 7): once config/limitations.js exports ROOMS_ENABLED, replace
- * the guard below with that centralized flag (kept identical behavior —
- * same default-true semantics — so swapping it is a drop-in change).
+ * Every route is wrapped by the centralized ROOMS_ENABLED kill switch
+ * (config/limitations.js — Task 7). Read fresh via getRoomsEnabled() rather
+ * than the destructured constant so tests can toggle process.env at runtime
+ * by clearing config/limitations.js's require cache.
  */
 
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
-const { isRoomsEnabled } = require('../lib/roomMembership');
+const { roomsEnabledGuard } = require('../lib/roomMembership');
 const {
   getRooms,
   getRoom,
@@ -27,13 +24,11 @@ const {
 } = require('../controllers/rooms');
 
 // Kill switch — short-circuits to 404 when ROOMS_ENABLED is false, so the
-// entire feature can be pulled without a deploy.
-router.use((req, res, next) => {
-  if (!isRoomsEnabled()) {
-    return res.status(404).json({ success: false, error: 'Not found' });
-  }
-  next();
-});
+// entire feature can be pulled without a deploy. See
+// lib/roomMembership.js:roomsEnabledGuard (unit tested there since this
+// file can't be require()'d standalone in this sandbox — transitively pulls
+// in jsonwebtoken via middleware/auth.js).
+router.use(roomsEnabledGuard);
 
 router.use(protect);
 
