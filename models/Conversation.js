@@ -70,7 +70,58 @@ const ConversationSchema = new mongoose.Schema({
   groupAvatar: {
     type: String
   },
-  
+
+  // ========== LANGUAGE ROOMS (Workstream D) ==========
+  // Seeded, public "hub" conversations — one per canonical target language.
+  // roomType is null for ordinary 1:1/group DMs; 'hub' marks a language room.
+  roomType: {
+    type: String,
+    enum: ['hub', null],
+    default: null
+  },
+  isPublic: {
+    type: Boolean,
+    default: false
+  },
+  // Canonical key from lib/normalizeLanguage.js (e.g. 'en', 'ko').
+  targetLanguage: {
+    type: String,
+    default: null
+  },
+  title: {
+    type: String
+  },
+  description: {
+    type: String
+  },
+  emojiFlag: {
+    type: String
+  },
+  owner: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  admins: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  memberCount: {
+    type: Number,
+    default: 0
+  },
+  maxMembers: {
+    type: Number,
+    default: 1000
+  },
+  lastActivityAt: {
+    type: Date,
+    default: Date.now
+  },
+  isSeeded: {
+    type: Boolean,
+    default: false
+  },
+
   // ========== ADVANCED FEATURES (KakaoTalk/HelloTalk Style) ==========
   
   // Chat Theme/Background (KakaoTalk style)
@@ -560,6 +611,10 @@ ConversationSchema.statics.getSecretChats = async function(userId) {
 
 // Index for secret chats
 ConversationSchema.index({ isSecret: 1, participants: 1 });
+
+// Index for the Rooms directory (Workstream D) — find hubs by language,
+// sorted by member count.
+ConversationSchema.index({ roomType: 1, targetLanguage: 1, memberCount: -1 });
 
 module.exports = mongoose.model('Conversation', ConversationSchema);
 

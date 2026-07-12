@@ -10,6 +10,7 @@ module.exports = {
     comment_reply: 10,
     comment_reaction: 10,
     comment_mention: 10,
+    room_mention: 10,
     wave_received: 5,
   },
   weekly: {

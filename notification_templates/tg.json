@@ -27,6 +27,10 @@
     "title": "@ {actorName} шуморо ёдрас кард",
     "body": "{snippet}"
   },
+  "room_mention": {
+    "title": "@ {actorName} шуморо дар ҳуҷра ёдрас кард",
+    "body": "{snippet}"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "ба шумо обуна шуд"

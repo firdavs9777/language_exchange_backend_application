@@ -3,6 +3,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
+const { buildConversationListQuery } = require('../lib/conversationListQuery');
 
 /**
  * @desc    Get all conversations for a user
@@ -18,32 +19,9 @@ exports.getConversations = asyncHandler(async (req, res, next) => {
   const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100); // Max 100
   const skip = (page - 1) * limit;
 
-  let query = {
-    participants: userId,
-    // Exclude conversations deleted by this user - optimized query
-    deletedBy: { $ne: userId }
-  };
-
-  // Filter by archived
-  if (archived === 'true') {
-    query.archivedBy = userId;
-  } else if (archived === 'false') {
-    query.archivedBy = { $ne: userId };
-  }
-
-  // Filter by muted
-  if (muted === 'true') {
-    query['mutedBy.user'] = userId;
-  } else if (muted === 'false') {
-    query['mutedBy.user'] = { $ne: userId };
-  }
-
-  // Filter by pinned
-  if (pinned === 'true') {
-    query['pinnedBy.user'] = userId;
-  } else if (pinned === 'false') {
-    query['pinnedBy.user'] = { $ne: userId };
-  }
+  // Query construction (including hub exclusion, Workstream D) lives in
+  // lib/conversationListQuery.js so it's unit-testable without a DB.
+  let query = buildConversationListQuery(userId, { archived, muted, pinned });
 
   // Run count and find in parallel for better performance
   const [total, conversations] = await Promise.all([

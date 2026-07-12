@@ -61,6 +61,7 @@ const livekit = require('./routes/livekit');
 const tutor = require('./routes/tutor');
 const admin = require('./routes/admin');
 const broadcast = require('./routes/broadcast');
+const rooms = require('./routes/rooms');
 
 // FitBowl Route files
 const fitbowlAuth = require('./routes/fitbowl/auth');
@@ -305,6 +306,7 @@ app.use('/api/v1/learning', learning);
 app.use('/api/v1/community', community);
 app.use('/api/v1/interactions', require('./routes/interactions'));
 app.use('/api/v1/voicerooms', voiceRooms);
+app.use('/api/v1/rooms', rooms); // Workstream D — public language rooms (hubs)
 app.use('/api/v1/lessons', lessonBuilder);
 app.use('/api/v1/ai-conversation', aiConversation);
 app.use('/api/v1/grammar-feedback', grammarFeedback);

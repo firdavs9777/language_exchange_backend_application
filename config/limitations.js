@@ -10,8 +10,16 @@
 // to next() with no DB write and no check.
 const AI_QUOTA_ENABLED = String(process.env.AI_QUOTA_ENABLED || 'true').toLowerCase() === 'true';
 
+// Kill switch for Workstream D public language rooms ("hubs"). When 'false',
+// routes/rooms.js short-circuits every /api/v1/rooms route to a 404,
+// socket/roomHandler.js's room:join/room:message handlers no-op, and
+// controllers/appConfig.js reports roomsEnabled:false to clients so the app
+// can hide the Rooms tab. Defaults to true (on) when unset.
+const ROOMS_ENABLED = String(process.env.ROOMS_ENABLED || 'true').toLowerCase() === 'true';
+
 module.exports = {
   AI_QUOTA_ENABLED,
+  ROOMS_ENABLED,
 
   // ===================== VISITOR LIMITS =====================
   // Users who haven't verified email or just browsing

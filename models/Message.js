@@ -11,7 +11,9 @@ const MessageSchema = new mongoose.Schema({
   receiver: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: [true, 'Receiver is required'],
+    // Not required for hub/group broadcast messages (Workstream D) — those
+    // have no single receiver. DM messages must still supply one.
+    required: [function() { return !this.isGroupMessage; }, 'Receiver is required'],
     index: true
   },
   // New participants field for group chats
@@ -20,6 +22,17 @@ const MessageSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   }],
+  // Language-room ("hub") id this message belongs to (Workstream D). Only
+  // set for isGroupMessage:true broadcast messages posted via
+  // socket/roomHandler.js — DMs are still identified by sender/receiver
+  // pairs, not this field. Lets getRoomMessages paginate a hub's history
+  // with a single indexed query instead of a participants-array scan.
+  conversationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Conversation',
+    default: null,
+    index: true
+  },
   slug: {
     type: String,
     unique: true,
@@ -174,7 +187,19 @@ const MessageSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Poll'
   },
-  
+
+  // Prompt reference (Workstream D daily room-prompt job — Task 6). Set on
+  // messageType:'system' hub broadcast messages created by
+  // jobs/dailyRoomPromptJob.js, so the job's same-day dedup guard can query
+  // "has a prompt already been posted to this hub today" without relying on
+  // message text matching.
+  promptId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Prompt',
+    default: null,
+    index: true
+  },
+
   // Scheduled message reference
   isScheduled: {
     type: Boolean,
@@ -562,5 +587,9 @@ MessageSchema.index({ message: 'text', 'media.fileName': 'text' });
 // Covers: { sender: X, receiver: Y, isDeleted: { $ne: true } }
 MessageSchema.index({ sender: 1, receiver: 1, isDeleted: 1, createdAt: -1 });
 MessageSchema.index({ receiver: 1, sender: 1, isDeleted: 1, createdAt: -1 });
+
+// Language-room ("hub") message history pagination (Workstream D):
+// Message.find({ conversationId: hubId }).sort({ createdAt: -1 })
+MessageSchema.index({ conversationId: 1, createdAt: -1 }, { sparse: true });
 
 module.exports = mongoose.model('Message', MessageSchema);

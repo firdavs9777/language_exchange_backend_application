@@ -9,6 +9,7 @@ const notificationService = require('../services/notificationService');
 const { registerCallHandlers } = require('./callHandler');
 const { registerAIConversationHandlers, registerGrammarFeedbackHandlers } = require('./aiConversationHandler');
 const { registerVoiceRoomHandlers } = require('./voiceRoomHandler');
+const { registerRoomHandlers, handleRoomDisconnect } = require('./roomHandler');
 const learningTrackingService = require('../services/learningTrackingService');
 const { detectLanguage } = require('../services/translationService');
 
@@ -355,6 +356,7 @@ const initializeSocket = (io) => {
     registerVoiceRoomHandlers(socket, io);
     registerAIConversationHandlers(socket, io);
     registerGrammarFeedbackHandlers(socket, io);
+    registerRoomHandlers(socket, io); // Workstream D — language rooms (hubs)
 
     // Handle disconnection
     socket.on('disconnect', (reason) => handleDisconnect(socket, io, reason));
@@ -1522,12 +1524,23 @@ const handleDisconnect = async (socket, io, reason) => {
 
   // Detailed disconnect logging for debugging
   console.log(`❌ DISCONNECT: user=${userId} socket=${socket.id} reason=${friendlyReason} duration=${connectionDuration}s device=${deviceId}`);
-  
+
   // Mark as disconnecting
   connectionStates.set(socket.id, 'disconnecting');
-  
+
   // Clean up typing indicators
   cleanupTypingIndicators(userId);
+
+  // Workstream D — language rooms: Socket.IO has already removed this
+  // socket from every room's adapter Set by the time 'disconnect' fires, so
+  // rebroadcasting now picks up the already-decremented online count for
+  // each hub room the socket had joined. No explicit room:leave needed —
+  // this is what makes presence survive an ungraceful disconnect.
+  try {
+    handleRoomDisconnect(io, socket);
+  } catch (err) {
+    console.error('❌ Room presence disconnect cleanup error:', err.message);
+  }
   
   // Remove from connections
   if (userConnections.has(userId)) {

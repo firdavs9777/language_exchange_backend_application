@@ -27,6 +27,10 @@
     "title": "@ {actorName} mentioned you",
     "body": "{snippet}"
   },
+  "room_mention": {
+    "title": "@ {actorName} mentioned you in a room",
+    "body": "{snippet}"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "started following you"
