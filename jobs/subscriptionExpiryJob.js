@@ -13,6 +13,7 @@
 const User = require('../models/User');
 const { logSecurityEvent } = require('../utils/securityLogger');
 const notificationService = require('../services/notificationService');
+const fcmService = require('../services/fcmService');
 
 /**
  * Grace period in hours after subscription expires
@@ -175,14 +176,10 @@ async function sendGracePeriodNotification(user) {
   const body = `Your VIP subscription has expired. You have ${GRACE_PERIOD_HOURS} hours to renew and keep your benefits.`;
 
   try {
-    await sendPushNotification(user._id, {
-      title,
-      body,
-      data: {
-        type: 'subscription_grace_period',
-        hoursRemaining: GRACE_PERIOD_HOURS.toString(),
-        action: 'open_subscription'
-      }
+    await fcmService.sendToUser(user._id, { title, body }, {
+      type: 'subscription_grace_period',
+      hoursRemaining: GRACE_PERIOD_HOURS.toString(),
+      action: 'open_subscription'
     });
   } catch (error) {
     console.log(`   Could not send push notification: ${error.message}`);
@@ -197,13 +194,9 @@ async function sendExpirationNotification(user) {
   const body = 'Your VIP subscription has ended. Subscribe again anytime to restore your premium features.';
 
   try {
-    await sendPushNotification(user._id, {
-      title,
-      body,
-      data: {
-        type: 'subscription_expired',
-        action: 'open_subscription'
-      }
+    await fcmService.sendToUser(user._id, { title, body }, {
+      type: 'subscription_expired',
+      action: 'open_subscription'
     });
   } catch (error) {
     console.log(`   Could not send push notification: ${error.message}`);
