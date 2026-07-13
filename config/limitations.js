@@ -206,12 +206,16 @@ module.exports = {
     undoMessage: true,
     scheduleMessages: true,
 
+    // VIP unlimited on all tutor chips (-1 sentinel). This is the config-level
+    // expression of the value prop; consumeQuota() already fast-paths active
+    // VIP subscribers to unlimited at enforcement time. Kept explicit so a
+    // lapsed-VIP reading these values is intentional, not an oversight.
     tutorDailyQuotas: {
-      chat:          5,
-      roleplay:      5,
-      story:         5,
-      photo:         5,
-      pronunciation: 5,
+      chat:          -1,
+      roleplay:      -1,
+      story:         -1,
+      photo:         -1,
+      pronunciation: -1,
     },
   },
 

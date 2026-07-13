@@ -324,7 +324,7 @@ const sendStreakReminders = async () => {
   console.log('[LearningJobs] Checking for streak reminders...');
 
   try {
-    const sendPushNotification = require('../utils/sendPushNotification');
+    const fcmService = require('../services/fcmService');
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -348,13 +348,13 @@ const sendStreakReminders = async () => {
     for (const user of usersToNotify) {
       const progressInfo = usersAtRisk.find(u => u.user.toString() === user._id.toString());
 
-      await sendPushNotification(
+      await fcmService.sendToUser(
         user._id,
         {
           title: `Don't lose your ${progressInfo.currentStreak}-day streak! 🔥`,
-          body: 'Complete any learning activity today to keep your streak alive',
-          data: { type: 'streak_reminder', currentStreak: progressInfo.currentStreak }
-        }
+          body: 'Complete any learning activity today to keep your streak alive'
+        },
+        { type: 'streak_reminder', currentStreak: progressInfo.currentStreak }
       );
     }
 
