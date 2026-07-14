@@ -306,7 +306,9 @@ const sendSrsReviewReminders = async () => {
         continue;
       }
       const notification = templates.getSrsReviewTemplate(due.dueCount, due.topWord);
-      await notificationService.send(due._id, 'system', notification);
+      // Task 2 (Workstream E-core) — send as 'srs_review' (dedicated gate on
+      // vocabularyReviewReminders), not 'system' (was gated on marketing).
+      await notificationService.send(due._id, 'srs_review', notification);
       sent++;
     }
 
@@ -324,7 +326,7 @@ const sendStreakReminders = async () => {
   console.log('[LearningJobs] Checking for streak reminders...');
 
   try {
-    const fcmService = require('../services/fcmService');
+    const notificationService = require('../services/notificationService');
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -338,27 +340,37 @@ const sendStreakReminders = async () => {
       ]
     }).select('user currentStreak');
 
-    // Get users who have streak reminders enabled
+    // Cheap pre-filter on notificationSettings.streakReminders (Task 2,
+    // reviewer C2 option a) — the authoritative gate now lives in
+    // notificationService._shouldSendNotification's 'streak_reminder' case,
+    // this query filter just avoids fetching users who are already excluded.
     const usersToNotify = await User.find({
       _id: { $in: usersAtRisk.map(u => u.user) },
       'notificationSettings.streakReminders': true,
       'fcmTokens.0': { $exists: true }
     }).select('_id fcmTokens');
 
+    let sent = 0;
     for (const user of usersToNotify) {
       const progressInfo = usersAtRisk.find(u => u.user.toString() === user._id.toString());
 
-      await fcmService.sendToUser(
+      // Task 2 (Workstream E-core) — route through notificationService.send
+      // instead of a raw fcmService.sendToUser call, so streak reminders get
+      // preference gating, in-app history, and badge increments like every
+      // other notification type (reviewer C2).
+      await notificationService.send(
         user._id,
+        'streak_reminder',
         {
           title: `Don't lose your ${progressInfo.currentStreak}-day streak! 🔥`,
-          body: 'Complete any learning activity today to keep your streak alive'
-        },
-        { type: 'streak_reminder', currentStreak: progressInfo.currentStreak }
+          body: 'Complete any learning activity today to keep your streak alive',
+          data: { type: 'streak_reminder', currentStreak: progressInfo.currentStreak }
+        }
       );
+      sent++;
     }
 
-    console.log(`[LearningJobs] Sent streak reminders to ${usersToNotify.length} users`);
+    console.log(`[LearningJobs] Sent streak reminders to ${sent} users`);
   } catch (error) {
     console.error('[LearningJobs] Send streak reminders error:', error);
   }

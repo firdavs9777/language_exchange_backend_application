@@ -6,6 +6,18 @@
 const sendEmail = require('../utils/sendEmail');
 const templates = require('../utils/emailTemplates');
 const User = require('../models/User');
+const { makeUnsubscribeToken } = require('../controllers/emailUnsubscribe');
+
+const API_BASE_URL = process.env.API_BASE_URL || 'https://api.banatalk.com';
+
+/**
+ * Build a per-user, per-emailType unsubscribe URL for List-Unsubscribe
+ * headers + footer links. `emailType` is 'promotional' | 'digest'.
+ */
+const buildUnsubscribeUrl = (userId, emailType) => {
+  const token = makeUnsubscribeToken(String(userId), emailType);
+  return `${API_BASE_URL}/api/v1/email/unsubscribe?token=${encodeURIComponent(token)}`;
+};
 
 /**
  * Send welcome email after registration
@@ -112,12 +124,16 @@ exports.sendDeactivationWarning = async (user, daysRemaining) => {
  */
 exports.sendWeeklyDigest = async (user, stats) => {
   try {
-    const template = templates.weeklyDigest(user.name, stats);
+    // weeklyDigestJob already gates the query on privacySettings.weeklyDigest
+    // + emailNotifications — no redundant check here, just thread the URL.
+    const unsubscribeUrl = buildUnsubscribeUrl(user._id, 'digest');
+    const template = templates.weeklyDigest(user.name, stats, unsubscribeUrl);
     await sendEmail({
       email: user.email,
       subject: template.subject,
       message: template.text,
-      html: template.html
+      html: template.html,
+      unsubscribeUrl
     });
     console.log(`✅ Weekly digest sent to ${user.email}`);
     return true;
@@ -251,12 +267,14 @@ exports.sendPromotionalEmail = async (user, promoData) => {
       return { success: false, reason: 'notifications_disabled' };
     }
 
-    const template = templates.promotionalEmail(user.name || 'Friend', promoData);
+    const unsubscribeUrl = buildUnsubscribeUrl(user._id, 'promotional');
+    const template = templates.promotionalEmail(user.name || 'Friend', { ...promoData, unsubscribeUrl });
     await sendEmail({
       email: user.email,
       subject: template.subject,
       message: template.text,
-      html: template.html
+      html: template.html,
+      unsubscribeUrl
     });
     return { success: true };
   } catch (error) {

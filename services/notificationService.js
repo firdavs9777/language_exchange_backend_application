@@ -55,8 +55,9 @@ const send = async (userId, type, notificationData) => {
     }
 
     // Save to notification history (skip chat_message - shown in chat list)
+    let historyRow = null;
     if (type !== 'chat_message') {
-      await _saveToHistory(
+      historyRow = await _saveToHistory(
         userId,
         type,
         notificationData.title,
@@ -77,8 +78,12 @@ const send = async (userId, type, notificationData) => {
       notificationData.data
     );
 
-    // Update badge count (skip chat_message - uses unreadMessages badge instead)
-    if (result.success && result.delivered > 0 && type !== 'chat_message') {
+    // Update badge count (skip chat_message - uses unreadMessages badge instead).
+    // Task 5 (Workstream E-core) — badge must only bump when the history row
+    // actually persisted; otherwise the badge count drifts from the (empty)
+    // in-app history whenever _saveToHistory silently swallows a
+    // ValidationError (e.g. an enum miss).
+    if (result.success && result.delivered > 0 && type !== 'chat_message' && historyRow) {
       await _updateBadgeCount(userId, 'notifications', 1);
     }
 
@@ -353,6 +358,39 @@ const sendFriendRequest = async (recipientId, requesterId) => {
 };
 
 /**
+ * Send new-follower notification
+ * Task 9 (Workstream E-core) — distinct from sendFriendRequest: a follow
+ * used to route through sendFriendRequest, so users saw "New Friend Request"
+ * for a plain follow. friend_request stays untouched for real friend
+ * requests; this is the dedicated "X started following you" push.
+ * @param {String} followedUserId - User being followed (recipient)
+ * @param {String} followerId - User who did the following
+ * @returns {Object} - Result
+ */
+const sendNewFollower = async (followedUserId, followerId) => {
+  try {
+    const follower = await User.findById(followerId);
+
+    if (!follower) {
+      return { success: false, error: 'Follower not found' };
+    }
+
+    const notification = templates.getNewFollowerTemplate(follower.name, {
+      userId: followerId,
+    });
+
+    if (follower.images && follower.images.length > 0) {
+      notification.imageUrl = follower.images[0];
+    }
+
+    return await send(followedUserId, 'new_follower', notification);
+  } catch (error) {
+    console.error('❌ Error sending new follower notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Send profile visit notification (VIP feature)
  * @param {String} profileOwnerId - Profile owner user ID
  * @param {String} visitorId - Visitor user ID
@@ -427,16 +465,25 @@ const sendWave = async (recipientId, waverId, waveId, isMutual = false) => {
   try {
     const Wave = require('../models/Wave');
 
-    // Suppress push if recipient received >3 waves in the last 6 hours
-    // (daily-summary cron is future work; just silence excess pushes for now)
+    // Suppress the IMMEDIATE push if recipient received >3 waves in the last
+    // 6 hours — this only limits real-time notification bursts, it does NOT
+    // drop the wave: the Wave document itself is always created by the
+    // caller (controllers/community.js) before this function runs, and it
+    // stays isRead:false until the recipient actually views it. Task 11
+    // (Workstream E-core, audit upgrade #4) — jobs/waveDailySummaryJob.js
+    // runs daily (09:00 KST) and aggregates ALL isRead:false waves in the
+    // lookback window regardless of whether their immediate push was
+    // suppressed here, so a suppressed wave is picked up by the summary
+    // instead of vanishing silently. Previously this comment said the
+    // daily-summary cron was "future work" — it now exists and covers this.
     const sixHoursAgo = new Date(Date.now() - 6 * 3600 * 1000);
     const recentWaveCount = await Wave.countDocuments({
       to: recipientId,
       createdAt: { $gte: sixHoursAgo }
     });
     if (recentWaveCount > 3) {
-      console.log(`[wave] suppressing push for ${recipientId} — ${recentWaveCount} waves in last 6h`);
-      return { success: true, skipped: true, reason: 'push suppressed (>3 waves in 6h)' };
+      console.log(`[wave] suppressing immediate push for ${recipientId} — ${recentWaveCount} waves in last 6h (daily summary will still cover it)`);
+      return { success: true, skipped: true, reason: 'push suppressed (>3 waves in 6h); covered by daily summary' };
     }
 
     const waver = await User.findById(waverId);
@@ -528,6 +575,15 @@ const _shouldSendNotification = async (user, type, data = {}) => {
       if (!shouldNotify(user, 'newFollower')) return false;
       break;
 
+    case 'new_follower':
+      // Task 9 (Workstream E-core) — a follow now sends its own distinct
+      // "X started following you" push instead of masquerading as a
+      // friend_request. Gated on the same newFollower preference used
+      // above for friend_request (friend_request stays untouched for real
+      // friend requests).
+      if (!shouldNotify(user, 'newFollower')) return false;
+      break;
+
     case 'vip_renewal_warning':
       // Step 16 — VIP renewal warning push (wired in B3).
       if (!shouldNotify(user, 'vipRenewalWarning')) return false;
@@ -551,6 +607,25 @@ const _shouldSendNotification = async (user, type, data = {}) => {
 
     case 'system':
       if (!user.notificationSettings.marketing) {
+        return false;
+      }
+      break;
+
+    case 'srs_review':
+      // Task 2 (Workstream E-core) — vocabulary/SRS review reminders used to
+      // send as type 'system' and were gated on notificationSettings.marketing,
+      // so turning off marketing silently killed vocab reminders the user
+      // explicitly enabled. Gate on the dedicated preference instead.
+      if (!user.notificationSettings.vocabularyReviewReminders) {
+        return false;
+      }
+      break;
+
+    case 'streak_reminder':
+      // Task 2/3 (Workstream E-core) — streak reminders used to bypass
+      // gating entirely (raw fcmService.sendToUser call). Now routed through
+      // send() and gated on notificationSettings.streakReminders.
+      if (!user.notificationSettings.streakReminders) {
         return false;
       }
       break;
@@ -894,8 +969,11 @@ const sendRoomMention = async (mentionedUserId, senderId, roomId, messageText) =
  * @param {string} title - room title
  */
 const sendScheduledRoomStarted = async (userId, roomId, title) => {
-  const user = await User.findById(userId).select('fcmToken notificationPreferences');
-  if (!user?.fcmToken) return;
+  // fcmTokens (plural array) is the real schema field — the old singular
+  // `fcmToken` select never matched anything, so this early-return fired for
+  // every user and these pushes silently never sent (E-core audit fix).
+  const user = await User.findById(userId).select('fcmTokens notificationPreferences');
+  if (!user?.fcmTokens?.some((t) => t.active)) return;
   if (!shouldNotify(user, 'voiceRoomStart')) return;
 
   await fcmService.sendToUser(
@@ -920,8 +998,9 @@ const sendScheduledRoomStarted = async (userId, roomId, title) => {
  * @param {'1h'|'15min'} when - reminder window label
  */
 const sendScheduledRoomReminder = async (userId, roomId, title, when) => {
-  const user = await User.findById(userId).select('fcmToken notificationPreferences');
-  if (!user?.fcmToken) return;
+  // Same fcmTokens-array fix as sendScheduledRoomStarted (E-core audit).
+  const user = await User.findById(userId).select('fcmTokens notificationPreferences');
+  if (!user?.fcmTokens?.some((t) => t.active)) return;
   if (!shouldNotify(user, 'scheduledRoomReminder')) return;
 
   const body = when === '1h'
@@ -980,11 +1059,13 @@ const sendVipRenewalWarning = async (userId, daysLeft) => {
 
 module.exports = {
   shouldNotify,
+  _shouldSendNotification,
   send,
   sendChatMessage,
   sendMomentLike,
   sendMomentComment,
   sendFriendRequest,
+  sendNewFollower,
   sendProfileVisit,
   sendFollowerMoment,
   sendWave,

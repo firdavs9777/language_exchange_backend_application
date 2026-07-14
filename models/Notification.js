@@ -9,7 +9,17 @@ const NotificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['chat_message', 'moment_like', 'moment_comment', 'friend_request', 'profile_visit', 'follower_moment', 'system'],
+    enum: [
+      'chat_message', 'moment_like', 'moment_comment', 'friend_request', 'profile_visit',
+      'follower_moment', 'system',
+      // Task 5 (Workstream E-core) — additive: these types were already being
+      // sent via notificationService.send() but were missing from this enum,
+      // so _saveToHistory's Mongoose ValidationError was silently swallowed
+      // and no in-app history row was ever created (push fired, record never
+      // persisted). See test/notificationTypeEnum.test.js.
+      'wave', 'comment_reply', 'comment_reaction', 'comment_mention', 'room_mention',
+      'vip_renewal_warning', 'srs_review', 'streak_reminder', 'new_follower',
+    ],
     required: true
   },
   title: {

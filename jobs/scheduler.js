@@ -242,6 +242,32 @@ const scheduleSrsReviewReminders = () => {
 };
 
 /**
+ * Schedule streak reminders (daily at 8:00 PM KST).
+ * Task 3 (Workstream E-core) — sendStreakReminders lived as dead code in
+ * jobs/learningJobs.js (defined :323, exported :418, never called from
+ * startLearningJobs, which only supports interval scheduling via
+ * scheduleJob(name, intervalMs, fn) — no time-of-day support). Wired here
+ * following the scheduleSrsReviewReminders pattern instead.
+ */
+const scheduleStreakReminders = () => {
+  const { sendStreakReminders } = require('./learningJobs');
+
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled streak reminders...');
+    try {
+      await sendStreakReminders();
+    } catch (error) {
+      console.error('Scheduled streak reminders failed:', error);
+    }
+    setTimeout(runJob, 24 * 60 * 60 * 1000);
+  };
+
+  const msUntilNextRun = getMillisecondsUntil(20, 0); // 8:00 PM KST
+  console.log(`📅 Streak reminders scheduled in ${Math.round(msUntilNextRun / 1000 / 60)} minutes`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
  * Schedule the daily language-room ("hub") prompt job (daily at 8:30 AM KST).
  * Staggered 30min before the 9 AM cluster (inactivity/subscription/SRS jobs)
  * to avoid bursts. Posts one system prompt message per seeded hub — see
@@ -455,6 +481,7 @@ const startScheduler = () => {
   scheduleReengagement();
   scheduleSubscriptionReminders();
   scheduleSrsReviewReminders();  // ← new
+  scheduleStreakReminders();     // ← new (Task 3, Workstream E-core)
   scheduleNotificationCleanup();
 
   // Subscription/billing jobs
@@ -562,6 +589,7 @@ module.exports = {
   scheduleDailyCounterReset,
   scheduleWeeklyCounterReset,
   scheduleSrsReviewReminders,
+  scheduleStreakReminders,
   scheduleDailyRoomPrompt
 };
 

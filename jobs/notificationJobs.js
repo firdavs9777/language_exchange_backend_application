@@ -6,7 +6,8 @@
 const User = require('../models/User');
 const fcmService = require('../services/fcmService');
 const templates = require('../utils/notificationTemplates');
-const { shouldNotify } = require('../services/notificationService');
+const notificationService = require('../services/notificationService');
+const { shouldNotify } = notificationService;
 
 /**
  * Clean up inactive FCM tokens

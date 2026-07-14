@@ -26,6 +26,14 @@ const sendEmail = async (options) => {
     messageData['h:Reply-To'] = options.replyTo;
   }
 
+  // Add List-Unsubscribe headers (RFC 8058) when a per-user unsubscribe URL
+  // is provided. Transactional emails (verification/reset/security) must
+  // NOT pass this — only promotional/digest mail is eligible.
+  if (options.unsubscribeUrl) {
+    messageData['h:List-Unsubscribe'] = `<${options.unsubscribeUrl}>`;
+    messageData['h:List-Unsubscribe-Post'] = 'List-Unsubscribe=One-Click';
+  }
+
   // Add HTML and text (text is fallback for email clients that don't support HTML)
   if (options.html) {
     messageData.html = options.html;
