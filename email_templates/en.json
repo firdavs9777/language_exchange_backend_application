@@ -1,0 +1,195 @@
+{
+  "_meta": {
+    "locale": "en",
+    "note": "Source of truth. All other catalogs fall back to these strings per key. Copy extracted verbatim from utils/emailTemplates.js + controllers/auth.js (2026-07-14 overhaul)."
+  },
+  "common": {
+    "greeting": "Hi {userName},",
+    "needHelp": "Need help? Contact us at",
+    "rights": "© {year} {appName}. All rights reserved.",
+    "unsubscribe": "Unsubscribe",
+    "openApp": "Open Bananatalk",
+    "getApp": "Get the app",
+    "appStore": "App Store",
+    "googlePlay": "Google Play",
+    "unknown": "Unknown",
+    "unknownDevice": "Unknown device",
+    "unknownLocation": "Unknown location",
+    "timeLabel": "Time:",
+    "deviceLabel": "Device:",
+    "ipLabel": "IP address:",
+    "locationLabel": "Location:",
+    "reasonLabel": "Reason:"
+  },
+  "welcome": {
+    "subject": "Welcome to {appName}, {userName}!",
+    "heading": "Welcome to {appName}",
+    "tagline": "Practice languages with people who actually speak them",
+    "intro": "Hi {userName}, your account is ready — you can start practicing with native speakers right now.",
+    "whatYouCanDo": "Here's what you can do:",
+    "features": [
+      "Chat with native speakers of the language you're learning",
+      "Get corrections on your messages from the community",
+      "Share moments and practice writing in your target language",
+      "Save words and phrases to your vocabulary deck"
+    ],
+    "cta": "Find a language partner"
+  },
+  "passwordChanged": {
+    "subject": "Your {appName} password was changed",
+    "heading": "Password updated",
+    "intro": "Hi {userName}, your {appName} password was changed on {timestamp}.",
+    "allSet": "If you made this change, you're all set — no action is needed.",
+    "notYouHtml": "<strong>Didn't change your password?</strong> {resetLink} and contact {supportEmail}.",
+    "notYouLinkLabel": "Reset it now",
+    "notYouText": "Didn't change your password? Reset it now at {resetUrl} and contact {supportEmail}."
+  },
+  "newLogin": {
+    "subject": "New sign-in to your {appName} account",
+    "heading": "New sign-in to your account",
+    "intro": "Hi {userName}, your {appName} account was just signed in to from a new device.",
+    "wasYou": "If this was you, you can ignore this email.",
+    "notYouHtml": "<strong>Don't recognize this sign-in?</strong> {resetLink} to secure your account.",
+    "notYouLinkLabel": "Reset your password",
+    "textBody": "Hi {userName}, your {appName} account was just signed in to from {device} ({location}) at {timestamp}.",
+    "notYouText": "Don't recognize this sign-in? Reset your password to secure your account: {resetUrl}"
+  },
+  "deactivation21": {
+    "subject": "Everything you've built is still here",
+    "heading": "Still here when you're ready",
+    "p1": "Three weeks away. Your conversation history, vocabulary deck, and learning progress are all saved exactly where you left them.",
+    "p2": "Language learning is a long game — it's fine to pause. Whenever you're ready to pick back up, just log in.",
+    "cta": "Log back in",
+    "text": "Hi {userName}, three weeks since your last BananaTalk session. Your account, conversations, and vocabulary are all saved. Log back in when you're ready: {url}"
+  },
+  "deactivation28": {
+    "subject": "One login keeps your BananaTalk account active",
+    "heading": "Account notice",
+    "p1": "Your account stays active with a single login. The conversations and vocabulary you've saved will be waiting.",
+    "p2": "Takes 10 seconds.",
+    "cta": "Keep my account",
+    "text": "Hi {userName}, log in once to keep your BananaTalk account active. Your saved conversations and vocabulary will be there: {url}"
+  },
+  "inactivity7": {
+    "subject": "Your {language} practice paused — pick up where you left off",
+    "subjectFallback": "Your language practice paused — pick up where you left off",
+    "heading": "It's been a week",
+    "p1": "It's been 7 days since your last session. That's right around when new vocabulary starts to slip — but you're still in the window where one short practice brings it back.",
+    "p2": "Easiest way in: open the AI Tutor and have a 5-minute conversation in {language}. No prep needed — just start talking.",
+    "p2Fallback": "Easiest way in: open the AI Tutor and have a 5-minute conversation in your language. No prep needed — just start talking.",
+    "p3": "Your saved words and open conversations will be there too.",
+    "cta": "Start a 5-minute session",
+    "text": "Hi {userName}, it's been 7 days since your last BananaTalk session. Open the AI Tutor for a 5-minute {language} conversation: {url}",
+    "textFallback": "Hi {userName}, it's been 7 days since your last BananaTalk session. Open the AI Tutor for a 5-minute conversation in your language: {url}"
+  },
+  "inactivity14": {
+    "subject": "Your vocabulary deck has been waiting two weeks",
+    "heading": "Two weeks away",
+    "p1": "Two weeks off means some of the words you saved are overdue for review. The vocabulary is still in your deck — it just needs a session to stick.",
+    "p2": "Open your study queue and spend 10 minutes. That's enough to get back on track.",
+    "cta": "Review my vocabulary",
+    "text": "Hi {userName}, two weeks since your last session. Your vocabulary deck is waiting. Open BananaTalk: {url}"
+  },
+  "weeklyDigest": {
+    "subject": "Your language learning week",
+    "heading": "Your week on BananaTalk",
+    "weekOf": "Week of {date}",
+    "intro": "Hi {userName}, here's what you did this week:",
+    "statWordsReviewed": "words reviewed",
+    "statWordsSaved": "new words saved",
+    "statMessages": "messages with partners",
+    "statCorrections": "corrections exchanged",
+    "cta": "See your full progress",
+    "text": "Hi {userName}, here's your week on BananaTalk: {wordsReviewed} words reviewed, {wordsSaved} new words saved, {messagesSent} messages with partners, {correctionsExchanged} corrections exchanged.",
+    "textCta": "See your full progress: {url}"
+  },
+  "newFollower": {
+    "subject": "{followerName} started following you on {appName}",
+    "heading": "You have a new follower",
+    "intro": "Hi {userName}, {followerName} started following you on {appName}.",
+    "body": "A new follower is a good opening for a language exchange — say hello and see if your languages match.",
+    "cta": "Say hello",
+    "text": "Hi {userName}, {followerName} started following you on {appName}. A new follower is a good opening for a language exchange — say hello and see if your languages match: {url}"
+  },
+  "newMessage": {
+    "subject": "New message from {senderName} on {appName}",
+    "heading": "You have a new message",
+    "intro": "Hi {userName}, {senderName} sent you a message on {appName}:",
+    "cta": "Reply on {appName}",
+    "text": "Hi {userName}, {senderName} sent you a message on {appName}: \"{messagePreview}\"",
+    "textReply": "Reply: {url}"
+  },
+  "correction": {
+    "subject": "{correctorName} suggested a correction on {appName}",
+    "heading": "You received a correction",
+    "intro": "Hi {userName}, {correctorName} suggested a correction to one of your messages. Here's what changed:",
+    "originalLabel": "Original:",
+    "correctedLabel": "Corrected:",
+    "cta": "See the correction",
+    "text": "Hi {userName}, {correctorName} suggested a correction to one of your messages on {appName}.",
+    "textSeeIt": "See the correction: {url}"
+  },
+  "vip": {
+    "subject": "Welcome to {appName} VIP, {userName}",
+    "heading": "Your VIP membership is active",
+    "intro": "Hi {userName}, your {appName} VIP {plan} plan is now active. Thanks for supporting {appName}.",
+    "whatsIncluded": "What's included:",
+    "benefits": [
+      "Unlimited messages per day",
+      "No ads",
+      "Message translations",
+      "Advanced search filters",
+      "VIP badge",
+      "Priority support"
+    ],
+    "activeUntil": "Your subscription is active until {date}.",
+    "text": "Hi {userName}, your {appName} VIP {plan} plan is now active. What's included: {benefits}. Your subscription is active until {date}."
+  },
+  "promotional": {
+    "seeYou": "See you on {appName}."
+  },
+  "promoCampaign": {
+    "title": "Corrections just got easier",
+    "message": "You can now accept a partner's correction with a single tap, right in the chat bubble — no menus, no long-press.\n\nAlso new in this update:\n\n• A small \"Correct\" button now sits under each message, so helping your partner takes one tap\n• Tap \"Save phrase\" on any translated message to send it straight to your vocabulary deck for review\n\nUpdate the app to try them in your next conversation.",
+    "ctaText": "Open BananaTalk"
+  },
+  "reportResolution": {
+    "subject": "Your report has been reviewed",
+    "heading": "Your report has been reviewed",
+    "p1": "We've reviewed the report you submitted on {date} and taken appropriate action where warranted.",
+    "p2": "For privacy reasons we don't share specific outcomes, but every report helps keep {appName} safe.",
+    "p3": "Thank you for helping the community."
+  },
+  "ban": {
+    "subject": "Your {appName} account has been suspended",
+    "heading": "Account suspended",
+    "p1": "Your {appName} account has been suspended following a review of reports made against it.",
+    "appealHtml": "If you believe this decision was made in error, contact {appealLink} with your username and we'll take another look.",
+    "appealText": "If you believe this decision was made in error, contact {appealEmail} with your username and we'll take another look."
+  },
+  "unban": {
+    "subject": "Your {appName} account has been restored",
+    "heading": "Account restored",
+    "p1": "Good news — your {appName} account has been restored and you can log in again now.",
+    "questionsHtml": "If you have any questions, contact {supportLink}.",
+    "questionsText": "If you have any questions, contact {supportEmail}."
+  },
+  "verificationCode": {
+    "subject": "Your Bananatalk verification code",
+    "heading": "Confirm your email",
+    "intro": "Enter this code in the Bananatalk app to verify your email address and finish creating your account:",
+    "codeLabel": "Your Verification Code",
+    "expiry": "This code expires in <strong>{minutes} minutes</strong>.",
+    "ignore": "If you didn't request this code, please ignore this email and no account will be created.",
+    "text": "Your Bananatalk verification code is: {code}\n\nEnter this code in the app to verify your email address. It expires in {minutes} minutes.\n\nIf you didn't request this code, you can ignore this email — no account will be created."
+  },
+  "passwordResetCode": {
+    "subject": "Your Bananatalk password reset code",
+    "heading": "Reset your password",
+    "intro": "We received a request to reset your Bananatalk password. Enter this code in the app to choose a new one:",
+    "codeLabel": "Your Reset Code",
+    "expiry": "This code expires in <strong>{minutes} minutes</strong>.",
+    "stillSecure": "If you didn't request a password reset, your account is still secure. You can safely ignore this email.",
+    "text": "Your Bananatalk password reset code is: {code}\n\nEnter this code in the app to choose a new password. It expires in {minutes} minutes.\n\nIf you didn't request a password reset, you can ignore this email — your password won't change."
+  }
+}

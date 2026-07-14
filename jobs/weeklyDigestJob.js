@@ -79,7 +79,7 @@ const runWeeklyDigest = async () => {
       isRegistrationComplete: true,
       'privacySettings.weeklyDigest': { $ne: false },
       'privacySettings.emailNotifications': { $ne: false }
-    }).select('name email privacySettings');
+    }).select('name email privacySettings preferredLocale');
 
     console.log(`📊 Processing ${users.length} users for weekly digest...`);
 

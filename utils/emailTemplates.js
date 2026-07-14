@@ -3,16 +3,24 @@
  * Beautiful, consistent email templates for all occasions
  */
 
+const { t, isRtl } = require('../services/emailTemplateService');
+
 const APP_NAME = 'Bananatalk';
 const SUPPORT_EMAIL = 'support@banatalk.com';
 const YEAR = new Date().getFullYear();
 
+// All user-facing copy lives in email_templates/{locale}.json (per-key en
+// fallback via services/emailTemplateService.js). This file keeps ONLY
+// layout/HTML. Admin-facing templates further below stay hardcoded English.
+
 // Base template wrapper
-// `unsubscribeUrl` is optional — only promotional/digest emails should pass
-// it. Transactional emails (verification/reset/security) must pass nothing
-// so no unsubscribe link is rendered (correct: transactional mail must not
-// carry unsubscribe).
-const baseTemplate = (content, accentColor = '#667eea', unsubscribeUrl = null) => `
+// `unsubscribeUrl` is optional — only promotional/digest/re-engagement mail
+// should pass it. Transactional emails (verification/reset/security) must
+// pass nothing so no unsubscribe link is rendered (correct: transactional
+// mail must not carry unsubscribe).
+// `locale` localizes footer strings; for RTL locales (ar) it sets dir="rtl"
+// on the content container so text and layout flow right-to-left.
+const baseTemplate = (content, accentColor = '#667eea', unsubscribeUrl = null, locale = 'en') => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -23,19 +31,19 @@ const baseTemplate = (content, accentColor = '#667eea', unsubscribeUrl = null) =
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f6f6f6; padding: 20px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+        <table width="600" cellpadding="0" cellspacing="0"${isRtl(locale) ? ' dir="rtl"' : ''} style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
           ${content}
           <tr>
             <td style="background-color: #f9f9f9; padding: 25px 30px; text-align: center; border-top: 1px solid #eeeeee;">
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
-                Need help? Contact us at <a href="mailto:${SUPPORT_EMAIL}" style="color: ${accentColor}; text-decoration: none;">${SUPPORT_EMAIL}</a>
+                ${t(locale, 'common.needHelp')} <a href="mailto:${SUPPORT_EMAIL}" style="color: ${accentColor}; text-decoration: none;">${SUPPORT_EMAIL}</a>
               </p>
               <p style="margin: 0; font-size: 12px; color: #999999;">
-                © ${YEAR} ${APP_NAME}. All rights reserved.
+                ${t(locale, 'common.rights', { year: YEAR, appName: APP_NAME })}
               </p>
               ${unsubscribeUrl ? `
               <p style="margin: 10px 0 0 0; font-size: 12px; color: #999999;">
-                <a href="${unsubscribeUrl}" style="color: #999999; text-decoration: underline;">Unsubscribe</a>
+                <a href="${unsubscribeUrl}" style="color: #999999; text-decoration: underline;">${t(locale, 'common.unsubscribe')}</a>
               </p>
               ` : ''}
             </td>
@@ -48,34 +56,59 @@ const baseTemplate = (content, accentColor = '#667eea', unsubscribeUrl = null) =
 </html>
 `;
 
+// Shared "Open Bananatalk" store-buttons block (inactivity/deactivation).
+const storeButtonsBlock = (locale) => `
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
+          <tr>
+            <td align="center">
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">${t(locale, 'common.openApp')}</h3>
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding-right: 10px;">
+                    <a href="https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      ${t(locale, 'common.appStore')}
+                    </a>
+                  </td>
+                  <td style="padding-left: 10px;">
+                    <a href="https://play.google.com/store/apps/details?id=com.bananatalk.app" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
+                      ${t(locale, 'common.googlePlay')}
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>`;
+
 // ===================== AUTHENTICATION EMAILS =====================
 
 /**
  * Welcome email after first registration
  */
-exports.welcomeEmail = (userName) => {
+exports.welcomeEmail = (userName, locale = 'en') => {
+  const vars = { userName, appName: APP_NAME };
+  const varsHtml = { userName: `<strong>${userName}</strong>`, appName: APP_NAME };
+  const features = t(locale, 'welcome.features');
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 50px 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 36px; font-weight: bold;">Welcome to ${APP_NAME}</h1>
-        <p style="color: rgba(255,255,255,0.9); font-size: 18px; margin: 15px 0 0 0;">Practice languages with people who actually speak them</p>
+        <h1 style="color: #ffffff; margin: 0; font-size: 36px; font-weight: bold;">${t(locale, 'welcome.heading', vars)}</h1>
+        <p style="color: rgba(255,255,255,0.9); font-size: 18px; margin: 15px 0 0 0;">${t(locale, 'welcome.tagline', vars)}</p>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>, your account is ready — you can start practicing with native speakers right now.
+          ${t(locale, 'welcome.intro', varsHtml)}
         </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9ff; border-radius: 12px; padding: 25px; margin: 25px 0;">
           <tr>
             <td>
-              <h3 style="color: #667eea; margin: 0 0 15px 0; font-size: 18px;">Here's what you can do:</h3>
+              <h3 style="color: #667eea; margin: 0 0 15px 0; font-size: 18px;">${t(locale, 'welcome.whatYouCanDo', vars)}</h3>
               <ul style="margin: 0; padding-left: 20px; color: #555555; line-height: 2;">
-                <li>Chat with native speakers of the language you're learning</li>
-                <li>Get corrections on your messages from the community</li>
-                <li>Share moments and practice writing in your target language</li>
-                <li>Save words and phrases to your vocabulary deck</li>
+                ${features.map((f) => `<li>${f}</li>`).join('\n                ')}
               </ul>
             </td>
           </tr>
@@ -85,7 +118,7 @@ exports.welcomeEmail = (userName) => {
           <tr>
             <td align="center">
               <a href="https://banatalk.com/explore" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                Find a language partner
+                ${t(locale, 'welcome.cta', vars)}
               </a>
             </td>
           </tr>
@@ -95,34 +128,42 @@ exports.welcomeEmail = (userName) => {
   `;
 
   return {
-    subject: `Welcome to ${APP_NAME}, ${userName}!`,
-    html: baseTemplate(content),
-    text: `Hi ${userName}, your ${APP_NAME} account is ready — you can start practicing with native speakers right now.
+    subject: t(locale, 'welcome.subject', vars),
+    html: baseTemplate(content, '#667eea', null, locale),
+    text: `${t(locale, 'welcome.intro', vars)}
 
-Here's what you can do:
-- Chat with native speakers of the language you're learning
-- Get corrections on your messages from the community
-- Share moments and practice writing in your target language
-- Save words and phrases to your vocabulary deck
+${t(locale, 'welcome.whatYouCanDo', vars)}
+${features.map((f) => `- ${f}`).join('\n')}
 
-Find a language partner: https://banatalk.com/explore`
+${t(locale, 'welcome.cta', vars)}: https://banatalk.com/explore`
   };
 };
 
 /**
  * Password changed confirmation email
  */
-exports.passwordChangedEmail = (userName, deviceInfo = {}) => {
+exports.passwordChangedEmail = (userName, deviceInfo = {}, locale = 'en') => {
+  const timestamp = new Date().toLocaleString();
+  const resetUrl = 'https://banatalk.com/forgot-password';
+  const vars = { userName, appName: APP_NAME, timestamp, supportEmail: SUPPORT_EMAIL, resetUrl };
+  const varsHtml = {
+    ...vars,
+    userName: `<strong>${userName}</strong>`,
+    timestamp: `<strong>${timestamp}</strong>`,
+    resetLink: `<a href="${resetUrl}" style="color: #856404; font-weight: bold;">${t(locale, 'passwordChanged.notYouLinkLabel')}</a>`,
+  };
+  const unknown = t(locale, 'common.unknown');
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Password updated</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${t(locale, 'passwordChanged.heading')}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>, your ${APP_NAME} password was changed on <strong>${new Date().toLocaleString()}</strong>.
+          ${t(locale, 'passwordChanged.intro', varsHtml)}
         </p>
 
         ${deviceInfo.device ? `
@@ -130,13 +171,13 @@ exports.passwordChangedEmail = (userName, deviceInfo = {}) => {
           <tr>
             <td>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
-                <strong>Device:</strong> ${deviceInfo.device || 'Unknown'}
+                <strong>${t(locale, 'common.deviceLabel')}</strong> ${deviceInfo.device || unknown}
               </p>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
-                <strong>IP address:</strong> ${deviceInfo.ipAddress || 'Unknown'}
+                <strong>${t(locale, 'common.ipLabel')}</strong> ${deviceInfo.ipAddress || unknown}
               </p>
               <p style="margin: 0; font-size: 14px; color: #666666;">
-                <strong>Location:</strong> ${deviceInfo.location || 'Unknown'}
+                <strong>${t(locale, 'common.locationLabel')}</strong> ${deviceInfo.location || unknown}
               </p>
             </td>
           </tr>
@@ -144,14 +185,14 @@ exports.passwordChangedEmail = (userName, deviceInfo = {}) => {
         ` : ''}
 
         <p style="font-size: 14px; color: #666666; line-height: 1.6; margin: 0 0 25px 0;">
-          If you made this change, you're all set — no action is needed.
+          ${t(locale, 'passwordChanged.allSet')}
         </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 25px 0;">
           <tr>
             <td>
               <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                <strong>Didn't change your password?</strong> <a href="https://banatalk.com/forgot-password" style="color: #856404; font-weight: bold;">Reset it now</a> and contact ${SUPPORT_EMAIL}.
+                ${t(locale, 'passwordChanged.notYouHtml', varsHtml)}
               </p>
             </td>
           </tr>
@@ -161,58 +202,69 @@ exports.passwordChangedEmail = (userName, deviceInfo = {}) => {
   `;
 
   return {
-    subject: `Your ${APP_NAME} password was changed`,
-    html: baseTemplate(content, '#11998e'),
-    text: `Hi ${userName}, your ${APP_NAME} password was changed on ${new Date().toLocaleString()}. If you made this change, no action is needed.
+    subject: t(locale, 'passwordChanged.subject', vars),
+    html: baseTemplate(content, '#11998e', null, locale),
+    text: `${t(locale, 'passwordChanged.intro', vars)} ${t(locale, 'passwordChanged.allSet')}
 
-Didn't change your password? Reset it now at https://banatalk.com/forgot-password and contact ${SUPPORT_EMAIL}.`
+${t(locale, 'passwordChanged.notYouText', vars)}`
   };
 };
 
 /**
  * Login from new device notification
  */
-exports.newLoginEmail = (userName, deviceInfo = {}) => {
+exports.newLoginEmail = (userName, deviceInfo = {}, locale = 'en') => {
+  const timestamp = new Date().toLocaleString();
+  const resetUrl = 'https://banatalk.com/forgot-password';
+  const device = deviceInfo.device || t(locale, 'common.unknownDevice');
+  const location = deviceInfo.location || t(locale, 'common.unknownLocation');
+  const vars = { userName, appName: APP_NAME, timestamp, device, location, resetUrl };
+  const varsHtml = {
+    ...vars,
+    userName: `<strong>${userName}</strong>`,
+    resetLink: `<a href="${resetUrl}" style="color: #856404; font-weight: bold;">${t(locale, 'newLogin.notYouLinkLabel')}</a>`,
+  };
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">New sign-in to your account</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${t(locale, 'newLogin.heading')}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>, your ${APP_NAME} account was just signed in to from a new device.
+          ${t(locale, 'newLogin.intro', varsHtml)}
         </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e3f2fd; border: 1px solid #4facfe; border-radius: 8px; padding: 20px; margin: 25px 0;">
           <tr>
             <td>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #333333;">
-                <strong>Time:</strong> ${new Date().toLocaleString()}
+                <strong>${t(locale, 'common.timeLabel')}</strong> ${timestamp}
               </p>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #333333;">
-                <strong>Device:</strong> ${deviceInfo.device || 'Unknown device'}
+                <strong>${t(locale, 'common.deviceLabel')}</strong> ${device}
               </p>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #333333;">
-                <strong>IP address:</strong> ${deviceInfo.ipAddress || 'Unknown'}
+                <strong>${t(locale, 'common.ipLabel')}</strong> ${deviceInfo.ipAddress || t(locale, 'common.unknown')}
               </p>
               <p style="margin: 0; font-size: 14px; color: #333333;">
-                <strong>Location:</strong> ${deviceInfo.location || 'Unknown location'}
+                <strong>${t(locale, 'common.locationLabel')}</strong> ${location}
               </p>
             </td>
           </tr>
         </table>
 
         <p style="font-size: 14px; color: #666666; line-height: 1.6; margin: 0 0 25px 0;">
-          If this was you, you can ignore this email.
+          ${t(locale, 'newLogin.wasYou')}
         </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 25px 0;">
           <tr>
             <td>
               <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                <strong>Don't recognize this sign-in?</strong> <a href="https://banatalk.com/forgot-password" style="color: #856404; font-weight: bold;">Reset your password</a> to secure your account.
+                ${t(locale, 'newLogin.notYouHtml', varsHtml)}
               </p>
             </td>
           </tr>
@@ -222,107 +274,62 @@ exports.newLoginEmail = (userName, deviceInfo = {}) => {
   `;
 
   return {
-    subject: `New sign-in to your ${APP_NAME} account`,
-    html: baseTemplate(content, '#4facfe'),
-    text: `Hi ${userName}, your ${APP_NAME} account was just signed in to from ${deviceInfo.device || 'an unknown device'} (${deviceInfo.location || 'unknown location'}) at ${new Date().toLocaleString()}.
+    subject: t(locale, 'newLogin.subject', vars),
+    html: baseTemplate(content, '#4facfe', null, locale),
+    text: `${t(locale, 'newLogin.textBody', vars)}
 
-If this was you, you can ignore this email.
+${t(locale, 'newLogin.wasYou')}
 
-Don't recognize this sign-in? Reset your password to secure your account: https://banatalk.com/forgot-password`
+${t(locale, 'newLogin.notYouText', vars)}`
   };
 };
 
 /**
  * Account inactivity follow-up (friendly reminder)
  */
-exports.deactivationWarning = (userName, daysRemaining = 14, unsubscribeUrl = null) => {
-  let subject, headerText, bodyHtml, ctaText, ctaUrl, plainText;
-
-  if (daysRemaining > 7) {
-    // 21-day-inactive path (daysRemaining = 14)
-    subject    = `Everything you've built is still here`;
-    headerText = `Still here when you're ready`;
-    ctaText    = `Log back in`;
-    ctaUrl     = `https://banatalk.com`;
-    plainText  = `Hi ${userName}, three weeks since your last BananaTalk session. Your account, conversations, and vocabulary are all saved. Log back in when you're ready: https://banatalk.com`;
-    bodyHtml   = `
-        <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>,
-        </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Three weeks away. Your conversation history, vocabulary deck, and learning progress are all saved exactly where you left them.
-        </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Language learning is a long game — it's fine to pause. Whenever you're ready to pick back up, just log in.
-        </p>`;
-  } else {
-    // 28-day-inactive path (daysRemaining = 7)
-    subject    = `One login keeps your BananaTalk account active`;
-    headerText = `Account notice`;
-    ctaText    = `Keep my account`;
-    ctaUrl     = `https://banatalk.com`;
-    plainText  = `Hi ${userName}, log in once to keep your BananaTalk account active. Your saved conversations and vocabulary will be there: https://banatalk.com`;
-    bodyHtml   = `
-        <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>,
-        </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Your account stays active with a single login. The conversations and vocabulary you've saved will be waiting.
-        </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Takes 10 seconds.
-        </p>`;
-  }
+exports.deactivationWarning = (userName, daysRemaining = 14, unsubscribeUrl = null, locale = 'en') => {
+  // key prefix: 21-day-inactive path (daysRemaining = 14) vs 28-day (= 7)
+  const k = daysRemaining > 7 ? 'deactivation21' : 'deactivation28';
+  const url = 'https://banatalk.com';
+  const vars = { userName, appName: APP_NAME, url };
+  const varsHtml = { ...vars, userName: `<strong>${userName}</strong>` };
 
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${headerText}</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${t(locale, `${k}.heading`)}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
-        ${bodyHtml}
+        <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
+          ${t(locale, 'common.greeting', varsHtml)}
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          ${t(locale, `${k}.p1`)}
+        </p>
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
+          ${t(locale, `${k}.p2`)}
+        </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
-              <a href="${ctaUrl}" style="display: inline-block; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                ${ctaText}
+              <a href="${url}" style="display: inline-block; background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
+                ${t(locale, `${k}.cta`)}
               </a>
             </td>
           </tr>
         </table>
-
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
-          <tr>
-            <td align="center">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">Open Bananatalk</h3>
-              <table cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="padding-right: 10px;">
-                    <a href="https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      App Store
-                    </a>
-                  </td>
-                  <td style="padding-left: 10px;">
-                    <a href="https://play.google.com/store/apps/details?id=com.bananatalk.app" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      Google Play
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
+${storeButtonsBlock(locale)}
       </td>
     </tr>
   `;
 
   return {
-    subject,
-    html: baseTemplate(content, '#ff9a9e', unsubscribeUrl),
-    text: plainText
+    subject: t(locale, `${k}.subject`),
+    html: baseTemplate(content, '#ff9a9e', unsubscribeUrl, locale),
+    text: t(locale, `${k}.text`, vars)
   };
 };
 
@@ -334,49 +341,51 @@ exports.accountDeactivationWarning = exports.deactivationWarning;
 /**
  * Inactivity reminder (language-learning specific nudge)
  */
-exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage, unsubscribeUrl = null) => {
-  const hasLang = targetLanguage && String(targetLanguage).trim();
-  const langLabel      = hasLang ? targetLanguage : 'your language';  // mid-sentence
-  const langPossessive = hasLang ? targetLanguage : 'language';       // after "Your "
+exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage, unsubscribeUrl = null, locale = 'en') => {
+  const hasLang = !!(targetLanguage && String(targetLanguage).trim());
+  const url = 'https://banatalk.com';
+  const vars = { userName, appName: APP_NAME, url, language: targetLanguage };
+  const varsHtml = { ...vars, userName: `<strong>${userName}</strong>` };
+  // NOTE: {language} is the stored language_to_learn display name (English,
+  // e.g. "Spanish") — v1 keeps it untranslated inside localized sentences.
+  // The *Fallback keys avoid grammatical breakage when it's missing.
 
-  let subject, headerText, bodyHtml, ctaText, ctaUrl, plainText;
+  let subject, headerText, bodyHtml, ctaText, plainText;
 
   if (daysSinceActive >= 14) {
     // 14-day path
-    subject    = `Your vocabulary deck has been waiting two weeks`;
-    headerText = `Two weeks away`;
-    ctaText    = `Review my vocabulary`;
-    ctaUrl     = `https://banatalk.com`;
-    plainText  = `Hi ${userName}, two weeks since your last session. Your vocabulary deck is waiting. Open BananaTalk: https://banatalk.com`;
+    subject    = t(locale, 'inactivity14.subject');
+    headerText = t(locale, 'inactivity14.heading');
+    ctaText    = t(locale, 'inactivity14.cta');
+    plainText  = t(locale, 'inactivity14.text', vars);
     bodyHtml   = `
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>,
+          ${t(locale, 'common.greeting', varsHtml)}
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Two weeks off means some of the words you saved are overdue for review. The vocabulary is still in your deck — it just needs a session to stick.
+          ${t(locale, 'inactivity14.p1')}
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Open your study queue and spend 10 minutes. That's enough to get back on track.
+          ${t(locale, 'inactivity14.p2')}
         </p>`;
   } else {
     // 7-day path
-    subject    = `Your ${langPossessive} practice paused — pick up where you left off`;
-    headerText = `It's been a week`;
-    ctaText    = `Start a 5-minute session`;
-    ctaUrl     = `https://banatalk.com`;
-    plainText  = `Hi ${userName}, it's been 7 days since your last BananaTalk session. Open the AI Tutor for a 5-minute ${langLabel} conversation: https://banatalk.com`;
+    subject    = hasLang ? t(locale, 'inactivity7.subject', vars) : t(locale, 'inactivity7.subjectFallback');
+    headerText = t(locale, 'inactivity7.heading');
+    ctaText    = t(locale, 'inactivity7.cta');
+    plainText  = hasLang ? t(locale, 'inactivity7.text', vars) : t(locale, 'inactivity7.textFallback', vars);
     bodyHtml   = `
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>,
+          ${t(locale, 'common.greeting', varsHtml)}
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          It's been 7 days since your last session. That's right around when new vocabulary starts to slip — but you're still in the window where one short practice brings it back.
+          ${t(locale, 'inactivity7.p1')}
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Easiest way in: open the AI Tutor and have a 5-minute conversation in ${langLabel}. No prep needed — just start talking.
+          ${hasLang ? t(locale, 'inactivity7.p2', vars) : t(locale, 'inactivity7.p2Fallback')}
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Your saved words and open conversations will be there too.
+          ${t(locale, 'inactivity7.p3')}
         </p>`;
   }
 
@@ -393,41 +402,20 @@ exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage, uns
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
-              <a href="${ctaUrl}" style="display: inline-block; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
+              <a href="${url}" style="display: inline-block; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
                 ${ctaText}
               </a>
             </td>
           </tr>
         </table>
-
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
-          <tr>
-            <td align="center">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">Open Bananatalk</h3>
-              <table cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="padding-right: 10px;">
-                    <a href="https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      App Store
-                    </a>
-                  </td>
-                  <td style="padding-left: 10px;">
-                    <a href="https://play.google.com/store/apps/details?id=com.bananatalk.app" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      Google Play
-                    </a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
+${storeButtonsBlock(locale)}
       </td>
     </tr>
   `;
 
   return {
     subject,
-    html: baseTemplate(content, '#f5576c', unsubscribeUrl),
+    html: baseTemplate(content, '#f5576c', unsubscribeUrl, locale),
     text: plainText
   };
 };
@@ -435,39 +423,49 @@ exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage, uns
 /**
  * Weekly digest email
  */
-exports.weeklyDigest = (userName, stats = {}, unsubscribeUrl = null) => {
+exports.weeklyDigest = (userName, stats = {}, unsubscribeUrl = null, locale = 'en') => {
+  const url = 'https://banatalk.com/profile/stats';
+  const statVars = {
+    wordsReviewed: stats.wordsReviewed || 0,
+    wordsSaved: stats.wordsSaved || 0,
+    messagesSent: stats.messagesSent || 0,
+    correctionsExchanged: stats.correctionsExchanged || 0,
+  };
+  const vars = { userName, appName: APP_NAME, url, ...statVars };
+  const varsHtml = { ...vars, userName: `<strong>${userName}</strong>` };
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #333333; margin: 0; font-size: 32px; font-weight: bold;">Your week on BananaTalk</h1>
-        <p style="color: #555555; font-size: 16px; margin: 10px 0 0 0;">Week of ${new Date().toLocaleDateString()}</p>
+        <h1 style="color: #333333; margin: 0; font-size: 32px; font-weight: bold;">${t(locale, 'weeklyDigest.heading')}</h1>
+        <p style="color: #555555; font-size: 16px; margin: 10px 0 0 0;">${t(locale, 'weeklyDigest.weekOf', { date: new Date().toLocaleDateString() })}</p>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-          Hi <strong>${userName}</strong>, here's what you did this week:
+          ${t(locale, 'weeklyDigest.intro', varsHtml)}
         </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 25px 0;">
           <tr>
             <td style="padding: 10px; text-align: center; width: 50%;">
-              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.wordsReviewed || 0}</div>
-              <div style="font-size: 13px; color: #777;">words reviewed</div>
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${statVars.wordsReviewed}</div>
+              <div style="font-size: 13px; color: #777;">${t(locale, 'weeklyDigest.statWordsReviewed')}</div>
             </td>
             <td style="padding: 10px; text-align: center; width: 50%;">
-              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.wordsSaved || 0}</div>
-              <div style="font-size: 13px; color: #777;">new words saved</div>
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${statVars.wordsSaved}</div>
+              <div style="font-size: 13px; color: #777;">${t(locale, 'weeklyDigest.statWordsSaved')}</div>
             </td>
           </tr>
           <tr>
             <td style="padding: 10px; text-align: center;">
-              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.messagesSent || 0}</div>
-              <div style="font-size: 13px; color: #777;">messages with partners</div>
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${statVars.messagesSent}</div>
+              <div style="font-size: 13px; color: #777;">${t(locale, 'weeklyDigest.statMessages')}</div>
             </td>
             <td style="padding: 10px; text-align: center;">
-              <div style="font-size: 32px; font-weight: bold; color: #333;">${stats.correctionsExchanged || 0}</div>
-              <div style="font-size: 13px; color: #777;">corrections exchanged</div>
+              <div style="font-size: 32px; font-weight: bold; color: #333;">${statVars.correctionsExchanged}</div>
+              <div style="font-size: 13px; color: #777;">${t(locale, 'weeklyDigest.statCorrections')}</div>
             </td>
           </tr>
         </table>
@@ -475,8 +473,8 @@ exports.weeklyDigest = (userName, stats = {}, unsubscribeUrl = null) => {
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
-              <a href="https://banatalk.com/profile/stats" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                See your full progress
+              <a href="${url}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
+                ${t(locale, 'weeklyDigest.cta')}
               </a>
             </td>
           </tr>
@@ -486,11 +484,11 @@ exports.weeklyDigest = (userName, stats = {}, unsubscribeUrl = null) => {
   `;
 
   return {
-    subject: `Your language learning week`,
-    html: baseTemplate(content, '#667eea', unsubscribeUrl),
-    text: `Hi ${userName}, here's your week on BananaTalk: ${stats.wordsReviewed || 0} words reviewed, ${stats.wordsSaved || 0} new words saved, ${stats.messagesSent || 0} messages with partners, ${stats.correctionsExchanged || 0} corrections exchanged.
+    subject: t(locale, 'weeklyDigest.subject'),
+    html: baseTemplate(content, '#667eea', unsubscribeUrl, locale),
+    text: `${t(locale, 'weeklyDigest.text', vars)}
 
-See your full progress: https://banatalk.com/profile/stats`
+${t(locale, 'weeklyDigest.textCta', vars)}`
   };
 };
 
@@ -499,17 +497,20 @@ See your full progress: https://banatalk.com/profile/stats`
 /**
  * New follower notification
  */
-exports.newFollowerEmail = (userName, followerName, followerImage) => {
+exports.newFollowerEmail = (userName, followerName, followerImage, locale = 'en') => {
+  const vars = { userName, followerName, appName: APP_NAME, url: 'https://banatalk.com/messages' };
+  const varsHtml = { ...vars, userName: `<strong>${userName}</strong>`, followerName: `<strong>${followerName}</strong>` };
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">You have a new follower</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${t(locale, 'newFollower.heading')}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px; text-align: center;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-          Hi <strong>${userName}</strong>, <strong>${followerName}</strong> started following you on ${APP_NAME}.
+          ${t(locale, 'newFollower.intro', varsHtml)}
         </p>
 
         ${followerImage ? `
@@ -517,14 +518,14 @@ exports.newFollowerEmail = (userName, followerName, followerImage) => {
         ` : ''}
 
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 20px 0;">
-          A new follower is a good opening for a language exchange — say hello and see if your languages match.
+          ${t(locale, 'newFollower.body')}
         </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
               <a href="https://banatalk.com/messages/new/${followerName}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                Say hello
+                ${t(locale, 'newFollower.cta')}
               </a>
             </td>
           </tr>
@@ -534,26 +535,30 @@ exports.newFollowerEmail = (userName, followerName, followerImage) => {
   `;
 
   return {
-    subject: `${followerName} started following you on ${APP_NAME}`,
-    html: baseTemplate(content),
-    text: `Hi ${userName}, ${followerName} started following you on ${APP_NAME}. A new follower is a good opening for a language exchange — say hello and see if your languages match: https://banatalk.com/messages`
+    subject: t(locale, 'newFollower.subject', vars),
+    html: baseTemplate(content, '#667eea', null, locale),
+    text: t(locale, 'newFollower.text', vars)
   };
 };
 
 /**
  * New message notification (for users not actively using the app)
  */
-exports.newMessageEmail = (userName, senderName, messagePreview) => {
+exports.newMessageEmail = (userName, senderName, messagePreview, locale = 'en') => {
+  const url = 'https://banatalk.com/messages';
+  const vars = { userName, senderName, appName: APP_NAME, url, messagePreview };
+  const varsHtml = { ...vars, userName: `<strong>${userName}</strong>`, senderName: `<strong>${senderName}</strong>` };
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">You have a new message</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${t(locale, 'newMessage.heading')}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>, <strong>${senderName}</strong> sent you a message on ${APP_NAME}:
+          ${t(locale, 'newMessage.intro', varsHtml)}
         </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0f9ff; border-left: 4px solid #4facfe; padding: 20px; margin: 25px 0;">
@@ -569,8 +574,8 @@ exports.newMessageEmail = (userName, senderName, messagePreview) => {
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
-              <a href="https://banatalk.com/messages" style="display: inline-block; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                Reply on ${APP_NAME}
+              <a href="${url}" style="display: inline-block; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
+                ${t(locale, 'newMessage.cta', vars)}
               </a>
             </td>
           </tr>
@@ -580,41 +585,45 @@ exports.newMessageEmail = (userName, senderName, messagePreview) => {
   `;
 
   return {
-    subject: `New message from ${senderName} on ${APP_NAME}`,
-    html: baseTemplate(content, '#4facfe'),
-    text: `Hi ${userName}, ${senderName} sent you a message on ${APP_NAME}: "${messagePreview}"
+    subject: t(locale, 'newMessage.subject', vars),
+    html: baseTemplate(content, '#4facfe', null, locale),
+    text: `${t(locale, 'newMessage.text', vars)}
 
-Reply: https://banatalk.com/messages`
+${t(locale, 'newMessage.textReply', vars)}`
   };
 };
 
 /**
  * Correction received notification (HelloTalk style)
  */
-exports.correctionReceivedEmail = (userName, correctorName, originalText, correctedText) => {
+exports.correctionReceivedEmail = (userName, correctorName, originalText, correctedText, locale = 'en') => {
+  const url = 'https://banatalk.com/messages';
+  const vars = { userName, correctorName, appName: APP_NAME, url };
+  const varsHtml = { ...vars, userName: `<strong>${userName}</strong>`, correctorName: `<strong>${correctorName}</strong>` };
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">You received a correction</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${t(locale, 'correction.heading')}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>, <strong>${correctorName}</strong> suggested a correction to one of your messages. Here's what changed:
+          ${t(locale, 'correction.intro', varsHtml)}
         </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 25px 0;">
           <tr>
             <td style="background-color: #ffebee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
-              <p style="margin: 0 0 5px 0; font-size: 12px; color: #c62828; text-transform: uppercase;">Original:</p>
+              <p style="margin: 0 0 5px 0; font-size: 12px; color: #c62828; text-transform: uppercase;">${t(locale, 'correction.originalLabel')}</p>
               <p style="margin: 0; font-size: 16px; color: #c62828; text-decoration: line-through;">${originalText}</p>
             </td>
           </tr>
           <tr><td style="height: 10px;"></td></tr>
           <tr>
             <td style="background-color: #e8f5e9; border-radius: 8px; padding: 15px;">
-              <p style="margin: 0 0 5px 0; font-size: 12px; color: #2e7d32; text-transform: uppercase;">Corrected:</p>
+              <p style="margin: 0 0 5px 0; font-size: 12px; color: #2e7d32; text-transform: uppercase;">${t(locale, 'correction.correctedLabel')}</p>
               <p style="margin: 0; font-size: 16px; color: #2e7d32; font-weight: bold;">${correctedText}</p>
             </td>
           </tr>
@@ -623,8 +632,8 @@ exports.correctionReceivedEmail = (userName, correctorName, originalText, correc
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
-              <a href="https://banatalk.com/messages" style="display: inline-block; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                See the correction
+              <a href="${url}" style="display: inline-block; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
+                ${t(locale, 'correction.cta')}
               </a>
             </td>
           </tr>
@@ -634,14 +643,14 @@ exports.correctionReceivedEmail = (userName, correctorName, originalText, correc
   `;
 
   return {
-    subject: `${correctorName} suggested a correction on ${APP_NAME}`,
-    html: baseTemplate(content, '#fa709a'),
-    text: `Hi ${userName}, ${correctorName} suggested a correction to one of your messages on ${APP_NAME}.
+    subject: t(locale, 'correction.subject', vars),
+    html: baseTemplate(content, '#fa709a', null, locale),
+    text: `${t(locale, 'correction.text', vars)}
 
-Original: "${originalText}"
-Corrected: "${correctedText}"
+${t(locale, 'correction.originalLabel')} "${originalText}"
+${t(locale, 'correction.correctedLabel')} "${correctedText}"
 
-See the correction: https://banatalk.com/messages`
+${t(locale, 'correction.textSeeIt', vars)}`
   };
 };
 
@@ -650,46 +659,46 @@ See the correction: https://banatalk.com/messages`
 /**
  * VIP subscription confirmation
  */
-exports.vipSubscriptionEmail = (userName, plan, endDate) => {
+exports.vipSubscriptionEmail = (userName, plan, endDate, locale = 'en') => {
+  const date = new Date(endDate).toLocaleDateString();
+  const benefits = t(locale, 'vip.benefits');
+  const vars = { userName, appName: APP_NAME, plan, date, benefits: benefits.join(', ') };
+  const varsHtml = { ...vars, userName: `<strong>${userName}</strong>`, plan: `<strong>${plan}</strong>` };
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Your VIP membership is active</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${t(locale, 'vip.heading')}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>, your ${APP_NAME} VIP <strong>${plan}</strong> plan is now active. Thanks for supporting ${APP_NAME}.
+          ${t(locale, 'vip.intro', varsHtml)}
         </p>
 
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 12px; padding: 25px; margin: 25px 0;">
           <tr>
             <td>
-              <h3 style="color: #f7971e; margin: 0 0 15px 0; font-size: 18px;">What's included:</h3>
+              <h3 style="color: #f7971e; margin: 0 0 15px 0; font-size: 18px;">${t(locale, 'vip.whatsIncluded')}</h3>
               <ul style="margin: 0; padding-left: 20px; color: #555555; line-height: 2;">
-                <li>Unlimited messages per day</li>
-                <li>No ads</li>
-                <li>Message translations</li>
-                <li>Advanced search filters</li>
-                <li>VIP badge</li>
-                <li>Priority support</li>
+                ${benefits.map((b) => `<li>${b}</li>`).join('\n                ')}
               </ul>
             </td>
           </tr>
         </table>
 
         <p style="font-size: 14px; color: #666666; text-align: center;">
-          Your subscription is active until <strong>${new Date(endDate).toLocaleDateString()}</strong>.
+          ${t(locale, 'vip.activeUntil', { ...vars, date: `<strong>${date}</strong>` })}
         </p>
       </td>
     </tr>
   `;
 
   return {
-    subject: `Welcome to ${APP_NAME} VIP, ${userName}`,
-    html: baseTemplate(content, '#f7971e'),
-    text: `Hi ${userName}, your ${APP_NAME} VIP ${plan} plan is now active. What's included: unlimited messages per day, no ads, message translations, advanced search filters, VIP badge, and priority support. Your subscription is active until ${new Date(endDate).toLocaleDateString()}.`
+    subject: t(locale, 'vip.subject', vars),
+    html: baseTemplate(content, '#f7971e', null, locale),
+    text: t(locale, 'vip.text', vars)
   };
 };
 
@@ -1183,11 +1192,16 @@ exports.newUserNotificationEmail = (user, context = {}) => {
 /**
  * Promotional email template
  */
-exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl, androidUrl, unsubscribeUrl }) => {
-  // The campaign message is authored as plain text with newlines (see
-  // PROMO_CONFIG in jobs/promotionalEmailJob.js) — convert them to <br>
-  // so paragraphs/bullets actually render in the HTML part.
+exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl, androidUrl, unsubscribeUrl }, locale = 'en') => {
+  // title/message/ctaText arrive already-localized (the send path pulls them
+  // from the promoCampaign catalog section per user locale); `locale` here
+  // localizes the wrapper strings (greeting, footer, store buttons).
+  // The campaign message is authored as plain text with newlines — convert
+  // them to <br> so paragraphs/bullets actually render in the HTML part.
   const messageHtml = String(message || '').replace(/\n/g, '<br>');
+  const vars = { userName, appName: APP_NAME };
+  const varsHtml = { ...vars, userName: `<strong>${userName}</strong>` };
+
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #FFD93D 0%, #FF6B6B 50%, #6BCB77 100%); padding: 50px 40px; text-align: center;">
@@ -1197,7 +1211,7 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>,
+          ${t(locale, 'common.greeting', varsHtml)}
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
           ${messageHtml}
@@ -1218,17 +1232,17 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
         <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #f8f9ff 0%, #fff5f5 100%); border-radius: 12px; padding: 25px; margin: 25px 0;">
           <tr>
             <td style="text-align: center;">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">Get the app</h3>
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">${t(locale, 'common.getApp')}</h3>
               <table cellpadding="0" cellspacing="0" style="margin: 0 auto;">
                 <tr>
                   <td style="padding: 0 10px;">
                     <a href="${iosUrl}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      App Store
+                      ${t(locale, 'common.appStore')}
                     </a>
                   </td>
                   <td style="padding: 0 10px;">
                     <a href="${androidUrl}" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      Google Play
+                      ${t(locale, 'common.googlePlay')}
                     </a>
                   </td>
                 </tr>
@@ -1238,7 +1252,7 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
         </table>
 
         <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
-          See you on ${APP_NAME}.
+          ${t(locale, 'promotional.seeYou', vars)}
         </p>
       </td>
     </tr>
@@ -1246,12 +1260,12 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
 
   return {
     subject: title,
-    html: baseTemplate(content, '#FFD93D', unsubscribeUrl),
-    text: `Hi ${userName},
+    html: baseTemplate(content, '#FFD93D', unsubscribeUrl, locale),
+    text: `${t(locale, 'common.greeting', vars)}
 
 ${message}
 
-Get the app:
+${t(locale, 'common.getApp')}:
 iOS: ${iosUrl}
 Android: ${androidUrl}`
   };
@@ -1289,67 +1303,79 @@ the daily admin digest.`,
  * Confirmation to the reporter after the moderator acts on the report.
  * Deliberately vague about the action taken (privacy of the reported user).
  */
-exports.reportResolutionToReporter = (report) => ({
-  subject: 'Your report has been reviewed',
-  text: `We've reviewed the report you submitted on ${new Date(report.createdAt).toDateString()} and taken appropriate action where warranted.
+exports.reportResolutionToReporter = (report, locale = 'en') => {
+  const vars = { date: new Date(report.createdAt).toDateString(), appName: APP_NAME };
+  return {
+    subject: t(locale, 'reportResolution.subject'),
+    text: `${t(locale, 'reportResolution.p1', vars)}
 
-For privacy reasons we don't share specific outcomes, but every report helps keep ${APP_NAME} safe.
+${t(locale, 'reportResolution.p2', vars)}
 
-Thank you for helping the community.`,
-  html: baseTemplate(`
+${t(locale, 'reportResolution.p3', vars)}`,
+    html: baseTemplate(`
     <tr>
       <td style="padding: 40px 30px;">
-        <h2 style="color: #333; margin: 0 0 15px 0;">Your report has been reviewed</h2>
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">We've reviewed the report you submitted on ${new Date(report.createdAt).toDateString()} and taken appropriate action where warranted.</p>
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">For privacy reasons we don't share specific outcomes, but every report helps keep ${APP_NAME} safe.</p>
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">Thank you for helping the community.</p>
+        <h2 style="color: #333; margin: 0 0 15px 0;">${t(locale, 'reportResolution.heading')}</h2>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">${t(locale, 'reportResolution.p1', vars)}</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">${t(locale, 'reportResolution.p2', vars)}</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">${t(locale, 'reportResolution.p3', vars)}</p>
       </td>
-    </tr>`, '#11998e')
-});
+    </tr>`, '#11998e', null, locale)
+  };
+};
 
 /**
  * Notification to a banned user explaining the ban + appeal contact.
  */
-exports.banNotification = (reason) => ({
-  subject: `Your ${APP_NAME} account has been suspended`,
-  text: `Your ${APP_NAME} account has been suspended following a review of reports made against it.
+exports.banNotification = (reason, locale = 'en') => {
+  const appealEmail = 'appeal@banatalk.com';
+  const vars = { appName: APP_NAME, appealEmail };
+  const varsHtml = { ...vars, appealLink: `<a href="mailto:${appealEmail}" style="color: #d63031;">${appealEmail}</a>` };
+  return {
+    subject: t(locale, 'ban.subject', vars),
+    text: `${t(locale, 'ban.p1', vars)}
 
-${reason ? `Reason: ${reason}\n\n` : ''}If you believe this decision was made in error, contact appeal@banatalk.com with your username and we'll take another look.`,
-  html: baseTemplate(`
+${reason ? `${t(locale, 'common.reasonLabel')} ${reason}\n\n` : ''}${t(locale, 'ban.appealText', vars)}`,
+    html: baseTemplate(`
     <tr>
       <td style="background: linear-gradient(135deg, #ff7e7e 0%, #d63031 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #fff; margin: 0; font-size: 28px;">Account suspended</h1>
+        <h1 style="color: #fff; margin: 0; font-size: 28px;">${t(locale, 'ban.heading')}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">Your ${APP_NAME} account has been suspended following a review of reports made against it.</p>
-        ${reason ? `<p style="font-size: 16px; color: #555; line-height: 1.7;"><strong>Reason:</strong> ${reason}</p>` : ''}
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">If you believe this decision was made in error, contact <a href="mailto:appeal@banatalk.com" style="color: #d63031;">appeal@banatalk.com</a> with your username and we'll take another look.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">${t(locale, 'ban.p1', vars)}</p>
+        ${reason ? `<p style="font-size: 16px; color: #555; line-height: 1.7;"><strong>${t(locale, 'common.reasonLabel')}</strong> ${reason}</p>` : ''}
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">${t(locale, 'ban.appealHtml', varsHtml)}</p>
       </td>
-    </tr>`, '#d63031')
-});
+    </tr>`, '#d63031', null, locale)
+  };
+};
 
 // Step 15 — restored-account notification, mirrors banNotification.
-exports.unbanNotification = (reason) => ({
-  subject: `Your ${APP_NAME} account has been restored`,
-  text: `Good news — your ${APP_NAME} account has been restored and you can log in again now.
+exports.unbanNotification = (reason, locale = 'en') => {
+  const vars = { appName: APP_NAME, supportEmail: SUPPORT_EMAIL };
+  const varsHtml = { ...vars, supportLink: `<a href="mailto:${SUPPORT_EMAIL}" style="color: #11998e;">${SUPPORT_EMAIL}</a>` };
+  return {
+    subject: t(locale, 'unban.subject', vars),
+    text: `${t(locale, 'unban.p1', vars)}
 
-${reason ? `Reason: ${reason}\n\n` : ''}If you have any questions, contact support@banatalk.com.`,
-  html: baseTemplate(`
+${reason ? `${t(locale, 'common.reasonLabel')} ${reason}\n\n` : ''}${t(locale, 'unban.questionsText', vars)}`,
+    html: baseTemplate(`
     <tr>
       <td style="background: linear-gradient(135deg, #4cd964 0%, #11998e 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #fff; margin: 0; font-size: 28px;">Account restored</h1>
+        <h1 style="color: #fff; margin: 0; font-size: 28px;">${t(locale, 'unban.heading')}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">Good news — your ${APP_NAME} account has been restored and you can log in again now.</p>
-        ${reason ? `<p style="font-size: 16px; color: #555; line-height: 1.7;"><strong>Reason:</strong> ${reason}</p>` : ''}
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">If you have any questions, contact <a href="mailto:support@banatalk.com" style="color: #11998e;">support@banatalk.com</a>.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">${t(locale, 'unban.p1', vars)}</p>
+        ${reason ? `<p style="font-size: 16px; color: #555; line-height: 1.7;"><strong>${t(locale, 'common.reasonLabel')}</strong> ${reason}</p>` : ''}
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">${t(locale, 'unban.questionsHtml', varsHtml)}</p>
       </td>
-    </tr>`, '#11998e')
-});
+    </tr>`, '#11998e', null, locale)
+  };
+};
 
 module.exports = exports;
 

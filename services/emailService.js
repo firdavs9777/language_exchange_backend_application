@@ -7,6 +7,7 @@ const sendEmail = require('../utils/sendEmail');
 const templates = require('../utils/emailTemplates');
 const User = require('../models/User');
 const { makeUnsubscribeToken } = require('../controllers/emailUnsubscribe');
+const { resolveEmailLocale, t } = require('./emailTemplateService');
 
 const API_BASE_URL = process.env.API_BASE_URL || 'https://api.banatalk.com';
 
@@ -24,7 +25,8 @@ const buildUnsubscribeUrl = (userId, emailType) => {
  */
 exports.sendWelcomeEmail = async (user) => {
   try {
-    const template = templates.welcomeEmail(user.name);
+    const locale = resolveEmailLocale(user);
+    const template = templates.welcomeEmail(user.name, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -44,7 +46,8 @@ exports.sendWelcomeEmail = async (user) => {
  */
 exports.sendPasswordChangedEmail = async (user, deviceInfo = {}) => {
   try {
-    const template = templates.passwordChangedEmail(user.name, deviceInfo);
+    const locale = resolveEmailLocale(user);
+    const template = templates.passwordChangedEmail(user.name, deviceInfo, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -64,7 +67,8 @@ exports.sendPasswordChangedEmail = async (user, deviceInfo = {}) => {
  */
 exports.sendNewLoginEmail = async (user, deviceInfo = {}) => {
   try {
-    const template = templates.newLoginEmail(user.name, deviceInfo);
+    const locale = resolveEmailLocale(user);
+    const template = templates.newLoginEmail(user.name, deviceInfo, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -89,7 +93,8 @@ exports.sendNewLoginEmail = async (user, deviceInfo = {}) => {
 exports.sendInactivityReminder = async (user, daysSinceActive) => {
   try {
     const unsubscribeUrl = buildUnsubscribeUrl(user._id, 'promotional');
-    const template = templates.inactivityReminder(user.name, daysSinceActive, user.language_to_learn, unsubscribeUrl);
+    const locale = resolveEmailLocale(user);
+    const template = templates.inactivityReminder(user.name, daysSinceActive, user.language_to_learn, unsubscribeUrl, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -114,7 +119,8 @@ exports.sendInactivityReminder = async (user, daysSinceActive) => {
 exports.sendDeactivationWarning = async (user, daysRemaining) => {
   try {
     const unsubscribeUrl = buildUnsubscribeUrl(user._id, 'promotional');
-    const template = templates.accountDeactivationWarning(user.name, daysRemaining, unsubscribeUrl);
+    const locale = resolveEmailLocale(user);
+    const template = templates.accountDeactivationWarning(user.name, daysRemaining, unsubscribeUrl, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -138,7 +144,8 @@ exports.sendWeeklyDigest = async (user, stats) => {
     // weeklyDigestJob already gates the query on privacySettings.weeklyDigest
     // + emailNotifications — no redundant check here, just thread the URL.
     const unsubscribeUrl = buildUnsubscribeUrl(user._id, 'digest');
-    const template = templates.weeklyDigest(user.name, stats, unsubscribeUrl);
+    const locale = resolveEmailLocale(user);
+    const template = templates.weeklyDigest(user.name, stats, unsubscribeUrl, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -164,7 +171,8 @@ exports.sendNewFollowerEmail = async (user, followerName, followerImage) => {
       return false;
     }
     
-    const template = templates.newFollowerEmail(user.name, followerName, followerImage);
+    const locale = resolveEmailLocale(user);
+    const template = templates.newFollowerEmail(user.name, followerName, followerImage, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -189,7 +197,8 @@ exports.sendNewMessageEmail = async (user, senderName, messagePreview) => {
       return false;
     }
     
-    const template = templates.newMessageEmail(user.name, senderName, messagePreview);
+    const locale = resolveEmailLocale(user);
+    const template = templates.newMessageEmail(user.name, senderName, messagePreview, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -213,7 +222,8 @@ exports.sendCorrectionEmail = async (user, correctorName, originalText, correcte
       return false;
     }
     
-    const template = templates.correctionReceivedEmail(user.name, correctorName, originalText, correctedText);
+    const locale = resolveEmailLocale(user);
+    const template = templates.correctionReceivedEmail(user.name, correctorName, originalText, correctedText, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -233,7 +243,8 @@ exports.sendCorrectionEmail = async (user, correctorName, originalText, correcte
  */
 exports.sendVipSubscriptionEmail = async (user, plan, endDate) => {
   try {
-    const template = templates.vipSubscriptionEmail(user.name, plan, endDate);
+    const locale = resolveEmailLocale(user);
+    const template = templates.vipSubscriptionEmail(user.name, plan, endDate, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -278,8 +289,20 @@ exports.sendPromotionalEmail = async (user, promoData) => {
       return { success: false, reason: 'notifications_disabled' };
     }
 
+    const locale = resolveEmailLocale(user);
+
+    // Campaign copy is localized per user from the promoCampaign catalog
+    // section (per-key en fallback) unless the caller passed explicit
+    // title/message overrides (kept for one-off/manual sends).
+    const localizedPromo = {
+      ...promoData,
+      title: promoData.title || t(locale, 'promoCampaign.title'),
+      message: promoData.message || t(locale, 'promoCampaign.message'),
+      ctaText: promoData.ctaText || t(locale, 'promoCampaign.ctaText'),
+    };
+
     const unsubscribeUrl = buildUnsubscribeUrl(user._id, 'promotional');
-    const template = templates.promotionalEmail(user.name || 'Friend', { ...promoData, unsubscribeUrl });
+    const template = templates.promotionalEmail(user.name || 'Friend', { ...localizedPromo, unsubscribeUrl }, locale);
     await sendEmail({
       email: user.email,
       subject: template.subject,
@@ -367,9 +390,9 @@ exports.sendAdminReportAlert = async (report) => {
 
 exports.sendReportResolutionToReporter = async (report) => {
   try {
-    const reporter = await User.findById(report.reportedBy).select('name email').lean();
+    const reporter = await User.findById(report.reportedBy).select('name email preferredLocale').lean();
     if (!reporter?.email) return;
-    const tpl = templates.reportResolutionToReporter(report);
+    const tpl = templates.reportResolutionToReporter(report, resolveEmailLocale(reporter));
     await sendEmail({
       email: reporter.email,
       subject: tpl.subject,
@@ -383,9 +406,9 @@ exports.sendReportResolutionToReporter = async (report) => {
 
 exports.sendBanNotification = async (userId, reason) => {
   try {
-    const user = await User.findById(userId).select('name email').lean();
+    const user = await User.findById(userId).select('name email preferredLocale').lean();
     if (!user?.email) return;
-    const tpl = templates.banNotification(reason);
+    const tpl = templates.banNotification(reason, resolveEmailLocale(user));
     await sendEmail({
       email: user.email,
       subject: tpl.subject,
@@ -401,9 +424,9 @@ exports.sendBanNotification = async (userId, reason) => {
 // services/banService.js#unbanUser fire-and-forget.
 exports.sendUnbanNotification = async (userId, reason) => {
   try {
-    const user = await User.findById(userId).select('name email').lean();
+    const user = await User.findById(userId).select('name email preferredLocale').lean();
     if (!user?.email) return;
-    const tpl = templates.unbanNotification(reason);
+    const tpl = templates.unbanNotification(reason, resolveEmailLocale(user));
     await sendEmail({
       email: user.email,
       subject: tpl.subject,

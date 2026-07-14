@@ -10,6 +10,7 @@ const FacebookStrategy = require('passport-facebook').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
 const { logSecurityEvent } = require('../utils/securityLogger');
+const { t: emailT, resolveEmailLocale, isRtl: emailIsRtl } = require('../services/emailTemplateService');
 const { getDeviceInfo, detectPlatform, pickClientInfo } = require('../validators/authValidator');
 const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
 const { generateUsername } = require('../utils/generateUsername');
@@ -875,13 +876,13 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
     userId: user._id
   });
 
-  // Email content (same as before)
-  const message = `Your Bananatalk verification code is: ${code}
+  // Email content — copy from email_templates/{locale}.json (per-key en
+  // fallback). Locale comes from the user's stored preferredLocale; brand-new
+  // pre-registration accounts won't have one yet and get en.
+  const emailLocale = resolveEmailLocale(user);
+  const vcVars = { code, minutes: 15, appName: 'Bananatalk' };
+  const message = emailT(emailLocale, 'verificationCode.text', vcVars);
 
-Enter this code in the app to verify your email address. It expires in 15 minutes.
-
-If you didn't request this code, you can ignore this email — no account will be created.`;
-  
   const html = `
 <!DOCTYPE html>
 <html>
@@ -893,16 +894,16 @@ If you didn't request this code, you can ignore this email — no account will b
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f6f6f6; padding: 20px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <table width="600" cellpadding="0" cellspacing="0"${emailIsRtl(emailLocale) ? ' dir="rtl"' : ''} style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <tr>
             <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Confirm your email</h1>
+              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${emailT(emailLocale, 'verificationCode.heading')}</h1>
             </td>
           </tr>
           <tr>
             <td style="padding: 40px 30px;">
               <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-                Enter this code in the Bananatalk app to verify your email address and finish creating your account:
+                ${emailT(emailLocale, 'verificationCode.intro')}
               </p>
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
@@ -911,7 +912,7 @@ If you didn't request this code, you can ignore this email — no account will b
                       <tr>
                         <td>
                           <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666; text-align: center; text-transform: uppercase; letter-spacing: 1px;">
-                            Your Verification Code
+                            ${emailT(emailLocale, 'verificationCode.codeLabel')}
                           </p>
                           <p style="margin: 0; font-size: 42px; font-weight: bold; color: #667eea; letter-spacing: 10px; font-family: 'Courier New', monospace; text-align: center;">
                             ${code}
@@ -926,23 +927,23 @@ If you didn't request this code, you can ignore this email — no account will b
                 <tr>
                   <td>
                     <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                      This code expires in <strong>15 minutes</strong>.
+                      ${emailT(emailLocale, 'verificationCode.expiry', vcVars)}
                     </p>
                   </td>
                 </tr>
               </table>
               <p style="font-size: 14px; color: #999999; line-height: 1.6; margin: 30px 0 0 0; text-align: center;">
-                If you didn't request this code, please ignore this email and no account will be created.
+                ${emailT(emailLocale, 'verificationCode.ignore')}
               </p>
             </td>
           </tr>
           <tr>
             <td style="background-color: #f9f9f9; padding: 25px 30px; text-align: center; border-top: 1px solid #eeeeee;">
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
-                Need help? Contact us at <a href="mailto:support@banatalk.com" style="color: #667eea; text-decoration: none;">support@banatalk.com</a>
+                ${emailT(emailLocale, 'common.needHelp')} <a href="mailto:support@banatalk.com" style="color: #667eea; text-decoration: none;">support@banatalk.com</a>
               </p>
               <p style="margin: 0; font-size: 12px; color: #999999;">
-                © ${new Date().getFullYear()} Bananatalk. All rights reserved.
+                ${emailT(emailLocale, 'common.rights', { year: new Date().getFullYear(), appName: 'Bananatalk' })}
               </p>
             </td>
           </tr>
@@ -953,11 +954,11 @@ If you didn't request this code, you can ignore this email — no account will b
 </body>
 </html>
   `;
-  
+
   try {
     await sendEmail({
       email: user.email,
-      subject: 'Your Bananatalk verification code',
+      subject: emailT(emailLocale, 'verificationCode.subject'),
       message,
       html
     });
@@ -1067,13 +1068,12 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   const code = user.generatePasswordResetCode();
   await user.save({ validateBeforeSave: false });
 
-  // Email content
-  const message = `Your Bananatalk password reset code is: ${code}
+  // Email content — copy from email_templates/{locale}.json (per-key en
+  // fallback), locale from the user's stored preferredLocale.
+  const emailLocale = resolveEmailLocale(user);
+  const prVars = { code, minutes: 5, appName: 'Bananatalk' };
+  const message = emailT(emailLocale, 'passwordResetCode.text', prVars);
 
-Enter this code in the app to choose a new password. It expires in 5 minutes.
-
-If you didn't request a password reset, you can ignore this email — your password won't change.`;
-  
   const html = `
 <!DOCTYPE html>
 <html>
@@ -1085,16 +1085,16 @@ If you didn't request a password reset, you can ignore this email — your passw
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f6f6f6; padding: 20px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <table width="600" cellpadding="0" cellspacing="0"${emailIsRtl(emailLocale) ? ' dir="rtl"' : ''} style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <tr>
             <td style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 40px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Reset your password</h1>
+              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">${emailT(emailLocale, 'passwordResetCode.heading')}</h1>
             </td>
           </tr>
           <tr>
             <td style="padding: 40px 30px;">
               <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-                We received a request to reset your Bananatalk password. Enter this code in the app to choose a new one:
+                ${emailT(emailLocale, 'passwordResetCode.intro')}
               </p>
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
@@ -1103,7 +1103,7 @@ If you didn't request a password reset, you can ignore this email — your passw
                       <tr>
                         <td>
                           <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666; text-align: center; text-transform: uppercase; letter-spacing: 1px;">
-                            Your Reset Code
+                            ${emailT(emailLocale, 'passwordResetCode.codeLabel')}
                           </p>
                           <p style="margin: 0; font-size: 42px; font-weight: bold; color: #f5576c; letter-spacing: 10px; font-family: 'Courier New', monospace; text-align: center;">
                             ${code}
@@ -1118,23 +1118,23 @@ If you didn't request a password reset, you can ignore this email — your passw
                 <tr>
                   <td>
                     <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                      This code expires in <strong>5 minutes</strong>.
+                      ${emailT(emailLocale, 'passwordResetCode.expiry', prVars)}
                     </p>
                   </td>
                 </tr>
               </table>
               <p style="font-size: 14px; color: #999999; line-height: 1.6; margin: 30px 0 0 0; text-align: center;">
-                If you didn't request a password reset, your account is still secure. You can safely ignore this email.
+                ${emailT(emailLocale, 'passwordResetCode.stillSecure')}
               </p>
             </td>
           </tr>
           <tr>
             <td style="background-color: #f9f9f9; padding: 25px 30px; text-align: center; border-top: 1px solid #eeeeee;">
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
-                Need help? Contact us at <a href="mailto:support@banatalk.com" style="color: #f5576c; text-decoration: none;">support@banatalk.com</a>
+                ${emailT(emailLocale, 'common.needHelp')} <a href="mailto:support@banatalk.com" style="color: #f5576c; text-decoration: none;">support@banatalk.com</a>
               </p>
               <p style="margin: 0; font-size: 12px; color: #999999;">
-                © ${new Date().getFullYear()} Bananatalk. All rights reserved.
+                ${emailT(emailLocale, 'common.rights', { year: new Date().getFullYear(), appName: 'Bananatalk' })}
               </p>
             </td>
           </tr>
@@ -1145,11 +1145,11 @@ If you didn't request a password reset, you can ignore this email — your passw
 </body>
 </html>
   `;
-  
+
   try {
     await sendEmail({
       email: user.email,
-      subject: 'Your Bananatalk password reset code',
+      subject: emailT(emailLocale, 'passwordResetCode.subject'),
       message,
       html
     });

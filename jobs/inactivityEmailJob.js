@@ -57,7 +57,7 @@ const runInactivityCheck = async () => {
     const users = await User.find({
       isRegistrationComplete: true,
       'privacySettings.emailNotifications': { $ne: false }
-    }).select('name email lastActivityAt inactivityEmailsSent privacySettings language_to_learn');
+    }).select('name email lastActivityAt inactivityEmailsSent privacySettings language_to_learn preferredLocale');
 
     console.log(`📊 Checking ${users.length} users for inactivity...`);
 

@@ -1,0 +1,194 @@
+{
+  "_meta": {
+    "locale": "ja",
+    "machineTranslated": true,
+    "note": "MACHINE-TRANSLATED from en.json (2026-07-14) — needs native-speaker QA before being considered final. Placeholders {likeThis} must never be altered."
+  },
+  "common": {
+    "greeting": "{userName}さん、こんにちは。",
+    "needHelp": "お困りですか？お問い合わせ:",
+    "rights": "© {year} {appName}. All rights reserved.",
+    "unsubscribe": "配信停止",
+    "openApp": "Bananatalk を開く",
+    "getApp": "アプリをダウンロード",
+    "unknown": "不明",
+    "unknownDevice": "不明なデバイス",
+    "unknownLocation": "不明な場所",
+    "timeLabel": "日時:",
+    "deviceLabel": "デバイス:",
+    "ipLabel": "IPアドレス:",
+    "locationLabel": "場所:",
+    "reasonLabel": "理由:"
+  },
+  "welcome": {
+    "subject": "{userName}さん、{appName}へようこそ！",
+    "heading": "{appName}へようこそ",
+    "tagline": "ネイティブスピーカーと本物の言語練習を",
+    "intro": "{userName}さん、アカウントの準備ができました — 今すぐネイティブスピーカーと練習を始められます。",
+    "whatYouCanDo": "できること:",
+    "features": [
+      "学習中の言語のネイティブスピーカーとチャット",
+      "コミュニティからメッセージの添削を受ける",
+      "モーメントを共有して目標言語でのライティングを練習",
+      "単語やフレーズを単語帳に保存"
+    ],
+    "cta": "言語パートナーを探す"
+  },
+  "passwordChanged": {
+    "subject": "{appName}のパスワードが変更されました",
+    "heading": "パスワード変更完了",
+    "intro": "{userName}さん、{timestamp}に{appName}のパスワードが変更されました。",
+    "allSet": "ご本人による変更であれば、対応は不要です。",
+    "notYouHtml": "<strong>心当たりがありませんか？</strong>{resetLink}し、{supportEmail} までご連絡ください。",
+    "notYouLinkLabel": "今すぐリセット",
+    "notYouText": "心当たりがありませんか？{resetUrl} で今すぐリセットし、{supportEmail} までご連絡ください。"
+  },
+  "newLogin": {
+    "subject": "{appName}アカウントへの新しいログイン",
+    "heading": "新しいログインがありました",
+    "intro": "{userName}さん、新しいデバイスから{appName}アカウントへのログインがありました。",
+    "wasYou": "ご本人によるログインであれば、このメールは無視してください。",
+    "notYouHtml": "<strong>心当たりのないログインですか？</strong>アカウント保護のため{resetLink}してください。",
+    "notYouLinkLabel": "パスワードをリセット",
+    "textBody": "{userName}さん、{timestamp}に{device}（{location}）から{appName}アカウントへのログインがありました。",
+    "notYouText": "心当たりのないログインですか？アカウント保護のためパスワードをリセットしてください: {resetUrl}"
+  },
+  "deactivation21": {
+    "subject": "積み上げた学習記録はそのまま残っています",
+    "heading": "いつでも再開できます",
+    "p1": "最後のセッションから3週間。会話履歴、単語帳、学習の進捗はすべてそのまま保存されています。",
+    "p2": "言語学習は長い道のりです。休むのも自然なこと。再開する準備ができたら、ログインするだけです。",
+    "cta": "ログインして再開",
+    "text": "{userName}さん、BananaTalkでの最後のセッションから3週間が経ちました。アカウント、会話、単語帳はすべて保存されています。準備ができたらログインしてください: {url}"
+  },
+  "deactivation28": {
+    "subject": "1回のログインでBananaTalkアカウントを維持できます",
+    "heading": "アカウントに関するお知らせ",
+    "p1": "1回ログインするだけで、アカウントは有効なまま維持されます。保存した会話や単語もそのまま残ります。",
+    "p2": "所要時間は10秒です。",
+    "cta": "アカウントを維持する",
+    "text": "{userName}さん、1回ログインするだけでBananaTalkアカウントを維持できます。保存した会話と単語帳はそのまま残っています: {url}"
+  },
+  "inactivity7": {
+    "subject": "{language}の練習が止まっています — 続きから再開しましょう",
+    "subjectFallback": "言語の練習が止まっています — 続きから再開しましょう",
+    "heading": "1週間ぶりですね",
+    "p1": "最後のセッションから7日が経ちました。新しい単語を忘れ始める頃ですが、短い練習を1回すれば、まだ取り戻せる時期です。",
+    "p2": "いちばん簡単な方法: AIチューターを開いて、{language}で5分間会話してみましょう。準備は不要、話し始めるだけです。",
+    "p2Fallback": "いちばん簡単な方法: AIチューターを開いて、学習中の言語で5分間会話してみましょう。準備は不要、話し始めるだけです。",
+    "p3": "保存した単語や進行中の会話もそのまま残っています。",
+    "cta": "5分セッションを始める",
+    "text": "{userName}さん、BananaTalkでの最後のセッションから7日が経ちました。AIチューターで5分間の{language}会話を試してみましょう: {url}",
+    "textFallback": "{userName}さん、BananaTalkでの最後のセッションから7日が経ちました。AIチューターで5分間の会話を試してみましょう: {url}"
+  },
+  "inactivity14": {
+    "subject": "単語帳が2週間待っています",
+    "heading": "2週間ぶりですね",
+    "p1": "2週間のお休みで、保存した単語の一部は復習のタイミングを過ぎています。単語は単語帳にそのまま残っています — 定着させるにはあと1セッションだけです。",
+    "p2": "復習キューを開いて10分だけ使ってみてください。ペースを取り戻すにはそれで十分です。",
+    "cta": "単語を復習する",
+    "text": "{userName}さん、最後のセッションから2週間が経ちました。単語帳が待っています。BananaTalkを開く: {url}"
+  },
+  "weeklyDigest": {
+    "subject": "今週の言語学習まとめ",
+    "heading": "BananaTalkでの1週間",
+    "weekOf": "{date}の週",
+    "intro": "{userName}さん、今週の学習記録です:",
+    "statWordsReviewed": "復習した単語",
+    "statWordsSaved": "新しく保存した単語",
+    "statMessages": "パートナーとのメッセージ",
+    "statCorrections": "やり取りした添削",
+    "cta": "進捗をすべて見る",
+    "text": "{userName}さん、今週のBananaTalk: 復習した単語 {wordsReviewed}、新しく保存した単語 {wordsSaved}、パートナーとのメッセージ {messagesSent}、やり取りした添削 {correctionsExchanged}。",
+    "textCta": "進捗をすべて見る: {url}"
+  },
+  "newFollower": {
+    "subject": "{followerName}さんが{appName}であなたをフォローしました",
+    "heading": "新しいフォロワーがいます",
+    "intro": "{userName}さん、{followerName}さんが{appName}であなたをフォローしました。",
+    "body": "新しいフォロワーは言語交換を始める良いきっかけです — 挨拶して、お互いの言語が合うか確かめてみましょう。",
+    "cta": "挨拶する",
+    "text": "{userName}さん、{followerName}さんが{appName}であなたをフォローしました。挨拶して言語交換を始めてみましょう: {url}"
+  },
+  "newMessage": {
+    "subject": "{appName}で{senderName}さんから新着メッセージ",
+    "heading": "新着メッセージがあります",
+    "intro": "{userName}さん、{senderName}さんから{appName}でメッセージが届きました:",
+    "cta": "{appName}で返信する",
+    "text": "{userName}さん、{senderName}さんから{appName}でメッセージが届きました: \"{messagePreview}\"",
+    "textReply": "返信する: {url}"
+  },
+  "correction": {
+    "subject": "{correctorName}さんが{appName}で添削を提案しました",
+    "heading": "添削が届きました",
+    "intro": "{userName}さん、{correctorName}さんがあなたのメッセージに添削を提案しました。変更内容はこちらです:",
+    "originalLabel": "原文:",
+    "correctedLabel": "添削後:",
+    "cta": "添削を確認する",
+    "text": "{userName}さん、{correctorName}さんが{appName}であなたのメッセージに添削を提案しました。",
+    "textSeeIt": "添削を確認する: {url}"
+  },
+  "vip": {
+    "subject": "{userName}さん、{appName} VIPへようこそ",
+    "heading": "VIPメンバーシップが有効になりました",
+    "intro": "{userName}さん、{appName} VIPの{plan}プランが有効になりました。{appName}を応援いただきありがとうございます。",
+    "whatsIncluded": "含まれる特典:",
+    "benefits": [
+      "毎日メッセージ無制限",
+      "広告なし",
+      "メッセージ翻訳",
+      "高度な検索フィルター",
+      "VIPバッジ",
+      "優先サポート"
+    ],
+    "activeUntil": "サブスクリプションの有効期限は{date}です。",
+    "text": "{userName}さん、{appName} VIPの{plan}プランが有効になりました。含まれる特典: {benefits}。有効期限は{date}です。"
+  },
+  "promotional": {
+    "seeYou": "{appName}でお会いしましょう。"
+  },
+  "promoCampaign": {
+    "title": "添削がもっと使いやすくなりました",
+    "message": "パートナーからの添削を、チャットの吹き出しの中でワンタップで承認できるようになりました — メニューも長押しも不要です。\n\n今回のアップデートのその他の新機能:\n\n• 各メッセージの下に小さな「添削」ボタンが追加され、パートナーを助けるのがワンタップに\n• 翻訳したメッセージで「フレーズを保存」をタップすると、そのまま単語帳に入り、あとで復習できます\n\nアプリをアップデートして、次の会話で試してみてください。",
+    "ctaText": "BananaTalk を開く"
+  },
+  "reportResolution": {
+    "subject": "ご報告を確認しました",
+    "heading": "ご報告を確認しました",
+    "p1": "{date}にご提出いただいた報告を確認し、必要に応じて適切な対応を行いました。",
+    "p2": "プライバシー保護のため個別の対応内容はお伝えできませんが、すべての報告が{appName}の安全に役立っています。",
+    "p3": "コミュニティへのご協力ありがとうございます。"
+  },
+  "ban": {
+    "subject": "{appName}アカウントが停止されました",
+    "heading": "アカウント停止",
+    "p1": "お客様の{appName}アカウントは、寄せられた報告の審査の結果、停止されました。",
+    "appealHtml": "誤った対応だと思われる場合は、ユーザー名を添えて {appealLink} までご連絡ください。再度確認いたします。",
+    "appealText": "誤った対応だと思われる場合は、ユーザー名を添えて {appealEmail} までご連絡ください。再度確認いたします。"
+  },
+  "unban": {
+    "subject": "{appName}アカウントが復元されました",
+    "heading": "アカウント復元",
+    "p1": "朗報です — {appName}アカウントが復元され、今すぐログインできるようになりました。",
+    "questionsHtml": "ご不明な点があれば {supportLink} までご連絡ください。",
+    "questionsText": "ご不明な点があれば {supportEmail} までご連絡ください。"
+  },
+  "verificationCode": {
+    "subject": "Bananatalkの確認コード",
+    "heading": "メールアドレスの確認",
+    "intro": "Bananatalkアプリに以下のコードを入力して、メールアドレスを確認しアカウント作成を完了してください:",
+    "codeLabel": "確認コード",
+    "expiry": "このコードの有効期限は<strong>{minutes}分</strong>です。",
+    "ignore": "このコードに心当たりがない場合は、このメールを無視してください。アカウントは作成されません。",
+    "text": "Bananatalkの確認コード: {code}\n\nアプリにこのコードを入力してメールアドレスを確認してください。有効期限は{minutes}分です。\n\nこのコードに心当たりがない場合は、このメールを無視してください — アカウントは作成されません。"
+  },
+  "passwordResetCode": {
+    "subject": "Bananatalkのパスワードリセットコード",
+    "heading": "パスワードのリセット",
+    "intro": "Bananatalkのパスワードリセットのリクエストを受け付けました。アプリに以下のコードを入力して新しいパスワードを設定してください:",
+    "codeLabel": "リセットコード",
+    "expiry": "このコードの有効期限は<strong>{minutes}分</strong>です。",
+    "stillSecure": "パスワードリセットをリクエストしていない場合、アカウントは安全です。このメールは無視してください。",
+    "text": "Bananatalkのパスワードリセットコード: {code}\n\nアプリにこのコードを入力して新しいパスワードを設定してください。有効期限は{minutes}分です。\n\nリセットをリクエストしていない場合は、このメールを無視してください — パスワードは変更されません。"
+  }
+}

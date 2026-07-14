@@ -8,25 +8,21 @@
 const User = require('../models/User');
 const emailService = require('../services/emailService');
 
-// Promotional content - update this for each campaign
+// Promotional campaign config.
 //
 // campaignId: bump this to a new value whenever the content changes so the
 // campaign goes out to everyone again. Users who already received the
 // CURRENT campaignId are skipped (see promoCampaignsSent on the User model)
 // — this stops the identical-weekly-promo hammer that trains Gmail to
 // spam-fold repeat sends of the same content.
+//
+// COPY LIVES IN email_templates/{locale}.json under "promoCampaign"
+// (title/message/ctaText) — emailService.sendPromotionalEmail resolves each
+// user's preferredLocale and pulls the localized strings, falling back to
+// en per key. Update the catalogs (at minimum en.json) when you bump
+// campaignId. Only URLs + the dedup id stay here.
 const PROMO_CONFIG = {
   campaignId: 'corrections-in-one-tap-2026-07',
-  title: 'Corrections just got easier',
-  message: `You can now accept a partner's correction with a single tap, right in the chat bubble — no menus, no long-press.
-
-Also new in this update:
-
-• A small "Correct" button now sits under each message, so helping your partner takes one tap
-• Tap "Save phrase" on any translated message to send it straight to your vocabulary deck for review
-
-Update the app to try them in your next conversation.`,
-  ctaText: 'Open BananaTalk',
   ctaUrl: 'https://banatalk.com',
   iosUrl: 'https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146',
   androidUrl: 'https://play.google.com/store/apps/details?id=com.bananatalk.app'
@@ -57,7 +53,7 @@ const runPromotionalEmailJob = async () => {
     const users = await User.find({
       isRegistrationComplete: true,
       email: { $exists: true, $ne: null, $regex: /@/ }
-    }).select('email name privacySettings promoCampaignsSent').lean();
+    }).select('email name privacySettings promoCampaignsSent preferredLocale').lean();
 
     console.log(`📊 Found ${users.length} users to email (campaignId=${campaignId})`);
 

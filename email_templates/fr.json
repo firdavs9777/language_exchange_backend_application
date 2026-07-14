@@ -1,0 +1,194 @@
+{
+  "_meta": {
+    "locale": "fr",
+    "machineTranslated": true,
+    "note": "MACHINE-TRANSLATED from en.json (2026-07-14) — needs native-speaker QA before being considered final. Placeholders {likeThis} must never be altered."
+  },
+  "common": {
+    "greeting": "Bonjour {userName},",
+    "needHelp": "Besoin d'aide ? Contactez-nous à",
+    "rights": "© {year} {appName}. Tous droits réservés.",
+    "unsubscribe": "Se désabonner",
+    "openApp": "Ouvrir Bananatalk",
+    "getApp": "Télécharger l'application",
+    "unknown": "Inconnu",
+    "unknownDevice": "Appareil inconnu",
+    "unknownLocation": "Lieu inconnu",
+    "timeLabel": "Heure :",
+    "deviceLabel": "Appareil :",
+    "ipLabel": "Adresse IP :",
+    "locationLabel": "Lieu :",
+    "reasonLabel": "Motif :"
+  },
+  "welcome": {
+    "subject": "Bienvenue sur {appName}, {userName} !",
+    "heading": "Bienvenue sur {appName}",
+    "tagline": "Pratiquez les langues avec ceux qui les parlent vraiment",
+    "intro": "Bonjour {userName}, votre compte est prêt — vous pouvez commencer à pratiquer avec des locuteurs natifs dès maintenant.",
+    "whatYouCanDo": "Voici ce que vous pouvez faire :",
+    "features": [
+      "Discuter avec des locuteurs natifs de la langue que vous apprenez",
+      "Recevoir des corrections de vos messages par la communauté",
+      "Partager des moments et pratiquer l'écriture dans votre langue cible",
+      "Enregistrer des mots et expressions dans votre carnet de vocabulaire"
+    ],
+    "cta": "Trouver un partenaire linguistique"
+  },
+  "passwordChanged": {
+    "subject": "Votre mot de passe {appName} a été modifié",
+    "heading": "Mot de passe mis à jour",
+    "intro": "Bonjour {userName}, votre mot de passe {appName} a été modifié le {timestamp}.",
+    "allSet": "Si vous êtes à l'origine de ce changement, tout est en ordre — aucune action n'est nécessaire.",
+    "notYouHtml": "<strong>Vous n'avez pas changé votre mot de passe ?</strong> {resetLink} et contactez {supportEmail}.",
+    "notYouLinkLabel": "Réinitialisez-le maintenant",
+    "notYouText": "Vous n'avez pas changé votre mot de passe ? Réinitialisez-le maintenant sur {resetUrl} et contactez {supportEmail}."
+  },
+  "newLogin": {
+    "subject": "Nouvelle connexion à votre compte {appName}",
+    "heading": "Nouvelle connexion à votre compte",
+    "intro": "Bonjour {userName}, une connexion à votre compte {appName} vient d'avoir lieu depuis un nouvel appareil.",
+    "wasYou": "Si c'était vous, vous pouvez ignorer cet e-mail.",
+    "notYouHtml": "<strong>Vous ne reconnaissez pas cette connexion ?</strong> {resetLink} pour sécuriser votre compte.",
+    "notYouLinkLabel": "Réinitialisez votre mot de passe",
+    "textBody": "Bonjour {userName}, une connexion à votre compte {appName} a eu lieu depuis {device} ({location}) le {timestamp}.",
+    "notYouText": "Vous ne reconnaissez pas cette connexion ? Réinitialisez votre mot de passe pour sécuriser votre compte : {resetUrl}"
+  },
+  "deactivation21": {
+    "subject": "Tout ce que vous avez construit est toujours là",
+    "heading": "Toujours là quand vous serez prêt(e)",
+    "p1": "Trois semaines d'absence. Votre historique de conversations, votre carnet de vocabulaire et vos progrès sont conservés exactement là où vous les avez laissés.",
+    "p2": "Apprendre une langue est un travail de longue haleine — faire une pause est normal. Quand vous serez prêt(e) à reprendre, connectez-vous simplement.",
+    "cta": "Me reconnecter",
+    "text": "Bonjour {userName}, trois semaines depuis votre dernière session BananaTalk. Votre compte, vos conversations et votre vocabulaire sont conservés. Reconnectez-vous quand vous voulez : {url}"
+  },
+  "deactivation28": {
+    "subject": "Une connexion suffit pour garder votre compte BananaTalk actif",
+    "heading": "Information sur votre compte",
+    "p1": "Une seule connexion suffit pour garder votre compte actif. Les conversations et le vocabulaire que vous avez enregistrés vous attendront.",
+    "p2": "Cela prend 10 secondes.",
+    "cta": "Garder mon compte",
+    "text": "Bonjour {userName}, connectez-vous une fois pour garder votre compte BananaTalk actif. Vos conversations et votre vocabulaire seront là : {url}"
+  },
+  "inactivity7": {
+    "subject": "Votre pratique du {language} est en pause — reprenez là où vous en étiez",
+    "subjectFallback": "Votre pratique linguistique est en pause — reprenez là où vous en étiez",
+    "heading": "Une semaine déjà",
+    "p1": "Cela fait 7 jours depuis votre dernière session. C'est précisément le moment où le nouveau vocabulaire commence à s'effacer — mais une courte pratique suffit encore à le raviver.",
+    "p2": "Le plus simple : ouvrez le tuteur IA et discutez 5 minutes en {language}. Aucune préparation — lancez-vous.",
+    "p2Fallback": "Le plus simple : ouvrez le tuteur IA et discutez 5 minutes dans votre langue cible. Aucune préparation — lancez-vous.",
+    "p3": "Vos mots enregistrés et vos conversations en cours seront là aussi.",
+    "cta": "Démarrer une session de 5 minutes",
+    "text": "Bonjour {userName}, cela fait 7 jours depuis votre dernière session BananaTalk. Ouvrez le tuteur IA pour une conversation de 5 minutes en {language} : {url}",
+    "textFallback": "Bonjour {userName}, cela fait 7 jours depuis votre dernière session BananaTalk. Ouvrez le tuteur IA pour une conversation de 5 minutes : {url}"
+  },
+  "inactivity14": {
+    "subject": "Votre carnet de vocabulaire vous attend depuis deux semaines",
+    "heading": "Deux semaines d'absence",
+    "p1": "Après deux semaines de pause, certains mots que vous avez enregistrés attendent d'être révisés. Le vocabulaire est toujours dans votre carnet — il ne lui manque qu'une session pour s'ancrer.",
+    "p2": "Ouvrez votre file de révision et accordez-lui 10 minutes. C'est suffisant pour reprendre le rythme.",
+    "cta": "Réviser mon vocabulaire",
+    "text": "Bonjour {userName}, deux semaines depuis votre dernière session. Votre carnet de vocabulaire vous attend. Ouvrez BananaTalk : {url}"
+  },
+  "weeklyDigest": {
+    "subject": "Votre semaine d'apprentissage linguistique",
+    "heading": "Votre semaine sur BananaTalk",
+    "weekOf": "Semaine du {date}",
+    "intro": "Bonjour {userName}, voici ce que vous avez fait cette semaine :",
+    "statWordsReviewed": "mots révisés",
+    "statWordsSaved": "nouveaux mots enregistrés",
+    "statMessages": "messages avec vos partenaires",
+    "statCorrections": "corrections échangées",
+    "cta": "Voir tous mes progrès",
+    "text": "Bonjour {userName}, votre semaine sur BananaTalk : {wordsReviewed} mots révisés, {wordsSaved} nouveaux mots enregistrés, {messagesSent} messages avec vos partenaires, {correctionsExchanged} corrections échangées.",
+    "textCta": "Voir tous vos progrès : {url}"
+  },
+  "newFollower": {
+    "subject": "{followerName} a commencé à vous suivre sur {appName}",
+    "heading": "Vous avez un nouvel abonné",
+    "intro": "Bonjour {userName}, {followerName} a commencé à vous suivre sur {appName}.",
+    "body": "Un nouvel abonné est une belle occasion de lancer un échange linguistique — dites bonjour et voyez si vos langues correspondent.",
+    "cta": "Dire bonjour",
+    "text": "Bonjour {userName}, {followerName} a commencé à vous suivre sur {appName}. Dites bonjour et voyez si vos langues correspondent : {url}"
+  },
+  "newMessage": {
+    "subject": "Nouveau message de {senderName} sur {appName}",
+    "heading": "Vous avez un nouveau message",
+    "intro": "Bonjour {userName}, {senderName} vous a envoyé un message sur {appName} :",
+    "cta": "Répondre sur {appName}",
+    "text": "Bonjour {userName}, {senderName} vous a envoyé un message sur {appName} : \"{messagePreview}\"",
+    "textReply": "Répondre : {url}"
+  },
+  "correction": {
+    "subject": "{correctorName} vous a proposé une correction sur {appName}",
+    "heading": "Vous avez reçu une correction",
+    "intro": "Bonjour {userName}, {correctorName} a proposé une correction pour l'un de vos messages. Voici ce qui a changé :",
+    "originalLabel": "Original :",
+    "correctedLabel": "Corrigé :",
+    "cta": "Voir la correction",
+    "text": "Bonjour {userName}, {correctorName} a proposé une correction pour l'un de vos messages sur {appName}.",
+    "textSeeIt": "Voir la correction : {url}"
+  },
+  "vip": {
+    "subject": "Bienvenue dans {appName} VIP, {userName}",
+    "heading": "Votre abonnement VIP est actif",
+    "intro": "Bonjour {userName}, votre formule VIP {plan} de {appName} est maintenant active. Merci de soutenir {appName}.",
+    "whatsIncluded": "Ce qui est inclus :",
+    "benefits": [
+      "Messages illimités chaque jour",
+      "Sans publicité",
+      "Traduction des messages",
+      "Filtres de recherche avancés",
+      "Badge VIP",
+      "Assistance prioritaire"
+    ],
+    "activeUntil": "Votre abonnement est actif jusqu'au {date}.",
+    "text": "Bonjour {userName}, votre formule VIP {plan} de {appName} est maintenant active. Ce qui est inclus : {benefits}. Votre abonnement est actif jusqu'au {date}."
+  },
+  "promotional": {
+    "seeYou": "À bientôt sur {appName}."
+  },
+  "promoCampaign": {
+    "title": "Les corrections sont désormais plus simples",
+    "message": "Vous pouvez maintenant accepter la correction d'un partenaire d'un simple geste, directement dans la bulle de discussion — sans menu, sans appui long.\n\nÉgalement dans cette mise à jour :\n\n• Un petit bouton « Corriger » apparaît sous chaque message : aider votre partenaire ne prend plus qu'un geste\n• Touchez « Enregistrer la phrase » sur n'importe quel message traduit pour l'envoyer directement dans votre carnet de vocabulaire\n\nMettez à jour l'application et essayez ces nouveautés dans votre prochaine conversation.",
+    "ctaText": "Ouvrir BananaTalk"
+  },
+  "reportResolution": {
+    "subject": "Votre signalement a été examiné",
+    "heading": "Votre signalement a été examiné",
+    "p1": "Nous avons examiné le signalement que vous avez soumis le {date} et pris les mesures appropriées lorsque cela était justifié.",
+    "p2": "Pour des raisons de confidentialité, nous ne communiquons pas les décisions précises, mais chaque signalement contribue à la sécurité de {appName}.",
+    "p3": "Merci d'aider la communauté."
+  },
+  "ban": {
+    "subject": "Votre compte {appName} a été suspendu",
+    "heading": "Compte suspendu",
+    "p1": "Votre compte {appName} a été suspendu à la suite de l'examen de signalements le concernant.",
+    "appealHtml": "Si vous pensez qu'il s'agit d'une erreur, contactez {appealLink} en indiquant votre nom d'utilisateur et nous réexaminerons la situation.",
+    "appealText": "Si vous pensez qu'il s'agit d'une erreur, contactez {appealEmail} en indiquant votre nom d'utilisateur et nous réexaminerons la situation."
+  },
+  "unban": {
+    "subject": "Votre compte {appName} a été rétabli",
+    "heading": "Compte rétabli",
+    "p1": "Bonne nouvelle — votre compte {appName} a été rétabli et vous pouvez vous reconnecter dès maintenant.",
+    "questionsHtml": "Pour toute question, contactez {supportLink}.",
+    "questionsText": "Pour toute question, contactez {supportEmail}."
+  },
+  "verificationCode": {
+    "subject": "Votre code de vérification Bananatalk",
+    "heading": "Confirmez votre adresse e-mail",
+    "intro": "Saisissez ce code dans l'application Bananatalk pour vérifier votre adresse e-mail et finaliser la création de votre compte :",
+    "codeLabel": "Votre code de vérification",
+    "expiry": "Ce code expire dans <strong>{minutes} minutes</strong>.",
+    "ignore": "Si vous n'avez pas demandé ce code, ignorez simplement cet e-mail : aucun compte ne sera créé.",
+    "text": "Votre code de vérification Bananatalk : {code}\n\nSaisissez ce code dans l'application pour vérifier votre adresse e-mail. Il expire dans {minutes} minutes.\n\nSi vous n'avez pas demandé ce code, vous pouvez ignorer cet e-mail — aucun compte ne sera créé."
+  },
+  "passwordResetCode": {
+    "subject": "Votre code de réinitialisation Bananatalk",
+    "heading": "Réinitialisez votre mot de passe",
+    "intro": "Nous avons reçu une demande de réinitialisation de votre mot de passe Bananatalk. Saisissez ce code dans l'application pour en choisir un nouveau :",
+    "codeLabel": "Votre code de réinitialisation",
+    "expiry": "Ce code expire dans <strong>{minutes} minutes</strong>.",
+    "stillSecure": "Si vous n'avez pas demandé de réinitialisation, votre compte reste sécurisé. Vous pouvez ignorer cet e-mail.",
+    "text": "Votre code de réinitialisation Bananatalk : {code}\n\nSaisissez ce code dans l'application pour choisir un nouveau mot de passe. Il expire dans {minutes} minutes.\n\nSi vous n'avez pas demandé de réinitialisation, ignorez cet e-mail — votre mot de passe ne sera pas modifié."
+  }
+}
