@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const CATALOG_DIR = path.join(__dirname, '..', 'email_templates');
-const TRANSLATED = ['zh', 'ar', 'ru', 'ko', 'ja', 'fr'];
+const TRANSLATED = ['zh', 'zh_TW', 'ar', 'ru', 'ko', 'ja', 'fr'];
 
 const load = (locale) =>
   JSON.parse(fs.readFileSync(path.join(CATALOG_DIR, `${locale}.json`), 'utf8'));

@@ -1,0 +1,194 @@
+{
+  "_meta": {
+    "locale": "zh_TW",
+    "machineTranslated": true,
+    "note": "MACHINE-TRANSLATED from en.json (2026-07-14) — needs native-speaker QA before being considered final. Placeholders {likeThis} must never be altered."
+  },
+  "common": {
+    "greeting": "{userName}，你好：",
+    "needHelp": "需要幫助？聯絡我們：",
+    "rights": "© {year} {appName}。保留所有權利。",
+    "unsubscribe": "取消訂閱",
+    "openApp": "開啟 Bananatalk",
+    "getApp": "下載 App",
+    "unknown": "未知",
+    "unknownDevice": "未知裝置",
+    "unknownLocation": "未知位置",
+    "timeLabel": "時間：",
+    "deviceLabel": "裝置：",
+    "ipLabel": "IP 位址：",
+    "locationLabel": "位置：",
+    "reasonLabel": "原因："
+  },
+  "welcome": {
+    "subject": "{userName}，歡迎加入 {appName}！",
+    "heading": "歡迎來到 {appName}",
+    "tagline": "和真正的母語者一起練習語言",
+    "intro": "{userName}，你的帳號已準備就緒 — 現在就可以開始和母語者練習了。",
+    "whatYouCanDo": "你可以做這些：",
+    "features": [
+      "與你正在學習的語言的母語者聊天",
+      "讓社群幫你修正訊息中的錯誤",
+      "分享動態，用目標語言練習寫作",
+      "把單字和片語保存到你的生詞本"
+    ],
+    "cta": "尋找語伴"
+  },
+  "passwordChanged": {
+    "subject": "你的 {appName} 密碼已被修改",
+    "heading": "密碼已更新",
+    "intro": "{userName}，你的 {appName} 密碼已於 {timestamp} 被修改。",
+    "allSet": "如果是你本人操作，不需要做任何事。",
+    "notYouHtml": "<strong>不是你修改的密碼？</strong>請{resetLink}，並聯絡 {supportEmail}。",
+    "notYouLinkLabel": "立即重設",
+    "notYouText": "不是你修改的密碼？請立即前往 {resetUrl} 重設，並聯絡 {supportEmail}。"
+  },
+  "newLogin": {
+    "subject": "你的 {appName} 帳號有新的登入",
+    "heading": "帳號有新的登入",
+    "intro": "{userName}，你的 {appName} 帳號剛剛在一台新裝置上登入。",
+    "wasYou": "如果是你本人操作，可以忽略這封信。",
+    "notYouHtml": "<strong>不是你本人登入？</strong>請{resetLink}以保護你的帳號。",
+    "notYouLinkLabel": "重設密碼",
+    "textBody": "{userName}，你的 {appName} 帳號於 {timestamp} 在 {device}（{location}）登入。",
+    "notYouText": "不是你本人登入？請重設密碼以保護你的帳號：{resetUrl}"
+  },
+  "deactivation21": {
+    "subject": "你累積的一切都還在",
+    "heading": "我們一直在這裡等你",
+    "p1": "三週沒見了。你的聊天紀錄、生詞本和學習進度都原封不動地保存著。",
+    "p2": "學語言是一場長跑，偶爾暫停沒關係。準備好繼續時，登入就可以了。",
+    "cta": "重新登入",
+    "text": "{userName}，距離你上次使用 BananaTalk 已經三週了。你的帳號、聊天紀錄和生詞本都還在。準備好了就回來：{url}"
+  },
+  "deactivation28": {
+    "subject": "登入一次即可保留你的 BananaTalk 帳號",
+    "heading": "帳號提醒",
+    "p1": "只需登入一次，你的帳號就會保持活躍。你保存的對話和生詞都會等著你。",
+    "p2": "只要 10 秒鐘。",
+    "cta": "保留我的帳號",
+    "text": "{userName}，登入一次即可保留你的 BananaTalk 帳號。你保存的對話和生詞都還在：{url}"
+  },
+  "inactivity7": {
+    "subject": "你的{language}練習暫停了 — 從上次的進度繼續吧",
+    "subjectFallback": "你的語言練習暫停了 — 從上次的進度繼續吧",
+    "heading": "一週沒見了",
+    "p1": "距離你上次練習已經 7 天了。新學的詞彙正是這時候開始遺忘的 — 但現在補上一次簡短的練習，還來得及把它們找回來。",
+    "p2": "最簡單的方式：打開 AI 導師，用{language}進行一次 5 分鐘的對話。不用準備，開口就行。",
+    "p2Fallback": "最簡單的方式：打開 AI 導師，用你正在學的語言進行一次 5 分鐘的對話。不用準備，開口就行。",
+    "p3": "你保存的單字和未完成的對話也都還在。",
+    "cta": "開始 5 分鐘練習",
+    "text": "{userName}，距離你上次使用 BananaTalk 已經 7 天了。打開 AI 導師，來一段 5 分鐘的{language}對話：{url}",
+    "textFallback": "{userName}，距離你上次使用 BananaTalk 已經 7 天了。打開 AI 導師，來一段 5 分鐘的對話：{url}"
+  },
+  "inactivity14": {
+    "subject": "你的生詞本已經等了你兩週",
+    "heading": "兩週沒見了",
+    "p1": "兩週沒練習，你保存的一些單字已經過了複習時間。它們還在你的生詞本裡 — 只差一次練習就能記牢。",
+    "p2": "打開學習佇列，花 10 分鐘就夠了。這足以讓你重回正軌。",
+    "cta": "複習我的生詞",
+    "text": "{userName}，距離你上次練習已經兩週了。你的生詞本在等你。打開 BananaTalk：{url}"
+  },
+  "weeklyDigest": {
+    "subject": "你這一週的語言學習",
+    "heading": "你在 BananaTalk 的一週",
+    "weekOf": "{date} 當週",
+    "intro": "{userName}，這是你本週的學習紀錄：",
+    "statWordsReviewed": "複習的單字",
+    "statWordsSaved": "新保存的單字",
+    "statMessages": "與語伴的訊息",
+    "statCorrections": "互相修正的次數",
+    "cta": "查看完整進度",
+    "text": "{userName}，你本週在 BananaTalk 的紀錄：複習單字 {wordsReviewed} 個，新保存單字 {wordsSaved} 個，與語伴的訊息 {messagesSent} 則，互相修正 {correctionsExchanged} 次。",
+    "textCta": "查看完整進度：{url}"
+  },
+  "newFollower": {
+    "subject": "{followerName} 在 {appName} 上追蹤了你",
+    "heading": "你有了新的追蹤者",
+    "intro": "{userName}，{followerName} 在 {appName} 上追蹤了你。",
+    "body": "新的追蹤者是開啟語言交換的好機會 — 打個招呼，看看你們的語言是否匹配。",
+    "cta": "打個招呼",
+    "text": "{userName}，{followerName} 在 {appName} 上追蹤了你。打個招呼，看看你們的語言是否匹配：{url}"
+  },
+  "newMessage": {
+    "subject": "{senderName} 在 {appName} 上給你傳了新訊息",
+    "heading": "你有一則新訊息",
+    "intro": "{userName}，{senderName} 在 {appName} 上給你傳了一則訊息：",
+    "cta": "在 {appName} 上回覆",
+    "text": "{userName}，{senderName} 在 {appName} 上給你傳了一則訊息：\"{messagePreview}\"",
+    "textReply": "回覆：{url}"
+  },
+  "correction": {
+    "subject": "{correctorName} 在 {appName} 上為你提出了修正建議",
+    "heading": "你收到了一則修正建議",
+    "intro": "{userName}，{correctorName} 為你的一則訊息提出了修正建議。修正內容如下：",
+    "originalLabel": "原文：",
+    "correctedLabel": "修正後：",
+    "cta": "查看修正",
+    "text": "{userName}，{correctorName} 在 {appName} 上為你的一則訊息提出了修正建議。",
+    "textSeeIt": "查看修正：{url}"
+  },
+  "vip": {
+    "subject": "{userName}，歡迎成為 {appName} VIP",
+    "heading": "你的 VIP 會員已生效",
+    "intro": "{userName}，你的 {appName} VIP {plan} 方案已生效。感謝你對 {appName} 的支持。",
+    "whatsIncluded": "包含的權益：",
+    "benefits": [
+      "每天無限量訊息",
+      "無廣告",
+      "訊息翻譯",
+      "進階搜尋篩選",
+      "VIP 徽章",
+      "優先客服支援"
+    ],
+    "activeUntil": "你的訂閱有效期至 {date}。",
+    "text": "{userName}，你的 {appName} VIP {plan} 方案已生效。包含的權益：{benefits}。訂閱有效期至 {date}。"
+  },
+  "promotional": {
+    "seeYou": "我們在 {appName} 見。"
+  },
+  "promoCampaign": {
+    "title": "修正建議現在更方便了",
+    "message": "現在，語伴給你的修正建議可以在聊天氣泡裡一鍵接受 — 不用進選單，也不用長按。\n\n本次更新還有：\n\n• 每則訊息下方新增小小的「修正」按鈕，幫語伴糾正錯誤只需輕點一下\n• 在任何翻譯過的訊息上點「保存片語」，即可直接存入生詞本，方便日後複習\n\n更新 App，在下一次對話中試試看吧。",
+    "ctaText": "開啟 BananaTalk"
+  },
+  "reportResolution": {
+    "subject": "你的檢舉已處理",
+    "heading": "你的檢舉已處理",
+    "p1": "我們已審核你於 {date} 提交的檢舉，並在必要時採取了相應的處理措施。",
+    "p2": "出於隱私考量，我們不會公開具體處理結果，但每一次檢舉都在幫助 {appName} 變得更安全。",
+    "p3": "感謝你為社群做出的貢獻。"
+  },
+  "ban": {
+    "subject": "你的 {appName} 帳號已被停權",
+    "heading": "帳號已停權",
+    "p1": "經過對相關檢舉的審核，你的 {appName} 帳號已被停權。",
+    "appealHtml": "如果你認為這是誤判，請附上你的使用者名稱聯絡 {appealLink}，我們會重新審核。",
+    "appealText": "如果你認為這是誤判，請附上你的使用者名稱聯絡 {appealEmail}，我們會重新審核。"
+  },
+  "unban": {
+    "subject": "你的 {appName} 帳號已恢復",
+    "heading": "帳號已恢復",
+    "p1": "好消息 — 你的 {appName} 帳號已恢復，現在就可以重新登入。",
+    "questionsHtml": "如有任何疑問，請聯絡 {supportLink}。",
+    "questionsText": "如有任何疑問，請聯絡 {supportEmail}。"
+  },
+  "verificationCode": {
+    "subject": "你的 Bananatalk 驗證碼",
+    "heading": "驗證你的電子郵件",
+    "intro": "在 Bananatalk App 中輸入以下驗證碼，驗證你的電子郵件地址並完成註冊：",
+    "codeLabel": "驗證碼",
+    "expiry": "此驗證碼將在 <strong>{minutes} 分鐘</strong>後失效。",
+    "ignore": "如果你沒有要求這組驗證碼，請忽略這封信，帳號不會被建立。",
+    "text": "你的 Bananatalk 驗證碼是：{code}\n\n在 App 中輸入此驗證碼以驗證你的電子郵件地址。驗證碼將在 {minutes} 分鐘後失效。\n\n如果你沒有要求這組驗證碼，忽略這封信即可 — 帳號不會被建立。"
+  },
+  "passwordResetCode": {
+    "subject": "你的 Bananatalk 密碼重設碼",
+    "heading": "重設你的密碼",
+    "intro": "我們收到了重設你 Bananatalk 密碼的請求。在 App 中輸入以下重設碼以設定新密碼：",
+    "codeLabel": "重設碼",
+    "expiry": "此重設碼將在 <strong>{minutes} 分鐘</strong>後失效。",
+    "stillSecure": "如果你沒有要求重設密碼，你的帳號仍然安全，忽略這封信即可。",
+    "text": "你的 Bananatalk 密碼重設碼是：{code}\n\n在 App 中輸入此重設碼以設定新密碼。重設碼將在 {minutes} 分鐘後失效。\n\n如果你沒有要求重設密碼，忽略這封信即可 — 你的密碼不會被更改。"
+  }
+}
