@@ -46,24 +46,35 @@ const runInactivityCheck = async () => {
     secondReminder: 0,
     warning: 0,
     finalWarning: 0,
+    skippedOptOut: 0,
     errors: 0
   };
-  
+
   try {
-    // Find all active users who haven't opted out of emails
+    // Find all active users who haven't opted out of emails. These are
+    // re-engagement/marketing sends (CAN-SPAM applies), so we gate on the
+    // same 'promotional' opt-out flag used elsewhere.
     const users = await User.find({
       isRegistrationComplete: true,
       'privacySettings.emailNotifications': { $ne: false }
     }).select('name email lastActivityAt inactivityEmailsSent privacySettings language_to_learn');
-    
+
     console.log(`📊 Checking ${users.length} users for inactivity...`);
-    
+
     for (const user of users) {
       stats.checked++;
-      
+
+      // Defense-in-depth: re-check the opt-out flag even though the query
+      // above already filters on it, in case the field was flipped between
+      // query and processing (long-running job over many users).
+      if (user.privacySettings?.emailNotifications === false) {
+        stats.skippedOptOut++;
+        continue;
+      }
+
       // Skip if no last activity date (new users)
       if (!user.lastActivityAt) continue;
-      
+
       const daysSinceActive = getDaysSinceActivity(user.lastActivityAt);
       const emailsSent = user.inactivityEmailsSent || [];
       
@@ -119,6 +130,7 @@ const runInactivityCheck = async () => {
     - Second reminders sent: ${stats.secondReminder}
     - Warnings sent: ${stats.warning}
     - Final warnings sent: ${stats.finalWarning}
+    - Skipped (opted out): ${stats.skippedOptOut}
     - Errors: ${stats.errors}`);
     
     return stats;

@@ -57,55 +57,55 @@ exports.welcomeEmail = (userName) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 50px 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 36px; font-weight: bold;">Welcome to ${APP_NAME}! 🎉</h1>
-        <p style="color: rgba(255,255,255,0.9); font-size: 18px; margin: 15px 0 0 0;">We're thrilled to have you join our community</p>
+        <h1 style="color: #ffffff; margin: 0; font-size: 36px; font-weight: bold;">Welcome to ${APP_NAME}</h1>
+        <p style="color: rgba(255,255,255,0.9); font-size: 18px; margin: 15px 0 0 0;">Practice languages with people who actually speak them</p>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
-        <p style="font-size: 18px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>! 👋
+        <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi <strong>${userName}</strong>, your account is ready — you can start practicing with native speakers right now.
         </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Congratulations on joining ${APP_NAME}! You've taken the first step towards connecting with language learners from around the world.
-        </p>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9ff; border-radius: 12px; padding: 25px; margin: 25px 0;">
           <tr>
             <td>
-              <h3 style="color: #667eea; margin: 0 0 15px 0; font-size: 18px;">🚀 Here's what you can do:</h3>
+              <h3 style="color: #667eea; margin: 0 0 15px 0; font-size: 18px;">Here's what you can do:</h3>
               <ul style="margin: 0; padding-left: 20px; color: #555555; line-height: 2;">
-                <li>Share moments and practice writing in your target language</li>
-                <li>Connect with native speakers through chat</li>
+                <li>Chat with native speakers of the language you're learning</li>
                 <li>Get corrections on your messages from the community</li>
-                <li>Watch stories from learners worldwide</li>
-                <li>Earn badges and track your progress</li>
+                <li>Share moments and practice writing in your target language</li>
+                <li>Save words and phrases to your vocabulary deck</li>
               </ul>
             </td>
           </tr>
         </table>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
               <a href="https://banatalk.com/explore" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                Start Exploring 🌍
+                Find a language partner
               </a>
             </td>
           </tr>
         </table>
-        
-        <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
-          Happy learning! 📚✨
-        </p>
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `Welcome to ${APP_NAME}, ${userName}! 🎉`,
+    subject: `Welcome to ${APP_NAME}, ${userName}!`,
     html: baseTemplate(content),
-    text: `Welcome to ${APP_NAME}, ${userName}! We're thrilled to have you join our community of language learners.`
+    text: `Hi ${userName}, your ${APP_NAME} account is ready — you can start practicing with native speakers right now.
+
+Here's what you can do:
+- Chat with native speakers of the language you're learning
+- Get corrections on your messages from the community
+- Share moments and practice writing in your target language
+- Save words and phrases to your vocabulary deck
+
+Find a language partner: https://banatalk.com/explore`
   };
 };
 
@@ -116,41 +116,42 @@ exports.passwordChangedEmail = (userName, deviceInfo = {}) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Password Updated ✅</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Password updated</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>,
+          Hi <strong>${userName}</strong>, your ${APP_NAME} password was changed on <strong>${new Date().toLocaleString()}</strong>.
         </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          Your password was successfully changed on <strong>${new Date().toLocaleString()}</strong>.
-        </p>
-        
+
         ${deviceInfo.device ? `
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0fff4; border: 1px solid #38ef7d; border-radius: 8px; padding: 20px; margin: 25px 0;">
           <tr>
             <td>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
-                <strong>📱 Device:</strong> ${deviceInfo.device || 'Unknown'}
+                <strong>Device:</strong> ${deviceInfo.device || 'Unknown'}
               </p>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #666666;">
-                <strong>🌐 IP Address:</strong> ${deviceInfo.ipAddress || 'Unknown'}
+                <strong>IP address:</strong> ${deviceInfo.ipAddress || 'Unknown'}
               </p>
               <p style="margin: 0; font-size: 14px; color: #666666;">
-                <strong>📍 Location:</strong> ${deviceInfo.location || 'Unknown'}
+                <strong>Location:</strong> ${deviceInfo.location || 'Unknown'}
               </p>
             </td>
           </tr>
         </table>
         ` : ''}
-        
+
+        <p style="font-size: 14px; color: #666666; line-height: 1.6; margin: 0 0 25px 0;">
+          If you made this change, you're all set — no action is needed.
+        </p>
+
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 25px 0;">
           <tr>
             <td>
               <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                ⚠️ <strong>Wasn't you?</strong> If you didn't change your password, please <a href="https://banatalk.com/forgot-password" style="color: #856404; font-weight: bold;">reset it immediately</a> and contact our support team.
+                <strong>Didn't change your password?</strong> <a href="https://banatalk.com/forgot-password" style="color: #856404; font-weight: bold;">Reset it now</a> and contact ${SUPPORT_EMAIL}.
               </p>
             </td>
           </tr>
@@ -158,11 +159,13 @@ exports.passwordChangedEmail = (userName, deviceInfo = {}) => {
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `🔐 Password Changed - ${APP_NAME}`,
+    subject: `Your ${APP_NAME} password was changed`,
     html: baseTemplate(content, '#11998e'),
-    text: `Your ${APP_NAME} password was successfully changed. If this wasn't you, please reset your password immediately.`
+    text: `Hi ${userName}, your ${APP_NAME} password was changed on ${new Date().toLocaleString()}. If you made this change, no action is needed.
+
+Didn't change your password? Reset it now at https://banatalk.com/forgot-password and contact ${SUPPORT_EMAIL}.`
   };
 };
 
@@ -173,46 +176,43 @@ exports.newLoginEmail = (userName, deviceInfo = {}) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">New Sign-in Detected 📱</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">New sign-in to your account</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>,
+          Hi <strong>${userName}</strong>, your ${APP_NAME} account was just signed in to from a new device.
         </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          We noticed a new sign-in to your ${APP_NAME} account.
-        </p>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #e3f2fd; border: 1px solid #4facfe; border-radius: 8px; padding: 20px; margin: 25px 0;">
           <tr>
             <td>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #333333;">
-                <strong>🕐 Time:</strong> ${new Date().toLocaleString()}
+                <strong>Time:</strong> ${new Date().toLocaleString()}
               </p>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #333333;">
-                <strong>📱 Device:</strong> ${deviceInfo.device || 'Unknown Device'}
+                <strong>Device:</strong> ${deviceInfo.device || 'Unknown device'}
               </p>
               <p style="margin: 0 0 10px 0; font-size: 14px; color: #333333;">
-                <strong>🌐 IP Address:</strong> ${deviceInfo.ipAddress || 'Unknown'}
+                <strong>IP address:</strong> ${deviceInfo.ipAddress || 'Unknown'}
               </p>
               <p style="margin: 0; font-size: 14px; color: #333333;">
-                <strong>📍 Location:</strong> ${deviceInfo.location || 'Unknown Location'}
+                <strong>Location:</strong> ${deviceInfo.location || 'Unknown location'}
               </p>
             </td>
           </tr>
         </table>
-        
+
         <p style="font-size: 14px; color: #666666; line-height: 1.6; margin: 0 0 25px 0;">
-          If this was you, you can safely ignore this email.
+          If this was you, you can ignore this email.
         </p>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 25px 0;">
           <tr>
             <td>
               <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                🚨 <strong>Suspicious activity?</strong> If you didn't sign in, <a href="https://banatalk.com/forgot-password" style="color: #856404; font-weight: bold;">secure your account now</a>.
+                <strong>Don't recognize this sign-in?</strong> <a href="https://banatalk.com/forgot-password" style="color: #856404; font-weight: bold;">Reset your password</a> to secure your account.
               </p>
             </td>
           </tr>
@@ -220,18 +220,22 @@ exports.newLoginEmail = (userName, deviceInfo = {}) => {
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `🔔 New Sign-in to Your ${APP_NAME} Account`,
+    subject: `New sign-in to your ${APP_NAME} account`,
     html: baseTemplate(content, '#4facfe'),
-    text: `New sign-in detected on your ${APP_NAME} account from ${deviceInfo.device || 'unknown device'}. If this wasn't you, please secure your account immediately.`
+    text: `Hi ${userName}, your ${APP_NAME} account was just signed in to from ${deviceInfo.device || 'an unknown device'} (${deviceInfo.location || 'unknown location'}) at ${new Date().toLocaleString()}.
+
+If this was you, you can ignore this email.
+
+Don't recognize this sign-in? Reset your password to secure your account: https://banatalk.com/forgot-password`
   };
 };
 
 /**
  * Account inactivity follow-up (friendly reminder)
  */
-exports.deactivationWarning = (userName, daysRemaining = 14) => {
+exports.deactivationWarning = (userName, daysRemaining = 14, unsubscribeUrl = null) => {
   let subject, headerText, bodyHtml, ctaText, ctaUrl, plainText;
 
   if (daysRemaining > 7) {
@@ -317,7 +321,7 @@ exports.deactivationWarning = (userName, daysRemaining = 14) => {
 
   return {
     subject,
-    html: baseTemplate(content, '#ff9a9e'),
+    html: baseTemplate(content, '#ff9a9e', unsubscribeUrl),
     text: plainText
   };
 };
@@ -330,7 +334,7 @@ exports.accountDeactivationWarning = exports.deactivationWarning;
 /**
  * Inactivity reminder (language-learning specific nudge)
  */
-exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage) => {
+exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage, unsubscribeUrl = null) => {
   const hasLang = targetLanguage && String(targetLanguage).trim();
   const langLabel      = hasLang ? targetLanguage : 'your language';  // mid-sentence
   const langPossessive = hasLang ? targetLanguage : 'language';       // after "Your "
@@ -399,17 +403,17 @@ exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage) => 
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8f9fa; border-radius: 12px; padding: 25px; margin: 30px 0;">
           <tr>
             <td align="center">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Open Bananatalk</h3>
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">Open Bananatalk</h3>
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="padding-right: 10px;">
                     <a href="https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      🍎 App Store
+                      App Store
                     </a>
                   </td>
                   <td style="padding-left: 10px;">
                     <a href="https://play.google.com/store/apps/details?id=com.bananatalk.app" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      🤖 Google Play
+                      Google Play
                     </a>
                   </td>
                 </tr>
@@ -423,7 +427,7 @@ exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage) => 
 
   return {
     subject,
-    html: baseTemplate(content, '#f5576c'),
+    html: baseTemplate(content, '#f5576c', unsubscribeUrl),
     text: plainText
   };
 };
@@ -484,7 +488,9 @@ exports.weeklyDigest = (userName, stats = {}, unsubscribeUrl = null) => {
   return {
     subject: `Your language learning week`,
     html: baseTemplate(content, '#667eea', unsubscribeUrl),
-    text: `Hi ${userName}! Your week on BananaTalk: ${stats.wordsReviewed || 0} words reviewed, ${stats.wordsSaved || 0} new words saved, ${stats.messagesSent || 0} messages exchanged, ${stats.correctionsExchanged || 0} corrections exchanged.`
+    text: `Hi ${userName}, here's your week on BananaTalk: ${stats.wordsReviewed || 0} words reviewed, ${stats.wordsSaved || 0} new words saved, ${stats.messagesSent || 0} messages with partners, ${stats.correctionsExchanged || 0} corrections exchanged.
+
+See your full progress: https://banatalk.com/profile/stats`
   };
 };
 
@@ -497,28 +503,28 @@ exports.newFollowerEmail = (userName, followerName, followerImage) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">New Follower! 🎉</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">You have a new follower</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px; text-align: center;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-          Hi <strong>${userName}</strong>!
+          Hi <strong>${userName}</strong>, <strong>${followerName}</strong> started following you on ${APP_NAME}.
         </p>
-        
+
         ${followerImage ? `
         <img src="${followerImage}" alt="${followerName}" style="width: 80px; height: 80px; border-radius: 50%; margin: 20px 0; border: 4px solid #667eea;">
         ` : ''}
-        
-        <p style="font-size: 20px; color: #333333; margin: 20px 0;">
-          <strong>${followerName}</strong> started following you!
+
+        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 20px 0;">
+          A new follower is a good opening for a language exchange — say hello and see if your languages match.
         </p>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
               <a href="https://banatalk.com/messages/new/${followerName}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                Say Hello! 👋
+                Say hello
               </a>
             </td>
           </tr>
@@ -526,11 +532,11 @@ exports.newFollowerEmail = (userName, followerName, followerImage) => {
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `🎉 ${followerName} started following you on ${APP_NAME}!`,
+    subject: `${followerName} started following you on ${APP_NAME}`,
     html: baseTemplate(content),
-    text: `${followerName} started following you on ${APP_NAME}! Say hello and start a conversation.`
+    text: `Hi ${userName}, ${followerName} started following you on ${APP_NAME}. A new follower is a good opening for a language exchange — say hello and see if your languages match: https://banatalk.com/messages`
   };
 };
 
@@ -541,18 +547,15 @@ exports.newMessageEmail = (userName, senderName, messagePreview) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">New Message 💬</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">You have a new message</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>,
+          Hi <strong>${userName}</strong>, <strong>${senderName}</strong> sent you a message on ${APP_NAME}:
         </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          You have a new message from <strong>${senderName}</strong>:
-        </p>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f0f9ff; border-left: 4px solid #4facfe; padding: 20px; margin: 25px 0;">
           <tr>
             <td>
@@ -562,12 +565,12 @@ exports.newMessageEmail = (userName, senderName, messagePreview) => {
             </td>
           </tr>
         </table>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
               <a href="https://banatalk.com/messages" style="display: inline-block; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                Reply Now 💬
+                Reply on ${APP_NAME}
               </a>
             </td>
           </tr>
@@ -575,11 +578,13 @@ exports.newMessageEmail = (userName, senderName, messagePreview) => {
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `💬 New message from ${senderName} on ${APP_NAME}`,
+    subject: `New message from ${senderName} on ${APP_NAME}`,
     html: baseTemplate(content, '#4facfe'),
-    text: `You have a new message from ${senderName}: "${messagePreview}"`
+    text: `Hi ${userName}, ${senderName} sent you a message on ${APP_NAME}: "${messagePreview}"
+
+Reply: https://banatalk.com/messages`
   };
 };
 
@@ -590,18 +595,15 @@ exports.correctionReceivedEmail = (userName, correctorName, originalText, correc
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Language Correction 📝</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">You received a correction</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>,
+          Hi <strong>${userName}</strong>, <strong>${correctorName}</strong> suggested a correction to one of your messages. Here's what changed:
         </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          <strong>${correctorName}</strong> helped you with a language correction!
-        </p>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 25px 0;">
           <tr>
             <td style="background-color: #ffebee; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
@@ -617,12 +619,12 @@ exports.correctionReceivedEmail = (userName, correctorName, originalText, correc
             </td>
           </tr>
         </table>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
           <tr>
             <td align="center">
               <a href="https://banatalk.com/messages" style="display: inline-block; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                View & Learn 📚
+                See the correction
               </a>
             </td>
           </tr>
@@ -630,11 +632,16 @@ exports.correctionReceivedEmail = (userName, correctorName, originalText, correc
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `📝 ${correctorName} helped correct your message on ${APP_NAME}`,
+    subject: `${correctorName} suggested a correction on ${APP_NAME}`,
     html: baseTemplate(content, '#fa709a'),
-    text: `${correctorName} corrected your message. Original: "${originalText}" → Corrected: "${correctedText}"`
+    text: `Hi ${userName}, ${correctorName} suggested a correction to one of your messages on ${APP_NAME}.
+
+Original: "${originalText}"
+Corrected: "${correctedText}"
+
+See the correction: https://banatalk.com/messages`
   };
 };
 
@@ -647,45 +654,42 @@ exports.vipSubscriptionEmail = (userName, plan, endDate) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Welcome to VIP! 👑</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Your VIP membership is active</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
         <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Congratulations <strong>${userName}</strong>! 🎉
+          Hi <strong>${userName}</strong>, your ${APP_NAME} VIP <strong>${plan}</strong> plan is now active. Thanks for supporting ${APP_NAME}.
         </p>
-        <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          You're now a ${APP_NAME} VIP member with the <strong>${plan}</strong> plan!
-        </p>
-        
+
         <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #fffbeb; border-radius: 12px; padding: 25px; margin: 25px 0;">
           <tr>
             <td>
-              <h3 style="color: #f7971e; margin: 0 0 15px 0; font-size: 18px;">👑 Your VIP Benefits:</h3>
+              <h3 style="color: #f7971e; margin: 0 0 15px 0; font-size: 18px;">What's included:</h3>
               <ul style="margin: 0; padding-left: 20px; color: #555555; line-height: 2;">
-                <li>✅ Unlimited messages per day</li>
-                <li>✅ No ads</li>
-                <li>✅ Priority support</li>
-                <li>✅ Custom VIP badge</li>
-                <li>✅ Advanced search filters</li>
-                <li>✅ Message translations</li>
+                <li>Unlimited messages per day</li>
+                <li>No ads</li>
+                <li>Message translations</li>
+                <li>Advanced search filters</li>
+                <li>VIP badge</li>
+                <li>Priority support</li>
               </ul>
             </td>
           </tr>
         </table>
-        
+
         <p style="font-size: 14px; color: #666666; text-align: center;">
-          Your subscription is active until: <strong>${new Date(endDate).toLocaleDateString()}</strong>
+          Your subscription is active until <strong>${new Date(endDate).toLocaleDateString()}</strong>.
         </p>
       </td>
     </tr>
   `;
-  
+
   return {
-    subject: `👑 Welcome to ${APP_NAME} VIP, ${userName}!`,
+    subject: `Welcome to ${APP_NAME} VIP, ${userName}`,
     html: baseTemplate(content, '#f7971e'),
-    text: `Congratulations ${userName}! You're now a ${APP_NAME} VIP member with the ${plan} plan. Your subscription is active until ${new Date(endDate).toLocaleDateString()}.`
+    text: `Hi ${userName}, your ${APP_NAME} VIP ${plan} plan is now active. What's included: unlimited messages per day, no ads, message translations, advanced search filters, VIP badge, and priority support. Your subscription is active until ${new Date(endDate).toLocaleDateString()}.`
   };
 };
 
@@ -1180,19 +1184,23 @@ exports.newUserNotificationEmail = (user, context = {}) => {
  * Promotional email template
  */
 exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl, androidUrl, unsubscribeUrl }) => {
+  // The campaign message is authored as plain text with newlines (see
+  // PROMO_CONFIG in jobs/promotionalEmailJob.js) — convert them to <br>
+  // so paragraphs/bullets actually render in the HTML part.
+  const messageHtml = String(message || '').replace(/\n/g, '<br>');
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #FFD93D 0%, #FF6B6B 50%, #6BCB77 100%); padding: 50px 40px; text-align: center;">
-        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.2);">🍌 ${title}</h1>
+        <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.2);">${title}</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
-        <p style="font-size: 18px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
-          Hi <strong>${userName}</strong>! 👋
+        <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi <strong>${userName}</strong>,
         </p>
         <p style="font-size: 16px; color: #555555; line-height: 1.8; margin: 0 0 25px 0;">
-          ${message}
+          ${messageHtml}
         </p>
 
         ${ctaText && ctaUrl ? `
@@ -1200,7 +1208,7 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
           <tr>
             <td align="center">
               <a href="${ctaUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 30px; font-size: 16px; font-weight: bold;">
-                ${ctaText} →
+                ${ctaText}
               </a>
             </td>
           </tr>
@@ -1210,17 +1218,17 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
         <table width="100%" cellpadding="0" cellspacing="0" style="background: linear-gradient(135deg, #f8f9ff 0%, #fff5f5 100%); border-radius: 12px; padding: 25px; margin: 25px 0;">
           <tr>
             <td style="text-align: center;">
-              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">📱 Download Bananatalk</h3>
+              <h3 style="color: #333; margin: 0 0 20px 0; font-size: 18px;">Get the app</h3>
               <table cellpadding="0" cellspacing="0" style="margin: 0 auto;">
                 <tr>
                   <td style="padding: 0 10px;">
                     <a href="${iosUrl}" style="display: inline-block; background-color: #000000; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      🍎 App Store
+                      App Store
                     </a>
                   </td>
                   <td style="padding: 0 10px;">
                     <a href="${androidUrl}" style="display: inline-block; background-color: #3DDC84; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 14px;">
-                      🤖 Google Play
+                      Google Play
                     </a>
                   </td>
                 </tr>
@@ -1230,16 +1238,22 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
         </table>
 
         <p style="font-size: 14px; color: #888888; text-align: center; margin: 25px 0 0 0;">
-          See you on ${APP_NAME}! 🍌✨
+          See you on ${APP_NAME}.
         </p>
       </td>
     </tr>
   `;
 
   return {
-    subject: `🍌 ${title}`,
+    subject: title,
     html: baseTemplate(content, '#FFD93D', unsubscribeUrl),
-    text: `Hi ${userName}! ${message}\n\nDownload Bananatalk:\niOS: ${iosUrl}\nAndroid: ${androidUrl}`
+    text: `Hi ${userName},
+
+${message}
+
+Get the app:
+iOS: ${iosUrl}
+Android: ${androidUrl}`
   };
 };
 
@@ -1277,19 +1291,17 @@ the daily admin digest.`,
  */
 exports.reportResolutionToReporter = (report) => ({
   subject: 'Your report has been reviewed',
-  text: `We've reviewed the report you submitted on ${new Date(report.createdAt).toDateString()}.
+  text: `We've reviewed the report you submitted on ${new Date(report.createdAt).toDateString()} and taken appropriate action where warranted.
 
-Our team has reviewed the content and taken appropriate action where warranted.
-For your privacy, we don't share specific outcomes, but every report helps
-keep ${APP_NAME} safe.
+For privacy reasons we don't share specific outcomes, but every report helps keep ${APP_NAME} safe.
 
 Thank you for helping the community.`,
   html: baseTemplate(`
     <tr>
       <td style="padding: 40px 30px;">
         <h2 style="color: #333; margin: 0 0 15px 0;">Your report has been reviewed</h2>
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">We've reviewed the report you submitted on ${new Date(report.createdAt).toDateString()}.</p>
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">Our team has reviewed the content and taken appropriate action where warranted. For your privacy, we don't share specific outcomes, but every report helps keep ${APP_NAME} safe.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">We've reviewed the report you submitted on ${new Date(report.createdAt).toDateString()} and taken appropriate action where warranted.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">For privacy reasons we don't share specific outcomes, but every report helps keep ${APP_NAME} safe.</p>
         <p style="font-size: 16px; color: #555; line-height: 1.7;">Thank you for helping the community.</p>
       </td>
     </tr>`, '#11998e')
@@ -1300,20 +1312,20 @@ Thank you for helping the community.`,
  */
 exports.banNotification = (reason) => ({
   subject: `Your ${APP_NAME} account has been suspended`,
-  text: `Your account has been suspended following a review of reports made against it.
+  text: `Your ${APP_NAME} account has been suspended following a review of reports made against it.
 
-${reason ? `Reason: ${reason}\n\n` : ''}If you believe this was made in error, contact appeal@banatalk.com with your username.`,
+${reason ? `Reason: ${reason}\n\n` : ''}If you believe this decision was made in error, contact appeal@banatalk.com with your username and we'll take another look.`,
   html: baseTemplate(`
     <tr>
       <td style="background: linear-gradient(135deg, #ff7e7e 0%, #d63031 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #fff; margin: 0; font-size: 28px;">Account Suspended</h1>
+        <h1 style="color: #fff; margin: 0; font-size: 28px;">Account suspended</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">Your account has been suspended following a review of reports made against it.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">Your ${APP_NAME} account has been suspended following a review of reports made against it.</p>
         ${reason ? `<p style="font-size: 16px; color: #555; line-height: 1.7;"><strong>Reason:</strong> ${reason}</p>` : ''}
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">If you believe this was made in error, contact <a href="mailto:appeal@banatalk.com" style="color: #d63031;">appeal@banatalk.com</a> with your username.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">If you believe this decision was made in error, contact <a href="mailto:appeal@banatalk.com" style="color: #d63031;">appeal@banatalk.com</a> with your username and we'll take another look.</p>
       </td>
     </tr>`, '#d63031')
 });
@@ -1321,22 +1333,19 @@ ${reason ? `Reason: ${reason}\n\n` : ''}If you believe this was made in error, c
 // Step 15 — restored-account notification, mirrors banNotification.
 exports.unbanNotification = (reason) => ({
   subject: `Your ${APP_NAME} account has been restored`,
-  text: `Good news — your account has been restored.
+  text: `Good news — your ${APP_NAME} account has been restored and you can log in again now.
 
-${reason ? `Reason: ${reason}\n\n` : ''}You can log in and resume using ${APP_NAME} normally.
-
-If you have any questions, contact support@banatalk.com.`,
+${reason ? `Reason: ${reason}\n\n` : ''}If you have any questions, contact support@banatalk.com.`,
   html: baseTemplate(`
     <tr>
       <td style="background: linear-gradient(135deg, #4cd964 0%, #11998e 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #fff; margin: 0; font-size: 28px;">Account Restored</h1>
+        <h1 style="color: #fff; margin: 0; font-size: 28px;">Account restored</h1>
       </td>
     </tr>
     <tr>
       <td style="padding: 40px 30px;">
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">Good news — your account has been restored.</p>
+        <p style="font-size: 16px; color: #555; line-height: 1.7;">Good news — your ${APP_NAME} account has been restored and you can log in again now.</p>
         ${reason ? `<p style="font-size: 16px; color: #555; line-height: 1.7;"><strong>Reason:</strong> ${reason}</p>` : ''}
-        <p style="font-size: 16px; color: #555; line-height: 1.7;">You can log in and resume using ${APP_NAME} normally.</p>
         <p style="font-size: 16px; color: #555; line-height: 1.7;">If you have any questions, contact <a href="mailto:support@banatalk.com" style="color: #11998e;">support@banatalk.com</a>.</p>
       </td>
     </tr>`, '#11998e')

@@ -81,15 +81,21 @@ exports.sendNewLoginEmail = async (user, deviceInfo = {}) => {
 
 /**
  * Send inactivity reminder
+ *
+ * Re-engagement marketing (CAN-SPAM applies) — reuses the 'promotional'
+ * unsubscribe emailType, honoring privacySettings.emailNotifications, so
+ * the List-Unsubscribe header + footer link are present.
  */
 exports.sendInactivityReminder = async (user, daysSinceActive) => {
   try {
-    const template = templates.inactivityReminder(user.name, daysSinceActive, user.language_to_learn);
+    const unsubscribeUrl = buildUnsubscribeUrl(user._id, 'promotional');
+    const template = templates.inactivityReminder(user.name, daysSinceActive, user.language_to_learn, unsubscribeUrl);
     await sendEmail({
       email: user.email,
       subject: template.subject,
       message: template.text,
-      html: template.html
+      html: template.html,
+      unsubscribeUrl
     });
     console.log(`✅ Inactivity reminder sent to ${user.email} (${daysSinceActive} days)`);
     return true;
@@ -101,15 +107,20 @@ exports.sendInactivityReminder = async (user, daysSinceActive) => {
 
 /**
  * Send account deactivation warning
+ *
+ * Same re-engagement/marketing classification as sendInactivityReminder —
+ * gets the same unsubscribe treatment.
  */
 exports.sendDeactivationWarning = async (user, daysRemaining) => {
   try {
-    const template = templates.accountDeactivationWarning(user.name, daysRemaining);
+    const unsubscribeUrl = buildUnsubscribeUrl(user._id, 'promotional');
+    const template = templates.accountDeactivationWarning(user.name, daysRemaining, unsubscribeUrl);
     await sendEmail({
       email: user.email,
       subject: template.subject,
       message: template.text,
-      html: template.html
+      html: template.html,
+      unsubscribeUrl
     });
     console.log(`✅ Deactivation warning sent to ${user.email} (${daysRemaining} days remaining)`);
     return true;

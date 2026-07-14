@@ -811,6 +811,14 @@ bannedAt: {
   lastInactivityEmailAt: {
     type: Date
   },
+  // Promotional campaign dedup — campaignId values from
+  // jobs/promotionalEmailJob.js PROMO_CONFIG that have already been sent to
+  // this user. A given campaignId is never re-sent to the same user; bump
+  // PROMO_CONFIG.campaignId to re-enable sends for a new campaign.
+  promoCampaignsSent: {
+    type: [String],
+    default: []
+  },
   lastDailySummaryAt: {
     type: Date,
     default: null

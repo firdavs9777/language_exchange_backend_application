@@ -9,16 +9,24 @@ const User = require('../models/User');
 const emailService = require('../services/emailService');
 
 // Promotional content - update this for each campaign
+//
+// campaignId: bump this to a new value whenever the content changes so the
+// campaign goes out to everyone again. Users who already received the
+// CURRENT campaignId are skipped (see promoCampaignsSent on the User model)
+// — this stops the identical-weekly-promo hammer that trains Gmail to
+// spam-fold repeat sends of the same content.
 const PROMO_CONFIG = {
-  title: "What's new in BananaTalk",
-  message: `A few things that make language practice with your partners smoother:
+  campaignId: 'corrections-in-one-tap-2026-07',
+  title: 'Corrections just got easier',
+  message: `You can now accept a partner's correction with a single tap, right in the chat bubble — no menus, no long-press.
 
-• Accept corrections in one tap — when your partner corrects your message, you can now accept it directly in the chat bubble
-• Spot corrections faster — a small "Correct" button appears below messages so you can help your partner without long-pressing
-• Save phrases to your study deck — translate a message and tap "Save phrase" to add it to your vocabulary queue for later review
+Also new in this update:
 
-Update the app to get these features.`,
-  ctaText: 'Try It Now',
+• A small "Correct" button now sits under each message, so helping your partner takes one tap
+• Tap "Save phrase" on any translated message to send it straight to your vocabulary deck for review
+
+Update the app to try them in your next conversation.`,
+  ctaText: 'Open BananaTalk',
   ctaUrl: 'https://banatalk.com',
   iosUrl: 'https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146',
   androidUrl: 'https://play.google.com/store/apps/details?id=com.bananatalk.app'
@@ -32,25 +40,35 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 /**
  * Run the promotional email job
  */
+/**
+ * Decide whether a user should be skipped for a given campaign — pure
+ * function so it's easy to unit test without a DB.
+ */
+const shouldSkipCampaign = (promoCampaignsSent, campaignId) =>
+  Array.isArray(promoCampaignsSent) && promoCampaignsSent.includes(campaignId);
+
 const runPromotionalEmailJob = async () => {
   console.log('\n📧 Starting promotional email job...');
+
+  const { campaignId } = PROMO_CONFIG;
 
   try {
     // Get all users with completed registration and valid email
     const users = await User.find({
       isRegistrationComplete: true,
       email: { $exists: true, $ne: null, $regex: /@/ }
-    }).select('email name privacySettings').lean();
+    }).select('email name privacySettings promoCampaignsSent').lean();
 
-    console.log(`📊 Found ${users.length} users to email`);
+    console.log(`📊 Found ${users.length} users to email (campaignId=${campaignId})`);
 
     if (users.length === 0) {
       console.log('No users to email. Skipping.');
-      return { sent: 0, skipped: 0, failed: 0 };
+      return { sent: 0, skipped: 0, skippedCampaign: 0, failed: 0 };
     }
 
     let sent = 0;
     let skipped = 0;
+    let skippedCampaign = 0;
     let failed = 0;
 
     // Process in batches
@@ -62,10 +80,22 @@ const runPromotionalEmailJob = async () => {
       console.log(`📦 Processing batch ${batchNum}/${totalBatches}...`);
 
       for (const user of batch) {
+        // Per-user dedup: never re-send the same campaignId to a user who
+        // already received it. Changing PROMO_CONFIG.campaignId re-enables
+        // sends for everyone.
+        if (shouldSkipCampaign(user.promoCampaignsSent, campaignId)) {
+          skippedCampaign++;
+          continue;
+        }
+
         const result = await emailService.sendPromotionalEmail(user, PROMO_CONFIG);
 
         if (result.success) {
           sent++;
+          await User.updateOne(
+            { _id: user._id },
+            { $addToSet: { promoCampaignsSent: campaignId } }
+          );
         } else if (result.reason === 'notifications_disabled') {
           skipped++;
         } else {
@@ -80,17 +110,18 @@ const runPromotionalEmailJob = async () => {
     }
 
     console.log(`\n✅ Promotional email job complete!`);
-    console.log(`   Sent: ${sent} | Skipped: ${skipped} | Failed: ${failed}`);
+    console.log(`   Sent: ${sent} | Skipped (opted out): ${skipped} | Skipped (already got campaign): ${skippedCampaign} | Failed: ${failed}`);
 
-    return { sent, skipped, failed };
+    return { sent, skipped, skippedCampaign, failed };
 
   } catch (error) {
     console.error('❌ Promotional email job failed:', error);
-    return { sent: 0, skipped: 0, failed: 0, error: error.message };
+    return { sent: 0, skipped: 0, skippedCampaign: 0, failed: 0, error: error.message };
   }
 };
 
 module.exports = {
   runPromotionalEmailJob,
+  shouldSkipCampaign,
   PROMO_CONFIG
 };

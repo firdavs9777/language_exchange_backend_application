@@ -876,7 +876,11 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   });
 
   // Email content (same as before)
-  const message = `Your verification code for Bananatalk is: ${code}. This code will expire in 15 minutes.`;
+  const message = `Your Bananatalk verification code is: ${code}
+
+Enter this code in the app to verify your email address. It expires in 15 minutes.
+
+If you didn't request this code, you can ignore this email — no account will be created.`;
   
   const html = `
 <!DOCTYPE html>
@@ -892,13 +896,13 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <tr>
             <td style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Welcome to Bananatalk! 🎉</h1>
+              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Confirm your email</h1>
             </td>
           </tr>
           <tr>
             <td style="padding: 40px 30px;">
               <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-                Thank you for signing up! To complete your registration, please use the verification code below:
+                Enter this code in the Bananatalk app to verify your email address and finish creating your account:
               </p>
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
@@ -922,7 +926,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
                 <tr>
                   <td>
                     <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                      ⏰ <strong>Important:</strong> This code will expire in <strong>15 minutes</strong>. Please complete your registration soon!
+                      This code expires in <strong>15 minutes</strong>.
                     </p>
                   </td>
                 </tr>
@@ -953,7 +957,7 @@ exports.sendVerificationCode = asyncHandler(async (req, res, next) => {
   try {
     await sendEmail({
       email: user.email,
-      subject: 'Bananatalk - Email Verification Code',
+      subject: 'Your Bananatalk verification code',
       message,
       html
     });
@@ -1064,7 +1068,11 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   await user.save({ validateBeforeSave: false });
 
   // Email content
-  const message = `Your password reset code for Bananatalk is: ${code}. This code will expire in 15 minutes.`;
+  const message = `Your Bananatalk password reset code is: ${code}
+
+Enter this code in the app to choose a new password. It expires in 5 minutes.
+
+If you didn't request a password reset, you can ignore this email — your password won't change.`;
   
   const html = `
 <!DOCTYPE html>
@@ -1080,13 +1088,13 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <tr>
             <td style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 40px; text-align: center;">
-              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Password Reset Request 🔒</h1>
+              <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: bold;">Reset your password</h1>
             </td>
           </tr>
           <tr>
             <td style="padding: 40px 30px;">
               <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 25px 0;">
-                We received a request to reset your password. Use the code below to reset it:
+                We received a request to reset your Bananatalk password. Enter this code in the app to choose a new one:
               </p>
               <table width="100%" cellpadding="0" cellspacing="0" style="margin: 30px 0;">
                 <tr>
@@ -1110,7 +1118,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
                 <tr>
                   <td>
                     <p style="margin: 0; font-size: 14px; color: #856404; line-height: 1.6;">
-                      ⏰ <strong>Important:</strong> This code will expire in <strong>15 minutes</strong>. If you didn't request this, please ignore this email.
+                      This code expires in <strong>5 minutes</strong>.
                     </p>
                   </td>
                 </tr>
@@ -1141,7 +1149,7 @@ exports.forgotPassword = asyncHandler(async (req, res, next) => {
   try {
     await sendEmail({
       email: user.email,
-      subject: 'Bananatalk - Password Reset Code',
+      subject: 'Your Bananatalk password reset code',
       message,
       html
     });
