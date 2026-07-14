@@ -11,6 +11,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
 const { logSecurityEvent } = require('../utils/securityLogger');
 const { t: emailT, resolveEmailLocale, isRtl: emailIsRtl } = require('../services/emailTemplateService');
+const { normalizeLocale } = require('../lib/normalizeLocale');
 const { getDeviceInfo, detectPlatform, pickClientInfo } = require('../validators/authValidator');
 const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
 const { generateUsername } = require('../utils/generateUsername');
@@ -472,6 +473,13 @@ exports.register = asyncHandler(async (req, res, next) => {
   user.images = userImages;
   user.native_language = native_language;
   user.language_to_learn = language_to_learn;
+  // Default the notification/email locale from native_language at
+  // registration so brand-new users get localized messages immediately —
+  // the device locale sent with register-token (app ≥ 9e7e29b) overwrites
+  // this with the phone's actual language on first launch.
+  if (!user.preferredLocale) {
+    user.preferredLocale = normalizeLocale(native_language);
+  }
   if (location) user.location = location;
   user.isRegistrationComplete = true;  // MARK AS COMPLETE
   user.profileCompleted = true;  // Core required fields collected during email registration
@@ -1317,6 +1325,17 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     if (value !== undefined) acc[key] = value;
     return acc;
   }, {});
+
+  // Default the notification/email locale from native_language for users
+  // who don't have one yet (OAuth signups complete their profile through
+  // this endpoint). Never overwrites an existing/device-provided value.
+  if (fieldsToUpdate.native_language) {
+    const existing = await User.findById(req.user.id).select('preferredLocale');
+    if (existing && !existing.preferredLocale) {
+      const derived = normalizeLocale(fieldsToUpdate.native_language);
+      if (derived) fieldsToUpdate.preferredLocale = derived;
+    }
+  }
 
   // Handle privacy settings merge (if provided)
   if (privacySettings && typeof privacySettings === 'object') {
