@@ -2,7 +2,7 @@ const asyncHandler = require('../middleware/async');
 const ProfileVisit = require('../models/ProfileVisit');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
-// const notificationService = require('../services/notificationService'); // Disabled - profile visit notifications not needed
+const notificationService = require('../services/notificationService');
 
 /**
  * @desc    Record a profile visit
@@ -64,13 +64,16 @@ exports.recordProfileVisit = asyncHandler(async (req, res, next) => {
       'profileStats.lastVisitorUpdate': new Date()
     });
 
-    // Profile visit notifications disabled - not useful for users
-    // if (profileOwner.isVIP && profileOwner.isVIP()) {
-    //   notificationService.sendProfileVisit(
-    //     profileOwnerId,
-    //     visitorId
-    //   ).catch(err => console.error('Profile visit notification failed:', err));
-    // }
+    // Task 10 (Workstream E-core) — re-enabled for all users (2026-07-13
+    // user verdict: profile-visit notifications are important). Pipeline
+    // was already fully built (enum has profile_visit, pref
+    // notificationSettings.profileVisits, cap 3/day, 300s bundling window
+    // via sendProfileVisit -> notificationService.send) — only this call
+    // site was commented out. No VIP gate in this pass.
+    notificationService.sendProfileVisit(
+      profileOwnerId,
+      visitorId
+    ).catch(err => console.error('Profile visit notification failed:', err));
   }
 
   res.status(200).json({

@@ -757,12 +757,16 @@ exports.followUser = asyncHandler(async (req, res, next) => {
 
   await Promise.all([user.save(), targetUser.save()]);
 
-  // Send friend request notification
+  // Send new-follower notification. Task 9 (Workstream E-core, audit fix
+  // #6): a follow used to route through sendFriendRequest, so users saw
+  // "New Friend Request" for a plain follow. Use the dedicated
+  // new_follower type instead; sendFriendRequest is reserved for real
+  // friend requests elsewhere.
   const notificationService = require('../services/notificationService');
-  notificationService.sendFriendRequest(
+  notificationService.sendNewFollower(
     targetUserId,
     userId
-  ).catch(err => console.error('Friend request notification failed:', err));
+  ).catch(err => console.error('New follower notification failed:', err));
 
   res.status(200).json({
     success: true,

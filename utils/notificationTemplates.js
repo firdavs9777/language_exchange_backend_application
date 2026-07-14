@@ -84,6 +84,27 @@ const getFriendRequestTemplate = (userName, userData = {}) => {
 };
 
 /**
+ * New follower notification template.
+ * Task 9 (Workstream E-core) — a follow used to route through
+ * sendFriendRequest, so users saw "New Friend Request" for a plain follow.
+ * This is the distinct copy for the new `new_follower` type.
+ * @param {String} followerName - Name of the user who started following
+ * @param {Object} followerData - Additional follower data
+ * @returns {Object} - { title, body, data }
+ */
+const getNewFollowerTemplate = (followerName, followerData = {}) => {
+  return {
+    title: 'New Follower',
+    body: `${followerName} started following you`,
+    data: {
+      type: 'new_follower',
+      userId: followerData.userId || '',
+      screen: 'profile'
+    }
+  };
+};
+
+/**
  * Profile visit notification template (VIP feature)
  * @param {String} visitorName - Name of the visitor
  * @param {Object} visitorData - Additional visitor data
@@ -247,7 +268,11 @@ const getSrsReviewTemplate = (dueCount, topWord) => {
     title,
     body,
     data: {
-      type: 'system',
+      // Task 2 (Workstream E-core) — was 'system', which gated SRS reminders
+      // on notificationSettings.marketing (turning off marketing silently
+      // killed vocab reminders the user explicitly enabled via
+      // vocabularyReviewReminders). Now a dedicated type/gate.
+      type: 'srs_review',
       screen: 'vocabulary_review',
       dueCount: dueCount.toString(),
     },
@@ -279,6 +304,7 @@ module.exports = {
   getMomentLikeTemplate,
   getMomentCommentTemplate,
   getFriendRequestTemplate,
+  getNewFollowerTemplate,
   getProfileVisitTemplate,
   getSystemTemplate,
   getReengagementTemplate,

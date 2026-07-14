@@ -1,9 +1,14 @@
 /**
  * Wave Daily Summary Job
  *
- * Fires once per day at 9:00 AM UTC. For each user who has unread waves
- * in the last 24 hours (and has not already received a summary within the
- * last 23 hours), sends a single FCM push notification summarising the count.
+ * Fires once per day at 00:00 UTC (== 9:00 AM KST). For each user who has
+ * unread waves in the last 24 hours (and has not already received a summary
+ * within the last 23 hours), sends a single FCM push notification
+ * summarising the count.
+ *
+ * Task 4 (Workstream E-core) — this was previously SUMMARY_HOUR_UTC = 9,
+ * which is 6:00 PM KST, not 9:00 AM KST as intended/documented. Fixed to
+ * 00:00 UTC == 09:00 KST.
  *
  * Scheduling: uses setInterval at a 1-hour tick, gated by UTC hour check —
  * consistent with the voiceRoomCleanupJob / dailyCounterResetJob patterns.
@@ -14,7 +19,7 @@ const User = require('../models/User');
 const { shouldNotify } = require('../services/notificationService');
 const fcmService = require('../services/fcmService');
 
-const SUMMARY_HOUR_UTC = 9;
+const SUMMARY_HOUR_UTC = 0; // 00:00 UTC == 09:00 KST
 const SKIP_WINDOW_MS = 23 * 60 * 60 * 1000; // don't double-fire within 23h
 const LOOKBACK_MS = 24 * 60 * 60 * 1000;    // look back 24h for unread waves
 const TICK_MS = 60 * 60 * 1000;             // check every hour
@@ -77,7 +82,7 @@ async function runOnce() {
     }
 
     if (sent > 0) {
-      console.log(`[waveDailySummary] sent ${sent} summaries at UTC hour ${SUMMARY_HOUR_UTC}`);
+      console.log(`[waveDailySummary] sent ${sent} summaries at UTC hour ${SUMMARY_HOUR_UTC} (09:00 KST)`);
     }
   } catch (err) {
     console.error('[waveDailySummary] runOnce error:', err);
@@ -89,7 +94,7 @@ async function runOnce() {
 function start() {
   if (_intervalHandle) return;
   _intervalHandle = setInterval(runOnce, TICK_MS);
-  console.log(`[waveDailySummary] started — fires daily at UTC hour ${SUMMARY_HOUR_UTC}`);
+  console.log(`[waveDailySummary] started — fires daily at UTC hour ${SUMMARY_HOUR_UTC} (09:00 KST)`);
 }
 
 function stop() {

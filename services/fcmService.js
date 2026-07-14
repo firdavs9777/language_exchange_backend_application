@@ -5,6 +5,11 @@ const { isInQuietHours } = require('../lib/quietHours');
 const caps = require('../config/notificationCaps');
 
 const URGENT_TYPES = new Set(['incoming_call', 'missed_call']);
+// Task 5 (Workstream E-core) — kept in lockstep with models/Notification.js's
+// type enum (additive: wave/comment_*/room_mention/vip_renewal_warning/
+// srs_review/streak_reminder/new_follower). This is the audit set used below
+// to decide whether a suppressed (quiet-hours/frequency-cap) record can keep
+// its original type or must fall back to 'system'.
 const NOTIFICATION_TYPE_ENUM = new Set([
   'chat_message',
   'moment_like',
@@ -13,6 +18,15 @@ const NOTIFICATION_TYPE_ENUM = new Set([
   'profile_visit',
   'follower_moment',
   'system',
+  'wave',
+  'comment_reply',
+  'comment_reaction',
+  'comment_mention',
+  'room_mention',
+  'vip_renewal_warning',
+  'srs_review',
+  'streak_reminder',
+  'new_follower',
 ]);
 
 // Maps each notification type to the iOS UNNotificationCategory the client
@@ -115,12 +129,13 @@ const sendToUser = async (userId, notification, data = {}) => {
 
     // Frequency cap gate
     if (isCapped(user, type)) {
+      const auditTypeCap = NOTIFICATION_TYPE_ENUM.has(type) ? type : 'system';
       await Notification.create({
         userId,
-        type: NOTIFICATION_TYPE_ENUM.has(type) ? type : 'system',
+        type: auditTypeCap,
         title: notification.title,
         body: notification.body,
-        data: { ...data, originalType: NOTIFICATION_TYPE_ENUM.has(type) ? undefined : type },
+        data: { ...data, originalType: type || 'unknown' },
         suppressedReason: 'frequency_cap',
         bundleSize: data.bundleSize || 1,
         bundleActors: Array.isArray(data.bundleActors) ? data.bundleActors : [],
@@ -452,6 +467,7 @@ module.exports = {
   subscribeToTopic,
   unsubscribeFromTopic,
   isCapped,
-  recordSend
+  recordSend,
+  NOTIFICATION_TYPE_ENUM,
 };
 

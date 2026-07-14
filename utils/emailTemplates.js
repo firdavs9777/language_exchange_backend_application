@@ -8,7 +8,11 @@ const SUPPORT_EMAIL = 'support@banatalk.com';
 const YEAR = new Date().getFullYear();
 
 // Base template wrapper
-const baseTemplate = (content, accentColor = '#667eea') => `
+// `unsubscribeUrl` is optional — only promotional/digest emails should pass
+// it. Transactional emails (verification/reset/security) must pass nothing
+// so no unsubscribe link is rendered (correct: transactional mail must not
+// carry unsubscribe).
+const baseTemplate = (content, accentColor = '#667eea', unsubscribeUrl = null) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -29,6 +33,11 @@ const baseTemplate = (content, accentColor = '#667eea') => `
               <p style="margin: 0; font-size: 12px; color: #999999;">
                 © ${YEAR} ${APP_NAME}. All rights reserved.
               </p>
+              ${unsubscribeUrl ? `
+              <p style="margin: 10px 0 0 0; font-size: 12px; color: #999999;">
+                <a href="${unsubscribeUrl}" style="color: #999999; text-decoration: underline;">Unsubscribe</a>
+              </p>
+              ` : ''}
             </td>
           </tr>
         </table>
@@ -422,7 +431,7 @@ exports.inactivityReminder = (userName, daysSinceActive = 7, targetLanguage) => 
 /**
  * Weekly digest email
  */
-exports.weeklyDigest = (userName, stats = {}) => {
+exports.weeklyDigest = (userName, stats = {}, unsubscribeUrl = null) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); padding: 40px; text-align: center;">
@@ -474,7 +483,7 @@ exports.weeklyDigest = (userName, stats = {}) => {
 
   return {
     subject: `Your language learning week`,
-    html: baseTemplate(content, '#667eea'),
+    html: baseTemplate(content, '#667eea', unsubscribeUrl),
     text: `Hi ${userName}! Your week on BananaTalk: ${stats.wordsReviewed || 0} words reviewed, ${stats.wordsSaved || 0} new words saved, ${stats.messagesSent || 0} messages exchanged, ${stats.correctionsExchanged || 0} corrections exchanged.`
   };
 };
@@ -1170,7 +1179,7 @@ exports.newUserNotificationEmail = (user, context = {}) => {
 /**
  * Promotional email template
  */
-exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl, androidUrl }) => {
+exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl, androidUrl, unsubscribeUrl }) => {
   const content = `
     <tr>
       <td style="background: linear-gradient(135deg, #FFD93D 0%, #FF6B6B 50%, #6BCB77 100%); padding: 50px 40px; text-align: center;">
@@ -1229,7 +1238,7 @@ exports.promotionalEmail = (userName, { title, message, ctaText, ctaUrl, iosUrl,
 
   return {
     subject: `🍌 ${title}`,
-    html: baseTemplate(content, '#FFD93D'),
+    html: baseTemplate(content, '#FFD93D', unsubscribeUrl),
     text: `Hi ${userName}! ${message}\n\nDownload Bananatalk:\niOS: ${iosUrl}\nAndroid: ${androidUrl}`
   };
 };
