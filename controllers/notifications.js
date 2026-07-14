@@ -5,6 +5,7 @@ const Notification = require('../models/Notification');
 const ErrorResponse = require('../utils/errorResponse');
 const notificationService = require('../services/notificationService');
 const templates = require('../utils/notificationTemplates');
+const { normalizeLocale } = require('../lib/normalizeLocale');
 
 /**
  * @desc    Register FCM token
@@ -12,13 +13,23 @@ const templates = require('../utils/notificationTemplates');
  * @access  Private
  */
 exports.registerToken = asyncHandler(async (req, res, next) => {
-  const { token, platform, deviceId } = req.body;
+  const { token, platform, deviceId, deviceLocale } = req.body;
   const userId = req.user.id;
 
   const user = await User.findById(userId);
 
   if (!user) {
     return next(new ErrorResponse('User not found', 404));
+  }
+
+  // Locale self-heal: the app sends its raw device locale (e.g. "ko_KR",
+  // "zh-Hans-CN") with every token registration (i.e. every launch). We
+  // normalize server-side to a supported template locale and store it so
+  // pushes/emails render in the user's language. A null normalization
+  // (unknown/unsupported locale) never clobbers a previously stored value.
+  const normalizedLocale = normalizeLocale(deviceLocale);
+  if (normalizedLocale && normalizedLocale !== user.preferredLocale) {
+    user.preferredLocale = normalizedLocale;
   }
 
   // Check if device already exists
@@ -52,7 +63,8 @@ exports.registerToken = asyncHandler(async (req, res, next) => {
     message: 'FCM token registered successfully',
     data: {
       deviceId,
-      platform
+      platform,
+      preferredLocale: user.preferredLocale
     }
   });
 });

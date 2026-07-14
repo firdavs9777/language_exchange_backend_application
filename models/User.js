@@ -109,7 +109,18 @@ const UserSchema = new mongoose.Schema({
     lastUpdated: { type: Date, default: Date.now },
     active: { type: Boolean, default: true }
   }],
-  
+
+  // Preferred locale for localized pushes (and later emails). One of the 19
+  // supported template codes (lib/normalizeLocale.js SUPPORTED_LOCALES), or
+  // null = unknown → renderers fall back to 'en'. Written server-side from
+  // the device locale sent with POST /notifications/register-token (self-
+  // heals every app launch) and backfilled from native_language by
+  // migrations/backfillPreferredLocale.js.
+  preferredLocale: {
+    type: String,
+    default: null
+  },
+
   // NOTIFICATION SETTINGS
   notificationSettings: {
     enabled: {
