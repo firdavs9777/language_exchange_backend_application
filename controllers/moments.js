@@ -728,19 +728,6 @@ exports.momentVideoUpload = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not authorized to upload video to this moment', 403));
   }
 
-  // Check if moment already has a video
-  if (moment.video && moment.video.url) {
-    // Delete old video from Spaces before replacing
-    try {
-      await deleteFromSpaces(moment.video.url);
-      if (moment.video.thumbnail) {
-        await deleteFromSpaces(moment.video.thumbnail);
-      }
-    } catch (err) {
-      console.error('Failed to delete old video:', err.message);
-    }
-  }
-
   // Video should be validated by middleware (uploadSingleVideo)
   if (!req.videoMetadata) {
     return next(new ErrorResponse('Please upload a video file', 400));
@@ -751,6 +738,9 @@ exports.momentVideoUpload = asyncHandler(async (req, res, next) => {
   // middleware's global 600s cap above stays as the outer bound for
   // non-reel video moments. Mirrors the audio reject-and-delete pattern
   // (momentAudioUpload above).
+  // NOTE (gate review): this check MUST run before the old-video deletion
+  // below — otherwise rejecting a replacement upload would leave the moment
+  // pointing at an already-deleted old file (dangling video.url).
   if (isReelOverCap(moment, req.videoMetadata.duration)) {
     const rejectedUrls = [req.videoMetadata.url];
     if (req.videoMetadata.thumbnail) rejectedUrls.push(req.videoMetadata.thumbnail);
@@ -760,6 +750,20 @@ exports.momentVideoUpload = asyncHandler(async (req, res, next) => {
       ))
     );
     return next(new ErrorResponse('Reels must be 180 seconds or under', 400, 'REEL_TOO_LONG'));
+  }
+
+  // Check if moment already has a video (safe to delete now — the new
+  // upload has passed all validation)
+  if (moment.video && moment.video.url) {
+    // Delete old video from Spaces before replacing
+    try {
+      await deleteFromSpaces(moment.video.url);
+      if (moment.video.thumbnail) {
+        await deleteFromSpaces(moment.video.thumbnail);
+      }
+    } catch (err) {
+      console.error('Failed to delete old video:', err.message);
+    }
   }
 
   // Update moment with video data
