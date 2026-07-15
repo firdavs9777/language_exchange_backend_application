@@ -9,7 +9,7 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
 const { getVideoConstraints } = require('../utils/videoUtils');
 const { toIso } = require('../utils/languageCodes');
-const { excludeReels, buildReelsQuery, partitionByLanguage, deriveNextCursor, resolveIsReel } = require('../lib/reelsFeed');
+const { excludeReels, buildReelsQuery, partitionByLanguage, deriveNextCursor, resolveIsReel, isReelOverCap } = require('../lib/reelsFeed');
 
 // Minimal user fields for population (performance optimization)
 const USER_FIELDS = 'name email bio images native_language language_to_learn';
@@ -744,6 +744,22 @@ exports.momentVideoUpload = asyncHandler(async (req, res, next) => {
   // Video should be validated by middleware (uploadSingleVideo)
   if (!req.videoMetadata) {
     return next(new ErrorResponse('Please upload a video file', 400));
+  }
+
+  // Reel-specific 180s cap (spec I5 — enforced HERE, not middleware: the
+  // upload middleware runs pre-controller with no `isReel` context). The
+  // middleware's global 600s cap above stays as the outer bound for
+  // non-reel video moments. Mirrors the audio reject-and-delete pattern
+  // (momentAudioUpload above).
+  if (isReelOverCap(moment, req.videoMetadata.duration)) {
+    const rejectedUrls = [req.videoMetadata.url];
+    if (req.videoMetadata.thumbnail) rejectedUrls.push(req.videoMetadata.thumbnail);
+    await Promise.all(
+      rejectedUrls.map(url => deleteFromSpaces(url).catch(err =>
+        console.error('Failed to delete rejected reel video asset:', err.message)
+      ))
+    );
+    return next(new ErrorResponse('Reels must be 180 seconds or under', 400, 'REEL_TOO_LONG'));
   }
 
   // Update moment with video data

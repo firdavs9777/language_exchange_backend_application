@@ -9,6 +9,7 @@ const {
   startReview,
   resolveReport,
   dismissReport,
+  restoreReport,
   deleteReport,
   getReportStats,
   uploadEvidence
@@ -40,6 +41,7 @@ router.get('/:id', authorizeRole('admin'), getReport);
 router.put('/:id/review', authorizeRole('admin'), startReview);
 router.put('/:id/resolve', authorizeRole('admin'), resolveReport);
 router.put('/:id/dismiss', authorizeRole('admin'), dismissReport);
+router.put('/:id/restore', authorizeRole('admin'), restoreReport);
 router.delete('/:id', authorizeRole('admin'), deleteReport);
 
 module.exports = router;

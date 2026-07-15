@@ -1,11 +1,13 @@
 const asyncHandler = require('../middleware/async');
 const Report = require('../models/Report');
 const User = require('../models/User');
+const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
 const { logSecurityEvent } = require('../utils/securityLogger');
 const emailService = require('../services/emailService');
 const banService = require('../services/banService');
 const uploadToSpaces = require('../middleware/uploadToSpaces');
+const { shouldAutoHide } = require('../lib/reelsFeed');
 
 /**
  * @desc    Create a new report
@@ -70,6 +72,27 @@ exports.createReport = asyncHandler(async (req, res, next) => {
     reportedUser,
     reason
   });
+
+  // Reels auto-hide (spec C1, Workstream G): the Report collection is the
+  // ONE authoritative store the admin panel reads (the per-moment
+  // reports[] array is a separate, unrelated flow — see moments.js
+  // reportMoment). Distinct-reporter dedup is already guaranteed by the
+  // unique {reportedBy, type, reportId} index above, so this count is
+  // always a distinct-reporter count. Non-blocking: a failure here must
+  // never fail the report submission itself.
+  if (type === 'moment') {
+    try {
+      const moment = await Moment.findById(reportId).select('isReel');
+      if (moment && moment.isReel) {
+        const reportCount = await Report.countDocuments({ type: 'moment', reportId });
+        if (shouldAutoHide(reportCount)) {
+          await Moment.updateOne({ _id: reportId }, { $set: { hiddenPendingReview: true } });
+        }
+      }
+    } catch (err) {
+      console.error('Reel auto-hide check failed (non-blocking):', err.message);
+    }
+  }
 
   // Fire-and-forget admin alert. Step 14 — gated by
   // ADMIN_REPORT_ALERTS_ENABLED inside the helper.
@@ -332,6 +355,41 @@ exports.dismissReport = asyncHandler(async (req, res, next) => {
   res.status(200).json({
     success: true,
     message: 'Report dismissed',
+    data: report
+  });
+});
+
+/**
+ * @desc    Restore a reel that was auto-hidden pending review (Workstream G).
+ *          Clears hiddenPendingReview on the reported moment and resolves
+ *          the report as no_violation, alongside the existing remove/ban
+ *          actions (resolveReport).
+ * @route   PUT /api/v1/reports/:id/restore
+ * @access  Admin
+ */
+exports.restoreReport = asyncHandler(async (req, res, next) => {
+  const { notes } = req.body;
+
+  const report = await Report.findById(req.params.id);
+
+  if (!report) {
+    return next(new ErrorResponse('Report not found', 404));
+  }
+
+  if (report.type === 'moment') {
+    await Moment.updateOne({ _id: report.reportId }, { $set: { hiddenPendingReview: false } });
+  }
+
+  await report.resolve(req.user.id, 'no_violation', notes || 'Restored by admin');
+
+  logSecurityEvent('REPORT_RESTORED', {
+    reportId: report._id,
+    moderatorId: req.user.id
+  });
+
+  res.status(200).json({
+    success: true,
+    message: 'Content restored',
     data: report
   });
 });
