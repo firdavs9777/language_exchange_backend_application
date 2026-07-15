@@ -362,8 +362,20 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
           imageUrls: '$user.images',
           userMode: '$user.userMode',
           vipSubscription: '$user.vipSubscription',
-          // Native language drives the flag overlay on chat-list avatars.
+          // Native language drives the flag overlay on chat-list avatars
+          // (fallback when country is unavailable).
           native_language: '$user.native_language',
+          // Country drives the identity flag on chat-list avatars (a
+          // Brazilian shows the Brazil flag, not Portuguese's Portugal
+          // flag). Privacy-filtered HERE so a hidden country never even
+          // reaches the client: null when showCountryRegion === false.
+          country: {
+            $cond: [
+              { $eq: ['$user.privacySettings.showCountryRegion', false] },
+              null,
+              { $ifNull: ['$user.location.country', null] }
+            ]
+          },
           lastMessage: {
             message: '$lastMessage.message',
             createdAt: '$lastMessage.createdAt',
