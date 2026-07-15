@@ -71,7 +71,15 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
-  
+  // Workstream G — Reels. Apple Guideline 1.2 objectionable-content
+  // agreement, shown once before first Reels-tab content/first reel post.
+  // Set via the profile-update endpoint (auth.js updateDetails); never
+  // auto-unset once true (simplest v1 semantics — accept the client value).
+  reelsPolicyAccepted: {
+    type: Boolean,
+    default: false
+  },
+
   // FCM TOKENS
   fcmTokens: [{
     token: {

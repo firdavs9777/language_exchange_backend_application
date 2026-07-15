@@ -9,6 +9,7 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
 const { getVideoConstraints } = require('../utils/videoUtils');
 const { toIso } = require('../utils/languageCodes');
+const { excludeReels, buildReelsQuery, partitionByLanguage, deriveNextCursor, resolveIsReel, isReelOverCap } = require('../lib/reelsFeed');
 
 // Minimal user fields for population (performance optimization)
 const USER_FIELDS = 'name email bio images native_language language_to_learn';
@@ -54,14 +55,16 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
   }
 
   // Build query based on privacy and user
-  let query = { privacy: 'public', isDeleted: { $ne: true } };
+  // Discovery feed (plan-review I1/I4): reels are excluded here — they
+  // live only in the Reels tab (GET /moments/reels).
+  let query = excludeReels({ privacy: 'public', isDeleted: { $ne: true } });
 
   // If user is logged in, they can see their own posts
   if (req.user) {
     // Exclude blocked users from both conditions
-    const publicQuery = { privacy: 'public', isDeleted: { $ne: true } };
-    const ownPostsQuery = { user: req.user._id, isDeleted: { $ne: true } };
-    
+    const publicQuery = excludeReels({ privacy: 'public', isDeleted: { $ne: true } });
+    const ownPostsQuery = excludeReels({ user: req.user._id, isDeleted: { $ne: true } });
+
     // Apply blocking filter to public posts
     if (blockedUserIds.length > 0) {
       publicQuery.user = { $nin: blockedUserIds };
@@ -104,11 +107,12 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
     if (followingIds.length > 0) {
       // Replace the default $or (public + own posts) query with one scoped to
       // people the user follows, still honoring privacy/deletion/blocking.
-      const followingQuery = {
+      // Excludes reels (plan-review I4) — same as every other discovery feed.
+      const followingQuery = excludeReels({
         user: { $in: followingIds },
         privacy: 'public',
         isDeleted: { $ne: true }
-      };
+      });
 
       if (blockedUserIds.length > 0) {
         followingQuery.user = { $in: followingIds, $nin: blockedUserIds };
@@ -159,6 +163,59 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
       nextPage: page < totalPages ? page + 1 : null,
       prevPage: page > 1 ? page - 1 : null,
     }
+  });
+});
+
+/**
+ * @desc    Get reels feed (cursor-paginated, two-bucket language ranking)
+ * @route   GET /api/v1/moments/reels?limit=10&before=<ISO createdAt cursor>
+ * @access  Private (gated by REELS_ENABLED via reelsEnabledGuard, routes/moments.js)
+ */
+exports.getReelsFeed = asyncHandler(async (req, res, next) => {
+  const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+  const before = req.query.before || null;
+
+  const blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
+
+  const query = buildReelsQuery({ before, blockedIds: blockedUserIds });
+
+  // Raw, pre-partition window — sorted createdAt desc. nextCursor is
+  // derived from THIS array, never from the reordered/concatenated one
+  // below (plan-review I2 — see lib/reelsFeed.js:deriveNextCursor).
+  const rawWindow = await Moment.find(query)
+    .populate('user', USER_FIELDS)
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+
+  const nextCursor = deriveNextCursor(rawWindow, limit);
+
+  const targetIso = toIso(req.user.language_to_learn);
+  const nativeIso = toIso(req.user.native_language);
+  const relevantLanguages = [targetIso, nativeIso].filter(Boolean);
+
+  const ordered = partitionByLanguage(rawWindow, relevantLanguages);
+
+  const viewerId = req.user._id;
+  const data = ordered.map(moment => {
+    const userWithImages = processUserImages(moment.user, req);
+    const momentWithImages = processMomentImages(moment, req);
+    // No feed endpoint computes isLiked today (plan-review M1) — small new
+    // code, not reuse.
+    const isLiked = (moment.likedUsers || []).some(id => id.equals(viewerId));
+
+    return {
+      ...momentWithImages,
+      user: userWithImages,
+      commentCount: moment.comments?.length || moment.commentCount || 0,
+      isLiked
+    };
+  });
+
+  res.status(200).json({
+    success: true,
+    data,
+    nextCursor
   });
 });
 
@@ -379,7 +436,8 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
     location,
     scheduledFor,
     backgroundColor,
-    promptId
+    promptId,
+    isReel
   } = req.body;
 
   // Use authenticated user instead of body user (security)
@@ -432,7 +490,8 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
     privacy: privacy || 'public',
     scheduledFor: scheduledFor || null,
     backgroundColor: backgroundColor || '',
-    promptId: promptId || null
+    promptId: promptId || null,
+    isReel: resolveIsReel(isReel)
   };
 
   // If images were uploaded via multer-s3, add their CDN URLs
@@ -669,7 +728,32 @@ exports.momentVideoUpload = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('Not authorized to upload video to this moment', 403));
   }
 
-  // Check if moment already has a video
+  // Video should be validated by middleware (uploadSingleVideo)
+  if (!req.videoMetadata) {
+    return next(new ErrorResponse('Please upload a video file', 400));
+  }
+
+  // Reel-specific 180s cap (spec I5 — enforced HERE, not middleware: the
+  // upload middleware runs pre-controller with no `isReel` context). The
+  // middleware's global 600s cap above stays as the outer bound for
+  // non-reel video moments. Mirrors the audio reject-and-delete pattern
+  // (momentAudioUpload above).
+  // NOTE (gate review): this check MUST run before the old-video deletion
+  // below — otherwise rejecting a replacement upload would leave the moment
+  // pointing at an already-deleted old file (dangling video.url).
+  if (isReelOverCap(moment, req.videoMetadata.duration)) {
+    const rejectedUrls = [req.videoMetadata.url];
+    if (req.videoMetadata.thumbnail) rejectedUrls.push(req.videoMetadata.thumbnail);
+    await Promise.all(
+      rejectedUrls.map(url => deleteFromSpaces(url).catch(err =>
+        console.error('Failed to delete rejected reel video asset:', err.message)
+      ))
+    );
+    return next(new ErrorResponse('Reels must be 180 seconds or under', 400, 'REEL_TOO_LONG'));
+  }
+
+  // Check if moment already has a video (safe to delete now — the new
+  // upload has passed all validation)
   if (moment.video && moment.video.url) {
     // Delete old video from Spaces before replacing
     try {
@@ -680,11 +764,6 @@ exports.momentVideoUpload = asyncHandler(async (req, res, next) => {
     } catch (err) {
       console.error('Failed to delete old video:', err.message);
     }
-  }
-
-  // Video should be validated by middleware (uploadSingleVideo)
-  if (!req.videoMetadata) {
-    return next(new ErrorResponse('Please upload a video file', 400));
   }
 
   // Update moment with video data
@@ -1290,11 +1369,13 @@ exports.getTrendingMoments = asyncHandler(async (req, res, next) => {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  let query = {
+  // Discovery feed (plan-review I1/I4) — Trending is live UI and would
+  // otherwise leak reels; excludes them same as the other discovery feeds.
+  let query = excludeReels({
     privacy: 'public',
     isDeleted: { $ne: true },
     createdAt: { $gte: sevenDaysAgo }
-  };
+  });
 
   // Exclude blocked users
   if (blockedUserIds.length > 0) {
@@ -1357,10 +1438,12 @@ exports.exploreMoments = asyncHandler(async (req, res, next) => {
     blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
   }
 
-  let query = {
+  // Discovery feed (plan-review I1/I4) — excludes reels same as the other
+  // discovery feeds; reels live only in the Reels tab.
+  let query = excludeReels({
     privacy: 'public',
     isDeleted: { $ne: true }
-  };
+  });
 
   // Apply filters
   if (category && category !== 'all') query.category = category;

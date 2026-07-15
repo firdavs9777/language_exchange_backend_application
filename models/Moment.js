@@ -244,6 +244,20 @@ const MomentSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
     index: true
+  },
+
+  // Workstream G — Reels. Reels ride on Moment (no new collection):
+  // isReel:true moments are surfaced only via GET /moments/reels and are
+  // excluded from the regular discovery card feeds.
+  isReel: {
+    type: Boolean,
+    default: false
+  },
+  // Set true once a reel crosses the report auto-hide threshold (>=2
+  // distinct reporters). Cleared by the admin "restore" action.
+  hiddenPendingReview: {
+    type: Boolean,
+    default: false
   }
 });
 
@@ -253,6 +267,11 @@ MomentSchema.index({ privacy: 1, createdAt: -1 }); // For public feed queries
 MomentSchema.index({ category: 1, createdAt: -1 }); // For category filtering
 MomentSchema.index({ language: 1, createdAt: -1 }); // For language filtering
 MomentSchema.index({ 'location.coordinates': '2dsphere' }); // For geospatial queries
+
+// Reels feed prefilter + recency sort. Residual filters (blocked-user
+// $nin, hiddenPendingReview) and the language partition are non-indexed —
+// acceptable in-memory work at this dataset size (revisit past ~10k reels).
+MomentSchema.index({ isReel: 1, privacy: 1, createdAt: -1 });
 
 // Additional indexes for video/media filtering and interactions
 MomentSchema.index({ mediaType: 1, privacy: 1, createdAt: -1 }); // For video-specific feed queries
