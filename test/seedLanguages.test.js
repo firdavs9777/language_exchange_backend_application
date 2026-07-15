@@ -45,7 +45,7 @@ const PROD_LANGUAGE_NAMES_2026_07_15 = [
   'Scottish Gaelic', 'Breton', 'Maltese', 'Albanian', 'Maori', 'Samoan',
   'Tongan', 'Fijian', 'Hawaiian', 'Haitian Creole', 'Quechua', 'Guarani',
   'Esperanto', 'Latin', 'American Sign Language', 'British Sign Language',
-  'Japanese Sign Language', 'Korean Sign Language',
+  'Japanese Sign Language', 'Korean Sign Language', 'Sesotho', 'Shona',
 ];
 
 // Names with no ISO 639-1 base — mirror of the exception list in
