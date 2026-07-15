@@ -1302,7 +1302,8 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     language_to_learn,
     privacySettings,
     profileCompleted,
-    topics
+    topics,
+    reelsPolicyAccepted
   } = req.body;
 
   // Remove undefined fields
@@ -1320,7 +1321,8 @@ exports.updateDetails = asyncHandler(async (req, res, next) => {
     location,
     privacySettings,
     profileCompleted,
-    topics
+    topics,
+    reelsPolicyAccepted
   }).reduce((acc, [key, value]) => {
     if (value !== undefined) acc[key] = value;
     return acc;

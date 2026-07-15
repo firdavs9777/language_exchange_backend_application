@@ -9,6 +9,7 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
 const { getVideoConstraints } = require('../utils/videoUtils');
 const { toIso } = require('../utils/languageCodes');
+const { excludeReels } = require('../lib/reelsFeed');
 
 // Minimal user fields for population (performance optimization)
 const USER_FIELDS = 'name email bio images native_language language_to_learn';
@@ -54,14 +55,16 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
   }
 
   // Build query based on privacy and user
-  let query = { privacy: 'public', isDeleted: { $ne: true } };
+  // Discovery feed (plan-review I1/I4): reels are excluded here — they
+  // live only in the Reels tab (GET /moments/reels).
+  let query = excludeReels({ privacy: 'public', isDeleted: { $ne: true } });
 
   // If user is logged in, they can see their own posts
   if (req.user) {
     // Exclude blocked users from both conditions
-    const publicQuery = { privacy: 'public', isDeleted: { $ne: true } };
-    const ownPostsQuery = { user: req.user._id, isDeleted: { $ne: true } };
-    
+    const publicQuery = excludeReels({ privacy: 'public', isDeleted: { $ne: true } });
+    const ownPostsQuery = excludeReels({ user: req.user._id, isDeleted: { $ne: true } });
+
     // Apply blocking filter to public posts
     if (blockedUserIds.length > 0) {
       publicQuery.user = { $nin: blockedUserIds };
@@ -104,11 +107,12 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
     if (followingIds.length > 0) {
       // Replace the default $or (public + own posts) query with one scoped to
       // people the user follows, still honoring privacy/deletion/blocking.
-      const followingQuery = {
+      // Excludes reels (plan-review I4) — same as every other discovery feed.
+      const followingQuery = excludeReels({
         user: { $in: followingIds },
         privacy: 'public',
         isDeleted: { $ne: true }
-      };
+      });
 
       if (blockedUserIds.length > 0) {
         followingQuery.user = { $in: followingIds, $nin: blockedUserIds };
@@ -1290,11 +1294,13 @@ exports.getTrendingMoments = asyncHandler(async (req, res, next) => {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  let query = {
+  // Discovery feed (plan-review I1/I4) — Trending is live UI and would
+  // otherwise leak reels; excludes them same as the other discovery feeds.
+  let query = excludeReels({
     privacy: 'public',
     isDeleted: { $ne: true },
     createdAt: { $gte: sevenDaysAgo }
-  };
+  });
 
   // Exclude blocked users
   if (blockedUserIds.length > 0) {
@@ -1357,10 +1363,12 @@ exports.exploreMoments = asyncHandler(async (req, res, next) => {
     blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
   }
 
-  let query = {
+  // Discovery feed (plan-review I1/I4) — excludes reels same as the other
+  // discovery feeds; reels live only in the Reels tab.
+  let query = excludeReels({
     privacy: 'public',
     isDeleted: { $ne: true }
-  };
+  });
 
   // Apply filters
   if (category && category !== 'all') query.category = category;
