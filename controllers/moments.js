@@ -9,7 +9,7 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
 const { getVideoConstraints } = require('../utils/videoUtils');
 const { toIso } = require('../utils/languageCodes');
-const { excludeReels } = require('../lib/reelsFeed');
+const { excludeReels, buildReelsQuery, partitionByLanguage, deriveNextCursor, resolveIsReel } = require('../lib/reelsFeed');
 
 // Minimal user fields for population (performance optimization)
 const USER_FIELDS = 'name email bio images native_language language_to_learn';
@@ -163,6 +163,59 @@ exports.getMoments = asyncHandler(async (req, res, next) => {
       nextPage: page < totalPages ? page + 1 : null,
       prevPage: page > 1 ? page - 1 : null,
     }
+  });
+});
+
+/**
+ * @desc    Get reels feed (cursor-paginated, two-bucket language ranking)
+ * @route   GET /api/v1/moments/reels?limit=10&before=<ISO createdAt cursor>
+ * @access  Private (gated by REELS_ENABLED via reelsEnabledGuard, routes/moments.js)
+ */
+exports.getReelsFeed = asyncHandler(async (req, res, next) => {
+  const limit = Math.min(parseInt(req.query.limit) || 10, 50);
+  const before = req.query.before || null;
+
+  const blockedUserIds = Array.from(await getBlockedUserIds(req.user._id));
+
+  const query = buildReelsQuery({ before, blockedIds: blockedUserIds });
+
+  // Raw, pre-partition window — sorted createdAt desc. nextCursor is
+  // derived from THIS array, never from the reordered/concatenated one
+  // below (plan-review I2 — see lib/reelsFeed.js:deriveNextCursor).
+  const rawWindow = await Moment.find(query)
+    .populate('user', USER_FIELDS)
+    .sort({ createdAt: -1 })
+    .limit(limit)
+    .lean();
+
+  const nextCursor = deriveNextCursor(rawWindow, limit);
+
+  const targetIso = toIso(req.user.language_to_learn);
+  const nativeIso = toIso(req.user.native_language);
+  const relevantLanguages = [targetIso, nativeIso].filter(Boolean);
+
+  const ordered = partitionByLanguage(rawWindow, relevantLanguages);
+
+  const viewerId = req.user._id;
+  const data = ordered.map(moment => {
+    const userWithImages = processUserImages(moment.user, req);
+    const momentWithImages = processMomentImages(moment, req);
+    // No feed endpoint computes isLiked today (plan-review M1) — small new
+    // code, not reuse.
+    const isLiked = (moment.likedUsers || []).some(id => id.equals(viewerId));
+
+    return {
+      ...momentWithImages,
+      user: userWithImages,
+      commentCount: moment.comments?.length || moment.commentCount || 0,
+      isLiked
+    };
+  });
+
+  res.status(200).json({
+    success: true,
+    data,
+    nextCursor
   });
 });
 
@@ -383,7 +436,8 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
     location,
     scheduledFor,
     backgroundColor,
-    promptId
+    promptId,
+    isReel
   } = req.body;
 
   // Use authenticated user instead of body user (security)
@@ -436,7 +490,8 @@ exports.createMoment = asyncHandler(async (req, res, next) => {
     privacy: privacy || 'public',
     scheduledFor: scheduledFor || null,
     backgroundColor: backgroundColor || '',
-    promptId: promptId || null
+    promptId: promptId || null,
+    isReel: resolveIsReel(isReel)
   };
 
   // If images were uploaded via multer-s3, add their CDN URLs

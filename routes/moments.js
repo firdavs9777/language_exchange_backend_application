@@ -3,6 +3,7 @@ const express = require('express');
 const {
   getMoments,
   getMoment,
+  getReelsFeed,
   getPromptOfDay,
   createMoment,
   updateMoment,
@@ -36,6 +37,7 @@ const commentRouter = require('./comment');
 const router = express.Router();
 const { protect, optionalAuth } = require('../middleware/auth');
 const { interactionLimiter, reportLimiter } = require('../middleware/rateLimiter');
+const { reelsEnabledGuard } = require('../lib/reelsFeed');
 
 // Comments routes
 router.use('/:momentId/comments', commentRouter);
@@ -48,6 +50,12 @@ router.route('/trending').get(optionalAuth, getTrendingMoments);
 router.route('/explore').get(optionalAuth, exploreMoments);
 router.route('/user/:userId').get(optionalAuth, getUserMoments);
 router.route('/prompt-of-day').get(optionalAuth, getPromptOfDay);
+
+// Reels feed (Workstream G) — MUST be registered before '/:id' below, or
+// Express would match 'reels' as an :id param and this route would never
+// be reached. Gated by REELS_ENABLED (404 when off).
+router.route('/reels').get(protect, reelsEnabledGuard, getReelsFeed);
+
 router.route('/:id').get(optionalAuth, getMoment);
 
 // ========== PROTECTED ROUTES ==========

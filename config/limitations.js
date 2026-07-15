@@ -17,9 +17,16 @@ const AI_QUOTA_ENABLED = String(process.env.AI_QUOTA_ENABLED || 'true').toLowerC
 // can hide the Rooms tab. Defaults to true (on) when unset.
 const ROOMS_ENABLED = String(process.env.ROOMS_ENABLED || 'true').toLowerCase() === 'true';
 
+// Kill switch for Workstream G Reels. When 'false', lib/reelsFeed.js's
+// reelsEnabledGuard short-circuits GET /api/v1/moments/reels to a 404, and
+// controllers/appConfig.js reports reelsEnabled:false to clients so the app
+// can hide the Reels tab. Defaults to true (on) when unset.
+const REELS_ENABLED = String(process.env.REELS_ENABLED || 'true').toLowerCase() === 'true';
+
 module.exports = {
   AI_QUOTA_ENABLED,
   ROOMS_ENABLED,
+  REELS_ENABLED,
 
   // ===================== VISITOR LIMITS =====================
   // Users who haven't verified email or just browsing
