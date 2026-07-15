@@ -60,10 +60,20 @@ const NAME_TO_ISO = {
   'portuguese (brazil)': 'pt',
   'portuguese (portugal)': 'pt',
   'english (uk)': 'en',
+  'english (australia)': 'en',
+  'english (canada)': 'en',
   'cantonese': 'zh',
   'spanish (mexico)': 'es',
   'spanish (spain)': 'es',
+  'spanish (argentina)': 'es',
   'french (canada)': 'fr',
+  // Arabic varieties (ar-EG/ar-LV/ar-GU/ar-MA in seeds/languages.js) —
+  // all group to base 'ar'; plain "Arabic" doubles as MSA.
+  'arabic (msa)': 'ar',
+  'arabic (egyptian)': 'ar',
+  'arabic (levantine)': 'ar',
+  'arabic (gulf)': 'ar',
+  'arabic (moroccan darija)': 'ar',
 
   // FULL languages-collection coverage (127 names, seeds/languages.js —
   // the real source of truth for what users can pick; the old ~40-name
@@ -103,6 +113,8 @@ const NAME_TO_ISO = {
   'zulu': 'zu',
   'xhosa': 'xh',
   'setswana': 'tn',
+  'sesotho': 'st',
+  'shona': 'sn',
   'kinyarwanda': 'rw',
   'luganda': 'lg',
   'malagasy': 'mg',

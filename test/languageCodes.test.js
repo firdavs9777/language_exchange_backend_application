@@ -48,6 +48,9 @@ const ALL_LANGUAGE_NAMES = [
   'Japanese Sign Language', 'Korean Sign Language',
   // Seeded but not yet in prod (pending seeder re-run):
   'Spanish (Mexico)', 'French (Canada)', 'Portuguese (Portugal)',
+  'English (Australia)', 'English (Canada)', 'Spanish (Argentina)',
+  'Arabic (Egyptian)', 'Arabic (Levantine)', 'Arabic (Gulf)',
+  'Arabic (Moroccan Darija)', 'Sesotho', 'Shona',
 ];
 
 test('toIso: every 639-1-capable language in the languages collection normalizes', () => {
@@ -75,7 +78,39 @@ test('toIso: regional variants group with their base language (matching semantic
   assert.equal(toIso('Cantonese'), 'zh');
   assert.equal(toIso('Spanish (Mexico)'), 'es');
   assert.equal(toIso('Spanish (Spain)'), 'es');
+  assert.equal(toIso('Spanish (Argentina)'), 'es');
   assert.equal(toIso('French (Canada)'), 'fr');
+  assert.equal(toIso('English (Australia)'), 'en');
+  assert.equal(toIso('English (Canada)'), 'en');
+});
+
+test('toIso: Arabic varieties all group to base ar (no fragmentation)', () => {
+  assert.equal(toIso('Arabic'), 'ar'); // plain Arabic doubles as MSA
+  assert.equal(toIso('Arabic (MSA)'), 'ar');
+  assert.equal(toIso('Arabic (Egyptian)'), 'ar');
+  assert.equal(toIso('Arabic (Levantine)'), 'ar');
+  assert.equal(toIso('Arabic (Gulf)'), 'ar');
+  assert.equal(toIso('Arabic (Moroccan Darija)'), 'ar');
+});
+
+test('rooms normalizeLanguage: new variants join the base-language hub', () => {
+  const { normalizeLanguage } = require('../lib/normalizeLanguage');
+  assert.equal(normalizeLanguage('English (Australia)'), 'en');
+  assert.equal(normalizeLanguage('English (Canada)'), 'en');
+  assert.equal(normalizeLanguage('Spanish (Argentina)'), 'es');
+  assert.equal(normalizeLanguage('Arabic (Egyptian)'), 'ar');
+  assert.equal(normalizeLanguage('Arabic (Levantine)'), 'ar');
+  assert.equal(normalizeLanguage('Arabic (Gulf)'), 'ar');
+  assert.equal(normalizeLanguage('Arabic (Moroccan Darija)'), 'ar');
+});
+
+test('normalizeLocale: new variant display names resolve to a template locale', () => {
+  const { normalizeLocale } = require('../lib/normalizeLocale');
+  assert.equal(normalizeLocale('English (Australia)'), 'en');
+  assert.equal(normalizeLocale('English (Canada)'), 'en');
+  assert.equal(normalizeLocale('Spanish (Argentina)'), 'es');
+  assert.equal(normalizeLocale('Arabic (Egyptian)'), 'ar');
+  assert.equal(normalizeLocale('Arabic (Moroccan Darija)'), 'ar');
 });
 
 test('toIso: ISO-code pass-through and unknowns unchanged (regression)', () => {

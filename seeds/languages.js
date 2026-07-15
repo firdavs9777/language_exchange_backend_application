@@ -46,8 +46,12 @@ const languages = [
   // === EUROPEAN ===
   { code: 'es', name: 'Spanish', nativeName: 'Español', flag: '🇪🇸' },
   { code: 'es-MX', name: 'Spanish (Mexico)', nativeName: 'Español (México)', flag: '🇲🇽' },
+  { code: 'es-AR', name: 'Spanish (Argentina)', nativeName: 'Español (Argentina)', flag: '🇦🇷' },
   { code: 'pt', name: 'Portuguese', nativeName: 'Português', flag: '🇵🇹' },
   { code: 'pt-BR', name: 'Portuguese (Brazil)', nativeName: 'Português (Brasil)', flag: '🇧🇷' },
+  // Explicit Portugal row; plain 'pt' "Portuguese" stays as a legacy alias
+  // (prod users hold it) — both group to base 'pt' everywhere.
+  { code: 'pt-PT', name: 'Portuguese (Portugal)', nativeName: 'Português (Portugal)', flag: '🇵🇹' },
   { code: 'fr', name: 'French', nativeName: 'Français', flag: '🇫🇷' },
   { code: 'fr-CA', name: 'French (Canada)', nativeName: 'Français (Canada)', flag: '🇨🇦' },
   { code: 'de', name: 'German', nativeName: 'Deutsch', flag: '🇩🇪' },
@@ -69,6 +73,24 @@ const languages = [
   // === ENGLISH VARIANTS ===
   { code: 'en-US', name: 'English (US)', nativeName: 'English (US)', flag: '🇺🇸' },
   { code: 'en-GB', name: 'English (UK)', nativeName: 'English (UK)', flag: '🇬🇧' },
+  { code: 'en-AU', name: 'English (Australia)', nativeName: 'English (Australia)', flag: '🇦🇺' },
+  { code: 'en-CA', name: 'English (Canada)', nativeName: 'English (Canada)', flag: '🇨🇦' },
+
+  // === ARABIC VARIETIES ===
+  // Plain 'ar' "Arabic" (top of file) stays and doubles as MSA — renaming
+  // it would orphan the 83 prod users whose native_language is literally
+  // "Arabic", and a separate "Arabic (MSA)" row would duplicate 'ar'.
+  // Codes are pragmatic region-style tags (ar-EG/ar-LV/ar-GU/ar-MA), NOT
+  // official ISO subtags for the dialects — chosen because both the app
+  // and backend group hyphenated codes by prefix, so all four normalize
+  // to base 'ar' with zero special-casing (grouping correctness over code
+  // aesthetics, per review). Flags: Egypt/Morocco are unambiguous;
+  // Levantine spans LB/SY/JO/PS — 🇱🇧 chosen as the widely recognized
+  // media standard; Gulf spans SA/AE/KW/QA/BH/OM — 🇸🇦 as the largest.
+  { code: 'ar-EG', name: 'Arabic (Egyptian)', nativeName: 'مصري', flag: '🇪🇬' },
+  { code: 'ar-LV', name: 'Arabic (Levantine)', nativeName: 'شامي', flag: '🇱🇧' },
+  { code: 'ar-GU', name: 'Arabic (Gulf)', nativeName: 'خليجي', flag: '🇸🇦' },
+  { code: 'ar-MA', name: 'Arabic (Moroccan Darija)', nativeName: 'دارجة', flag: '🇲🇦' },
 
   // === MORE EAST ASIAN ===
   { code: 'zh-HK', name: 'Cantonese', nativeName: '粵語', flag: '🇭🇰' },
@@ -183,19 +205,34 @@ const seedLanguages = async () => {
     await mongoose.connect(process.env.MONGO_URI);
     console.log('🔌 Connected to MongoDB');
 
-    // Clear existing languages
-    await Language.deleteMany({});
-    console.log('🗑️  Cleared existing languages');
+    // STRICTLY ADDITIVE (safety-reviewed): the previous deleteMany+create
+    // wipe could delete or rename languages that live users already hold
+    // in native_language/language_to_learn. $setOnInsert-only upserts
+    // insert missing codes and NEVER touch existing rows — re-running is
+    // always safe. (Fixing a flag/name on an existing row is a deliberate
+    // manual migration, not a seeder side effect.)
+    const result = await Language.bulkWrite(
+      languages.map((lang) => ({
+        updateOne: {
+          filter: { code: lang.code },
+          update: { $setOnInsert: lang },
+          upsert: true,
+        },
+      }))
+    );
 
-    // Insert new languages (use .create to trigger pre-save hooks for slugify)
-    const result = await Language.create(languages);
-    console.log(`✅ Inserted ${result.length} languages`);
+    const inserted = result.upsertedCount || 0;
+    console.log(`✅ Seed complete: ${inserted} inserted, ${languages.length - inserted} already present (untouched)`);
 
-    // List them
-    console.log('\n📋 Languages added:');
-    languages.forEach(lang => {
-      console.log(`   ${lang.flag} ${lang.code}: ${lang.name} (${lang.nativeName})`);
-    });
+    if (inserted > 0) {
+      console.log('\n📋 Newly added:');
+      const upsertedIndexes = new Set(Object.keys(result.upsertedIds || {}).map(Number));
+      languages.forEach((lang, i) => {
+        if (upsertedIndexes.has(i)) {
+          console.log(`   ${lang.flag} ${lang.code}: ${lang.name} (${lang.nativeName})`);
+        }
+      });
+    }
 
     console.log('\n✅ Language seeding complete!');
     process.exit(0);
@@ -204,6 +241,10 @@ const seedLanguages = async () => {
     process.exit(1);
   }
 };
+
+// Exported for test/seedLanguages.test.js (safety audit); the
+// require.main guard below keeps a bare `require` side-effect free.
+module.exports = { languages, seedLanguages };
 
 // Run if called directly
 if (require.main === module) {
