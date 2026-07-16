@@ -278,5 +278,425 @@
     "level": "any",
     "emoji": "😋",
     "active": true
+  },
+  {
+    "text": "今日の朝ごはんは何を食べましたか？🍳",
+    "language": "ja",
+    "level": "beginner",
+    "emoji": "🍳",
+    "active": true
+  },
+  {
+    "text": "自己紹介を3つの文でしてみましょう 👋",
+    "language": "ja",
+    "level": "beginner",
+    "emoji": "👋",
+    "active": true
+  },
+  {
+    "text": "今日の天気はどうですか？☀️",
+    "language": "ja",
+    "level": "beginner",
+    "emoji": "☀️",
+    "active": true
+  },
+  {
+    "text": "週末は何をしましたか？🎉",
+    "language": "ja",
+    "level": "beginner",
+    "emoji": "🎉",
+    "active": true
+  },
+  {
+    "text": "好きな食べ物について教えてください 🍜",
+    "language": "ja",
+    "level": "beginner",
+    "emoji": "🍜",
+    "active": true
+  },
+  {
+    "text": "あなたの趣味は何ですか？🎨",
+    "language": "ja",
+    "level": "beginner",
+    "emoji": "🎨",
+    "active": true
+  },
+  {
+    "text": "あなたの街のおすすめの場所を紹介してください 🗺️",
+    "language": "ja",
+    "level": "intermediate",
+    "emoji": "🗺️",
+    "active": true
+  },
+  {
+    "text": "最近見た映画やドラマの感想を教えてください 🎬",
+    "language": "ja",
+    "level": "intermediate",
+    "emoji": "🎬",
+    "active": true
+  },
+  {
+    "text": "日本語を勉強している理由は何ですか？📚",
+    "language": "ja",
+    "level": "intermediate",
+    "emoji": "📚",
+    "active": true
+  },
+  {
+    "text": "子供の頃の思い出をひとつ話してください 🧸",
+    "language": "ja",
+    "level": "intermediate",
+    "emoji": "🧸",
+    "active": true
+  },
+  {
+    "text": "ماذا أكلت على الفطور اليوم؟ 🍳",
+    "language": "ar",
+    "level": "beginner",
+    "emoji": "🍳",
+    "active": true
+  },
+  {
+    "text": "عرّف عن نفسك في ثلاث جمل 👋",
+    "language": "ar",
+    "level": "beginner",
+    "emoji": "👋",
+    "active": true
+  },
+  {
+    "text": "كيف الطقس عندك اليوم؟ ☀️",
+    "language": "ar",
+    "level": "beginner",
+    "emoji": "☀️",
+    "active": true
+  },
+  {
+    "text": "ماذا فعلت في عطلة نهاية الأسبوع؟ 🎉",
+    "language": "ar",
+    "level": "beginner",
+    "emoji": "🎉",
+    "active": true
+  },
+  {
+    "text": "ما هو طعامك المفضل ولماذا؟ 🍲",
+    "language": "ar",
+    "level": "beginner",
+    "emoji": "🍲",
+    "active": true
+  },
+  {
+    "text": "ما هي هوايتك المفضلة؟ 🎨",
+    "language": "ar",
+    "level": "beginner",
+    "emoji": "🎨",
+    "active": true
+  },
+  {
+    "text": "صف أجمل مكان زرته في حياتك 🗺️",
+    "language": "ar",
+    "level": "intermediate",
+    "emoji": "🗺️",
+    "active": true
+  },
+  {
+    "text": "ما هو أفضل فيلم أو مسلسل شاهدته مؤخراً؟ 🎬",
+    "language": "ar",
+    "level": "intermediate",
+    "emoji": "🎬",
+    "active": true
+  },
+  {
+    "text": "لماذا تتعلم اللغة العربية؟ 📚",
+    "language": "ar",
+    "level": "intermediate",
+    "emoji": "📚",
+    "active": true
+  },
+  {
+    "text": "احكِ لنا ذكرى جميلة من طفولتك 🧸",
+    "language": "ar",
+    "level": "intermediate",
+    "emoji": "🧸",
+    "active": true
+  },
+  {
+    "text": "¿Qué desayunaste hoy? 🍳",
+    "language": "es",
+    "level": "beginner",
+    "emoji": "🍳",
+    "active": true
+  },
+  {
+    "text": "Preséntate en tres frases 👋",
+    "language": "es",
+    "level": "beginner",
+    "emoji": "👋",
+    "active": true
+  },
+  {
+    "text": "¿Qué tiempo hace donde vives? ☀️",
+    "language": "es",
+    "level": "beginner",
+    "emoji": "☀️",
+    "active": true
+  },
+  {
+    "text": "¿Qué hiciste el fin de semana? 🎉",
+    "language": "es",
+    "level": "beginner",
+    "emoji": "🎉",
+    "active": true
+  },
+  {
+    "text": "¿Cuál es tu comida favorita y por qué? 🌮",
+    "language": "es",
+    "level": "beginner",
+    "emoji": "🌮",
+    "active": true
+  },
+  {
+    "text": "¿Qué te gusta hacer en tu tiempo libre? 🎨",
+    "language": "es",
+    "level": "beginner",
+    "emoji": "🎨",
+    "active": true
+  },
+  {
+    "text": "Describe el lugar más bonito que has visitado 🗺️",
+    "language": "es",
+    "level": "intermediate",
+    "emoji": "🗺️",
+    "active": true
+  },
+  {
+    "text": "¿Cuál es la última película o serie que te encantó? 🎬",
+    "language": "es",
+    "level": "intermediate",
+    "emoji": "🎬",
+    "active": true
+  },
+  {
+    "text": "¿Por qué estás aprendiendo español? 📚",
+    "language": "es",
+    "level": "intermediate",
+    "emoji": "📚",
+    "active": true
+  },
+  {
+    "text": "Cuéntanos un recuerdo bonito de tu infancia 🧸",
+    "language": "es",
+    "level": "intermediate",
+    "emoji": "🧸",
+    "active": true
+  },
+  {
+    "text": "Was hast du heute gefrühstückt? 🍳",
+    "language": "de",
+    "level": "beginner",
+    "emoji": "🍳",
+    "active": true
+  },
+  {
+    "text": "Stell dich in drei Sätzen vor 👋",
+    "language": "de",
+    "level": "beginner",
+    "emoji": "👋",
+    "active": true
+  },
+  {
+    "text": "Wie ist das Wetter bei dir gerade? ☀️",
+    "language": "de",
+    "level": "beginner",
+    "emoji": "☀️",
+    "active": true
+  },
+  {
+    "text": "Was hast du am Wochenende gemacht? 🎉",
+    "language": "de",
+    "level": "beginner",
+    "emoji": "🎉",
+    "active": true
+  },
+  {
+    "text": "Was ist dein Lieblingsessen und warum? 🥨",
+    "language": "de",
+    "level": "beginner",
+    "emoji": "🥨",
+    "active": true
+  },
+  {
+    "text": "Was machst du gern in deiner Freizeit? 🎨",
+    "language": "de",
+    "level": "beginner",
+    "emoji": "🎨",
+    "active": true
+  },
+  {
+    "text": "Beschreib den schönsten Ort, den du je besucht hast 🗺️",
+    "language": "de",
+    "level": "intermediate",
+    "emoji": "🗺️",
+    "active": true
+  },
+  {
+    "text": "Welcher Film oder welche Serie hat dich zuletzt begeistert? 🎬",
+    "language": "de",
+    "level": "intermediate",
+    "emoji": "🎬",
+    "active": true
+  },
+  {
+    "text": "Warum lernst du Deutsch? 📚",
+    "language": "de",
+    "level": "intermediate",
+    "emoji": "📚",
+    "active": true
+  },
+  {
+    "text": "Erzähl uns eine schöne Erinnerung aus deiner Kindheit 🧸",
+    "language": "de",
+    "level": "intermediate",
+    "emoji": "🧸",
+    "active": true
+  },
+  {
+    "text": "Qu'est-ce que tu as mangé au petit-déjeuner ce matin ? 🍳",
+    "language": "fr",
+    "level": "beginner",
+    "emoji": "🍳",
+    "active": true
+  },
+  {
+    "text": "Présente-toi en trois phrases 👋",
+    "language": "fr",
+    "level": "beginner",
+    "emoji": "👋",
+    "active": true
+  },
+  {
+    "text": "Quel temps fait-il chez toi aujourd'hui ? ☀️",
+    "language": "fr",
+    "level": "beginner",
+    "emoji": "☀️",
+    "active": true
+  },
+  {
+    "text": "Qu'est-ce que tu as fait ce week-end ? 🎉",
+    "language": "fr",
+    "level": "beginner",
+    "emoji": "🎉",
+    "active": true
+  },
+  {
+    "text": "Quel est ton plat préféré et pourquoi ? 🥐",
+    "language": "fr",
+    "level": "beginner",
+    "emoji": "🥐",
+    "active": true
+  },
+  {
+    "text": "Qu'est-ce que tu aimes faire pendant ton temps libre ? 🎨",
+    "language": "fr",
+    "level": "beginner",
+    "emoji": "🎨",
+    "active": true
+  },
+  {
+    "text": "Décris le plus bel endroit que tu aies visité 🗺️",
+    "language": "fr",
+    "level": "intermediate",
+    "emoji": "🗺️",
+    "active": true
+  },
+  {
+    "text": "Quel film ou quelle série t'a marqué récemment ? 🎬",
+    "language": "fr",
+    "level": "intermediate",
+    "emoji": "🎬",
+    "active": true
+  },
+  {
+    "text": "Pourquoi apprends-tu le français ? 📚",
+    "language": "fr",
+    "level": "intermediate",
+    "emoji": "📚",
+    "active": true
+  },
+  {
+    "text": "Raconte-nous un beau souvenir de ton enfance 🧸",
+    "language": "fr",
+    "level": "intermediate",
+    "emoji": "🧸",
+    "active": true
+  },
+  {
+    "text": "Что ты ел(а) сегодня на завтрак? 🍳",
+    "language": "ru",
+    "level": "beginner",
+    "emoji": "🍳",
+    "active": true
+  },
+  {
+    "text": "Расскажи о себе в трёх предложениях 👋",
+    "language": "ru",
+    "level": "beginner",
+    "emoji": "👋",
+    "active": true
+  },
+  {
+    "text": "Какая сегодня погода у тебя? ☀️",
+    "language": "ru",
+    "level": "beginner",
+    "emoji": "☀️",
+    "active": true
+  },
+  {
+    "text": "Что ты делал(а) на выходных? 🎉",
+    "language": "ru",
+    "level": "beginner",
+    "emoji": "🎉",
+    "active": true
+  },
+  {
+    "text": "Какое твоё любимое блюдо и почему? 🥟",
+    "language": "ru",
+    "level": "beginner",
+    "emoji": "🥟",
+    "active": true
+  },
+  {
+    "text": "Чем ты любишь заниматься в свободное время? 🎨",
+    "language": "ru",
+    "level": "beginner",
+    "emoji": "🎨",
+    "active": true
+  },
+  {
+    "text": "Опиши самое красивое место, где ты был(а) 🗺️",
+    "language": "ru",
+    "level": "intermediate",
+    "emoji": "🗺️",
+    "active": true
+  },
+  {
+    "text": "Какой фильм или сериал тебе недавно понравился? 🎬",
+    "language": "ru",
+    "level": "intermediate",
+    "emoji": "🎬",
+    "active": true
+  },
+  {
+    "text": "Почему ты учишь русский язык? 📚",
+    "language": "ru",
+    "level": "intermediate",
+    "emoji": "📚",
+    "active": true
+  },
+  {
+    "text": "Расскажи какое-нибудь тёплое воспоминание из детства 🧸",
+    "language": "ru",
+    "level": "intermediate",
+    "emoji": "🧸",
+    "active": true
   }
 ]
