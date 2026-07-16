@@ -318,6 +318,34 @@ bannedAt: {
     default: 'regular'
   },
 
+  // ===================== COINS v1 (Workstream F) =====================
+  // Spendable balance, purchased via IAP coin packs. Mutated ONLY through
+  // lib/coinLedger.js's atomic debit/credit (never a bare $inc elsewhere,
+  // never composed with a full-document save of a stale in-memory copy) —
+  // see models/CoinTransaction.js for the ledger + idempotency contract.
+  coinBalance: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  // Persistent (non-daily-resetting) paid-unlock pool, keyed by the real
+  // featureKey: 'chat' | 'roleplay' | 'story' | 'photo' | 'pronunciation'
+  // (tutor chips, each independent) | 'translation' | 'moment'. A coin
+  // unlock $inc's coinBonus[featureKey]; the three enforcement sites
+  // (consumeQuota, canTranslate/incrementTranslationCount,
+  // canCreateMoment/incrementMomentCount) drain it AFTER the free daily
+  // cap is exhausted, each via a standalone atomic findOneAndUpdate —
+  // NEVER read-then-assigned on an in-memory `user` doc that might later
+  // be save()'d (a full-document save would clobber the atomic decrement
+  // with the pre-decrement in-memory value). Declared as a real top-level
+  // schema field (not nested under the strict regularUserLimitations
+  // subschema) so Mongoose doesn't drop an undeclared nested $inc.
+  coinBonus: {
+    type: Map,
+    of: Number,
+    default: {},
+  },
+
   // HelloTalk-style "Most Used" chat phrases for the in-chat phrases panel.
   // Stored newest-first; capped at 100 entries on add to bound document size.
   chatPhrases: {
