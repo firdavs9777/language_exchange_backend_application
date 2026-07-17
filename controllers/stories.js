@@ -96,6 +96,79 @@ function parseStickerFields(body, defaultExpiresAt) {
   return result;
 }
 
+// Parse + sanitize the `overlays` field, sent either as a JSON-encoded array
+// (multipart form fields always arrive as strings) or as a native array
+// (JSON body). Falls back to [] on missing/invalid input, and clamps/drops
+// individual entries defensively rather than passing raw client data through
+// to Mongoose — a single malformed entry (bad enum value, non-numeric
+// coordinate, oversized string, etc.) would otherwise fail schema validation
+// and surface as an opaque 500 to the client. Overlays are a non-critical
+// enhancement to a story, so a malformed *entry* is dropped rather than
+// failing the whole request.
+const OVERLAY_VALID_TYPES = ['text', 'emoji'];
+const OVERLAY_VALID_FONT_STYLES = ['sans-serif', 'serif', 'bold', 'handwritten'];
+const OVERLAY_VALID_BG_MODES = ['none', 'semi', 'solid'];
+const OVERLAY_HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+const OVERLAY_MAX_CONTENT_LENGTH = 500;
+const OVERLAY_MAX_COUNT = 20;
+
+function parseOverlays(body) {
+  let raw = body.overlays;
+  if (raw === undefined || raw === null || raw === '') return [];
+
+  if (typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw);
+    } catch (err) {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(raw)) return [];
+
+  const sanitized = [];
+  for (const entry of raw) {
+    if (sanitized.length >= OVERLAY_MAX_COUNT) break;
+    if (!entry || typeof entry !== 'object') continue;
+
+    const type = OVERLAY_VALID_TYPES.includes(entry.type) ? entry.type : null;
+    if (!type) continue;
+
+    const content = typeof entry.content === 'string'
+      ? entry.content.trim().slice(0, OVERLAY_MAX_CONTENT_LENGTH)
+      : '';
+    if (!content) continue;
+
+    const x = Number(entry.x);
+    const y = Number(entry.y);
+    if (Number.isNaN(x) || Number.isNaN(y)) continue;
+
+    const scaleNum = Number(entry.scale);
+    const scale = Number.isNaN(scaleNum) ? 1.0 : Math.min(Math.max(scaleNum, 0.5), 3.0);
+
+    const color = typeof entry.color === 'string' && OVERLAY_HEX_COLOR.test(entry.color)
+      ? entry.color
+      : '#FFFFFF';
+    const fontStyle = OVERLAY_VALID_FONT_STYLES.includes(entry.fontStyle)
+      ? entry.fontStyle
+      : 'sans-serif';
+    const bgMode = OVERLAY_VALID_BG_MODES.includes(entry.bgMode) ? entry.bgMode : 'none';
+
+    sanitized.push({
+      type,
+      content,
+      x: Math.min(Math.max(x, 0), 1),
+      y: Math.min(Math.max(y, 0), 1),
+      scale,
+      color,
+      fontStyle,
+      bgMode,
+    });
+  }
+
+  return sanitized;
+}
+
 // Parse the `hashtags` field, sent either as a JSON-encoded array (multipart)
 // or as a native array (JSON body). Normalizes to a deduped array of
 // lowercase strings without a leading '#', capped at 10 entries.
@@ -274,7 +347,7 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
 exports.createStory = asyncHandler(async (req, res, next) => {
   try {
     const { text, backgroundColor, textColor, privacy } = req.body;
-    const overlays = Array.isArray(req.body.overlays) ? req.body.overlays : [];
+    const overlays = parseOverlays(req.body);
     const userId = req.user.id;
     const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
     const LIMITS = require('../config/limitations');
@@ -350,6 +423,7 @@ exports.createStory = asyncHandler(async (req, res, next) => {
 exports.createVideoStory = asyncHandler(async (req, res, next) => {
   try {
     const { text, backgroundColor, textColor, privacy } = req.body;
+    const overlays = parseOverlays(req.body);
     const userId = req.user.id;
     const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
     const LIMITS = require('../config/limitations');
@@ -403,6 +477,7 @@ exports.createVideoStory = asyncHandler(async (req, res, next) => {
       backgroundColor: backgroundColor || '#000000',
       textColor: textColor || '#ffffff',
       privacy: privacy || 'friends',
+      overlays,
       hashtags: parseHashtags(req.body),
       ...stickerFields,
     };

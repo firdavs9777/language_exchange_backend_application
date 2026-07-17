@@ -171,9 +171,9 @@ const StorySchema = new mongoose.Schema({
     }],
     validate: {
       validator: function (arr) {
-        return Array.isArray(arr) && arr.length <= 5;
+        return Array.isArray(arr) && arr.length <= 20;
       },
-      message: 'A story can have at most 5 overlays',
+      message: 'A story can have at most 20 overlays',
     },
     default: [],
   },

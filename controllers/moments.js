@@ -643,6 +643,20 @@ exports.deleteMoment = asyncHandler(async (req, res, next) => {
     ).catch(err => console.error('Bulk video deletion error:', err.message));
   }
 
+  // Delete associated audio (voice note) from Spaces (fire and forget).
+  if (moment.audio && moment.audio.url) {
+    console.log(`🗑️ Deleting audio from Spaces`);
+    deleteFromSpaces(moment.audio.url).catch(err =>
+      console.error(`Failed to delete audio ${moment.audio.url}:`, err.message)
+    );
+  }
+
+  // Cascade-delete every comment (and reply) on this moment so none are
+  // orphaned. Comments live in their own collection keyed by `moment`.
+  const Comment = require('../models/Comment');
+  const commentResult = await Comment.deleteMany({ moment: moment._id });
+  console.log(`🗑️ Deleted ${commentResult.deletedCount} comment(s) for moment ${moment._id}`);
+
   await moment.deleteOne();
 
   res.status(200).json({

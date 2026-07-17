@@ -128,7 +128,7 @@ const QUESTION_DATA = {
     {
       topic: 'Climate',
       questionText:
-        'According to the passage, the author argues that renewable energy is most effective when:',
+        'Renewable energy systems perform best, the author argues, when they are layered onto the power networks that already exist rather than deployed in isolation. Combining solar and wind with conventional grid infrastructure smooths out their natural intermittency.\n\nAccording to the passage, renewable energy is most effective when:',
       questionType: 'multiple-choice',
       options: [
         'A) Used in isolation from existing infrastructure',
@@ -144,7 +144,7 @@ const QUESTION_DATA = {
     {
       topic: 'Climate',
       questionText:
-        'The word "abundant" in paragraph 2 is closest in meaning to:',
+        'Sunlight is among the most abundant energy resources available to us, falling on the planet in quantities that dwarf global demand. The challenge has never been supply but capture and storage.\n\nIn the passage, the word "abundant" is closest in meaning to:',
       questionType: 'multiple-choice',
       options: ['A) Scarce', 'B) Plentiful', 'C) Expensive', 'D) Polluting'],
       correctAnswer: 'B',
@@ -155,7 +155,7 @@ const QUESTION_DATA = {
     {
       topic: 'Technology',
       questionText:
-        'The passage suggests that artificial intelligence is most useful when it is:',
+        'The author contends that artificial intelligence delivers the most value not when it replaces human experts but when it supports them — surfacing patterns and options that a person then weighs and decides upon.\n\nThe passage suggests that artificial intelligence is most useful when it is:',
       questionType: 'multiple-choice',
       options: [
         'A) Replacing human judgement entirely',
@@ -172,7 +172,7 @@ const QUESTION_DATA = {
     {
       topic: 'Travel',
       questionText:
-        'What does the author identify as the primary benefit of slow travel?',
+        'Proponents of "slow travel" argue that lingering in one place — staying weeks rather than days — lets visitors form genuine connections with local people and customs. The payoff, they say, is cultural depth rather than a longer checklist of sights.\n\nAccording to the passage, what does the author identify as the primary benefit of slow travel?',
       questionType: 'multiple-choice',
       options: [
         'A) Lower cost',
@@ -189,7 +189,7 @@ const QUESTION_DATA = {
     {
       topic: 'Education',
       questionText:
-        'Which of the following best summarises the author\'s view on standardised testing?',
+        'Standardised tests, the author writes, provide a useful snapshot of certain skills and let teachers compare students across large groups. Yet treating them as the only measure of learning ignores the creativity, collaboration and persistence that no single exam captures.\n\nWhich of the following best summarises the author\'s view on standardised testing?',
       questionType: 'multiple-choice',
       options: [
         'A) Tests measure all the skills students need',
@@ -206,7 +206,7 @@ const QUESTION_DATA = {
     {
       topic: 'Health',
       questionText:
-        'According to the passage, regular exercise primarily benefits cognitive function by:',
+        'Regular physical activity, research suggests, sharpens cognitive function chiefly by increasing blood flow to the brain, delivering more oxygen and nutrients to the regions involved in memory and attention.\n\nAccording to the passage, regular exercise primarily benefits cognitive function by:',
       questionType: 'multiple-choice',
       options: [
         'A) Increasing blood flow to the brain',
@@ -233,7 +233,7 @@ const QUESTION_DATA = {
     {
       topic: 'Environment',
       questionText:
-        'In the passage above, the word "variability" most closely means:',
+        'Solar output rises and falls with the weather and the time of day, and this variability forces grid operators to keep backup capacity on hand to cover the gaps.\n\nIn the passage, the word "variability" most closely means:',
       questionType: 'multiple-choice',
       options: ['A) consistency', 'B) fluctuation', 'C) decline', 'D) sustainability'],
       correctAnswer: 'B',
@@ -255,7 +255,7 @@ const QUESTION_DATA = {
     {
       topic: 'Work',
       questionText:
-        'According to the passage, what is the main DRAWBACK of full remote work?',
+        'Surveys of remote workers consistently report higher job satisfaction than their office-based peers, but the same studies flag a recurring cost: a greater sense of isolation from colleagues.\n\nAccording to the passage, what is the main DRAWBACK of full remote work?',
       questionType: 'multiple-choice',
       options: ['A) Lower pay', 'B) Increased isolation', 'C) Reduced productivity', 'D) Longer working hours'],
       correctAnswer: 'B',
@@ -288,7 +288,7 @@ const QUESTION_DATA = {
     {
       topic: 'Technology',
       questionText:
-        'In the passage above, what does the author imply about cloud-based speech recognition?',
+        'Older voice assistants sent recordings to remote servers for processing, whereas newer phones increasingly recognise speech on the device itself. Processing speech in the cloud means voice data must leave the handset.\n\nIn the passage, what does the author imply about cloud-based speech recognition?',
       questionType: 'multiple-choice',
       options: ['A) It is faster than on-device recognition.', 'B) It involves sending voice data to remote servers.', 'C) It has been banned in most countries.', 'D) It uses less battery than on-device recognition.'],
       correctAnswer: 'B',
@@ -310,12 +310,12 @@ const QUESTION_DATA = {
     {
       topic: 'Family',
       questionText:
-        'Demographic studies indicate that the average household size in developed countries has been shrinking for decades, driven by lower birth rates and a growing number of single-person households. This trend has consequences for housing demand and urban planning.\n\nWhich is NOT mentioned as a cause of shrinking households?',
+        'Demographic studies indicate that the average household size in developed countries has been shrinking for decades, driven by lower birth rates, a growing number of single-person households, and longer life expectancy that leaves more older adults living alone. This trend has consequences for housing demand and urban planning.\n\nAccording to the passage, which of the following is NOT mentioned as a cause of shrinking households?',
       questionType: 'multiple-choice',
       options: ['A) Lower birth rates', 'B) More single-person households', 'C) Rising divorce rates', 'D) Longer life expectancy'],
       correctAnswer: 'C',
       explanation:
-        'Divorce rates and life expectancy are NOT mentioned — but the question asks for what is NOT mentioned, so we need the one missing from the passage that the question lists. Both C and D are missing; this item appears in standard IELTS practice as C because the passage names only the first two.',
+        'The passage names lower birth rates, single-person households, and longer life expectancy as causes — but not rising divorce rates, so C is the one not mentioned.',
       difficulty: 'medium',
     },
     {
@@ -328,6 +328,138 @@ const QUESTION_DATA = {
       explanation:
         '"Celebrating tradition authentically" vs "expectations of visiting tourists" = tradition vs tourism.',
       difficulty: 'medium',
+    },
+    {
+      topic: 'Space',
+      questionText:
+        'The James Webb Space Telescope observes the universe in infrared light, which lets it peer through clouds of cosmic dust that block visible light and detect some of the earliest galaxies ever formed.\n\nAccording to the passage, why is infrared light useful to the telescope?',
+      questionType: 'multiple-choice',
+      options: ['A) It is brighter than visible light', 'B) It can pass through cosmic dust that blocks visible light', 'C) It travels faster than visible light', 'D) It is only emitted by nearby stars'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage states infrared can penetrate the dust that blocks visible light.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Science',
+      questionText:
+        'Vaccines work by training the immune system to recognise a harmless piece of a pathogen, so that if the real pathogen later appears, the body can respond quickly without the person falling seriously ill.\n\nThe passage explains that vaccines primarily:',
+      questionType: 'multiple-choice',
+      options: ['A) Cure diseases after infection', 'B) Prepare the immune system to respond to a future threat', 'C) Replace the need for a healthy diet', 'D) Weaken the immune system over time'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage describes vaccines as preparing the body to respond to a future threat.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Food',
+      questionText:
+        'The popularity of fermented foods such as kimchi, yoghurt and sourdough has surged, driven largely by growing interest in gut health. Researchers caution, however, that the benefits vary widely from person to person.\n\nWhich statement is supported by the passage?',
+      questionType: 'multiple-choice',
+      options: ['A) Fermented foods benefit everyone equally', 'B) Interest in fermented foods is linked to gut-health trends', 'C) Fermented foods have no health effects', 'D) Sourdough is the only beneficial fermented food'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage ties the surge in popularity to interest in gut health.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'History',
+      questionText:
+        'The printing press, introduced to Europe in the fifteenth century, dramatically lowered the cost of producing books. Within decades, literacy spread well beyond the clergy and wealthy elites, reshaping how ideas circulated.\n\nAccording to the passage, the main effect of the printing press was to:',
+      questionType: 'multiple-choice',
+      options: ['A) Make books more expensive', 'B) Restrict reading to the clergy', 'C) Widen access to books and ideas', 'D) End all handwritten manuscripts immediately'],
+      correctAnswer: 'C',
+      explanation:
+        'Lower costs spread literacy and widened access to books and ideas.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Art',
+      questionText:
+        'Street art, once dismissed as vandalism, is now exhibited in major galleries and can sell for large sums. Critics debate whether moving such work indoors strips it of the public, rebellious spirit that defined it.\n\nThe debate described in the passage centres on:',
+      questionType: 'multiple-choice',
+      options: ['A) The cost of paint', 'B) Whether gallery display changes the meaning of street art', 'C) How to clean city walls', 'D) Which colours sell best'],
+      correctAnswer: 'B',
+      explanation:
+        'The debate is about whether moving street art indoors changes its meaning.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Music',
+      questionText:
+        'Learning to play a musical instrument in childhood has been linked to stronger memory and language skills later in life. Scientists believe coordinating hearing, movement and reading music exercises several brain regions at once.\n\nAccording to the passage, the benefits of learning an instrument are linked to:',
+      questionType: 'multiple-choice',
+      options: ['A) Playing only one note repeatedly', 'B) Using several brain regions together', 'C) Listening to music without playing', 'D) Avoiding reading music'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage attributes the benefits to using several brain regions at once.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Money',
+      questionText:
+        'Many young adults now use budgeting apps that automatically sort spending into categories. While these tools raise awareness of where money goes, experts note that awareness alone does not guarantee better financial habits.\n\nThe passage suggests that budgeting apps:',
+      questionType: 'multiple-choice',
+      options: ['A) Guarantee people will save money', 'B) Increase awareness but not necessarily behaviour', 'C) Are mainly used by businesses', 'D) Replace the need for income'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage separates raised awareness from an actual change in habits.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Animals',
+      questionText:
+        'Octopuses are remarkably intelligent: they can solve puzzles, open jars and even recognise individual human faces. Their nervous system is unusual because much of it is distributed across their arms rather than concentrated in a central brain.\n\nWhat does the passage say is unusual about octopuses?',
+      questionType: 'multiple-choice',
+      options: ['A) They have no nervous system', 'B) Their nervous system is spread across their arms', 'C) They cannot solve problems', 'D) They only react to light'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage notes the nervous system is distributed across the arms.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Psychology',
+      questionText:
+        'Psychologists have found that people tend to remember unfinished tasks better than completed ones, a tendency known as the Zeigarnik effect. It may explain why an interrupted activity can linger in our thoughts.\n\nAccording to the passage, the Zeigarnik effect describes our tendency to:',
+      questionType: 'multiple-choice',
+      options: ['A) Forget unfinished tasks', 'B) Remember unfinished tasks more readily', 'C) Avoid starting new tasks', 'D) Complete every task we begin'],
+      correctAnswer: 'B',
+      explanation:
+        'The passage defines the effect as remembering unfinished tasks more readily.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Nature',
+      questionText:
+        'Coral reefs cover less than one percent of the ocean floor, yet they support roughly a quarter of all marine species. Rising sea temperatures, however, are causing widespread bleaching that threatens this biodiversity.\n\nThe passage emphasises that coral reefs:',
+      questionType: 'multiple-choice',
+      options: ['A) Cover most of the ocean floor', 'B) Support a large share of marine life despite their small area', 'C) Are unaffected by temperature', 'D) Contain no living species'],
+      correctAnswer: 'B',
+      explanation:
+        'The contrast is between their tiny area and the large share of species they support.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'City',
+      questionText:
+        'Several cities have begun replacing short car trips with networks of protected bicycle lanes. Early data suggests this reduces traffic congestion and improves air quality, though some businesses worry about reduced parking.\n\nWhich concern is mentioned in the passage?',
+      questionType: 'multiple-choice',
+      options: ['A) Bicycles are too expensive', 'B) Businesses worry about reduced parking', 'C) Air quality is getting worse', 'D) Congestion has increased'],
+      correctAnswer: 'B',
+      explanation:
+        'The only concern named is businesses worrying about reduced parking.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Books',
+      questionText:
+        'Reading fiction, some researchers argue, can strengthen empathy by inviting readers to inhabit the thoughts and feelings of characters unlike themselves. Critics counter that the evidence so far remains only correlational.\n\nWhat reservation do critics raise in the passage?',
+      questionType: 'multiple-choice',
+      options: ['A) Fiction is too long', 'B) The evidence is only correlational', 'C) Empathy cannot be measured at all', 'D) Readers dislike unfamiliar characters'],
+      correctAnswer: 'B',
+      explanation:
+        'Critics note the evidence is correlational rather than causal.',
+      difficulty: 'hard',
     },
 ],
   // Writing Task 1 (IELTS General Training: informal letter, ~150 words).
@@ -422,7 +554,7 @@ const QUESTION_DATA = {
     {
       topic: 'Education',
       questionText:
-        'The bar chart shows the percentage of students achieving a top grade in three subjects (Mathematics, Literature, Science) at four schools (A, B, C, D) in 2024.\n\nSchool A: Mathematics 28%, Literature 41%, Science 33%\nSchool B: Mathematics 52%, Literature 36%, Science 47%\nSchool C: Mathematics 19%, Literature 24%, Science 22%\nSchool D: Mathematics 44%, Literature 31%, Science 38%\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
+        '<<<FIGURE {"type":"bar","title":"Students achieving a top grade by subject, 2024 (%)","unit":"%","categories":["School A","School B","School C","School D"],"series":[{"name":"Maths","values":[28,52,19,44]},{"name":"Literature","values":[41,36,24,31]},{"name":"Science","values":[33,47,22,38]}]} FIGURE>>>\n\nThe bar chart shows the percentage of students achieving a top grade in three subjects at four schools in 2024.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
@@ -432,7 +564,7 @@ const QUESTION_DATA = {
     {
       topic: 'Health',
       questionText:
-        'The bar chart compares average daily exercise time (in minutes) of men and women across four age groups in 2020 and 2024.\n\n18–29:  Men 2020 → 38, Men 2024 → 45, Women 2020 → 34, Women 2024 → 42\n30–44:  Men 2020 → 29, Men 2024 → 35, Women 2020 → 32, Women 2024 → 39\n45–59:  Men 2020 → 22, Men 2024 → 28, Women 2020 → 26, Women 2024 → 34\n60+:    Men 2020 → 18, Men 2024 → 23, Women 2020 → 21, Women 2024 → 27\n\nSummarise the main trends and make comparisons.\n\nWrite at least 150 words.',
+        '<<<FIGURE {"type":"line","title":"Average daily exercise (minutes) by age group, 2024","categories":["18-29","30-44","45-59","60+"],"series":[{"name":"Men","values":[45,35,28,23]},{"name":"Women","values":[42,39,34,27]}]} FIGURE>>>\n\nThe line graph shows the average number of minutes of daily exercise taken by men and women across four age groups in 2024.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
@@ -442,7 +574,7 @@ const QUESTION_DATA = {
     {
       topic: 'Travel',
       questionText:
-        'The bar chart shows the number of international tourists (in millions) visiting five countries (France, Spain, the United States, Thailand, and Italy) in 2019 and 2024.\n\nFrance:  2019 → 90, 2024 → 84\nSpain:   2019 → 84, 2024 → 88\nUSA:     2019 → 79, 2024 → 67\nThailand:2019 → 40, 2024 → 36\nItaly:   2019 → 65, 2024 → 71\n\nSummarise the main features and make comparisons.\n\nWrite at least 150 words.',
+        '<<<FIGURE {"type":"bar","title":"International tourist arrivals (millions)","categories":["France","Spain","USA","Thailand","Italy"],"series":[{"name":"2019","values":[90,84,79,40,65]},{"name":"2024","values":[84,88,67,36,71]}]} FIGURE>>>\n\nThe bar chart shows the number of international tourists (in millions) visiting five countries in 2019 and 2024.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
@@ -452,7 +584,7 @@ const QUESTION_DATA = {
     {
       topic: 'Environment',
       questionText:
-        'The line graph shows the average concentration of three air pollutants (PM2.5, NO2, and Ozone) in a major city over five years (2020–2024). All values are in micrograms per cubic metre.\n\nPM2.5:  2020 → 32, 2021 → 29, 2022 → 26, 2023 → 24, 2024 → 22\nNO2:    2020 → 41, 2021 → 39, 2022 → 38, 2023 → 35, 2024 → 31\nOzone:  2020 → 58, 2021 → 60, 2022 → 63, 2023 → 65, 2024 → 67\n\nSummarise the main trends and make comparisons.\n\nWrite at least 150 words.',
+        '<<<FIGURE {"type":"line","title":"Air pollutant concentration (ug/m3)","categories":["2020","2021","2022","2023","2024"],"series":[{"name":"PM2.5","values":[32,29,26,24,22]},{"name":"NO2","values":[41,39,38,35,31]},{"name":"Ozone","values":[58,60,63,65,67]}]} FIGURE>>>\n\nThe line graph shows the average concentration of three air pollutants in a major city over five years (2020-2024), measured in micrograms per cubic metre.\n\nSummarise the main trends and make comparisons.\n\nWrite at least 150 words.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
@@ -462,7 +594,7 @@ const QUESTION_DATA = {
     {
       topic: 'Technology',
       questionText:
-        'The line graph shows the percentage of households owning four electronic devices (Television, Desktop Computer, Smartphone, Smart Speaker) in a country between 2014 and 2024.\n\nTelevision:       2014 → 96%, 2019 → 94%, 2024 → 89%\nDesktop Computer: 2014 → 71%, 2019 → 58%, 2024 → 41%\nSmartphone:       2014 → 62%, 2019 → 89%, 2024 → 97%\nSmart Speaker:    2014 → 1%,  2019 → 22%, 2024 → 54%\n\nSummarise the information by selecting and reporting the main features, and make comparisons.\n\nWrite at least 150 words.',
+        '<<<FIGURE {"type":"line","title":"Households owning devices (%)","categories":["2014","2019","2024"],"series":[{"name":"Television","values":[96,94,89]},{"name":"Desktop","values":[71,58,41]},{"name":"Smartphone","values":[62,89,97]},{"name":"Smart Speaker","values":[1,22,54]}]} FIGURE>>>\n\nThe line graph shows the percentage of households owning four electronic devices in a country between 2014 and 2024.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
@@ -472,7 +604,7 @@ const QUESTION_DATA = {
     {
       topic: 'Work',
       questionText:
-        'The pie chart shows how a typical office worker in a European country spends a working day in 2024.\n\nMeetings: 28%\nEmail and messages: 22%\nFocused individual work: 30%\nBreaks and lunch: 9%\nTravel between meetings: 6%\nTraining and learning: 5%\n\nSummarise the information by selecting and reporting the main features.\n\nWrite at least 150 words.',
+        '<<<FIGURE {"type":"pie","title":"How an office worker spends a working day (%)","slices":[{"label":"Meetings","value":28},{"label":"Email","value":22},{"label":"Focused work","value":30},{"label":"Breaks","value":9},{"label":"Travel","value":6},{"label":"Training","value":5}]} FIGURE>>>\n\nThe pie chart shows how a typical office worker in a European country spends a working day in 2024.\n\nSummarise the information by selecting and reporting the main features.\n\nWrite at least 150 words.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
@@ -482,7 +614,7 @@ const QUESTION_DATA = {
     {
       topic: 'Food',
       questionText:
-        'The pie charts compare how a typical household budget in two countries (the United Kingdom and Brazil) is divided across six categories in 2024.\n\nUnited Kingdom: Housing 33%, Food 14%, Transport 13%, Health 8%, Education 5%, Leisure 27%\nBrazil:         Housing 24%, Food 28%, Transport 17%, Health 11%, Education 9%, Leisure 11%\n\nSummarise the main features and make comparisons.\n\nWrite at least 150 words.',
+        '<<<FIGURE {"type":"bar","title":"Household budget by category (%): UK vs Brazil","categories":["Housing","Food","Transport","Health","Education","Leisure"],"series":[{"name":"UK","values":[33,14,13,8,5,27]},{"name":"Brazil","values":[24,28,17,11,9,11]}]} FIGURE>>>\n\nThe chart compares how a typical household budget in two countries (the United Kingdom and Brazil) is divided across six categories in 2024.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
@@ -492,7 +624,7 @@ const QUESTION_DATA = {
     {
       topic: 'Education',
       questionText:
-        'The table shows the percentage of adults aged 25–64 with different highest qualifications in four countries in 2023.\n\nCountry  | No formal qualification | Secondary | Vocational | University\nGermany  | 4%                      | 38%       | 32%        | 26%\nKorea    | 8%                      | 28%       | 12%        | 52%\nBrazil   | 23%                     | 42%       | 14%        | 21%\nFinland  | 5%                      | 32%       | 21%        | 42%\n\nSummarise the main features and make comparisons.\n\nWrite at least 150 words.',
+        '<<<FIGURE {"type":"table","title":"Adults 25-64 by highest qualification (%), 2023","columns":["Country","No formal","Secondary","Vocational","University"],"rows":[["Germany",4,38,32,26],["Korea",8,28,12,52],["Brazil",23,42,14,21],["Finland",5,32,21,42]]} FIGURE>>>\n\nThe table shows the percentage of adults aged 25-64 with different highest qualifications in four countries in 2023.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
       questionType: 'essay',
       correctAnswer: null,
       explanation:
@@ -538,6 +670,36 @@ const QUESTION_DATA = {
       explanation:
         'Past passive ("has been replaced", "was demolished") plus directional language (north, south-east). One sentence per major change.',
       difficulty: 'hard',
+    },
+    {
+      topic: 'Money',
+      questionText:
+        '<<<FIGURE {"type":"pie","title":"Average monthly household spending (%)","unit":"%","slices":[{"label":"Housing","value":35},{"label":"Food","value":24},{"label":"Transport","value":16},{"label":"Leisure","value":13},{"label":"Other","value":12}]} FIGURE>>>\n\nThe pie chart shows how an average household divides its monthly spending across five categories.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Open with the largest categories; group the smaller slices; use fractions/proportions language ("just over a third", "nearly a quarter").',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Health',
+      questionText:
+        '<<<FIGURE {"type":"table","title":"Average daily intake vs recommended amount","columns":["Nutrient","Intake","Recommended"],"rows":[["Protein (g)",68,56],["Fibre (g)",18,30],["Sugar (g)",95,50],["Sodium (mg)",3400,2300]]} FIGURE>>>\n\nThe table compares the average daily intake of four nutrients with the recommended amount.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Identify where intake exceeds or falls short of the recommendation; group nutrients by over/under; quantify the gaps.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        '<<<FIGURE {"type":"line","title":"Internet users per 100 people","categories":["2000","2005","2010","2015","2020"],"series":[{"name":"Brazil","values":[3,21,40,58,74]},{"name":"India","values":[1,2,7,27,43]}]} FIGURE>>>\n\nThe line graph shows the number of internet users per 100 people in two countries between 2000 and 2020.\n\nSummarise the information by selecting and reporting the main features, and make comparisons where relevant.\n\nWrite at least 150 words.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Describe the overall upward trend first, then compare the two countries\' starting points and rate of growth.',
+      difficulty: 'medium',
     },
 ],
   // Writing Task 2 (long-form opinion essay, ~250 words).
@@ -747,7 +909,7 @@ const QUESTION_DATA = {
     {
       topic: 'Work',
       questionText:
-        'En el texto, el autor sugiere que el éxito profesional depende principalmente de:',
+        'El éxito profesional, según el autor, rara vez es cuestión de suerte. Quienes alcanzan sus metas suelen destacar por su esfuerzo constante y su capacidad de perseverar ante las dificultades.\n\nEn el texto, el autor sugiere que el éxito profesional depende principalmente de:',
       questionType: 'multiple-choice',
       options: [
         'A) La suerte',
@@ -763,7 +925,7 @@ const QUESTION_DATA = {
     {
       topic: 'Travel',
       questionText:
-        'Según el pasaje, ¿qué recomienda el autor para viajar de manera sostenible?',
+        'Para viajar de forma más sostenible, el autor aconseja optar por el transporte público local y alojarse en pequeños hoteles familiares en lugar de grandes cadenas, reduciendo así el impacto ambiental y apoyando a las comunidades.\n\nSegún el pasaje, ¿qué recomienda el autor para viajar de manera sostenible?',
       questionType: 'multiple-choice',
       options: [
         'A) Volar siempre en primera clase',
@@ -779,7 +941,7 @@ const QUESTION_DATA = {
     {
       topic: 'Health',
       questionText:
-        '¿Cuál es la idea principal del texto sobre la dieta mediterránea?',
+        'La dieta mediterránea, rica en aceite de oliva, verduras, pescado y frutos secos, se ha hecho famosa en todo el mundo. El texto subraya que combina el placer de comer con claros beneficios para el corazón.\n\n¿Cuál es la idea principal del texto sobre la dieta mediterránea?',
       questionType: 'multiple-choice',
       options: [
         'A) Es difícil de seguir',
@@ -880,6 +1042,138 @@ const QUESTION_DATA = {
         'Diversificación = más diversidad.',
       difficulty: 'easy',
     },
+    {
+      topic: 'Space',
+      questionText:
+        'El telescopio espacial James Webb observa el universo en luz infrarroja, lo que le permite atravesar nubes de polvo cósmico que bloquean la luz visible y detectar algunas de las primeras galaxias.\n\nSegún el texto, ¿por qué es útil la luz infrarroja para el telescopio?',
+      questionType: 'multiple-choice',
+      options: ['A) Porque es más brillante que la luz visible', 'B) Porque puede atravesar el polvo que bloquea la luz visible', 'C) Porque viaja más rápido que la luz visible', 'D) Porque solo la emiten estrellas cercanas'],
+      correctAnswer: 'B',
+      explanation:
+        'El texto indica que el infrarrojo atraviesa el polvo cósmico.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Science',
+      questionText:
+        'Las vacunas entrenan al sistema inmunológico para reconocer una parte inofensiva de un patógeno. Así, si el patógeno real aparece más tarde, el cuerpo puede responder con rapidez.\n\nSegún el texto, las vacunas principalmente:',
+      questionType: 'multiple-choice',
+      options: ['A) Curan la enfermedad después de la infección', 'B) Preparan al sistema inmunológico para una amenaza futura', 'C) Sustituyen una dieta saludable', 'D) Debilitan el sistema inmunológico'],
+      correctAnswer: 'B',
+      explanation:
+        'El texto describe las vacunas como preparación frente a una amenaza futura.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Food',
+      questionText:
+        'El consumo de alimentos fermentados como el chucrut, el yogur y la masa madre ha crecido por el interés en la salud intestinal. Sin embargo, los investigadores advierten que sus beneficios varían mucho de una persona a otra.\n\n¿Qué afirmación apoya el texto?',
+      questionType: 'multiple-choice',
+      options: ['A) Los alimentos fermentados benefician a todos por igual', 'B) El interés por ellos se relaciona con la salud intestinal', 'C) No tienen ningún efecto', 'D) Solo la masa madre es beneficiosa'],
+      correctAnswer: 'B',
+      explanation:
+        'El texto vincula el auge de estos alimentos con el interés por la salud intestinal.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'History',
+      questionText:
+        'La imprenta, introducida en Europa en el siglo XV, redujo enormemente el costo de producir libros. En pocas décadas, la lectura se extendió más allá del clero y las élites adineradas.\n\nSegún el texto, el principal efecto de la imprenta fue:',
+      questionType: 'multiple-choice',
+      options: ['A) Encarecer los libros', 'B) Limitar la lectura al clero', 'C) Ampliar el acceso a los libros y las ideas', 'D) Eliminar de inmediato los manuscritos'],
+      correctAnswer: 'C',
+      explanation:
+        'El menor costo extendió la lectura y amplió el acceso al conocimiento.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Art',
+      questionText:
+        'El arte urbano, antes considerado vandalismo, hoy se exhibe en grandes galerías y alcanza precios elevados. Algunos críticos se preguntan si llevarlo a un museo le quita su espíritu público y rebelde.\n\nEl debate descrito en el texto trata sobre:',
+      questionType: 'multiple-choice',
+      options: ['A) El precio de la pintura', 'B) Si exhibirlo en galerías cambia su sentido', 'C) Cómo limpiar las paredes', 'D) Qué colores se venden mejor'],
+      correctAnswer: 'B',
+      explanation:
+        'El debate gira en torno a si el museo cambia el sentido del arte urbano.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Music',
+      questionText:
+        'Aprender a tocar un instrumento en la infancia se ha relacionado con una mejor memoria y habilidades lingüísticas. Los científicos creen que coordinar el oído, el movimiento y la lectura musical ejercita varias regiones del cerebro a la vez.\n\nSegún el texto, los beneficios de tocar un instrumento se deben a:',
+      questionType: 'multiple-choice',
+      options: ['A) Repetir una sola nota', 'B) Usar varias regiones del cerebro a la vez', 'C) Escuchar música sin tocar', 'D) Evitar leer partituras'],
+      correctAnswer: 'B',
+      explanation:
+        'El texto atribuye los beneficios al uso simultáneo de varias regiones cerebrales.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Money',
+      questionText:
+        'Muchos jóvenes usan aplicaciones que clasifican automáticamente sus gastos. Aunque estas herramientas aumentan la conciencia sobre en qué se gasta el dinero, los expertos señalan que la conciencia por sí sola no garantiza mejores hábitos.\n\nEl texto sugiere que estas aplicaciones:',
+      questionType: 'multiple-choice',
+      options: ['A) Garantizan el ahorro', 'B) Aumentan la conciencia pero no necesariamente los hábitos', 'C) Las usan sobre todo las empresas', 'D) Sustituyen los ingresos'],
+      correctAnswer: 'B',
+      explanation:
+        'El texto distingue entre tener conciencia y cambiar de hábitos.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Animals',
+      questionText:
+        'Los pulpos son sorprendentemente inteligentes: resuelven problemas, abren frascos e incluso reconocen rostros humanos. Su sistema nervioso es inusual porque gran parte se distribuye en sus brazos y no en un cerebro central.\n\n¿Qué dice el texto que es inusual en los pulpos?',
+      questionType: 'multiple-choice',
+      options: ['A) No tienen sistema nervioso', 'B) Su sistema nervioso se reparte en los brazos', 'C) No resuelven problemas', 'D) Solo reaccionan a la luz'],
+      correctAnswer: 'B',
+      explanation:
+        'El texto señala que el sistema nervioso se distribuye en los brazos.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Psychology',
+      questionText:
+        'Los psicólogos han observado que solemos recordar mejor las tareas inconclusas que las terminadas, un fenómeno llamado efecto Zeigarnik. Esto explicaría por qué una actividad interrumpida sigue rondando nuestros pensamientos.\n\nSegún el texto, el efecto Zeigarnik describe nuestra tendencia a:',
+      questionType: 'multiple-choice',
+      options: ['A) Olvidar las tareas inconclusas', 'B) Recordar mejor las tareas inconclusas', 'C) Evitar empezar tareas', 'D) Terminar todo lo que empezamos'],
+      correctAnswer: 'B',
+      explanation:
+        'El texto define el efecto como recordar mejor lo que queda sin terminar.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Nature',
+      questionText:
+        'Los arrecifes de coral ocupan menos del uno por ciento del fondo marino, pero albergan cerca de una cuarta parte de las especies del mar. El aumento de la temperatura del agua, sin embargo, provoca un blanqueamiento que amenaza esa biodiversidad.\n\nEl texto destaca que los arrecifes de coral:',
+      questionType: 'multiple-choice',
+      options: ['A) Ocupan casi todo el fondo marino', 'B) Albergan muchas especies pese a su pequeña extensión', 'C) No se ven afectados por la temperatura', 'D) No contienen seres vivos'],
+      correctAnswer: 'B',
+      explanation:
+        'El contraste es entre su pequeña extensión y la gran cantidad de especies.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'City',
+      questionText:
+        'Varias ciudades han empezado a sustituir trayectos cortos en coche por redes de carriles para bicicletas protegidos. Los primeros datos muestran menos atascos y mejor calidad del aire, aunque algunos comercios temen perder aparcamiento.\n\n¿Qué preocupación se menciona en el texto?',
+      questionType: 'multiple-choice',
+      options: ['A) Las bicicletas son muy caras', 'B) Los comercios temen perder aparcamiento', 'C) El aire empeora', 'D) Aumentan los atascos'],
+      correctAnswer: 'B',
+      explanation:
+        'La única preocupación citada es el temor de los comercios a perder aparcamiento.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Books',
+      questionText:
+        'Leer ficción, según algunos investigadores, puede fortalecer la empatía al invitarnos a habitar los pensamientos de personajes distintos a nosotros. Los críticos responden que la evidencia sigue siendo solo correlacional.\n\n¿Qué reserva plantean los críticos en el texto?',
+      questionType: 'multiple-choice',
+      options: ['A) La ficción es demasiado larga', 'B) La evidencia es solo correlacional', 'C) La empatía no se puede medir', 'D) A los lectores no les gustan los personajes distintos'],
+      correctAnswer: 'B',
+      explanation:
+        'Los críticos señalan que la evidencia es correlacional, no causal.',
+      difficulty: 'hard',
+    },
 ],
   // DELE Task 1 — short formal/informal correspondence (~150 palabras).
   'DELE:writing-task-1': [
@@ -970,6 +1264,66 @@ const QUESTION_DATA = {
       correctAnswer: null,
       explanation:
         'Use lenguaje formal y aporte los datos necesarios para que la empresa pueda actuar.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Education',
+      questionText:
+        'Te has matriculado en un curso de idiomas, pero necesitas cambiar de horario. Escribe un correo a la escuela. En tu correo:\n• explica en qué curso estás\n• di por qué necesitas cambiar de horario\n• pregunta qué opciones hay disponibles.\n\nEscribe al menos 150 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Tono formal; cubre los tres puntos; termina con una petición clara de respuesta.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Environment',
+      questionText:
+        'En tu barrio han instalado nuevos contenedores de reciclaje. Escribe una carta al ayuntamiento. En tu carta:\n• agradece la nueva medida\n• comenta un problema que has observado\n• sugiere una mejora.\n\nEscribe al menos 150 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Empieza con un agradecimiento; describe el problema con concreción; cierra con una sugerencia útil.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Money',
+      questionText:
+        'Has detectado un cobro incorrecto en tu factura mensual. Escribe un correo a la empresa. En tu correo:\n• describe el cobro que no reconoces\n• explica por qué crees que es un error\n• di qué solución esperas.\n\nEscribe al menos 150 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Tono formal y objetivo; aporta datos concretos (fecha, importe); propón una solución.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Food',
+      questionText:
+        'Comiste en un restaurante para una ocasión especial y el servicio te decepcionó. Escribe una carta al gerente. En tu carta:\n• describe qué salió mal\n• explica cómo afectó a tu celebración\n• di qué te gustaría que hiciera el restaurante.\n\nEscribe al menos 150 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Describe los hechos con calma; conecta el problema con su impacto; pide una compensación concreta.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Culture',
+      questionText:
+        'Quieres organizar una visita en grupo a un museo de tu ciudad. Escribe un correo al museo. En tu correo:\n• indica cuántas personas iríais y cuándo\n• pregunta por descuentos para grupos\n• solicita información sobre visitas guiadas.\n\nEscribe al menos 150 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Tono formal; agrupa las preguntas con claridad; termina pidiendo una respuesta.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'City',
+      questionText:
+        'En tu ciudad van a cerrar una biblioteca pública de tu barrio. Escribe una carta a un periódico local. En tu carta:\n• explica por qué es importante la biblioteca\n• describe cómo afectará a los vecinos\n• propón una alternativa al cierre.\n\nEscribe al menos 150 palabras.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        'Tono persuasivo; argumenta con ejemplos; ofrece una alternativa realista.',
       difficulty: 'medium',
     },
 ],
@@ -1290,6 +1644,138 @@ const QUESTION_DATA = {
         '글의 핵심은 지방 도시로의 관심 확산입니다.',
       difficulty: 'easy',
     },
+    {
+      topic: 'Space',
+      questionText:
+        '제임스 웹 우주 망원경은 적외선으로 우주를 관측한다. 적외선은 가시광선을 가리는 우주 먼지를 통과할 수 있어, 초기 우주의 은하까지 관측할 수 있다.\n\n이 글에 따르면 적외선이 망원경에 유용한 이유는?',
+      questionType: 'multiple-choice',
+      options: ['A) 가시광선보다 더 밝기 때문에', 'B) 먼지를 통과해 관측할 수 있기 때문에', 'C) 가시광선보다 빠르기 때문에', 'D) 가까운 별만 관측하기 때문에'],
+      correctAnswer: 'B',
+      explanation:
+        '적외선이 먼지를 통과한다는 점이 핵심입니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Science',
+      questionText:
+        '백신은 병원체의 무해한 일부를 면역 체계가 기억하도록 훈련시킨다. 그래서 실제 병원체가 들어오면 몸이 빠르게 대응할 수 있다.\n\n이 글에서 설명하는 백신의 주된 역할은?',
+      questionType: 'multiple-choice',
+      options: ['A) 감염된 후 병을 치료한다', 'B) 미래의 위협에 대비하도록 면역 체계를 준비시킨다', 'C) 건강한 식사를 대신한다', 'D) 면역력을 약화시킨다'],
+      correctAnswer: 'B',
+      explanation:
+        '백신은 미래의 위협에 대비해 면역을 준비시킵니다.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Food',
+      questionText:
+        '김치, 요구르트, 사워도우 같은 발효 식품의 인기가 높아지고 있다. 장 건강에 대한 관심 때문이지만, 그 효과는 사람마다 크게 다르다고 전문가들은 말한다.\n\n이 글의 내용과 일치하는 것은?',
+      questionType: 'multiple-choice',
+      options: ['A) 발효 식품은 모두에게 똑같이 좋다', 'B) 발효 식품에 대한 관심은 장 건강과 관련이 있다', 'C) 발효 식품은 효과가 없다', 'D) 사워도우만 건강에 좋다'],
+      correctAnswer: 'B',
+      explanation:
+        '장 건강에 대한 관심과 효과의 개인차가 핵심입니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'History',
+      questionText:
+        '15세기 유럽에 도입된 인쇄기는 책을 만드는 비용을 크게 낮추었다. 수십 년 만에 읽고 쓰는 능력이 성직자와 귀족을 넘어 널리 퍼졌다.\n\n이 글에 따르면 인쇄기의 가장 큰 영향은?',
+      questionType: 'multiple-choice',
+      options: ['A) 책을 더 비싸게 만들었다', 'B) 독서를 성직자에게만 제한했다', 'C) 책과 지식에 대한 접근을 넓혔다', 'D) 손으로 쓴 책을 즉시 없앴다'],
+      correctAnswer: 'C',
+      explanation:
+        '인쇄기는 책과 지식에 대한 접근을 확대했습니다.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Art',
+      questionText:
+        '한때 낙서로 여겨지던 거리 예술이 이제는 큰 미술관에 전시되고 높은 값에 팔린다. 일부 비평가들은 이를 실내로 옮기면 거리 예술의 공공적이고 저항적인 정신이 사라진다고 본다.\n\n이 글에서 다루는 논쟁의 핵심은?',
+      questionType: 'multiple-choice',
+      options: ['A) 물감의 가격', 'B) 미술관 전시가 거리 예술의 의미를 바꾸는지 여부', 'C) 벽을 청소하는 방법', 'D) 어떤 색이 잘 팔리는지'],
+      correctAnswer: 'B',
+      explanation:
+        '전시 장소가 작품의 의미를 바꾸는지가 논쟁의 핵심입니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Music',
+      questionText:
+        '어린 시절 악기를 배우면 기억력과 언어 능력이 좋아진다는 연구가 있다. 듣기, 손동작, 악보 읽기를 동시에 하면서 여러 뇌 영역을 함께 사용하기 때문이라고 과학자들은 설명한다.\n\n이 글에 따르면 악기 학습의 효과는 무엇과 관련이 있는가?',
+      questionType: 'multiple-choice',
+      options: ['A) 한 음만 반복하는 것', 'B) 여러 뇌 영역을 동시에 사용하는 것', 'C) 연주 없이 듣기만 하는 것', 'D) 악보를 읽지 않는 것'],
+      correctAnswer: 'B',
+      explanation:
+        '여러 뇌 영역을 동시에 사용하는 점이 핵심입니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Money',
+      questionText:
+        '많은 젊은이들이 지출을 자동으로 분류해 주는 가계부 앱을 사용한다. 이런 앱은 돈이 어디에 쓰이는지 알게 해 주지만, 인식만으로 더 나은 소비 습관이 보장되는 것은 아니라고 전문가들은 지적한다.\n\n이 글이 가계부 앱에 대해 시사하는 바는?',
+      questionType: 'multiple-choice',
+      options: ['A) 반드시 돈을 저축하게 해 준다', 'B) 인식은 높이지만 습관까지 보장하지는 않는다', 'C) 주로 기업이 사용한다', 'D) 소득을 대신한다'],
+      correctAnswer: 'B',
+      explanation:
+        '인식 향상과 습관 변화는 다르다는 점을 구분합니다.',
+      difficulty: 'hard',
+    },
+    {
+      topic: 'Animals',
+      questionText:
+        '문어는 매우 영리하다. 퍼즐을 풀고 병뚜껑을 열며 사람의 얼굴을 알아보기도 한다. 신경계의 상당 부분이 중앙의 뇌가 아니라 팔에 퍼져 있다는 점이 특이하다.\n\n이 글에서 문어에 대해 특이하다고 말하는 점은?',
+      questionType: 'multiple-choice',
+      options: ['A) 신경계가 없다', 'B) 신경계가 팔에 퍼져 있다', 'C) 문제를 풀지 못한다', 'D) 빛에만 반응한다'],
+      correctAnswer: 'B',
+      explanation:
+        '신경계가 팔에 분산되어 있다는 점이 특이합니다.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Psychology',
+      questionText:
+        '심리학자들은 사람들이 끝낸 일보다 끝내지 못한 일을 더 잘 기억한다는 사실을 발견했다. 이를 "자이가르닉 효과"라고 한다. 중단된 일이 계속 머릿속에 맴도는 이유를 설명해 준다.\n\n이 글에 따르면 자이가르닉 효과란?',
+      questionType: 'multiple-choice',
+      options: ['A) 끝내지 못한 일을 잊는 경향', 'B) 끝내지 못한 일을 더 잘 기억하는 경향', 'C) 새 일을 시작하지 않는 경향', 'D) 모든 일을 끝내는 경향'],
+      correctAnswer: 'B',
+      explanation:
+        '미완의 일을 더 잘 기억하는 경향을 가리킵니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Nature',
+      questionText:
+        '산호초는 바다 밑바닥의 1퍼센트도 안 되는 면적을 차지하지만, 바다 생물 종의 약 4분의 1이 산호초에 의지한다. 그러나 수온 상승으로 인한 백화 현상이 이 생물 다양성을 위협하고 있다.\n\n이 글이 강조하는 산호초의 특징은?',
+      questionType: 'multiple-choice',
+      options: ['A) 바다 밑바닥의 대부분을 차지한다', 'B) 작은 면적에도 많은 생물이 의지한다', 'C) 수온에 영향을 받지 않는다', 'D) 생물이 살지 않는다'],
+      correctAnswer: 'B',
+      explanation:
+        '작은 면적 대비 높은 생물 다양성이 핵심입니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'City',
+      questionText:
+        '여러 도시가 짧은 자동차 이동을 보호된 자전거 도로망으로 바꾸기 시작했다. 초기 자료에 따르면 교통 혼잡이 줄고 공기 질이 좋아졌지만, 일부 상인들은 주차 공간이 줄어드는 것을 걱정한다.\n\n이 글에서 언급된 우려는?',
+      questionType: 'multiple-choice',
+      options: ['A) 자전거가 너무 비싸다', 'B) 상인들이 주차 공간 감소를 걱정한다', 'C) 공기 질이 나빠진다', 'D) 혼잡이 늘었다'],
+      correctAnswer: 'B',
+      explanation:
+        '상인들의 주차 공간 감소 우려가 언급됩니다.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Books',
+      questionText:
+        '소설을 읽으면 자신과 다른 인물의 생각과 감정을 경험하게 되어 공감 능력이 높아진다고 보는 연구자들이 있다. 반면 비평가들은 그 증거가 아직 상관관계에 불과하다고 반박한다.\n\n이 글에서 비평가들이 제기하는 의문은?',
+      questionType: 'multiple-choice',
+      options: ['A) 소설이 너무 길다', 'B) 증거가 상관관계에 불과하다', 'C) 공감은 측정할 수 없다', 'D) 독자들이 낯선 인물을 싫어한다'],
+      correctAnswer: 'B',
+      explanation:
+        '증거가 인과가 아니라 상관관계라는 점을 지적합니다.',
+      difficulty: 'hard',
+    },
 ],
   // TOPIK Task 1 — 짧은 작문 (200~300자 정도의 짧은 글쓰기).
   'TOPIK:writing-task-1': [
@@ -1379,6 +1865,66 @@ const QUESTION_DATA = {
       explanation:
         '선호하는 쪽을 분명히 하고 이유를 두 가지 이상 제시하세요.',
       difficulty: 'easy',
+    },
+    {
+      topic: 'Travel',
+      questionText:
+        '다음 내용을 포함하여 자신의 여행 계획을 소개하는 글을 쓰십시오.\n• 어디로, 언제 여행을 가는지\n• 무엇을 하고 싶은지\n• 누구와 함께 가는지\n\n200~300자로 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '세 가지 내용을 모두 포함하고, 시간 순서나 주제별로 자연스럽게 연결하십시오.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Environment',
+      questionText:
+        '환경을 보호하기 위해 일상에서 할 수 있는 일에 대해 글을 쓰십시오. 다음 내용을 포함하십시오.\n• 어떤 노력을 할 수 있는지\n• 그것이 왜 중요한지\n• 본인이 실천하는 방법\n\n200~300자로 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '구체적인 예를 들어 설명하고, 마지막에 본인의 실천 의지를 밝히면 좋습니다.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'Food',
+      questionText:
+        '자신이 좋아하는 음식을 소개하는 글을 쓰십시오. 다음 내용을 포함하십시오.\n• 어떤 음식인지\n• 언제, 누구와 먹는지\n• 그 음식을 좋아하는 이유\n\n200~300자로 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '음식을 구체적으로 묘사하고, 좋아하는 이유를 분명하게 쓰십시오.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Technology',
+      questionText:
+        '스마트폰이 우리 생활에 미치는 영향에 대해 글을 쓰십시오. 다음 내용을 포함하십시오.\n• 스마트폰의 좋은 점\n• 스마트폰의 나쁜 점\n• 올바른 사용 방법\n\n200~300자로 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '장점과 단점을 균형 있게 제시하고, 바람직한 사용 방법으로 마무리하십시오.',
+      difficulty: 'medium',
+    },
+    {
+      topic: 'City',
+      questionText:
+        '자신이 살고 있는 도시나 동네를 소개하는 글을 쓰십시오. 다음 내용을 포함하십시오.\n• 그곳의 특징\n• 좋은 점과 불편한 점\n• 추천하고 싶은 장소\n\n200~300자로 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '좋은 점과 불편한 점을 모두 언급하여 균형 있게 소개하십시오.',
+      difficulty: 'easy',
+    },
+    {
+      topic: 'Money',
+      questionText:
+        '용돈이나 생활비를 관리하는 자신만의 방법에 대해 글을 쓰십시오. 다음 내용을 포함하십시오.\n• 평소 어떻게 돈을 쓰는지\n• 돈을 아끼는 방법\n• 계획적인 소비가 중요한 이유\n\n200~300자로 쓰십시오.',
+      questionType: 'essay',
+      correctAnswer: null,
+      explanation:
+        '구체적인 소비 습관을 예로 들고, 계획적 소비의 중요성으로 마무리하십시오.',
+      difficulty: 'medium',
     },
 ],
   // TOPIK Task 2 — 긴 작문 (600~700자 정도의 의견 글).
