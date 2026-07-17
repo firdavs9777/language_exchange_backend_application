@@ -1229,7 +1229,21 @@ UserSchema.methods.isVIP = function() {
          this.vipSubscription.endDate > Date.now();
 };
 
-// Check if user can translate (daily limit for non-VIP)
+// Read the persistent paid-unlock pool for a featureKey. READ-ONLY — never
+// assign back onto `this` (a later full-document save() would clobber the
+// atomic pool decrement performed by _consumeWithPool). `coinBonus` is a
+// Mongoose Map, but tolerate a plain object (e.g. lean docs) defensively.
+UserSchema.methods._getCoinBonus = function(featureKey) {
+  const pool = this.coinBonus;
+  if (!pool) return 0;
+  const v = typeof pool.get === 'function' ? pool.get(featureKey) : pool[featureKey];
+  return v || 0;
+};
+
+// Check if user can translate (daily limit for non-VIP). Pool-aware: allowed
+// when the free daily cap OR the persistent coinBonus['translation'] pool has
+// room. READ-ONLY — does not mutate `this` (the real gate + reset happens
+// atomically in incrementTranslationCount).
 UserSchema.methods.canTranslate = function() {
   const LIMITS = require('../config/limitations');
 
@@ -1239,42 +1253,41 @@ UserSchema.methods.canTranslate = function() {
   if (limits.translationsPerDay === -1) return { allowed: true, remaining: -1 };
 
   const now = new Date();
+  const startOfTodayUTC = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()
+  ));
   const limitsObj = this.userMode === 'visitor' ? this.visitorLimitations : this.regularUserLimitations;
   const lastReset = new Date(limitsObj.lastTranslationReset || 0);
+  const used = lastReset < startOfTodayUTC ? 0 : (limitsObj.translationsToday || 0);
 
-  // Reset counter if it's a new day
-  if (now.getDate() !== lastReset.getDate() ||
-      now.getMonth() !== lastReset.getMonth() ||
-      now.getFullYear() !== lastReset.getFullYear()) {
-    limitsObj.translationsToday = 0;
-    limitsObj.lastTranslationReset = now;
-  }
-
-  const remaining = limits.translationsPerDay - limitsObj.translationsToday;
+  const remaining = Math.max(0, limits.translationsPerDay - used);
+  const bonusRemaining = this._getCoinBonus('translation');
   return {
-    allowed: remaining > 0,
+    allowed: remaining > 0 || bonusRemaining > 0,
     remaining,
+    bonusRemaining,
     limit: limits.translationsPerDay
   };
 };
 
-// Increment translation count
-UserSchema.methods.incrementTranslationCount = function() {
-  if (this.userMode === 'vip') return Promise.resolve(this);
+// Increment translation count. Atomic free-then-pool consume (reviewer
+// NEW-C1): drains the free daily counter first, then the persistent
+// coinBonus['translation'] pool. Never composes an $inc with this.save().
+// Returns { allowed, via: 'free'|'pool'|'vip'|'unlimited'|null }.
+UserSchema.methods.incrementTranslationCount = async function() {
+  if (this.userMode === 'vip') return { allowed: true, via: 'vip' };
 
-  const now = new Date();
-  const limitsObj = this.userMode === 'visitor' ? this.visitorLimitations : this.regularUserLimitations;
-  const lastReset = new Date(limitsObj.lastTranslationReset || 0);
+  const LIMITS = require('../config/limitations');
+  const limits = LIMITS[this.userMode] || LIMITS.regular;
+  if (limits.translationsPerDay === -1) return { allowed: true, via: 'unlimited' };
 
-  if (now.getDate() !== lastReset.getDate() ||
-      now.getMonth() !== lastReset.getMonth() ||
-      now.getFullYear() !== lastReset.getFullYear()) {
-    limitsObj.translationsToday = 0;
-    limitsObj.lastTranslationReset = now;
-  }
-
-  limitsObj.translationsToday += 1;
-  return this.save();
+  const limitationsPath = this.userMode === 'visitor' ? 'visitorLimitations' : 'regularUserLimitations';
+  return this.constructor._consumeWithPool(this._id, {
+    counterPath: `${limitationsPath}.translationsToday`,
+    resetPath: `${limitationsPath}.lastTranslationReset`,
+    cap: limits.translationsPerDay,
+    featureKey: 'translation',
+  });
 };
 
 // Check if user is visitor
@@ -1519,51 +1532,51 @@ UserSchema.methods.incrementProfileViewCount = function() {
   return Promise.resolve(this);
 };
 
-// Check if regular user can create moment
+// Check if regular user can create moment. Pool-aware: allowed when the free
+// daily cap OR the persistent coinBonus['moment'] pool has room. READ-ONLY —
+// does not mutate `this` (the real gate + reset happens atomically in
+// incrementMomentCount).
 UserSchema.methods.canCreateMoment = function() {
   const LIMITS = require('../config/limitations');
-  
+
   if (this.userMode === 'vip') return true;
   if (this.userMode === 'visitor') return false; // Visitors cannot create moments
 
   if (this.userMode === 'regular') {
+    if (LIMITS.regular.momentsPerDay === -1) return true;
     const now = new Date();
-    const lastReset = new Date(this.regularUserLimitations.lastMomentReset);
+    const startOfTodayUTC = new Date(Date.UTC(
+      now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()
+    ));
+    const lastReset = new Date(this.regularUserLimitations.lastMomentReset || 0);
+    const used = lastReset < startOfTodayUTC ? 0 : (this.regularUserLimitations.momentsCreatedToday || 0);
 
-    // Reset counter if it's a new day
-    if (now.getDate() !== lastReset.getDate() || 
-        now.getMonth() !== lastReset.getMonth() || 
-        now.getFullYear() !== lastReset.getFullYear()) {
-      this.regularUserLimitations.momentsCreatedToday = 0;
-      this.regularUserLimitations.lastMomentReset = now;
-    }
-
-    return this.regularUserLimitations.momentsCreatedToday < LIMITS.regular.momentsPerDay;
+    return used < LIMITS.regular.momentsPerDay || this._getCoinBonus('moment') > 0;
   }
 
   return false;
 };
 
-// Increment moment count for regular users
-UserSchema.methods.incrementMomentCount = function() {
-  if (this.userMode === 'vip') {
-    return Promise.resolve(this); // VIP has unlimited moments
-  }
+// Increment moment count for regular users. Atomic free-then-pool consume
+// (reviewer NEW-C1): drains the free daily counter first, then the persistent
+// coinBonus['moment'] pool. Never composes an $inc with this.save().
+// Returns { allowed, via: 'free'|'pool'|'vip'|'unlimited'|null }.
+UserSchema.methods.incrementMomentCount = async function() {
+  if (this.userMode === 'vip') return { allowed: true, via: 'vip' };
 
-  if (this.userMode === 'regular') {
-    const now = new Date();
-    const lastReset = new Date(this.regularUserLimitations.lastMomentReset);
-    if (now.getDate() !== lastReset.getDate() || 
-        now.getMonth() !== lastReset.getMonth() || 
-        now.getFullYear() !== lastReset.getFullYear()) {
-      this.regularUserLimitations.momentsCreatedToday = 0;
-      this.regularUserLimitations.lastMomentReset = now;
-    }
-    this.regularUserLimitations.momentsCreatedToday += 1;
-    return this.save();
-  }
+  // Visitors cannot create moments (blocked upstream); treat any non-regular
+  // caller conservatively as not-consumed.
+  if (this.userMode !== 'regular') return { allowed: false, via: null };
 
-  return Promise.resolve(this);
+  const LIMITS = require('../config/limitations');
+  if (LIMITS.regular.momentsPerDay === -1) return { allowed: true, via: 'unlimited' };
+
+  return this.constructor._consumeWithPool(this._id, {
+    counterPath: 'regularUserLimitations.momentsCreatedToday',
+    resetPath: 'regularUserLimitations.lastMomentReset',
+    cap: LIMITS.regular.momentsPerDay,
+    featureKey: 'moment',
+  });
 };
 
 // Check if regular user can create story
@@ -1865,6 +1878,77 @@ UserSchema.methods.getQuotasSnapshot = function() {
 };
 
 /**
+ * Atomic free-then-pool consume for the daily-counter features that live on
+ * the limitations sub-doc (translation, moment). Shared by the translation
+ * and moment enforcement paths (reviewer NEW-C1). Two separate atomic
+ * findOneAndUpdate ops — NEVER a $inc composed with this.save():
+ *   1. Free path: match _id AND (new UTC day OR counter < cap); the update
+ *      pipeline folds the day-rollover reset in atomically (mirrors
+ *      consumeQuota). If it matches → consumed the free daily quota.
+ *   2. Pool path (only if free matched nothing): match _id AND
+ *      coinBonus[featureKey] >= 1, atomically $inc it by -1. If it matches →
+ *      consumed a paid unlock from the persistent pool.
+ * Exactly one bucket is consumed per call; both ops are atomic so concurrent
+ * requests can neither double-spend the pool nor drive it negative.
+ *
+ * @param {String|ObjectId} userId
+ * @param {{counterPath:string, resetPath:string, cap:number, featureKey:string}} opts
+ * @returns {Promise<{allowed:boolean, via:'free'|'pool'|null}>}
+ */
+UserSchema.statics._consumeWithPool = async function(userId, { counterPath, resetPath, cap, featureKey }) {
+  const now = new Date();
+  const startOfTodayUTC = new Date(Date.UTC(
+    now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()
+  ));
+
+  // 1. Free path (atomic) — allowed if it's a new UTC day OR the counter is
+  //    still below cap. The pipeline resets the counter to 1 on a new day,
+  //    else increments it by 1, and stamps the reset marker on rollover.
+  const freeUpdated = await this.findOneAndUpdate(
+    {
+      _id: userId,
+      $expr: {
+        $or: [
+          { $lt: [`$${resetPath}`, startOfTodayUTC] },
+          { $lt: [{ $ifNull: [`$${counterPath}`, 0] }, cap] },
+        ],
+      },
+    },
+    [{
+      $set: {
+        [counterPath]: {
+          $cond: [
+            { $lt: [`$${resetPath}`, startOfTodayUTC] },
+            1,
+            { $add: [{ $ifNull: [`$${counterPath}`, 0] }, 1] },
+          ],
+        },
+        [resetPath]: {
+          $cond: [
+            { $lt: [`$${resetPath}`, startOfTodayUTC] },
+            '$$NOW',
+            `$${resetPath}`,
+          ],
+        },
+      },
+    }],
+    { new: true }
+  );
+  if (freeUpdated) return { allowed: true, via: 'free' };
+
+  // 2. Pool path (atomic) — only reached when the free cap is exhausted.
+  const bonusPath = `coinBonus.${featureKey}`;
+  const poolUpdated = await this.findOneAndUpdate(
+    { _id: userId, [bonusPath]: { $gte: 1 } },
+    { $inc: { [bonusPath]: -1 } },
+    { new: true }
+  );
+  if (poolUpdated) return { allowed: true, via: 'pool' };
+
+  return { allowed: false, via: null };
+};
+
+/**
  * Atomic check-and-increment for a tutor-chip quota. Returns BOTH the
  * per-feature result AND the freshly-computed full snapshot in one DB
  * round trip — callers should NOT refetch the user document.
@@ -1957,7 +2041,23 @@ UserSchema.statics.consumeQuota = async function(userId, featureKey) {
   );
 
   if (!updated) {
-    // Filter didn't match → cap hit, not new day.
+    // Free cap hit → try the persistent paid-unlock pool (reviewer NEW-C1).
+    // Standalone atomic $inc; consumeQuota never calls this.save() so nothing
+    // can clobber the decrement.
+    const bonusPath = `coinBonus.${featureKey}`;
+    const poolUpdated = await this.findOneAndUpdate(
+      { _id: userId, [bonusPath]: { $gte: 1 } },
+      { $inc: { [bonusPath]: -1 } },
+      { new: true }
+    );
+    if (poolUpdated) {
+      return {
+        allowed: true, used: cap, cap, resetAt: startOfTomorrowUTC, via: 'pool',
+        snapshot: poolUpdated.getQuotasSnapshot(),
+      };
+    }
+
+    // Filter didn't match and no pool left → cap hit, not new day.
     const current = await this.findById(userId);
     return {
       allowed: false, used: cap, cap, resetAt: startOfTomorrowUTC,
