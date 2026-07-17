@@ -63,6 +63,7 @@ const admin = require('./routes/admin');
 const broadcast = require('./routes/broadcast');
 const rooms = require('./routes/rooms');
 const coins = require('./routes/coins'); // Workstream F — coins v1
+const geocode = require('./routes/geocode');
 
 // FitBowl Route files
 const fitbowlAuth = require('./routes/fitbowl/auth');
@@ -325,6 +326,7 @@ app.use('/api/v1/admin/broadcast', broadcast);
 app.use('/api/v1/analytics', require('./routes/analytics'));
 app.use('/api/v1/users/chat-phrases', require('./routes/chatPhrases'));
 app.use('/api/v1/exam-study', require('./routes/examStudy'));
+app.use('/api/v1/geocode', geocode);
 
 // FitBowl API Routes
 app.use('/api/v1/fitbowl/auth', fitbowlAuth);
