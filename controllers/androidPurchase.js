@@ -2,99 +2,13 @@ const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const { logSecurityEvent } = require('../utils/securityLogger');
-const { google } = require('googleapis');
-
-// Google Play configuration
-const PACKAGE_NAME = process.env.GOOGLE_PLAY_PACKAGE_NAME || 'com.bananatalk.app';
-
-// Initialize Google Play API client
-let androidPublisher = null;
-
-async function getAndroidPublisher() {
-  if (androidPublisher) {
-    return androidPublisher;
-  }
-
-  const serviceAccountEmail = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL;
-  const privateKey = process.env.GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY;
-
-  if (!serviceAccountEmail || !privateKey) {
-    console.error('❌ Google Play Service Account not configured!');
-    console.error('   Required env vars: GOOGLE_PLAY_SERVICE_ACCOUNT_EMAIL, GOOGLE_PLAY_SERVICE_ACCOUNT_PRIVATE_KEY');
-    throw new Error('Google Play Service Account not configured');
-  }
-
-  // Create JWT auth client
-  const auth = new google.auth.JWT(
-    serviceAccountEmail,
-    null,
-    privateKey.replace(/\\n/g, '\n'), // Handle escaped newlines in env var
-    ['https://www.googleapis.com/auth/androidpublisher']
-  );
-
-  androidPublisher = google.androidpublisher({
-    version: 'v3',
-    auth
-  });
-
-  return androidPublisher;
-}
-
-/**
- * Verify purchase token with Google Play Developer API
- */
-async function verifyPurchaseWithGoogle(purchaseToken, productId, packageName) {
-  try {
-    const publisher = await getAndroidPublisher();
-
-    // For subscriptions, use subscriptions.get
-    const response = await publisher.purchases.subscriptions.get({
-      packageName: packageName,
-      subscriptionId: productId,
-      token: purchaseToken
-    });
-
-    console.log('📱 Google Play API Response:', JSON.stringify(response.data, null, 2));
-
-    return {
-      success: true,
-      data: response.data
-    };
-  } catch (error) {
-    console.error('❌ Google Play API Error:', error.message);
-
-    // Try as one-time purchase if subscription fails
-    if (error.code === 404 || error.message.includes('not found')) {
-      try {
-        const publisher = await getAndroidPublisher();
-        const response = await publisher.purchases.products.get({
-          packageName: packageName,
-          productId: productId,
-          token: purchaseToken
-        });
-
-        console.log('📱 Google Play Product Response:', JSON.stringify(response.data, null, 2));
-
-        return {
-          success: true,
-          data: response.data,
-          isOneTime: true
-        };
-      } catch (productError) {
-        console.error('❌ Google Play Product API Error:', productError.message);
-        return {
-          success: false,
-          error: productError.message
-        };
-      }
-    }
-
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
+// Purchase-token verification core is shared with the coins consumable verifier
+// (lib/consumableReceipt.js -> Task 5). See lib/googlePlayReceipt.js.
+const {
+  verifyAndroidReceipt,
+  verifyPurchaseWithGoogle,
+  PACKAGE_NAME,
+} = require('../lib/googlePlayReceipt');
 
 /**
  * @desc    Verify Android purchase and activate VIP
@@ -121,14 +35,16 @@ exports.verifyAndroidPurchase = asyncHandler(async (req, res, next) => {
     console.log('   Package Name:', actualPackageName);
     console.log('   Token length:', purchaseToken?.length);
 
-    // Verify with Google Play API
-    const verificationResult = await verifyPurchaseWithGoogle(
+    // Receipt-verification step — shared with the coins consumable verifier
+    // (lib/consumableReceipt.js). This performs ONLY purchase-token
+    // verification; the VIP activation side effects below are unchanged.
+    const verificationResult = await verifyAndroidReceipt({
       purchaseToken,
       productId,
-      actualPackageName
-    );
+      packageName: actualPackageName,
+    });
 
-    if (!verificationResult.success) {
+    if (!verificationResult.valid) {
       logSecurityEvent('ANDROID_PURCHASE_VERIFICATION_FAILED', {
         userId: req.user.id,
         productId,
@@ -137,7 +53,7 @@ exports.verifyAndroidPurchase = asyncHandler(async (req, res, next) => {
       return next(new ErrorResponse(`Purchase verification failed: ${verificationResult.error}`, 400));
     }
 
-    const purchaseData = verificationResult.data;
+    const purchaseData = verificationResult.raw;
 
     // Check purchase state
     // For subscriptions: 0 = purchased, 1 = canceled, 2 = pending
