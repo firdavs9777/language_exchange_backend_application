@@ -30,7 +30,7 @@ const FRONTEND_URL_BASE =
   (process.env.NODE_ENV === 'production' ? 'https://banatalk.com' : 'http://localhost:3000');
 
 const APP_NAME = 'BananaTalk';
-const DEFAULT_OG_IMAGE = `${FRONTEND_URL_BASE}/logo512.png`;
+const DEFAULT_OG_IMAGE = `${FRONTEND_URL_BASE}/og-image.png`;
 const DEFAULT_TITLE = `${APP_NAME} - #1 Free Language Exchange App`;
 const DEFAULT_DESCRIPTION =
   'Practice Korean, English, Japanese and 50+ languages with native speakers through chat, voice messages & interactive lessons.';
