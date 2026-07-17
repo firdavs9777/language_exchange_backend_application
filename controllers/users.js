@@ -7,6 +7,7 @@ const path = require('path');
 const fs = require('fs').promises;
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
+const { validateUsername } = require('../utils/usernameValidation');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
 const USER_PUBLIC_FIELDS = 'name username bio occupation school images native_language language_to_learn level languageLevel streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
@@ -1295,36 +1296,15 @@ exports.getUserLimits = asyncHandler(async (req, res, next) => {
 // @desc    Check whether a username is available for registration
 // @route   GET /api/v1/users/check-username?value=<username>
 // @access  Public (rate-limited via generalLimiter)
-const RESERVED_USERNAMES = new Set([
-  'admin', 'root', 'support', 'help', 'api',
-  'banatalk', 'bananatalk', 'official', 'staff', 'moderator',
-]);
-
 exports.checkUsernameAvailability = asyncHandler(async (req, res) => {
-  const raw = (req.query.value || '').trim().toLowerCase();
-
-  // Format: 3–20 chars, lowercase letters, digits, underscore
-  if (!/^[a-z0-9_]{3,20}$/.test(raw)) {
-    return res.status(200).json({
-      success: true,
-      data: { available: false, reason: 'invalid_format' },
-    });
+  const { ok, normalized, reason } = validateUsername(req.query.value);
+  if (!ok) {
+    return res.status(200).json({ success: true, data: { available: false, reason } });
   }
-
-  if (RESERVED_USERNAMES.has(raw)) {
-    return res.status(200).json({
-      success: true,
-      data: { available: false, reason: 'reserved' },
-    });
-  }
-
-  const exists = await User.exists({ username: raw });
+  const exists = await User.exists({ username: normalized });
   return res.status(200).json({
     success: true,
-    data: {
-      available: !exists,
-      reason: exists ? 'taken' : null,
-    },
+    data: { available: !exists, reason: exists ? 'taken' : null },
   });
 });
 
