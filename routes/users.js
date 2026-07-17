@@ -2,6 +2,7 @@ const {
   getUsers,
   getUsersCount,
   getUser,
+  getUserPublic,
   getUserByUsername,
   searchUsersByUsername,
   createUser,
@@ -39,7 +40,7 @@ const {
 } = require('../controllers/profileVisits');
 const express = require('express');
 const advancedResults = require('../middleware/advancedResults');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, optionalAuth } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const { updatePrivacySettingsValidation } = require('../validators/privacyValidator');
 const { uploadSingleCompressed, uploadMultipleCompressed } = require('../middleware/uploadToSpaces');
@@ -167,6 +168,14 @@ router
 router
   .route('/:userId/visitors')
   .get(protect, getProfileVisitors);
+
+// Public profile read route — powers logged-out web visits to shared
+// banatalk.com/profile/:id links (Package 0 app<->web deep linking).
+// Distinct path segment (/:id/public) so it can't collide with the
+// single-segment /:id CRUD route below regardless of declaration order.
+router
+  .route('/:id/public')
+  .get(optionalAuth, getUserPublic);
 
 // User CRUD routes (must be last to avoid conflicts)
 router.route('/:id').get(protect, getUser).put(protect, updateUser).delete(protect, deleteUser);

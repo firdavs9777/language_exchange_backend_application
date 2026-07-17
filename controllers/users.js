@@ -352,6 +352,96 @@ exports.getUser = asyncHandler(async (req, res, next) => {
   });
 });
 
+// @desc     Get single user — PUBLIC read path (no auth required)
+// @route    GET /api/v1/auth/users/:id/public
+// @access   Public (optionalAuth — req.user is set if a valid token is
+//           present, but a missing/invalid token still resolves here)
+//
+// Powers logged-out web visits to shared banatalk.com/profile/:id links
+// (Package 0 app<->web deep linking). Same USER_PUBLIC_FIELDS + response
+// shape as getUser so the web client can reuse its existing parser, but
+// additionally respects the user's privacySettings for anyone who isn't
+// viewing their own profile:
+//   - privacySettings.showCountryRegion === false → drop location.country/state
+//   - privacySettings.showCity === false          → drop location.city
+//   - privacySettings.showAge === false            → drop birth_year/month/day
+//   - privacySettings.showOnlineStatus === false   → drop isOnline/lastActive
+//   - privacySettings.showGiftingLevel === false   → drop vipSubscription
+//
+// NOTE: the schema has no single "whole profile is private" switch today —
+// only these granular toggles. As defensive forward-compatibility, if a
+// future `privacySettings.isPrivate` / `privacySettings.profileVisibility
+// === 'private'` field is ever added, this falls back to a minimal-fields
+// response (name/username/first image/bio) instead of leaking everything,
+// while still returning the same { success, data } shape (not a 403) so a
+// shared link never hard-breaks the web page.
+exports.getUserPublic = asyncHandler(async (req, res, next) => {
+  const user = await User.findById(req.params.id).select(USER_PUBLIC_FIELDS);
+
+  if (!user) {
+    return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
+  }
+
+  const isOwner = !!(req.user && req.user._id.toString() === req.params.id);
+  const privacySettings = user.privacySettings || {};
+
+  // Forward-compatible whole-profile privacy gate (not present in the
+  // current schema — see note above).
+  const isWhollyPrivate =
+    !isOwner &&
+    (privacySettings.isPrivate === true || privacySettings.profileVisibility === 'private');
+
+  if (isWhollyPrivate) {
+    const minimal = {
+      _id: user._id,
+      name: user.name,
+      username: user.username,
+      bio: user.bio,
+      images: user.images && user.images.length ? [user.images[0]] : [],
+    };
+    const minimalWithImages = processUserImages(minimal, req);
+    return res.status(200).json({
+      success: true,
+      data: minimalWithImages,
+    });
+  }
+
+  const userWithImages = processUserImages(user, req);
+
+  if (!isOwner) {
+    // Redact fields per granular privacy toggles. Defaults are `true`
+    // (visible) per the schema, so only explicit `false` hides a field.
+    if (privacySettings.showCountryRegion === false) {
+      if (userWithImages.location) {
+        delete userWithImages.location.country;
+        delete userWithImages.location.state;
+      }
+    }
+    if (privacySettings.showCity === false) {
+      if (userWithImages.location) {
+        delete userWithImages.location.city;
+      }
+    }
+    if (privacySettings.showAge === false) {
+      delete userWithImages.birth_year;
+      delete userWithImages.birth_month;
+      delete userWithImages.birth_day;
+    }
+    if (privacySettings.showOnlineStatus === false) {
+      delete userWithImages.isOnline;
+      delete userWithImages.lastActive;
+    }
+    if (privacySettings.showGiftingLevel === false) {
+      delete userWithImages.vipSubscription;
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    data: userWithImages,
+  });
+});
+
 // @desc     Get user by username
 // @route    GET /api/v1/users/username/:username
 // @access   Private

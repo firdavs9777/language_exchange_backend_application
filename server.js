@@ -340,6 +340,10 @@ app.use('/api/v1/fitbowl/promos', fitbowlPromos);
 // Flame sub-app (isolated DB, JWT secret, Spaces bucket)
 app.use('/flamebackend/v1', flameRouter);
 
+// Open Graph link-preview endpoint for crawlers (public, outside /api/v1 —
+// no auth, no /api/v1 rate limiter). Supports GET /og/:type/:id.
+app.use('/og', require('./routes/og'));
+
 // Error request logger (logs failed requests)
 app.use(errorRequestLogger);
 
