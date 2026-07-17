@@ -15,6 +15,7 @@ const { normalizeLocale } = require('../lib/normalizeLocale');
 const { getDeviceInfo, detectPlatform, pickClientInfo } = require('../validators/authValidator');
 const { resetInactivityStatus } = require('../jobs/inactivityEmailJob');
 const { generateUsername } = require('../utils/generateUsername');
+const { validateUsername } = require('../utils/usernameValidation');
 const cache = require('../services/redisService');
 
 // Admin email for notifications
@@ -400,6 +401,34 @@ exports.googleCallback = asyncHandler(async (req, res, next) => {
 });
 
 /**
+ * Pure function to resolve registration username
+ * @param {string} rawUsername - The client-supplied username (may be blank/undefined)
+ * @param {string} name - The user's full name (for fallback generation)
+ * @param {Object} deps - Dependencies { exists: (username) => Promise<bool>, generate: (name) => Promise<string> }
+ * @returns {Promise<string>} - The normalized username to use
+ * @throws {Error} with .code='USERNAME_INVALID' or .code='USERNAME_TAKEN'
+ */
+async function resolveRegistrationUsername(rawUsername, name, deps) {
+  const raw = (rawUsername || '').trim();
+  if (!raw) return deps.generate(name);
+  const { ok, normalized, reason } = validateUsername(raw);
+  if (!ok) {
+    const e = new Error(reason === 'reserved' ? 'Username is reserved' : 'Invalid username');
+    e.code = 'USERNAME_INVALID';
+    e.statusCode = 400;
+    throw e;
+  }
+  if (await deps.exists(normalized)) {
+    const e = new Error('Username is already taken');
+    e.code = 'USERNAME_TAKEN';
+    e.statusCode = 400;
+    throw e;
+  }
+  return normalized;
+}
+exports.resolveRegistrationUsername = resolveRegistrationUsername;
+
+/**
  * @desc    Register User
  * @route   POST /api/v1/auth/register
  * @access  Public
@@ -455,8 +484,16 @@ exports.register = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse('User already registered. Please login instead.', 400, 'EMAIL_EXISTS'));
   }
 
-  // Generate unique username
-  const username = await generateUsername(name);
+  // Resolve username: honor client-supplied username or fall back to generated
+  let username;
+  try {
+    username = await resolveRegistrationUsername(req.body.username, name, {
+      exists: (u) => User.exists({ username: u }),
+      generate: (n) => generateUsername(n),
+    });
+  } catch (err) {
+    return next(new ErrorResponse(err.message, err.statusCode || 400, err.code));
+  }
 
   // Ensure images is an array
   const userImages = Array.isArray(images) ? images.filter(img => img && typeof img === 'string') : [];
