@@ -524,6 +524,16 @@ exports.createUser = asyncHandler(async (req, res, next) => {
   });
 });
 
+// deps = { existsOther: (username, selfId)=>Promise<bool> }
+async function resolveEditUsername(rawUsername, selfId, deps) {
+  if (rawUsername === undefined || rawUsername === null) return undefined;
+  const { ok, normalized, reason } = validateUsername(rawUsername);
+  if (!ok) { const e = new Error(reason === 'reserved' ? 'Username is reserved' : 'Invalid username'); e.code = 'USERNAME_INVALID'; e.statusCode = 400; throw e; }
+  if (await deps.existsOther(normalized, selfId)) { const e = new Error('Username is already taken'); e.code = 'USERNAME_TAKEN'; e.statusCode = 400; throw e; }
+  return normalized;
+}
+exports.resolveEditUsername = resolveEditUsername;
+
 // @desc     Update user
 // @route    PUT /api/v1/auth/users/:id
 // @access   Private (own profile) or Admin
@@ -622,6 +632,18 @@ exports.updateUser = asyncHandler(async (req, res, next) => {
         ...(existingUser.birthDateChangesAt || []),
         new Date(),
       ];
+    }
+  }
+
+  if ('username' in updateData) {
+    try {
+      const resolved = await resolveEditUsername(updateData.username, req.params.id, {
+        existsOther: (u, id) => User.exists({ username: u, _id: { $ne: id } }),
+      });
+      if (resolved === undefined) delete updateData.username;
+      else updateData.username = resolved;
+    } catch (err) {
+      return next(new ErrorResponse(err.message, err.statusCode || 400, err.code));
     }
   }
 
