@@ -62,6 +62,7 @@ const tutor = require('./routes/tutor');
 const admin = require('./routes/admin');
 const broadcast = require('./routes/broadcast');
 const rooms = require('./routes/rooms');
+const coins = require('./routes/coins'); // Workstream F — coins v1
 
 // FitBowl Route files
 const fitbowlAuth = require('./routes/fitbowl/auth');
@@ -308,6 +309,7 @@ app.use('/api/v1/community', community);
 app.use('/api/v1/interactions', require('./routes/interactions'));
 app.use('/api/v1/voicerooms', voiceRooms);
 app.use('/api/v1/rooms', rooms); // Workstream D — public language rooms (hubs)
+app.use('/api/v1/coins', coins); // Workstream F — coins v1 (gated by COINS_ENABLED)
 app.use('/api/v1/lessons', lessonBuilder);
 app.use('/api/v1/ai-conversation', aiConversation);
 app.use('/api/v1/grammar-feedback', grammarFeedback);
