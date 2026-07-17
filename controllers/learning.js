@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/async');
 const ErrorResponse = require('../utils/errorResponse');
 const LearningProgress = require('../models/LearningProgress');
 const Vocabulary = require('../models/Vocabulary');
+const VocabPack = require('../models/VocabPack');
 const Lesson = require('../models/Lesson');
 const LessonProgress = require('../models/LessonProgress');
 const Quiz = require('../models/Quiz');
@@ -240,6 +241,123 @@ exports.addVocabulary = asyncHandler(async (req, res, next) => {
   res.status(201).json({
     success: true,
     data: vocabulary
+  });
+});
+
+// ===================== VOCAB PACKS =====================
+
+/**
+ * @desc    List curated vocab packs (lightweight — no word bodies)
+ * @route   GET /api/v1/learning/vocab-packs
+ * @access  Private
+ * @query   level=intermediate|advanced (optional), language (optional, default English)
+ */
+exports.getVocabPacks = asyncHandler(async (req, res, next) => {
+  const { level, language } = req.query;
+  const filter = { isActive: true };
+  if (level) {
+    if (!['intermediate', 'advanced'].includes(level)) {
+      return next(new ErrorResponse('level must be intermediate or advanced', 400));
+    }
+    filter.level = level;
+  }
+  if (language) filter.language = language;
+
+  const packs = await VocabPack.find(filter)
+    .select('level topic language words exercises updatedAt')
+    .sort({ level: 1, topic: 1 })
+    .lean();
+
+  const data = packs.map((p) => ({
+    id: p._id,
+    level: p.level,
+    topic: p.topic,
+    language: p.language,
+    wordCount: Array.isArray(p.words) ? p.words.length : 0,
+    exerciseCount: Array.isArray(p.exercises) ? p.exercises.length : 0,
+    updatedAt: p.updatedAt,
+  }));
+
+  res.status(200).json({ success: true, count: data.length, data });
+});
+
+/**
+ * @desc    Get a single vocab pack with full words + exercises
+ * @route   GET /api/v1/learning/vocab-packs/:id
+ * @access  Private
+ */
+exports.getVocabPack = asyncHandler(async (req, res, next) => {
+  const pack = await VocabPack.findOne({ _id: req.params.id, isActive: true }).lean();
+  if (!pack) {
+    return next(new ErrorResponse('Vocab pack not found', 404));
+  }
+  res.status(200).json({ success: true, data: pack });
+});
+
+/**
+ * @desc    Bulk-add a pack's words into the user's personal Vocabulary
+ * @route   POST /api/v1/learning/vocab-packs/:id/add
+ * @access  Private
+ */
+exports.addVocabPackToVocabulary = asyncHandler(async (req, res, next) => {
+  const userId = req.user.id;
+  const pack = await VocabPack.findOne({ _id: req.params.id, isActive: true }).lean();
+  if (!pack) {
+    return next(new ErrorResponse('Vocab pack not found', 404));
+  }
+
+  const user = await User.findById(userId).select('native_language');
+  const nativeLanguage = user ? user.native_language : undefined;
+
+  // Upsert each word — never clobber an existing personal entry (setOnInsert),
+  // so re-adding a pack is idempotent and won't reset a user's SRS progress.
+  const now = new Date();
+  const ops = pack.words.map((w) => ({
+    updateOne: {
+      filter: { user: userId, word: w.word },
+      update: {
+        $setOnInsert: {
+          user: userId,
+          word: w.word,
+          translation: w.translationHint || w.definition,
+          language: pack.language || 'English',
+          nativeLanguage,
+          notes: w.definition,
+          examples: w.example ? [{ sentence: w.example }] : [],
+          context: { source: 'vocab_pack' },
+          srsLevel: 0,
+          easeFactor: 2.5,
+          interval: 0,
+          nextReview: now,
+          isArchived: false,
+          isMastered: false,
+        },
+      },
+      upsert: true,
+    },
+  }));
+
+  const result = await Vocabulary.bulkWrite(ops, { ordered: false });
+  const added = result.upsertedCount || 0;
+
+  if (added > 0) {
+    await learningTrackingService.awardXP(userId, added * 2, 'add_vocab_pack');
+    await LearningProgress.updateOne(
+      { user: userId },
+      { $inc: { 'stats.vocabularyAdded': added } }
+    );
+  }
+
+  res.status(201).json({
+    success: true,
+    data: {
+      packId: pack._id,
+      topic: pack.topic,
+      level: pack.level,
+      totalWords: pack.words.length,
+      added,
+      alreadyHad: pack.words.length - added,
+    },
   });
 });
 

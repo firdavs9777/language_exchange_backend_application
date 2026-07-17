@@ -16,6 +16,10 @@ const {
   submitVocabularyReview,
   updateVocabulary,
   deleteVocabulary,
+  // Vocab Packs
+  getVocabPacks,
+  getVocabPack,
+  addVocabPackToVocabulary,
   // Lessons
   getLessons,
   getRecommendedLessons,
@@ -93,6 +97,11 @@ router.route('/vocabulary/:id')
   .delete(deleteVocabulary);
 
 router.post('/vocabulary/:id/review', submitVocabularyReview);
+
+// ===================== VOCAB PACK ROUTES =====================
+router.get('/vocab-packs', getVocabPacks);
+router.get('/vocab-packs/:id', getVocabPack);
+router.post('/vocab-packs/:id/add', addVocabPackToVocabulary);
 
 // ===================== LESSON ROUTES =====================
 router.get('/lessons', getLessons);
