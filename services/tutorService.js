@@ -11,6 +11,7 @@ const TutorMemory     = require('../models/TutorMemory');
 const Vocabulary      = require('../models/Vocabulary');
 const aiProvider      = require('./aiProviderService');
 const scenarios       = require('./tutorScenarios');
+const { promptableWeakAreas } = require('../lib/tutorMemoryDecay');
 
 const PERSONA_PROMPTS = {
   nana:   "You are Nana, a warm and encouraging tutor 🐻. Use light emoji. Praise effort first, then correct gently. Keep replies short (≤80 words) unless explaining grammar.",
@@ -50,7 +51,10 @@ const buildSystemPrompt = (memory, user, options = {}) => {
   const persona = memory.persona || 'nana';
   const scenario = options.scenario;
   const recentSummary = memory.recentChatSummaries?.[0]?.summary || 'first chat';
-  const weakAreaTopics = (memory.weakAreas || []).slice(0, 3).map(w => w.topic).join(', ') || 'none yet';
+  // H6 — only surface unresolved, still-relevant weak areas (resolved or
+  // decayed-to-zero areas are excluded so the tutor stops harping on topics
+  // the user has mastered or long since stopped struggling with).
+  const weakAreaTopics = promptableWeakAreas(memory.weakAreas, 3).map(w => w.topic).join(', ') || 'none yet';
   const vocabFocusIds = (memory.vocabFocus || []).slice(0, 5).map(v => v.wordId?.toString?.() || v.wordId).join(', ') || 'none yet';
 
   return [

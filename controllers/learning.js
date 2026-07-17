@@ -3,6 +3,8 @@ const ErrorResponse = require('../utils/errorResponse');
 const LearningProgress = require('../models/LearningProgress');
 const Vocabulary = require('../models/Vocabulary');
 const VocabPack = require('../models/VocabPack');
+const { resolveReviewQuality } = require('../lib/srsReviewContract');
+const { xpForChip } = require('../lib/tutorXp');
 const Lesson = require('../models/Lesson');
 const LessonProgress = require('../models/LessonProgress');
 const Quiz = require('../models/Quiz');
@@ -394,11 +396,16 @@ exports.getVocabularyReview = asyncHandler(async (req, res, next) => {
 exports.submitVocabularyReview = asyncHandler(async (req, res, next) => {
   const userId = req.user.id;
   const vocabularyId = req.params.id;
-  const { quality, responseTime } = req.body;
+  const { responseTime } = req.body;
 
-  if (quality === undefined || quality < 0 || quality > 5) {
-    return next(new ErrorResponse('Quality must be between 0 and 5', 400));
+  // Back-compat contract: every shipped app version sends `{ correct: bool }`,
+  // not `{ quality }`, so requiring `quality` here 400'd every real call and
+  // the SRS loop never ran in prod. resolveReviewQuality accepts either.
+  const resolved = resolveReviewQuality(req.body);
+  if (resolved.error) {
+    return next(new ErrorResponse(resolved.error, 400));
   }
+  const quality = resolved.quality;
 
   const vocabulary = await Vocabulary.findOne({ _id: vocabularyId, user: userId });
 
@@ -1832,11 +1839,22 @@ Return ONLY JSON.`;
     return next(new ErrorResponse('AI grading response could not be parsed', 502));
   }
 
+  const isCorrect = !!parsed.isCorrect;
+
+  // Award XP/streak for the graded daily-practice attempt, with a bonus when
+  // correct. Fire-and-forget — never blocks the response. (H2)
+  const xp = xpForChip('daily_practice', { isCorrect });
+  if (xp > 0) {
+    learningTrackingService
+      .awardXP(req.user.id, xp, 'tutor_daily_practice')
+      .catch(e => console.error('[learning] daily_practice XP failed:', e.message));
+  }
+
   res.status(200).json({
     success: true,
     data: {
       score: typeof parsed.score === 'number' ? parsed.score : 0,
-      isCorrect: !!parsed.isCorrect,
+      isCorrect,
       feedback: parsed.feedback || '',
       suggestedTranslation: parsed.suggested_translation || expectedTranslation || '',
       errors: Array.isArray(parsed.errors) ? parsed.errors : [],

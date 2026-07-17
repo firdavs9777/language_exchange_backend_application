@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { SRS_INTERVALS, getNextReviewDate } = require('../config/xpRewards');
+const { applyReview } = require('../lib/srsEngine');
 
 /**
  * Vocabulary Model
@@ -238,76 +239,43 @@ VocabularySchema.index({ user: 1, word: 1 }, { unique: true }); // Prevent dupli
  * @param {number} responseTime - Time in ms to respond
  */
 VocabularySchema.methods.processReview = async function(quality, responseTime = null) {
-  const wasCorrect = quality >= 3;
+  // Delegate the SM-2 math + mastery transition to the pure, unit-tested engine
+  // (lib/srsEngine.js). This fixes the long-standing justMastered bug: the old
+  // inline version set masteredAt BEFORE computing `justMastered && !masteredAt`,
+  // so justMastered was always false. The engine captures wasAlreadyMastered
+  // before any mutation. (H1 — workstream-h-aistudy)
+  const result = applyReview(
+    {
+      srsLevel: this.srsLevel,
+      interval: this.interval,
+      easeFactor: this.easeFactor,
+      isMastered: this.isMastered,
+      masteredAt: this.masteredAt,
+      reviewStats: this.reviewStats ? this.reviewStats.toObject?.() ?? this.reviewStats : {},
+    },
+    quality
+  );
 
-  // Update review stats
-  this.reviewStats.totalReviews += 1;
-  this.reviewStats.lastReviewedAt = new Date();
+  const { wasCorrect } = result;
 
-  if (!this.reviewStats.firstReviewedAt) {
-    this.reviewStats.firstReviewedAt = new Date();
-  }
+  // Persist engine results back onto the document.
+  this.reviewStats = result.reviewStats;
+  this.srsLevel = result.srsLevel;
+  this.interval = result.interval;
+  this.easeFactor = result.easeFactor;
+  this.nextReview = result.nextReview;
+  this.isMastered = result.isMastered;
+  if (result.masteredAt !== undefined) this.masteredAt = result.masteredAt;
 
-  if (wasCorrect) {
-    this.reviewStats.correctReviews += 1;
-    this.reviewStats.currentStreak += 1;
-
-    if (this.reviewStats.currentStreak > this.reviewStats.longestStreak) {
-      this.reviewStats.longestStreak = this.reviewStats.currentStreak;
-    }
-  } else {
-    this.reviewStats.incorrectReviews += 1;
-    this.reviewStats.currentStreak = 0;
-  }
-
-  // Add to review history (keep last 10)
+  // Review history (last 10) — persistence-only concern, not part of the engine.
   this.reviewHistory.push({
     reviewedAt: new Date(),
     quality,
     responseTime,
-    wasCorrect
+    wasCorrect,
   });
-
   if (this.reviewHistory.length > 10) {
     this.reviewHistory = this.reviewHistory.slice(-10);
-  }
-
-  // SM-2 Algorithm Implementation
-  if (quality < 3) {
-    // Failed review - reset to beginning
-    this.srsLevel = 0;
-    this.interval = 0;
-    this.nextReview = new Date(); // Review again today
-  } else {
-    // Successful review
-    if (this.srsLevel === 0) {
-      this.interval = 1;
-    } else if (this.srsLevel === 1) {
-      this.interval = 6;
-    } else {
-      this.interval = Math.round(this.interval * this.easeFactor);
-    }
-
-    // Increase SRS level (capped at 9)
-    this.srsLevel = Math.min(this.srsLevel + 1, 9);
-
-    // Calculate next review date
-    const nextDate = new Date();
-    nextDate.setDate(nextDate.getDate() + this.interval);
-    this.nextReview = nextDate;
-  }
-
-  // Update ease factor based on quality
-  // EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
-  this.easeFactor = Math.max(
-    1.3,
-    this.easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-  );
-
-  // Check if mastered (SRS level 9)
-  if (this.srsLevel >= 9 && !this.isMastered) {
-    this.isMastered = true;
-    this.masteredAt = new Date();
   }
 
   await this.save();
@@ -318,7 +286,7 @@ VocabularySchema.methods.processReview = async function(quality, responseTime = 
     nextReview: this.nextReview,
     interval: this.interval,
     isMastered: this.isMastered,
-    justMastered: this.srsLevel >= 9 && this.isMastered && !this.masteredAt
+    justMastered: result.justMastered,
   };
 };
 

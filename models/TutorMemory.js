@@ -4,6 +4,17 @@ const WeakAreaSchema = new mongoose.Schema({
   topic:     { type: String, required: true },
   frequency: { type: Number, default: 1 },
   lastSeen:  { type: Date,   default: Date.now },
+  // H6 (workstream-h-aistudy) — mastery/decay lifecycle:
+  // successCount: times the user exercised this area successfully (e.g.
+  //   completing a grammar drill on the topic). At 3, the daily decay job
+  //   sets resolvedAt.
+  successCount:  { type: Number, default: 0 },
+  // resolvedAt: excluded from prompts forever once set; never auto-resurrected
+  //   (a new struggle writes a fresh entry instead).
+  resolvedAt:    { type: Date },
+  // lastDecayedAt: makes the 14-day frequency-halving idempotent per window
+  //   (see lib/tutorMemoryDecay.js + jobs/tutorMemoryDecayJob.js).
+  lastDecayedAt: { type: Date },
 }, { _id: false });
 
 const VocabFocusSchema = new mongoose.Schema({

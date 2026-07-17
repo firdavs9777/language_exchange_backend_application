@@ -32,6 +32,7 @@ const voiceRoomSchedulerJob = require('./voiceRoomSchedulerJob');
 const { purgeLegacyPronunciationAudio } = require('./pronunciationAudioPurgeJob');
 const { purgeAudioCacheOrphans } = require('./audioCacheOrphanPurgeJob');
 const { runDailyRoomPromptJob } = require('./dailyRoomPromptJob');
+const { runTutorMemoryDecayJob } = require('./tutorMemoryDecayJob');
 
 // Track if scheduler is already running
 let isSchedulerRunning = false;
@@ -293,6 +294,28 @@ const scheduleDailyRoomPrompt = () => {
 };
 
 /**
+ * Schedule tutor memory decay (3:30 AM KST, daily). H6 — halves stale weak-area
+ * frequencies (unseen > 14d) and resolves areas exercised successfully N times,
+ * so mastered/abandoned topics stop surfacing in tutor prompts. Staggered away
+ * from the 2:00-2:15 purge cluster and the 8:30/9:00 morning clusters.
+ */
+const scheduleTutorMemoryDecay = () => {
+  const runJob = async () => {
+    console.log('\n⏰ Running scheduled tutor memory decay job...');
+    try {
+      await runTutorMemoryDecayJob();
+    } catch (error) {
+      console.error('Scheduled tutor memory decay job failed:', error);
+    }
+    setTimeout(runJob, 24 * 60 * 60 * 1000);
+  };
+
+  const msUntilNextRun = getMillisecondsUntil(3, 30);
+  console.log(`📅 Tutor memory decay job scheduled in ${Math.round(msUntilNextRun / 1000 / 60)} minutes`);
+  setTimeout(runJob, msUntilNextRun);
+};
+
+/**
  * Schedule subscription expiry check (every hour)
  * Critical job for billing integrity - checks expired VIP subscriptions
  * and deactivates them after grace period
@@ -518,6 +541,9 @@ const startScheduler = () => {
 
   // Language rooms ("hubs") daily prompt (8:30 AM KST, daily)
   scheduleDailyRoomPrompt();
+
+  // Tutor memory decay/mastery (3:30 AM KST, daily) — H6
+  scheduleTutorMemoryDecay();
 
   console.log('✅ All jobs scheduled!\n');
 };

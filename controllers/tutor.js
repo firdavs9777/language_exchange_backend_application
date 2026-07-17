@@ -11,8 +11,21 @@ const tutorImageVocabService = require('../services/tutorImageVocabService');
 const speechService  = require('../services/speechService');
 const aiProvider     = require('../services/aiProviderService');
 const { score: scorePronunciation } = require('../services/pronunciationScoring');
+const learningTrackingService = require('../services/learningTrackingService');
+const { xpForChip } = require('../lib/tutorXp');
 
 const VALID_PERSONAS = ['nana', 'sensei', 'riko'];
+
+// Fire-and-forget XP award for a finished tutor-chip session. Never blocks or
+// fails the response — XP/streak is a side effect of the habit tick. (H2)
+const awardChipXp = (userId, chip, opts = {}) => {
+  const amount = xpForChip(chip, opts);
+  if (amount > 0) {
+    learningTrackingService
+      .awardXP(userId, amount, `tutor_${chip}`)
+      .catch(e => console.error(`[tutor] XP award failed (${chip}):`, e.message));
+  }
+};
 
 /**
  * Ensure a TutorMemory exists for the user; lazy-create with profile defaults
@@ -132,6 +145,15 @@ exports.completeTask = asyncHandler(async (req, res, next) => {
 
   if (type === 'grammar_drill') {
     task.completed = true;
+    // H6 — completing a grammar drill is a success signal for that weak area.
+    // Increment successCount so the daily decay job can resolve it at N=3.
+    if (task.topic && Array.isArray(mem.weakAreas)) {
+      const area = mem.weakAreas.find(w => w.topic === task.topic && !w.resolvedAt);
+      if (area) {
+        area.successCount = (area.successCount || 0) + 1;
+        mem.markModified('weakAreas');
+      }
+    }
   } else {
     task.completed = Number(task.completed || 0) + delta;
   }
@@ -372,6 +394,11 @@ exports.endSession = asyncHandler(async (req, res, next) => {
     console.error('[tutor.endSession] task bump failed (non-fatal):', e.message);
   }
 
+  // Award XP/streak for the finished session (chat or roleplay). Skipped for
+  // opened-and-closed sessions with no user turns (see xpForChip). (H2)
+  const userMessages = (session.messages || []).filter(m => m.role === 'user').length;
+  awardChipXp(req.user._id, session.mode === 'roleplay' ? 'roleplay' : 'chat', { userMessages });
+
   res.status(200).json({ success: true, data: session });
 });
 
@@ -508,6 +535,7 @@ exports.imageVocabGrade = asyncHandler(async (req, res, next) => {
       mimeType: req.file.mimetype,
       description,
     });
+    awardChipXp(req.user._id, 'photo'); // H2
     res.status(200).json({ success: true, data: result });
   } catch (e) {
     console.error('[tutor.imageVocabGrade] failed:', e.message);
@@ -535,6 +563,7 @@ exports.generateStory = asyncHandler(async (req, res, next) => {
       wordCount,
       theme,
     });
+    awardChipXp(req.user._id, 'story'); // H2
     res.status(200).json({
       success: true,
       data: story,
@@ -778,6 +807,8 @@ exports.submitPronunciationSummary = asyncHandler(async (req, res, next) => {
   }
 
   await mem.save();
+
+  awardChipXp(req.user._id, 'pronunciation'); // H2
 
   // Step 17 — bridge into the SRS queue. Pronunciation weak words are
   // the canonical 'I'm bad at this' signal; routing them into Vocabulary
