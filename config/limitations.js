@@ -23,10 +23,18 @@ const ROOMS_ENABLED = String(process.env.ROOMS_ENABLED || 'true').toLowerCase() 
 // can hide the Reels tab. Defaults to true (on) when unset.
 const REELS_ENABLED = String(process.env.REELS_ENABLED || 'true').toLowerCase() === 'true';
 
+// Kill switch for Workstream F Coins v1. When 'false', routes/coins.js's
+// coinsEnabledGuard short-circuits every /api/v1/coins route to a 404, and
+// controllers/appConfig.js reports coinsEnabled:false to clients so the app
+// can hide the coin balance pill, shop, and unlock CTAs. Defaults to true
+// (on) when unset.
+const COINS_ENABLED = String(process.env.COINS_ENABLED || 'true').toLowerCase() === 'true';
+
 module.exports = {
   AI_QUOTA_ENABLED,
   ROOMS_ENABLED,
   REELS_ENABLED,
+  COINS_ENABLED,
 
   // ===================== VISITOR LIMITS =====================
   // Users who haven't verified email or just browsing

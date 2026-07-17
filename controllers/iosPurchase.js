@@ -2,9 +2,14 @@ const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const ErrorResponse = require('../utils/errorResponse');
 const { logSecurityEvent } = require('../utils/securityLogger');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const https = require('https');
+// Receipt-verification core is shared with the coins consumable verifier
+// (lib/consumableReceipt.js -> Task 5). See lib/appleReceipt.js.
+const {
+  verifyIOSReceipt,
+  verifyStoreKit2Transaction,
+  verifyLegacyReceipt,
+  isStoreKit2Format,
+} = require('../lib/appleReceipt');
 
 // VIP Plans configuration
 const VIP_PLANS = {
@@ -167,142 +172,9 @@ exports.getVIPPlans = asyncHandler(async (req, res, next) => {
   });
 });
 
-// Apple's App Store environment
-const APPLE_PRODUCTION_URL = 'https://buy.itunes.apple.com/verifyReceipt';
-const APPLE_SANDBOX_URL = 'https://sandbox.itunes.apple.com/verifyReceipt';
-
+// APPLE_SHARED_SECRET is read here only for the config check in
+// verifySubscriptionStatus; the actual receipt calls live in lib/appleReceipt.js.
 const appleSharedSecret = process.env.APPLE_SHARED_SECRET;
-
-if (!appleSharedSecret) {
-  console.warn('⚠️ APPLE_SHARED_SECRET not configured! iOS purchase verification may fail for legacy receipts.');
-}
-
-/**
- * Verify the certificate chain from x5c header
- */
-function verifyCertificateChain(x5c) {
-  if (!x5c || x5c.length < 2) {
-    throw new Error('Invalid certificate chain');
-  }
-
-  // The first certificate is the signing certificate
-  // The last certificate should chain to Apple Root CA
-  // For simplicity, we trust certificates that have proper chain
-  // In production, you should verify the full chain to Apple Root CA
-
-  // Get the signing certificate (first in chain)
-  const signingCertPem = `-----BEGIN CERTIFICATE-----\n${x5c[0].match(/.{1,64}/g).join('\n')}\n-----END CERTIFICATE-----`;
-
-  return signingCertPem;
-}
-
-/**
- * Verify and decode a StoreKit 2 JWS transaction
- */
-async function verifyStoreKit2Transaction(signedTransaction) {
-  try {
-    // Decode header to get certificate chain
-    const parts = signedTransaction.split('.');
-    if (parts.length !== 3) {
-      throw new Error('Invalid JWS format');
-    }
-
-    const header = JSON.parse(Buffer.from(parts[0], 'base64url').toString());
-    const x5c = header.x5c;
-    const alg = header.alg;
-
-    console.log('   JWS Header alg:', alg);
-    console.log('   JWS Header has x5c:', !!x5c);
-
-    if (!x5c || x5c.length === 0) {
-      throw new Error('No certificate chain in JWS header');
-    }
-
-    // Get the public key from the certificate chain
-    const signingCertPem = verifyCertificateChain(x5c);
-
-    // Create public key from certificate
-    const publicKey = crypto.createPublicKey({
-      key: signingCertPem,
-      format: 'pem'
-    });
-
-    // Verify and decode the JWT
-    const decoded = jwt.verify(signedTransaction, publicKey, {
-      algorithms: ['ES256']
-    });
-
-    console.log('   Decoded transaction bundleId:', decoded.bundleId);
-    console.log('   Decoded transaction productId:', decoded.productId);
-    console.log('   Decoded transaction type:', decoded.type);
-
-    return decoded;
-  } catch (error) {
-    console.error('JWS verification error:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Check if receipt is StoreKit 2 JWS format
- */
-function isStoreKit2Format(receiptData) {
-  // StoreKit 2 JWS tokens start with 'eyJ' (base64url encoded JSON)
-  return typeof receiptData === 'string' && receiptData.startsWith('eyJ');
-}
-
-/**
- * Verify legacy receipt with Apple's verifyReceipt endpoint
- */
-async function verifyLegacyReceipt(receiptData, useSandbox = false) {
-  const url = useSandbox ? APPLE_SANDBOX_URL : APPLE_PRODUCTION_URL;
-
-  const requestBody = JSON.stringify({
-    'receipt-data': receiptData,
-    'password': appleSharedSecret,
-    'exclude-old-transactions': true
-  });
-
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    const options = {
-      hostname: urlObj.hostname,
-      path: urlObj.pathname,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody)
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const response = JSON.parse(data);
-
-          // Status 21007 means sandbox receipt sent to production
-          if (response.status === 21007 && !useSandbox) {
-            // Retry with sandbox
-            verifyLegacyReceipt(receiptData, true)
-              .then(resolve)
-              .catch(reject);
-            return;
-          }
-
-          resolve(response);
-        } catch (e) {
-          reject(e);
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.write(requestBody);
-    req.end();
-  });
-}
 
 /**
  * @desc    Verify iOS purchase receipt and activate VIP
@@ -327,47 +199,21 @@ exports.verifyIOSPurchase = asyncHandler(async (req, res, next) => {
     let finalTransactionId;
     let expirationDate = null;
 
-    // Check if this is StoreKit 2 format (JWS)
-    if (isStoreKit2Format(receiptData)) {
-      console.log('📱 Processing StoreKit 2 JWS transaction...');
+    // Receipt-verification step — shared with the coins consumable verifier
+    // (lib/consumableReceipt.js). This performs ONLY receipt verification; the
+    // VIP activation side effects below are unchanged.
+    const result = await verifyIOSReceipt(receiptData, { productId, transactionId });
 
-      try {
-        const transactionInfo = await verifyStoreKit2Transaction(receiptData);
-        console.log('✅ StoreKit 2 transaction verified:', JSON.stringify(transactionInfo, null, 2));
-
-        // Extract data from the decoded transaction
-        finalProductId = transactionInfo.productId || productId;
-        finalTransactionId = transactionInfo.transactionId || transactionInfo.originalTransactionId || transactionId;
-
-        // Check expiration for subscriptions
-        if (transactionInfo.expiresDate) {
-          expirationDate = new Date(transactionInfo.expiresDate);
-          if (expirationDate < new Date()) {
-            // Subscription expired - but this might be a re-subscription attempt
-            // Allow it to proceed, we'll create a new subscription period from now
-            console.log('   Subscription expired, will renew from current date');
-            logSecurityEvent('IOS_SUBSCRIPTION_RENEWAL_FROM_EXPIRED', {
-              userId: req.user.id,
-              productId: finalProductId,
-              oldExpirationDate: expirationDate
-            });
-            // Set expirationDate to null so we create a fresh subscription
-            expirationDate = null;
-          }
-        }
-      } catch (jwsError) {
-        console.error('❌ StoreKit 2 verification failed:', jwsError.message);
+    if (!result.valid) {
+      if (result.format === 'storekit2') {
+        console.error('❌ StoreKit 2 verification failed:', result.jwsError.message);
         logSecurityEvent('IOS_JWS_VERIFICATION_FAILED', {
           userId: req.user.id,
-          error: jwsError.message
+          error: result.jwsError.message
         });
-        return next(new ErrorResponse(`Transaction verification failed: ${jwsError.message}`, 400));
+        return next(new ErrorResponse(`Transaction verification failed: ${result.jwsError.message}`, 400));
       }
-    } else {
-      // Legacy receipt format - use Apple's verifyReceipt endpoint
-      console.log('📱 Processing legacy receipt...');
-
-      if (!appleSharedSecret) {
+      if (result.noSharedSecret) {
         console.error('❌ APPLE_SHARED_SECRET is not configured on this server!');
         logSecurityEvent('IOS_RECEIPT_ERROR', {
           userId: req.user.id,
@@ -375,80 +221,49 @@ exports.verifyIOSPurchase = asyncHandler(async (req, res, next) => {
         });
         return next(new ErrorResponse('Server configuration error: Apple shared secret not configured. Please contact support.', 500));
       }
-
-      console.log('📤 Sending receipt to Apple for validation...');
-      const validationResponse = await verifyLegacyReceipt(receiptData);
-
-      console.log('📱 Receipt validation result:', JSON.stringify(validationResponse, null, 2));
-
-      // Check if receipt is valid (status 0 = valid)
-      if (validationResponse.status !== 0) {
-        const statusMessages = {
-          21000: 'The App Store could not read the receipt',
-          21002: 'The receipt data is malformed',
-          21003: 'The receipt could not be authenticated',
-          21004: 'The shared secret does not match',
-          21005: 'The receipt server is not available',
-          21006: 'The receipt is valid but subscription has expired',
-          21007: 'Sandbox receipt sent to production',
-          21008: 'Production receipt sent to sandbox'
-        };
-        const errorMessage = statusMessages[validationResponse.status] || `Validation failed with status ${validationResponse.status}`;
-
+      if (result.status !== undefined) {
         logSecurityEvent('IOS_RECEIPT_INVALID', {
           userId: req.user.id,
-          status: validationResponse.status,
-          reason: errorMessage
+          status: result.status,
+          reason: result.statusMessage
         });
-        return next(new ErrorResponse(errorMessage, 400));
+        return next(new ErrorResponse(result.statusMessage, 400));
       }
-
-      // Get the latest receipt info
-      const latestReceiptInfo = validationResponse.latest_receipt_info ||
-                                (validationResponse.receipt && validationResponse.receipt.in_app) ||
-                                [];
-
-      if (!latestReceiptInfo || latestReceiptInfo.length === 0) {
+      if (result.errorCode === 'NO_PURCHASE_DATA') {
         return next(new ErrorResponse('No purchase data found in receipt', 400));
       }
-
-      // Find the specific purchase or use the latest one
-      let purchase;
-      if (productId && transactionId) {
-        purchase = latestReceiptInfo.find(
-          p => p.product_id === productId && p.transaction_id === transactionId
-        );
-      } else {
-        // Sort by purchase date and get the latest
-        purchase = latestReceiptInfo.sort((a, b) => {
-          const dateA = parseInt(a.purchase_date_ms) || 0;
-          const dateB = parseInt(b.purchase_date_ms) || 0;
-          return dateB - dateA;
-        })[0];
-      }
-
-      if (!purchase) {
+      if (result.errorCode === 'PURCHASE_NOT_FOUND') {
         return next(new ErrorResponse('Purchase not found in receipt', 400));
       }
+      return next(new ErrorResponse('Purchase could not be verified', 400));
+    }
 
-      finalProductId = productId || purchase.product_id;
-      finalTransactionId = transactionId || purchase.transaction_id;
+    if (result.format === 'storekit2') {
+      console.log('✅ StoreKit 2 transaction verified:', JSON.stringify(result.decoded, null, 2));
+      finalProductId = result.productId;
+      // Preserve the existing VIP fallback: transactionId -> originalTransactionId
+      // -> client-declared. (The coins verifier pins the consumable transactionId
+      // only — reviewer C3 — but the VIP path is behaviorally unchanged here.)
+      finalTransactionId = result.transactionId || result.originalTransactionId || transactionId;
+    } else {
+      console.log('📱 Receipt validation result:', JSON.stringify(result.validationResponse, null, 2));
+      finalProductId = result.productId;
+      finalTransactionId = transactionId || result.transactionId;
+    }
 
-      // Check expiration for subscriptions
-      if (purchase.expires_date_ms) {
-        expirationDate = new Date(parseInt(purchase.expires_date_ms));
-        if (expirationDate < new Date()) {
-          // Subscription expired - but this might be a re-subscription attempt
-          // Allow it to proceed, we'll create a new subscription period from now
-          console.log('   Subscription expired, will renew from current date');
-          logSecurityEvent('IOS_SUBSCRIPTION_RENEWAL_FROM_EXPIRED', {
-            userId: req.user.id,
-            productId: finalProductId,
-            oldExpirationDate: expirationDate
-          });
-          // Set expirationDate to null so we create a fresh subscription
-          expirationDate = null;
-        }
+    // Check expiration for subscriptions — an expired receipt is treated as a
+    // fresh re-subscription (renew from now), behavior unchanged.
+    if (result.expiresDate) {
+      expirationDate = result.expiresDate;
+      if (expirationDate < new Date()) {
+        console.log('   Subscription expired, will renew from current date');
+        logSecurityEvent('IOS_SUBSCRIPTION_RENEWAL_FROM_EXPIRED', {
+          userId: req.user.id,
+          productId: finalProductId,
+          oldExpirationDate: expirationDate
+        });
+        // Set expirationDate to null so we create a fresh subscription
+        expirationDate = null;
       }
     }
 

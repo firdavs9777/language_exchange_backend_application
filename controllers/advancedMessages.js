@@ -241,16 +241,20 @@ exports.translateMessage = asyncHandler(async (req, res, next) => {
       await message.save();
     }
 
-    // Increment daily translation count for non-VIP users
-    await user.incrementTranslationCount();
-
-    const updatedCheck = user.canTranslate();
+    // Increment daily translation count for non-VIP users. incrementTranslation
+    // Count is now an atomic free-then-pool consume that does NOT mutate the
+    // in-memory user doc, so derive the reported free remaining from the result
+    // rather than re-reading the (now-stale) in-memory counter.
+    const consumeResult = await user.incrementTranslationCount();
+    const remainingAfter = consumeResult && consumeResult.via === 'free'
+      ? Math.max(0, translationCheck.remaining - 1)
+      : translationCheck.remaining;
 
     res.status(200).json({
       success: true,
       data: translationData,
-      remaining: updatedCheck.remaining,
-      limit: updatedCheck.limit
+      remaining: remainingAfter,
+      limit: translationCheck.limit
     });
   } catch (error) {
     console.error('Translation error:', error.message);

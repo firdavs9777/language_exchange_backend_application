@@ -1,5 +1,5 @@
 const asyncHandler = require('../middleware/async');
-const { ROOMS_ENABLED, REELS_ENABLED } = require('../config/limitations');
+const { ROOMS_ENABLED, REELS_ENABLED, COINS_ENABLED } = require('../config/limitations');
 
 const DEFAULT_IOS_URL =
   'https://apps.apple.com/us/app/bananatalk-learn-meet-or-date/id6755862146';
@@ -60,6 +60,7 @@ exports.getAppConfig = asyncHandler(async (req, res) => {
       announcement,
       roomsEnabled: ROOMS_ENABLED,
       reelsEnabled: REELS_ENABLED,
+      coinsEnabled: COINS_ENABLED,
     },
   });
 });
