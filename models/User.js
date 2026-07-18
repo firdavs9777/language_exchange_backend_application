@@ -1391,15 +1391,28 @@ UserSchema.methods.canSendMessage = function() {
     const lastReset = new Date(this.regularUserLimitations.lastMessageReset);
 
     // Reset counter if it's a new day
-    if (now.getDate() !== lastReset.getDate() || 
-        now.getMonth() !== lastReset.getMonth() || 
+    if (now.getDate() !== lastReset.getDate() ||
+        now.getMonth() !== lastReset.getMonth() ||
         now.getFullYear() !== lastReset.getFullYear()) {
       this.regularUserLimitations.messagesSentToday = 0;
       this.regularUserLimitations.lastMessageReset = now;
+      // The coin-unlock 'dm' bonus (config/coinCatalog.js UNLOCKS.dm) is
+      // "extra messages TODAY" only — clear it on rollover so it doesn't
+      // carry forward into the next day's free allowance. coinBonus is a
+      // Mongoose Map; tolerate a plain object defensively (mirrors
+      // _getCoinBonus's read-side tolerance).
+      if (this.coinBonus) {
+        if (typeof this.coinBonus.set === 'function') {
+          this.coinBonus.set('dm', 0);
+        } else {
+          this.coinBonus.dm = 0;
+        }
+      }
     }
 
     if (LIMITS.regular.messagesPerDay === -1) return true;
-    return this.regularUserLimitations.messagesSentToday < LIMITS.regular.messagesPerDay;
+    const dmBonus = this._getCoinBonus('dm');
+    return this.regularUserLimitations.messagesSentToday < (LIMITS.regular.messagesPerDay + dmBonus);
   }
 
   if (this.userMode === 'visitor') {

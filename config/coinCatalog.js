@@ -46,6 +46,12 @@ const UNLOCKS = {
   story: { cost: 80, grant: 3 },
   photo: { cost: 80, grant: 3 },
   pronunciation: { cost: 80, grant: 3 },
+  // dm = extra direct messages for the CURRENT day only. Distinct from
+  // 'chat' (which is the AI-tutor chat chip's quota). Raises
+  // regularUserLimitations.messagesSentToday's effective daily cap by
+  // `grant`; the bonus is reset to 0 on the next day's rollover (see
+  // User.canSendMessage), not carried forward.
+  dm: { cost: 40, grant: 5 },
 };
 
 /**
