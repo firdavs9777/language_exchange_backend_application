@@ -295,7 +295,14 @@ const initializeSocket = (io) => {
     
     // Send queued offline messages
     await sendQueuedMessages(socket, userId);
-    
+
+    // Stamp + notify senders for any backlog messages that were still
+    // undelivered (covers messages sent while this user was offline,
+    // including ones the in-memory offline queue may have dropped/capped)
+    stampUndeliveredMessagesOnReconnect(io, userId).catch(err =>
+      console.error(`❌ stampUndeliveredMessagesOnReconnect error for ${userId}:`, err.message)
+    );
+
     // Send online users list
     sendOnlineUsers(socket);
     
@@ -570,6 +577,62 @@ const sendQueuedMessages = async (socket, userId) => {
 };
 
 /**
+ * On reconnect, stamp `delivered` on any of this user's still-undelivered
+ * messages (source of truth is the DB, not the in-memory offline queue —
+ * the queue is capped and lost on server restart, so it can under-count).
+ * Batches the write with a single updateMany, then emits `messageDelivered`
+ * per message to that message's sender room so their ticks update.
+ */
+const stampUndeliveredMessagesOnReconnect = async (io, userId) => {
+  try {
+    const undelivered = await Message.find(
+      { receiver: userId, delivered: false },
+      { _id: 1, sender: 1 }
+    ).lean();
+
+    if (undelivered.length === 0) {
+      return;
+    }
+
+    const messageIds = undelivered.map(m => m._id);
+
+    await Message.updateMany(
+      { _id: { $in: messageIds } },
+      { $set: { delivered: true } }
+    );
+
+    // Group by sender so we only look up each sender's conversation once.
+    const messageIdsBySender = new Map();
+    for (const m of undelivered) {
+      const senderId = m.sender.toString();
+      if (!messageIdsBySender.has(senderId)) {
+        messageIdsBySender.set(senderId, []);
+      }
+      messageIdsBySender.get(senderId).push(m._id);
+    }
+
+    for (const [senderId, ids] of messageIdsBySender) {
+      const conversation = await Conversation.findOne({
+        participants: { $all: [senderId, userId], $size: 2 },
+        isGroup: false
+      }).select('_id').lean();
+      const conversationId = conversation && conversation._id ? conversation._id.toString() : null;
+
+      for (const messageId of ids) {
+        io.to(`user_${senderId}`).emit('messageDelivered', {
+          messageId: messageId.toString(),
+          conversationId
+        });
+      }
+    }
+
+    console.log(`✅ Stamped ${messageIds.length} backlog message(s) delivered for reconnecting user ${userId}`);
+  } catch (error) {
+    console.error(`❌ Error stamping undelivered messages for ${userId}:`, error.message);
+  }
+};
+
+/**
  * Send list of currently online users
  */
 const sendOnlineUsers = (socket) => {
@@ -831,9 +894,39 @@ const registerMessageHandlers = (socket, io) => {
             receiverId: receiver
           });
 
-          // Update conversation (non-blocking)
-          updateConversation(userId, receiver, newMessage._id)
-            .catch(err => console.error('Background update error:', err.message));
+          // Update conversation (non-blocking). Keep the promise so the
+          // delivered-notification below (if the receiver was actually
+          // online) can resolve the conversation id without a second
+          // find/create race against this one.
+          const conversationUpdatePromise = updateConversation(userId, receiver, newMessage._id)
+            .catch(err => {
+              console.error('Background update error:', err.message);
+              return null;
+            });
+
+          // sent === true means the receiver's live socket actually got
+          // 'newMessage' just now (sendMessageWithRetry confirmed a
+          // connected room) — persist + tell the sender it's delivered.
+          // Idempotent: only flip + save if not already true. Offline case
+          // (sent === false) is handled later on the receiver's reconnect
+          // (see stampUndeliveredMessagesOnReconnect).
+          if (sent) {
+            (async () => {
+              try {
+                if (!newMessage.delivered) {
+                  newMessage.delivered = true;
+                  await newMessage.save();
+                }
+                const conv = await conversationUpdatePromise;
+                io.to(`user_${userId}`).emit('messageDelivered', {
+                  messageId: newMessage._id.toString(),
+                  conversationId: conv && conv._id ? conv._id.toString() : null
+                });
+              } catch (deliveredErr) {
+                console.error('❌ messageDelivered emit error:', deliveredErr.message);
+              }
+            })();
+          }
 
           // Reset counters and increment sequentially to avoid parallel save on same doc
           resetDailyCounters(senderUser)
@@ -1779,6 +1872,7 @@ const updateConversation = async (senderId, receiverId, messageId) => {
     await conversation.updateUnreadCount(receiverId, 1);
     await conversation.save();
 
+    return conversation;
   } catch (error) {
     console.error('❌ Update conversation error:', error);
   }

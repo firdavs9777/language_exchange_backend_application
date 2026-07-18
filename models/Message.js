@@ -63,6 +63,14 @@ const MessageSchema = new mongoose.Schema({
   readAt: {
     type: Date
   },
+  // True once the message has been pushed to the recipient's connected
+  // socket (or stamped on reconnect for backlog delivery) — distinct from
+  // `read`, which reflects the recipient actually opening/viewing it.
+  // Powers sent -> delivered -> read tick states on the client.
+  delivered: {
+    type: Boolean,
+    default: false
+  },
   createdAt: {
     type: Date,
     default: Date.now,
