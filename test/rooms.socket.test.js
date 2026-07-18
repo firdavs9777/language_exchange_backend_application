@@ -2,6 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const {
   deriveOnlineCount,
+  getActiveRoomUserIds,
   buildRoomMessageDoc
 } = require('../lib/roomPresence');
 
@@ -44,6 +45,47 @@ test('deriveOnlineCount: reflects a shrunk room size after disconnects (no stale
 test('deriveOnlineCount: tolerates a missing adapter/rooms map gracefully', () => {
   assert.equal(deriveOnlineCount({ sockets: {} }, 'abc'), 0);
   assert.equal(deriveOnlineCount({}, 'abc'), 0);
+});
+
+// ---------------------------------------------------------------------------
+// getActiveRoomUserIds (Task 15 follow-up — notifications) — used to skip
+// the new-message push for topic-room members who already have a live
+// socket in the room (they see the message via room:message already).
+// ---------------------------------------------------------------------------
+
+function fakeIo(roomMembers, socketUsers) {
+  const rooms = new Map();
+  if (roomMembers) rooms.set('room_abc', new Set(roomMembers));
+  const sockets = new Map(Object.entries(socketUsers || {}).map(([socketId, userId]) => [
+    socketId,
+    { user: userId ? { id: userId } : undefined }
+  ]));
+  return { sockets: { adapter: { rooms }, sockets } };
+}
+
+test('getActiveRoomUserIds: returns the user ids behind every socket currently in the room', () => {
+  const io = fakeIo(['socketA', 'socketB'], { socketA: 'u1', socketB: 'u2' });
+  assert.deepEqual(getActiveRoomUserIds(io, 'abc'), new Set(['u1', 'u2']));
+});
+
+test('getActiveRoomUserIds: dedups when the same user has multiple sockets in the room', () => {
+  const io = fakeIo(['socketA', 'socketB'], { socketA: 'u1', socketB: 'u1' });
+  assert.deepEqual(getActiveRoomUserIds(io, 'abc'), new Set(['u1']));
+});
+
+test('getActiveRoomUserIds: empty set when the room does not exist', () => {
+  const io = fakeIo(null, {});
+  assert.deepEqual(getActiveRoomUserIds(io, 'abc'), new Set());
+});
+
+test('getActiveRoomUserIds: skips sockets with no attached user (defensive)', () => {
+  const io = fakeIo(['socketA', 'socketB'], { socketA: 'u1', socketB: null });
+  assert.deepEqual(getActiveRoomUserIds(io, 'abc'), new Set(['u1']));
+});
+
+test('getActiveRoomUserIds: tolerates a missing adapter/rooms/sockets map gracefully', () => {
+  assert.deepEqual(getActiveRoomUserIds({ sockets: {} }, 'abc'), new Set());
+  assert.deepEqual(getActiveRoomUserIds({}, 'abc'), new Set());
 });
 
 // ---------------------------------------------------------------------------

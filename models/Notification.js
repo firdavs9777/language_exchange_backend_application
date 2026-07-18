@@ -19,6 +19,11 @@ const NotificationSchema = new mongoose.Schema({
       // persisted). See test/notificationTypeEnum.test.js.
       'wave', 'comment_reply', 'comment_reaction', 'comment_mention', 'room_mention',
       'vip_renewal_warning', 'srs_review', 'streak_reminder', 'new_follower',
+      // Task 15 follow-up (rooms notifications) — new-message push for
+      // user-created topic rooms + join-notify for the room owner. Same
+      // "add here or _saveToHistory silently drops the history row" reason
+      // as the batches above.
+      'room_message', 'room_join',
     ],
     required: true
   },

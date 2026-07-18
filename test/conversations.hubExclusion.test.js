@@ -2,18 +2,18 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { buildConversationListQuery } = require('../lib/conversationListQuery');
 
-test('excludes hubs and the requesting user\'s deleted conversations by default', () => {
+test('excludes hubs, topic rooms, and the requesting user\'s deleted conversations by default', () => {
   const userId = 'user123';
   const query = buildConversationListQuery(userId);
 
   assert.deepEqual(query, {
     participants: userId,
     deletedBy: { $ne: userId },
-    roomType: { $ne: 'hub' }
+    roomType: { $nin: ['hub', 'topic'] }
   });
 });
 
-test('always includes roomType exclusion regardless of other filters', () => {
+test('always includes roomType exclusion (hub + topic) regardless of other filters', () => {
   const userId = 'user123';
   const query = buildConversationListQuery(userId, {
     archived: 'true',
@@ -21,7 +21,7 @@ test('always includes roomType exclusion regardless of other filters', () => {
     pinned: 'true'
   });
 
-  assert.deepEqual(query.roomType, { $ne: 'hub' });
+  assert.deepEqual(query.roomType, { $nin: ['hub', 'topic'] });
   assert.deepEqual(query.participants, userId);
   assert.deepEqual(query.deletedBy, { $ne: userId });
 });
@@ -56,9 +56,9 @@ test('applies pinned filter variants', () => {
   assert.equal(buildConversationListQuery(userId, {})['pinnedBy.user'], undefined);
 });
 
-test('never allows roomType:hub to be overridden by filters object', () => {
+test('never allows roomType exclusion to be overridden by filters object', () => {
   // Defensive: even if a caller passed a roomType-like key in filters, our
-  // builder only reads archived/muted/pinned, so hub exclusion always wins.
+  // builder only reads archived/muted/pinned, so hub+topic exclusion always wins.
   const userId = 'u1';
   const query = buildConversationListQuery(userId, {
     archived: undefined,
@@ -66,5 +66,5 @@ test('never allows roomType:hub to be overridden by filters object', () => {
     pinned: undefined,
     roomType: 'hub' // should be ignored — not a recognized filter key
   });
-  assert.deepEqual(query.roomType, { $ne: 'hub' });
+  assert.deepEqual(query.roomType, { $nin: ['hub', 'topic'] });
 });

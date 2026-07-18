@@ -963,6 +963,108 @@ const sendRoomMention = async (mentionedUserId, senderId, roomId, messageText) =
 };
 
 /**
+ * Send a new-message push for a user-created "topic" room (Task 15 follow-up
+ * — notifications). Mirrors sendChatMessage's shape/payload keys (same
+ * templateService/fcmService plumbing via send()) but scoped to a room
+ * instead of a 1:1 conversation. The caller (socket/roomHandler.js) is
+ * responsible for only invoking this for `roomType:'topic'` rooms (NEVER the
+ * big seeded hubs — see sendRoomMention above for why) and for already
+ * filtering out the sender, members currently active in the room, and muted
+ * members before calling this per recipient.
+ *
+ * @param {String} recipientId - a room participant (not the sender)
+ * @param {String} senderId - the message author
+ * @param {Object} room - plain object with at least `_id`, `title`
+ * @param {String} messageText
+ * @returns {Object} - Result
+ */
+const sendRoomMessage = async (recipientId, senderId, room, messageText) => {
+  try {
+    const [sender, recipient] = await Promise.all([
+      User.findById(senderId),
+      User.findById(recipientId),
+    ]);
+    if (!sender) return { success: false, error: 'Sender not found' };
+
+    const snippet = messageText && messageText.length > 100
+      ? `${messageText.substring(0, 100)}...`
+      : (messageText || '');
+
+    const { title, body } = templateService.render(
+      'room_message',
+      recipient?.preferredLocale || 'en',
+      { actorName: sender.name, roomName: room?.title || 'a room', snippet },
+    );
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'room_message',
+        userId: String(senderId),
+        roomId: String(room._id),
+      }
+    };
+
+    if (sender.images && sender.images.length > 0) {
+      notification.imageUrl = sender.images[0];
+    }
+
+    return await send(recipientId, 'room_message', notification);
+  } catch (error) {
+    console.error('Error sending room message notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Notify a topic room's owner that someone joined (Task 15 follow-up —
+ * notifications). Only called for `roomType:'topic'` rooms and only when
+ * the joiner isn't the owner themself; respects the owner's per-room mute
+ * the same way sendRoomMessage does (caller checks lib/roomMessageNotify.js's
+ * isMemberMuted before invoking this).
+ *
+ * @param {String} ownerId - the room's owner
+ * @param {String} joinerId - the user who just joined
+ * @param {Object} room - plain object with at least `_id`, `title`
+ * @returns {Object} - Result
+ */
+const sendRoomJoin = async (ownerId, joinerId, room) => {
+  try {
+    const [joiner, owner] = await Promise.all([
+      User.findById(joinerId),
+      User.findById(ownerId),
+    ]);
+    if (!joiner) return { success: false, error: 'Joiner not found' };
+
+    const { title, body } = templateService.render(
+      'room_join',
+      owner?.preferredLocale || 'en',
+      { actorName: joiner.name, roomName: room?.title || 'a room' },
+    );
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'room_join',
+        userId: String(joinerId),
+        roomId: String(room._id),
+      }
+    };
+
+    if (joiner.images && joiner.images.length > 0) {
+      notification.imageUrl = joiner.images[0];
+    }
+
+    return await send(ownerId, 'room_join', notification);
+  } catch (error) {
+    console.error('Error sending room join notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Notify host + RSVPs when a scheduled room flips to active.
  * @param {string} userId - recipient user ID
  * @param {string|ObjectId} roomId
@@ -1073,6 +1175,8 @@ module.exports = {
   sendCommentReaction,
   sendCommentMention,
   sendRoomMention,
+  sendRoomMessage,
+  sendRoomJoin,
   sendScheduledRoomStarted,
   sendScheduledRoomReminder,
   sendVipRenewalWarning,

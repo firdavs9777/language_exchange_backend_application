@@ -17,9 +17,10 @@
 
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
-const { deriveOnlineCount, buildRoomMessageDoc } = require('../lib/roomPresence');
+const { deriveOnlineCount, getActiveRoomUserIds, buildRoomMessageDoc } = require('../lib/roomPresence');
 const { getRoomsEnabled } = require('../lib/roomMembership');
 const { dispatchRoomMentionPushes } = require('../lib/roomMentions');
+const { resolveRoomMessageRecipients } = require('../lib/roomMessageNotify');
 const notificationService = require('../services/notificationService');
 
 // Token-bucket rate limiter for room:message, reusing the same shape/limits
@@ -162,11 +163,14 @@ function registerRoomHandlers(socket, io) {
       const newMessage = await Message.create(messageDoc);
       await newMessage.populate('sender', 'name username images userMode');
 
-      // Update hub lastActivityAt (fire-and-forget, non-blocking).
+      // Update lastActivityAt for hub AND topic rooms (Task 15 follow-up —
+      // previously hub-only, so a user-created topic room's "recently
+      // active" ordering never updated even though it chatted fine over
+      // the socket). Fire-and-forget, non-blocking.
       Conversation.updateOne(
-        { _id: roomId, roomType: 'hub' },
+        { _id: roomId, roomType: { $in: ['hub', 'topic'] } },
         { $set: { lastActivityAt: new Date() } }
-      ).catch((err) => console.error('❌ Failed to update hub lastActivityAt:', err.message));
+      ).catch((err) => console.error('❌ Failed to update room lastActivityAt:', err.message));
 
       io.to(`room_${roomId}`).emit('room:message', newMessage);
 
@@ -186,6 +190,37 @@ function registerRoomHandlers(socket, io) {
             .sendRoomMention(mentionedUserId, sender, room, text)
             .catch((err) => console.error('❌ Room mention notification failed:', err.message))
       });
+
+      // New-message push (Task 15 follow-up — notifications): ONLY for
+      // user-created topic rooms, never seeded hubs (same spam concern as
+      // the mention-only gate above, but topic rooms are small/opt-in
+      // enough that every non-active, non-muted member gets a plain
+      // new-message push — mirrors socket/socketHandler.js's DM sendMessage
+      // push, same notificationService/fcmService plumbing, via
+      // sendRoomMessage). Fire-and-forget: looked up after the broadcast so
+      // this extra query never delays real-time delivery or the sender's
+      // ack.
+      Conversation.findById(roomId)
+        .select('roomType participants mutedBy title')
+        .lean()
+        .then((room) => {
+          if (!room || room.roomType !== 'topic') return;
+
+          const activeUserIds = getActiveRoomUserIds(io, roomId);
+          const recipients = resolveRoomMessageRecipients({
+            participants: room.participants,
+            mutedBy: room.mutedBy,
+            activeUserIds,
+            senderId: userId
+          });
+
+          for (const recipientId of recipients) {
+            notificationService
+              .sendRoomMessage(recipientId, userId, room, message)
+              .catch((err) => console.error('❌ Room message notification failed:', err.message));
+          }
+        })
+        .catch((err) => console.error('❌ Room message notification lookup failed:', err.message));
 
       if (typeof callback === 'function') {
         callback({ status: 'success', message: newMessage });

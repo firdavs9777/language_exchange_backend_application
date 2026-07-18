@@ -31,6 +31,14 @@
     "title": "@ {actorName} mentioned you in a room",
     "body": "{snippet}"
   },
+  "room_message": {
+    "title": "💬 {actorName} in {roomName}",
+    "body": "{snippet}"
+  },
+  "room_join": {
+    "title": "👋 New member",
+    "body": "{actorName} joined {roomName}"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "started following you"

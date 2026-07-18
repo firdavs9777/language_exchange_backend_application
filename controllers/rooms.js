@@ -33,6 +33,8 @@ const {
   isRoomAdmin,
   sortRoomsForCaller
 } = require('../lib/roomMembership');
+const { isMemberMuted } = require('../lib/roomMessageNotify');
+const notificationService = require('../services/notificationService');
 
 // Live online-count accessor from Task 5's socket presence module. Wired
 // here (rather than a hardcoded 0) so getRooms/getRoom always reflect the
@@ -266,7 +268,9 @@ exports.joinRoom = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const userId = req.user._id;
 
-  const hub = await Conversation.findOne({ _id: id, roomType: { $in: ROOM_TYPES } }).select('participants').lean();
+  const hub = await Conversation.findOne({ _id: id, roomType: { $in: ROOM_TYPES } })
+    .select('participants roomType owner title mutedBy')
+    .lean();
   if (!hub) return next(new ErrorResponse('Room not found', 404));
 
   const { isNewMember } = decideJoin(userId, hub);
@@ -278,6 +282,43 @@ exports.joinRoom = asyncHandler(async (req, res, next) => {
     Conversation.updateOne({ _id: id }, conversationUpdate),
     User.updateOne({ _id: userId }, { $pull: { leftHubs: id } })
   ]);
+
+  // Topic-room-only join system message + owner notify (Task 15 follow-up —
+  // notifications). Deliberately skipped for seeded hubs (a system message
+  // on every join in a 240-member hub would be noisy) and for repeat joins
+  // (isNewMember false) so refreshing/rejoining an already-joined room
+  // doesn't spam a "X joined" message every time.
+  if (isNewMember && hub.roomType === 'topic') {
+    const io = req.app.get('io');
+
+    Message.create({
+      conversationId: id,
+      sender: userId,
+      participants: [],
+      message: `${req.user.name} joined`,
+      isGroupMessage: true,
+      messageType: 'system'
+    })
+      .then(async (systemMessage) => {
+        await systemMessage.populate('sender', 'name username images userMode');
+        if (io) io.to(`room_${id}`).emit('room:message', systemMessage);
+      })
+      .catch((err) => console.error('❌ Failed to post room-join system message:', err.message));
+
+    // Notify the owner someone joined their room — never for self-join
+    // (creator is auto-added as the first participant, never hits this
+    // path since isNewMember is false for them going forward), and never
+    // if the owner has muted this room.
+    if (
+      hub.owner &&
+      hub.owner.toString() !== userId.toString() &&
+      !isMemberMuted(hub.mutedBy, hub.owner)
+    ) {
+      notificationService
+        .sendRoomJoin(hub.owner, userId, hub)
+        .catch((err) => console.error('❌ Room join notification failed:', err.message));
+    }
+  }
 
   res.status(200).json({ success: true, message: 'Joined room', data: { isNewMember } });
 });

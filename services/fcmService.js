@@ -27,6 +27,8 @@ const NOTIFICATION_TYPE_ENUM = new Set([
   'srs_review',
   'streak_reminder',
   'new_follower',
+  'room_message',
+  'room_join',
 ]);
 
 // Maps each notification type to the iOS UNNotificationCategory the client

@@ -31,6 +31,14 @@
     "title": "@ {actorName}님이 룸에서 회원님을 언급했습니다",
     "body": "{snippet}"
   },
+  "room_message": {
+    "title": "💬 {actorName}님이 {roomName}에 메시지를 보냈습니다",
+    "body": "{snippet}"
+  },
+  "room_join": {
+    "title": "👋 새 멤버",
+    "body": "{actorName}님이 {roomName}에 참여했습니다"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "님이 회원님을 팔로우합니다"

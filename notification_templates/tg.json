@@ -31,6 +31,14 @@
     "title": "@ {actorName} шуморо дар ҳуҷра ёдрас кард",
     "body": "{snippet}"
   },
+  "room_message": {
+    "title": "💬 {actorName} дар {roomName} паём фиристод",
+    "body": "{snippet}"
+  },
+  "room_join": {
+    "title": "👋 Узви нав",
+    "body": "{actorName} ба {roomName} ҳамроҳ шуд"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "ба шумо обуна шуд"

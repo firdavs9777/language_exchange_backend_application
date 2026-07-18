@@ -31,6 +31,14 @@
     "title": "@ {actorName}さんがルームであなたをメンションしました",
     "body": "{snippet}"
   },
+  "room_message": {
+    "title": "💬 {actorName}さんが{roomName}にメッセージを送信しました",
+    "body": "{snippet}"
+  },
+  "room_join": {
+    "title": "👋 新しいメンバー",
+    "body": "{actorName}さんが{roomName}に参加しました"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "さんがあなたをフォローしました"

@@ -22,6 +22,8 @@ const fcmService = require('../services/fcmService');
  *   services/notificationService.js:796  send(commentAuthorId, 'comment_reaction', ...)
  *   services/notificationService.js:834  send(mentionedUserId, 'comment_mention', ...)
  *   services/notificationService.js:883  send(mentionedUserId, 'room_mention', ...)
+ *   services/notificationService.js     send(recipientId, 'room_message', ...) (Task 15 follow-up — topic room new-message push)
+ *   services/notificationService.js     send(ownerId, 'room_join', ...) (Task 15 follow-up — topic room join notify)
  *   services/notificationService.js:974  send(userId, 'vip_renewal_warning', ...)
  *   jobs/notificationJobs.js:198         notificationService.send(user._id, 'system', ...) (subscription reminder)
  *   jobs/learningJobs.js:309             notificationService.send(due._id, 'srs_review', ...) (Task 2 rewrite; was 'system')
@@ -56,6 +58,8 @@ const SENT_TYPES = [
   'srs_review',
   'streak_reminder',
   'new_follower',
+  'room_message',
+  'room_join',
 ];
 
 test('every type ever passed to notificationService.send() is in the Notification model enum', () => {
