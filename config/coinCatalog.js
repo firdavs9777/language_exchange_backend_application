@@ -52,6 +52,13 @@ const UNLOCKS = {
   // `grant`; the bonus is reset to 0 on the next day's rollover (see
   // User.canSendMessage), not carried forward.
   dm: { cost: 40, grant: 5 },
+  // wallpaper = durable, one-time unlock of the premium chat-wallpaper
+  // pack. Unlike 'dm', this is NEVER reset by the daily/monthly rollover —
+  // once coinBonus['wallpaper'] >= 1, the pack stays unlocked for the
+  // account permanently. grant:1 is just a flag value (not a consumable
+  // count); GET /coins/balance echoes it back via `unlocks.wallpaper` so
+  // the client can gate the UI without re-charging.
+  wallpaper: { cost: 100, grant: 1 },
 };
 
 /**

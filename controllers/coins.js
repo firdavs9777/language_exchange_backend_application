@@ -43,12 +43,20 @@ function coinsEnabledGuard(req, res, next) {
 }
 
 /**
- * @desc    Current coin balance for the authed user
+ * @desc    Current coin balance for the authed user, plus their durable
+ *          coin-unlock pool (e.g. `wallpaper`) so the client can tell
+ *          locked from unlocked WITHOUT calling POST /unlock again (that
+ *          would re-charge). `balance` is unchanged — existing callers
+ *          that only read `balance` are unaffected.
  * @route   GET /api/v1/coins/balance
  * @access  Private (COINS_ENABLED)
  */
 exports.getBalance = asyncHandler(async (req, res) => {
-  res.status(200).json({ success: true, balance: req.user.coinBalance || 0 });
+  res.status(200).json({
+    success: true,
+    balance: req.user.coinBalance || 0,
+    unlocks: serializeCoinBonus(req.user.coinBonus),
+  });
 });
 
 /**
@@ -306,6 +314,22 @@ function resolveUnlockRequest(featureKey) {
   return { ok: true, cost: unlock.cost, grant: unlock.grant };
 }
 
+/**
+ * Serialize the persistent coinBonus pool (User.coinBonus, Task 3) to a
+ * plain object for API responses, e.g. { wallpaper: 1, dm: 0 }.
+ * `coinBonus` is declared as a Mongoose Map, but tolerate a plain object
+ * defensively (e.g. a lean doc) — mirrors User.prototype._getCoinBonus's
+ * read-side tolerance (models/User.js).
+ * @returns {Object<string, number>}
+ */
+function serializeCoinBonus(pool) {
+  if (!pool) return {};
+  if (typeof pool.entries === 'function') {
+    return Object.fromEntries(pool.entries());
+  }
+  return { ...pool };
+}
+
 exports.coinsEnabledGuard = coinsEnabledGuard;
 // Exported for unit tests.
 exports._helpers = {
@@ -316,4 +340,5 @@ exports._helpers = {
   validateVerifyInput,
   resolvePurchaseCoins,
   resolveUnlockRequest,
+  serializeCoinBonus,
 };
