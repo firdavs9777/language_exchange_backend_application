@@ -53,7 +53,7 @@ const { uploadSingleVideo, generateThumbnail } = require('../middleware/uploadVi
 
 const advancedResults = require('../middleware/advancedResults');
 const router = express.Router();
-const { protect, authorize } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 const { interactionLimiter } = require('../middleware/rateLimiter');
 
 // ========== CONFIG ==========
@@ -113,7 +113,11 @@ router.route('/user/:userId')
 // ========== INDIVIDUAL STORY ==========
 router.route('/:id')
   .get(protect, getStory)
-  .delete(protect, authorize('user', 'story'), deleteStory);
+  // Ownership is enforced inside deleteStory (story.user === req.user.id).
+  // Do NOT gate this with authorize('user', ...) — that is a ROLE check, and
+  // it 403s admins (role 'admin') and legacy accounts with an unset role
+  // before the handler's ownership check ever runs. Mirrors routes/moments.js.
+  .delete(protect, deleteStory);
 
 // ========== STORY VIEWS ==========
 router.route('/:id/view').post(protect, interactionLimiter, markStoryViewed);
