@@ -20,7 +20,8 @@ const {
   leaveRoom,
   removeMember,
   muteMember,
-  updateRoom
+  updateRoom,
+  createRoom
 } = require('../controllers/rooms');
 
 // Kill switch — short-circuits to 404 when ROOMS_ENABLED is false, so the
@@ -32,7 +33,7 @@ router.use(roomsEnabledGuard);
 
 router.use(protect);
 
-router.route('/').get(getRooms);
+router.route('/').get(getRooms).post(createRoom);
 router.route('/:id').get(getRoom).put(updateRoom);
 router.route('/:id/messages').get(getRoomMessages);
 router.route('/:id/join').post(joinRoom);

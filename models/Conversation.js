@@ -74,9 +74,12 @@ const ConversationSchema = new mongoose.Schema({
   // ========== LANGUAGE ROOMS (Workstream D) ==========
   // Seeded, public "hub" conversations — one per canonical target language.
   // roomType is null for ordinary 1:1/group DMs; 'hub' marks a language room.
+  // 'topic' marks a user-created room nested under a language (e.g. Spanish
+  // -> "Travel") — same schema as hubs, just isSeeded:false and owned by the
+  // creating user (see controllers/rooms.js:createRoom).
   roomType: {
     type: String,
-    enum: ['hub', null],
+    enum: ['hub', 'topic', null],
     default: null
   },
   isPublic: {
