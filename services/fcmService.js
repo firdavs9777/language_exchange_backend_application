@@ -27,6 +27,7 @@ const NOTIFICATION_TYPE_ENUM = new Set([
   'srs_review',
   'streak_reminder',
   'new_follower',
+  'story_mention',
   'room_message',
   'room_join',
   'room_join_request',

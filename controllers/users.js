@@ -8,6 +8,7 @@ const fs = require('fs').promises;
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 const { validateUsername } = require('../utils/usernameValidation');
+const { usersWithVisibleActiveStory } = require('../lib/activeStoryFlags');
 
 // Field selection for public user data (excludes sensitive fields like email, password)
 const USER_PUBLIC_FIELDS = 'name username bio occupation school images native_language language_to_learn level languageLevel streakDays totalXp createdAt userMode vipSubscription.isActive vipSubscription.plan location gender birth_year birth_month birth_day followers following mbti bloodType topics privacySettings isOnline lastActive';
@@ -294,6 +295,15 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     User.countDocuments(query)
   ]);
 
+  // Story rings: one batched query for the whole page (no N+1) — privacy-
+  // aware per usersWithVisibleActiveStory (public always visible, friends
+  // only when the viewer follows the owner, close_friends never).
+  const activeStoryOwners = await usersWithVisibleActiveStory(
+    users.map(u => u._id),
+    req.user?._id,
+    req.user?.following || []
+  );
+
   // Process users to add imageUrls and counts
   const processedUsers = users.map(user => {
     // Generate imageUrls
@@ -311,7 +321,8 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
       ...user,
       imageUrls,
       followersCount: user.followers ? user.followers.length : 0,
-      followingCount: user.following ? user.following.length : 0
+      followingCount: user.following ? user.following.length : 0,
+      hasActiveStory: activeStoryOwners.has(user._id.toString())
     };
   });
 

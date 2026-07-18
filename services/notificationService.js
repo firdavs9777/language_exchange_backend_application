@@ -514,6 +514,43 @@ const sendWave = async (recipientId, waverId, waveId, isMutual = false) => {
 };
 
 /**
+ * Send story mention notification.
+ * Structured like sendWave (fetch actor, build via template, delegate to
+ * send() for the shared quiet-hours/frequency-cap/history/badge plumbing —
+ * see fcmService.isCapped/recordSend keyed off config/notificationCaps.js).
+ * Unlike sendWave, there's no bespoke recent-activity suppression here: a
+ * story mention is a one-off per story, not a recurring signal like waves.
+ * @param {String} recipientId - User who was mentioned
+ * @param {String} senderId - User who created the story
+ * @param {String} storyId - Story ID
+ * @returns {Object} - Result
+ */
+const sendStoryMention = async (recipientId, senderId, storyId) => {
+  try {
+    const sender = await User.findById(senderId);
+
+    if (!sender) {
+      return { success: false, error: 'Sender not found' };
+    }
+
+    const notification = templates.getStoryMentionTemplate(sender.name, {
+      userId: senderId,
+      storyId: storyId,
+    });
+
+    // Add sender's image
+    if (sender.images && sender.images.length > 0) {
+      notification.imageUrl = sender.images[0];
+    }
+
+    return await send(recipientId, 'story_mention', notification);
+  } catch (error) {
+    console.error('❌ Error sending story mention notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Check if notification should be sent based on user preferences
  * @private
  * @param {Object} user - User document
@@ -1292,6 +1329,7 @@ module.exports = {
   sendProfileVisit,
   sendFollowerMoment,
   sendWave,
+  sendStoryMention,
   sendCommentReply,
   sendCommentReaction,
   sendCommentMention,

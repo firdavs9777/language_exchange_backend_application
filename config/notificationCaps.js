@@ -12,6 +12,7 @@ module.exports = {
     comment_mention: 10,
     room_mention: 10,
     wave_received: 5,
+    story_mention: 5,
   },
   weekly: {
     re_engagement: 1,

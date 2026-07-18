@@ -1,4 +1,5 @@
 const path = require('path');
+const mongoose = require('mongoose');
 const asyncHandler = require('../middleware/async');
 const Story = require('../models/Story');
 const StoryHighlight = require('../models/StoryHighlight');
@@ -169,6 +170,28 @@ function parseOverlays(body) {
   return sanitized;
 }
 
+// Parse client-declared mentions: [{ user, x(0-100), y(0-100) }] — max 5.
+// Pure input-shaping; existence check happens at the create call site.
+function parseMentions(raw) {
+  if (!raw) return [];
+  let data = raw;
+  if (typeof data === 'string') {
+    try { data = JSON.parse(data); } catch (e) { return []; }
+  }
+  if (!Array.isArray(data)) return [];
+  return data
+    .filter(m => m && typeof m.user === 'string' && mongoose.Types.ObjectId.isValid(m.user.trim()))
+    .slice(0, 5)
+    .map(m => ({
+      user: m.user.trim(),
+      position: {
+        x: Math.min(100, Math.max(0, Number(m.x) || 0)),
+        y: Math.min(100, Math.max(0, Number(m.y) || 0)),
+      },
+    }));
+}
+exports.parseMentions = parseMentions;
+
 // Parse the `hashtags` field, sent either as a JSON-encoded array (multipart)
 // or as a native array (JSON body). Normalizes to a deduped array of
 // lowercase strings without a leading '#', capped at 10 entries.
@@ -198,6 +221,54 @@ function parseHashtags(body) {
     if (tags.length >= 10) break;
   }
   return tags;
+}
+
+// Parse the `location` field, sent either as a JSON-encoded object (multipart
+// form fields always arrive as strings) or as a native object (JSON body):
+// { name, address?, coordinates: [lng, lat] | { coordinates: [lng, lat] }, placeId? }.
+// Both coordinate shapes are accepted since StoryLocation.toJson() on the
+// client emits the nested GeoJSON form while a simpler flat-array form is
+// also valid input. Mirrors parseOverlays' defensive style: any malformed
+// input silently returns undefined rather than failing the request —
+// location is a non-critical tag on a story.
+function parseLocation(raw) {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+
+  try {
+    if (typeof raw === 'string') {
+      raw = JSON.parse(raw);
+    }
+
+    if (!raw || typeof raw !== 'object') return undefined;
+
+    const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, 120) : '';
+    if (!name) return undefined;
+
+    const location = { name };
+
+    if (typeof raw.address === 'string' && raw.address.trim()) {
+      location.address = raw.address.trim().slice(0, 200);
+    }
+    if (typeof raw.placeId === 'string' && raw.placeId.trim()) {
+      location.placeId = raw.placeId.trim().slice(0, 200);
+    }
+
+    let coords = Array.isArray(raw.coordinates) ? raw.coordinates : null;
+    if (!coords && raw.coordinates && Array.isArray(raw.coordinates.coordinates)) {
+      coords = raw.coordinates.coordinates;
+    }
+    if (coords && coords.length === 2) {
+      const lng = Number(coords[0]);
+      const lat = Number(coords[1]);
+      if (!Number.isNaN(lng) && !Number.isNaN(lat)) {
+        location.coordinates = { type: 'Point', coordinates: [lng, lat] };
+      }
+    }
+
+    return location;
+  } catch (e) {
+    return undefined; // malformed location — story posts without it
+  }
 }
 
 /**
@@ -262,8 +333,38 @@ exports.getStoriesFeed = asyncHandler(async (req, res, next) => {
     .sort({ user: 1, createdAt: 1 })
     .lean();
 
+    // Privacy filter: 'public' and 'friends' are always fine here — every
+    // owner in `followingIds` is, by construction, someone the viewer
+    // follows, which is exactly what 'friends' visibility requires (mirrors
+    // lib/activeStoryFlags.js / the getUserStories check). 'close_friends' is
+    // the one tier that needs an extra check: only visible when the OWNER
+    // has added the viewer to their own closeFriends list. Batch that lookup
+    // in a single query over just the owners who actually posted a
+    // close_friends story (excluding the viewer's own stories, which are
+    // never filtered) to avoid an N+1.
+    const closeFriendCandidateOwnerIds = [...new Set(
+      stories
+        .filter(s => s.privacy === 'close_friends' && s.user?._id?.toString() !== userId)
+        .map(s => s.user._id.toString())
+    )];
+
+    let closeFriendOwnerIds = new Set();
+    if (closeFriendCandidateOwnerIds.length > 0) {
+      const grantingOwners = await User.find({
+        _id: { $in: closeFriendCandidateOwnerIds },
+        closeFriends: userId
+      }).select('_id').lean();
+      closeFriendOwnerIds = new Set(grantingOwners.map(o => o._id.toString()));
+    }
+
+    const visibleStories = stories.filter(s => {
+      if (s.privacy !== 'close_friends') return true;
+      const ownerId = s.user?._id?.toString();
+      return ownerId === userId || closeFriendOwnerIds.has(ownerId);
+    });
+
     // Group stories by user using helper
-    const storiesFeed = groupStoriesByUser(stories, userId, blockedUserIds);
+    const storiesFeed = groupStoriesByUser(visibleStories, userId, blockedUserIds);
 
     res.status(200).json({
       success: true,
@@ -283,9 +384,10 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
     const { userId } = req.params;
     const viewerId = req.user.id;
     const now = new Date();
+    const isOwner = viewerId === userId;
 
     // Check if blocked
-    if (viewerId !== userId) {
+    if (!isOwner) {
       const blockStatus = await checkBlockStatus(viewerId, userId);
       if (blockStatus.isBlocked) {
         return res.status(200).json({
@@ -298,11 +400,39 @@ exports.getUserStories = asyncHandler(async (req, res, next) => {
       }
     }
 
-    const stories = await Story.find({
+    const storyQuery = {
       user: userId,
       isActive: true,
       expiresAt: { $gt: now }
-    })
+    };
+
+    // Privacy filtering: the owner sees everything. Everyone else only sees
+    // 'public' plus whichever tiers the relationship actually grants them —
+    // 'friends' when the viewer follows the owner (mirrors the one-way
+    // `following` semantic in lib/activeStoryFlags.js so ring visibility and
+    // content visibility agree), and 'close_friends' only when the owner has
+    // explicitly added the viewer to their close friends list
+    // (User.closeFriends — see models/User.js). Computed up front so it can
+    // go straight into the Mongo query instead of a post-filter.
+    if (!isOwner) {
+      const [viewer, owner] = await Promise.all([
+        User.findById(viewerId).select('following').lean(),
+        User.findById(userId).select('closeFriends').lean()
+      ]);
+
+      const viewerFollowsOwner = (viewer?.following || [])
+        .some(id => id.toString() === userId);
+      const viewerIsCloseFriend = (owner?.closeFriends || [])
+        .some(id => id.toString() === viewerId);
+
+      const allowedPrivacies = ['public'];
+      if (viewerFollowsOwner) allowedPrivacies.push('friends');
+      if (viewerIsCloseFriend) allowedPrivacies.push('close_friends');
+
+      storyQuery.privacy = { $in: allowedPrivacies };
+    }
+
+    const stories = await Story.find(storyQuery)
     .populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v')
     .sort({ createdAt: 1 });
 
@@ -348,6 +478,8 @@ exports.createStory = asyncHandler(async (req, res, next) => {
   try {
     const { text, backgroundColor, textColor, privacy } = req.body;
     const overlays = parseOverlays(req.body);
+    const location = parseLocation(req.body.location);
+    const mentions = parseMentions(req.body.mentions);
     const userId = req.user.id;
     const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
     const LIMITS = require('../config/limitations');
@@ -391,6 +523,22 @@ exports.createStory = asyncHandler(async (req, res, next) => {
       return next(err);
     }
 
+    // Drop mentions of users that don't exist — silent, non-fatal (mirrors
+    // parseOverlays/parseLocation's defensive style for this controller).
+    let validMentions = [];
+    if (mentions.length > 0) {
+      const found = await User.find({ _id: { $in: mentions.map(m => m.user) } })
+        .select('_id name').lean();
+      const foundById = new Map(found.map(u => [u._id.toString(), u]));
+      validMentions = mentions
+        .filter(m => foundById.has(m.user))
+        .map(m => ({
+          user: m.user,
+          username: foundById.get(m.user).name,
+          position: m.position,
+        }));
+    }
+
     const storyData = {
       user: userId,
       mediaUrls,
@@ -401,12 +549,22 @@ exports.createStory = asyncHandler(async (req, res, next) => {
       privacy: privacy || 'friends',
       overlays,
       hashtags: parseHashtags(req.body),
+      mentions: validMentions,
       ...stickerFields,
+      ...(location ? { location } : {}),
     };
 
     const story = await Story.create(storyData);
     await user.incrementStoryCount();
     await story.populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
+
+    // Notify mentioned users (async, fire-and-forget — mirrors sendFollowerMoment
+    // in controllers/moments.js).
+    const notificationService = require('../services/notificationService');
+    validMentions.forEach(m => {
+      notificationService.sendStoryMention(m.user, userId.toString(), story._id.toString())
+        .catch(err => console.error('story mention notification failed:', err.message));
+    });
 
     res.status(201).json({
       success: true,
@@ -424,6 +582,8 @@ exports.createVideoStory = asyncHandler(async (req, res, next) => {
   try {
     const { text, backgroundColor, textColor, privacy } = req.body;
     const overlays = parseOverlays(req.body);
+    const location = parseLocation(req.body.location);
+    const mentions = parseMentions(req.body.mentions);
     const userId = req.user.id;
     const { resetDailyCounters, formatLimitError } = require('../utils/limitations');
     const LIMITS = require('../config/limitations');
@@ -460,6 +620,22 @@ exports.createVideoStory = asyncHandler(async (req, res, next) => {
       return next(err);
     }
 
+    // Drop mentions of users that don't exist — silent, non-fatal (mirrors
+    // parseOverlays/parseLocation's defensive style for this controller).
+    let validMentions = [];
+    if (mentions.length > 0) {
+      const found = await User.find({ _id: { $in: mentions.map(m => m.user) } })
+        .select('_id name').lean();
+      const foundById = new Map(found.map(u => [u._id.toString(), u]));
+      validMentions = mentions
+        .filter(m => foundById.has(m.user))
+        .map(m => ({
+          user: m.user,
+          username: foundById.get(m.user).name,
+          position: m.position,
+        }));
+    }
+
     // Create story with video
     const storyData = {
       user: userId,
@@ -479,7 +655,9 @@ exports.createVideoStory = asyncHandler(async (req, res, next) => {
       privacy: privacy || 'friends',
       overlays,
       hashtags: parseHashtags(req.body),
+      mentions: validMentions,
       ...stickerFields,
+      ...(location ? { location } : {}),
     };
 
     const story = await Story.create(storyData);
@@ -488,6 +666,14 @@ exports.createVideoStory = asyncHandler(async (req, res, next) => {
     await story.populate('user', 'name email bio images birth_day birth_month gender birth_year native_language language_to_learn createdAt __v');
 
     debug(`Video story created: ${story._id}, duration: ${req.videoMetadata.duration}s`);
+
+    // Notify mentioned users (async, fire-and-forget — mirrors sendFollowerMoment
+    // in controllers/moments.js).
+    const notificationService = require('../services/notificationService');
+    validMentions.forEach(m => {
+      notificationService.sendStoryMention(m.user, userId.toString(), story._id.toString())
+        .catch(err => console.error('story mention notification failed:', err.message));
+    });
 
     res.status(201).json({
       success: true,
@@ -505,16 +691,32 @@ exports.deleteStory = asyncHandler(async (req, res, next) => {
     if (!story) return next(new ErrorResponse(`Story not found with id of ${req.params.id}`, 404));
     if (story.user.toString() !== req.user.id) return next(new ErrorResponse('Not authorized to delete this story', 403));
 
-    // Delete all media from Spaces
-    if (Array.isArray(story.mediaUrls)) {
-      await Promise.all(story.mediaUrls.map(url => deleteFromSpaces(url)));
+    // Delete all media from Spaces (fire-and-forget, don't block the response —
+    // mirrors controllers/moments.js deleteMoment)
+    if (Array.isArray(story.mediaUrls) && story.mediaUrls.length > 0) {
+      Promise.all(
+        story.mediaUrls.map(url =>
+          deleteFromSpaces(url).catch(err =>
+            debug(`Failed to delete story media ${url}:`, err.message)
+          )
+        )
+      ).catch(err => debug('Bulk story media deletion error:', err.message));
     }
 
-    // Delete video thumbnail if exists
+    // Delete video thumbnail if exists (fire-and-forget)
     if (story.videoMetadata && story.videoMetadata.thumbnail) {
-      await deleteFromSpaces(story.videoMetadata.thumbnail).catch(err =>
+      deleteFromSpaces(story.videoMetadata.thumbnail).catch(err =>
         debug('Failed to delete video thumbnail:', err.message)
       );
+    }
+
+    // If this story belongs to a highlight, remove it there too so the
+    // highlight doesn't keep a tile pointing at now-deleted media
+    // (fire-and-forget, must never block/fail the delete)
+    if (story.highlight) {
+      StoryHighlight.findById(story.highlight)
+        .then(highlight => highlight && highlight.removeStory(story._id))
+        .catch(err => debug('Failed to remove deleted story from highlight:', err.message));
     }
 
     story.isActive = false;
@@ -1102,8 +1304,11 @@ exports.shareStory = asyncHandler(async (req, res, next) => {
         sender: userId,
         receiver: receiverId,
         message: `Shared a story`,
-        messageType: 'text',
-        // Could add story reference
+        storyReference: {
+          storyId: story._id,
+          thumbnail: story.mediaUrls?.[0] || story.mediaUrl || null
+        },
+        messageType: 'story_share'
       });
       
       const io = req.app.get('io');

@@ -61,6 +61,20 @@ const UNLOCKS = {
   wallpaper: { cost: 100, grant: 1 },
 };
 
+// Coins v2 — free earn-loop rewards (Task 17a), so the shop has something to
+// open even without spending money. Server-enforced (controllers/coins.js);
+// the app never decides these amounts.
+//   DAILY_REWARD          — coins credited once per UTC calendar day via
+//                            POST /coins/daily-reward.
+//   AD_REWARD              — coins credited per rewarded-ad watch via
+//                            POST /coins/ad-reward.
+//   AD_REWARD_DAILY_CAP     — max ad_reward credits per UTC day per user;
+//                            bounds abuse since there is no ad SSV (see
+//                            controllers/coins.js#claimAdReward).
+const DAILY_REWARD = 10;
+const AD_REWARD = 5;
+const AD_REWARD_DAILY_CAP = 5;
+
 /**
  * @param {String} featureKey
  * @returns {{cost:number, grant:number}|null}
@@ -84,6 +98,9 @@ module.exports = {
   PACKS,
   PACK_PRODUCT_IDS,
   UNLOCKS,
+  DAILY_REWARD,
+  AD_REWARD,
+  AD_REWARD_DAILY_CAP,
   getUnlock,
   getPackByProductId,
 };

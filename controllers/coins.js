@@ -9,6 +9,12 @@
  *   POST /verify-purchase -> idempotent IAP verify + credit
  *   POST /unlock          -> spend coins for an à-la-carte feature unlock
  *
+ * Coins v2 (Task 17a) — earn loop:
+ *   POST /daily-reward        -> credit DAILY_REWARD once per UTC day
+ *   GET  /daily-reward/status -> { claimedToday }
+ *   POST /ad-reward           -> credit AD_REWARD, capped at
+ *                                 AD_REWARD_DAILY_CAP per UTC day
+ *
  * MONEY-SAFETY: every balance mutation delegates to lib/coinLedger.js, whose
  * debit is balance-guarded (never negative) and whose credit is transactional
  * + idempotent per `metadata.iapTransactionId`. This controller never mutates
@@ -22,7 +28,21 @@ const asyncHandler = require('../middleware/async');
 const CoinTransaction = require('../models/CoinTransaction');
 const User = require('../models/User');
 const coinLedger = require('../lib/coinLedger');
-const { UNLOCKS, getUnlock, getPackByProductId } = require('../config/coinCatalog');
+const {
+  UNLOCKS,
+  getUnlock,
+  getPackByProductId,
+  DAILY_REWARD,
+  AD_REWARD,
+  AD_REWARD_DAILY_CAP,
+} = require('../config/coinCatalog');
+const {
+  buildDailyRewardKey,
+  buildAdRewardKey,
+  utcDayRange,
+  isAdCapReached,
+  nextAdRewardIndex,
+} = require('../lib/coinRewards');
 const { COINS_ENABLED } = require('../config/limitations');
 
 const DEFAULT_TX_LIMIT = 20;
@@ -235,6 +255,104 @@ exports.unlock = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * @desc    Claim the once-per-UTC-day free coin reward. Idempotent: a
+ *          double-tap or retry within the same UTC day is a no-op that
+ *          returns the SAME balance/alreadyClaimed:true rather than
+ *          crediting twice — enforced by coinLedger.credit()'s unique
+ *          metadata.iapTransactionId dedupe (see lib/coinRewards.js), not by
+ *          a separate check-then-act (which would race).
+ * @route   POST /api/v1/coins/daily-reward
+ * @access  Private (COINS_ENABLED)
+ */
+exports.claimDailyReward = asyncHandler(async (req, res) => {
+  const key = buildDailyRewardKey(req.user._id, new Date());
+
+  const result = await coinLedger.credit(req.user._id, DAILY_REWARD, {
+    type: 'reward',
+    reason: 'daily_reward',
+    metadata: { iapTransactionId: key },
+  });
+
+  res.status(200).json({
+    success: true,
+    balance: result.alreadyCredited ? req.user.coinBalance : result.balanceAfter,
+    credited: result.alreadyCredited ? 0 : DAILY_REWARD,
+    alreadyClaimed: result.alreadyCredited,
+  });
+});
+
+/**
+ * @desc    Whether the authed user has already claimed today's daily
+ *          reward, so the app can render the claim button as
+ *          disabled/countdown without spending the idempotent credit call.
+ * @route   GET /api/v1/coins/daily-reward/status
+ * @access  Private (COINS_ENABLED)
+ */
+exports.getDailyRewardStatus = asyncHandler(async (req, res) => {
+  const key = buildDailyRewardKey(req.user._id, new Date());
+  const existing = await CoinTransaction.findOne({
+    userId: req.user._id,
+    'metadata.iapTransactionId': key,
+  }).lean();
+
+  res.status(200).json({ success: true, claimedToday: !!existing });
+});
+
+/**
+ * @desc    Credit a rewarded-ad watch, hard-capped at AD_REWARD_DAILY_CAP
+ *          per UTC day per user.
+ * @route   POST /api/v1/coins/ad-reward
+ * @access  Private (COINS_ENABLED)
+ *
+ * KNOWN LIMIT: there is no server-side verification (SSV) that the client
+ * actually watched a rewarded ad — the client just calls this endpoint
+ * after its ad SDK fires the reward callback, so a modified/rooted client
+ * could call it without ever showing an ad. The hard per-day cap below is
+ * the mitigation: even a fully spoofed client can never earn more than
+ * AD_REWARD * AD_REWARD_DAILY_CAP coins/day this way. Add real SSV
+ * (AdMob/AppLovin S2S callbacks) before relaxing or removing this cap.
+ *
+ * The count-then-credit below has a race window (two concurrent requests
+ * can both read the same countToday), but it can only ever under-credit a
+ * duplicate concurrent request, never exceed the cap — see
+ * lib/coinRewards.js#nextAdRewardIndex for why.
+ */
+exports.claimAdReward = asyncHandler(async (req, res) => {
+  const now = new Date();
+  const { start, end } = utcDayRange(now);
+
+  const countToday = await CoinTransaction.countDocuments({
+    userId: req.user._id,
+    reason: 'ad_reward',
+    createdAt: { $gte: start, $lt: end },
+  });
+
+  if (isAdCapReached(countToday, AD_REWARD_DAILY_CAP)) {
+    return res.status(429).json({
+      success: false,
+      error: 'daily ad reward limit reached',
+      balance: req.user.coinBalance || 0,
+    });
+  }
+
+  const n = nextAdRewardIndex(countToday);
+  const key = buildAdRewardKey(req.user._id, n, now);
+
+  const result = await coinLedger.credit(req.user._id, AD_REWARD, {
+    type: 'reward',
+    reason: 'ad_reward',
+    metadata: { iapTransactionId: key },
+  });
+
+  res.status(200).json({
+    success: true,
+    balance: result.alreadyCredited ? req.user.coinBalance : result.balanceAfter,
+    credited: result.alreadyCredited ? 0 : AD_REWARD,
+    alreadyClaimed: result.alreadyCredited,
+  });
+});
+
 // ==========================================================================
 // Pure decision helpers (no DB) — exported for unit tests.
 // ==========================================================================
@@ -242,6 +360,22 @@ exports.unlock = asyncHandler(async (req, res) => {
 /** @returns {boolean} true when the user may NOT purchase/unlock. */
 function isVisitor(user) {
   return !!user && user.userMode === 'visitor';
+}
+
+/**
+ * Serialize the persistent coinBonus pool (User.coinBonus, Task 3) to a
+ * plain object for API responses, e.g. { wallpaper: 1, dm: 0 }.
+ * `coinBonus` is declared as a Mongoose Map, but tolerate a plain object
+ * defensively (e.g. a lean doc) — mirrors User.prototype._getCoinBonus's
+ * read-side tolerance (models/User.js).
+ * @returns {Object<string, number>}
+ */
+function serializeCoinBonus(pool) {
+  if (!pool) return {};
+  if (typeof pool.entries === 'function') {
+    return Object.fromEntries(pool.entries());
+  }
+  return { ...pool };
 }
 
 /** Clamp a ?limit query param to [1, MAX_TX_LIMIT], default DEFAULT_TX_LIMIT. */
@@ -312,22 +446,6 @@ function resolveUnlockRequest(featureKey) {
     return { ok: false, status: 404, error: 'unknown_feature' };
   }
   return { ok: true, cost: unlock.cost, grant: unlock.grant };
-}
-
-/**
- * Serialize the persistent coinBonus pool (User.coinBonus, Task 3) to a
- * plain object for API responses, e.g. { wallpaper: 1, dm: 0 }.
- * `coinBonus` is declared as a Mongoose Map, but tolerate a plain object
- * defensively (e.g. a lean doc) — mirrors User.prototype._getCoinBonus's
- * read-side tolerance (models/User.js).
- * @returns {Object<string, number>}
- */
-function serializeCoinBonus(pool) {
-  if (!pool) return {};
-  if (typeof pool.entries === 'function') {
-    return Object.fromEntries(pool.entries());
-  }
-  return { ...pool };
 }
 
 exports.coinsEnabledGuard = coinsEnabledGuard;

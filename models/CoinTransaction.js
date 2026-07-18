@@ -21,6 +21,13 @@ const mongoose = require('mongoose');
  * call into a no-op (see lib/coinLedger.js#credit) instead of a double
  * credit. `type: 'spend'` and `type: 'refund'` rows never set this field
  * (sparse), so the uniqueness constraint only ever applies to purchases.
+ *
+ * Coins v2 (Task 17a) — the daily-reward and ad-reward earn loop reuses this
+ * SAME field for its own once-per-day / once-per-slot idempotency (values
+ * like `daily-<userId>-<YYYY-MM-DD>` or `ad-<userId>-<YYYY-MM-DD>-<n>`; see
+ * lib/coinRewards.js). It isn't an IAP transaction, but it needs the exact
+ * same "unique key -> no double credit" guarantee, so it rides the same
+ * indexed field rather than duplicating the mechanism.
  */
 const CoinTransactionSchema = new mongoose.Schema({
   userId: {
@@ -30,8 +37,11 @@ const CoinTransactionSchema = new mongoose.Schema({
     index: true,
   },
   type: {
+    // 'reward' — Coins v2 (Task 17a) free earn-loop credits (daily_reward /
+    // ad_reward reasons below), credited through the same idempotent
+    // coinLedger.credit() path as a 'purchase'.
     type: String,
-    enum: ['purchase', 'spend', 'refund'],
+    enum: ['purchase', 'spend', 'refund', 'reward'],
     required: true,
   },
   // Signed. Positive for purchase/refund, negative for spend.

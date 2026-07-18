@@ -19,6 +19,12 @@ const NotificationSchema = new mongoose.Schema({
       // persisted). See test/notificationTypeEnum.test.js.
       'wave', 'comment_reply', 'comment_reaction', 'comment_mention', 'room_mention',
       'vip_renewal_warning', 'srs_review', 'streak_reminder', 'new_follower',
+      // Task 8 (Story Studio) — story @mention notification. Added here for
+      // the same reason as the Task 5 batch above: notificationService.send()
+      // routes every type through _saveToHistory, and an enum miss there is a
+      // silently-swallowed ValidationError (push fires, history row + badge
+      // increment never happen).
+      'story_mention',
       // Task 15 follow-up (rooms notifications) — new-message push for
       // user-created topic rooms + join-notify for the room owner. Same
       // "add here or _saveToHistory silently drops the history row" reason

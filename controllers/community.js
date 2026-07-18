@@ -8,6 +8,7 @@ const notificationService = require('../services/notificationService');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 const cache = require('../services/cacheService');
 const mongoose = require('mongoose');
+const { usersWithVisibleActiveStory } = require('../lib/activeStoryFlags');
 
 // ============================================
 // NEARBY USERS
@@ -481,9 +482,19 @@ exports.getTopicUsers = asyncHandler(async (req, res, next) => {
     User.countDocuments(filter)
   ]);
 
+  // Story rings: one batched query for the whole page (no N+1) — privacy-
+  // aware per usersWithVisibleActiveStory (public always visible, friends
+  // only when the viewer follows the owner, close_friends never).
+  const activeStoryOwners = await usersWithVisibleActiveStory(
+    users.map(u => u._id),
+    req.user?._id,
+    req.user?.following || []
+  );
+
   const usersWithOnlineStatus = users.map(user => ({
     ...user,
-    isOnline: user.lastActive && (Date.now() - new Date(user.lastActive).getTime()) < 5 * 60 * 1000
+    isOnline: user.lastActive && (Date.now() - new Date(user.lastActive).getTime()) < 5 * 60 * 1000,
+    hasActiveStory: activeStoryOwners.has(user._id.toString())
   }));
 
   res.status(200).json({

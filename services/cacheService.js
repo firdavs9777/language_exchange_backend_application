@@ -14,8 +14,13 @@ class CacheService {
     this.cache = new Map();
     this.stats = { hits: 0, misses: 0 };
 
-    // Cleanup expired entries every minute
+    // Cleanup expired entries every minute. unref() so this timer alone never
+    // keeps the process alive — Task 8 (Story Studio mentions): storyMentions.test.js
+    // is the first test to require controllers/stories.js directly, which pulls in
+    // this module (via blockingUtils.js) with no HTTP server keeping the event loop
+    // busy, so the un-refed interval hung `node --test` forever once that file ran.
     this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+    this.cleanupInterval.unref();
   }
 
   /**

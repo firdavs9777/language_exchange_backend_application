@@ -19,6 +19,9 @@ const {
   getUnlockCatalog,
   verifyPurchase,
   unlock,
+  claimDailyReward,
+  getDailyRewardStatus,
+  claimAdReward,
   coinsEnabledGuard,
 } = require('../controllers/coins');
 
@@ -34,5 +37,10 @@ router.get('/transactions', getTransactions);
 router.get('/unlock-catalog', getUnlockCatalog);
 router.post('/verify-purchase', verifyPurchase);
 router.post('/unlock', unlock);
+
+// Coins v2 (Task 17a) — free earn loop.
+router.post('/daily-reward', claimDailyReward);
+router.get('/daily-reward/status', getDailyRewardStatus);
+router.post('/ad-reward', claimAdReward);
 
 module.exports = router;

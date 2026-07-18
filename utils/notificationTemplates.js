@@ -244,6 +244,26 @@ const getWaveTemplate = (waverName, isMutual, waveData = {}) => {
 };
 
 /**
+ * Story mention notification template.
+ * @param {String} mentionerName - Name of the user who mentioned the recipient
+ * @param {Object} data - Additional data { userId, storyId }
+ * @returns {Object} - { title, body, data }
+ */
+const getStoryMentionTemplate = (mentionerName, data = {}) => {
+  return {
+    title: 'New Mention',
+    body: `${mentionerName} mentioned you in their story`,
+    data: {
+      type: 'story_mention',
+      userId: data.userId || '',
+      storyId: data.storyId || '',
+      screen: 'story_detail',
+      route: `/stories/${data.storyId || ''}`,
+    },
+  };
+};
+
+/**
  * SRS review reminder template — tiered by due-word count.
  * @param {Number} dueCount - Number of vocabulary words due for review
  * @param {String} topWord - The oldest-due word (used only when dueCount === 1)
@@ -311,6 +331,7 @@ module.exports = {
   getSubscriptionExpiringTemplate,
   getFollowerMomentTemplate,
   getWaveTemplate,
+  getStoryMentionTemplate,
   getSrsReviewTemplate,
   getCorrectionAcceptedTemplate,
 };

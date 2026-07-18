@@ -6,6 +6,7 @@ const User = require("../models/User")
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const mongoose = require('mongoose');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
+const { usersWithVisibleActiveStory } = require('../lib/activeStoryFlags');
 
 /**
  * @desc    Create a new conversation room between users
@@ -486,11 +487,26 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       return rest;
     });
 
-    console.log(`📬 Returning ${cleanedSenders.length} chat partners (filtered from ${uniqueSenders.length})`);
+    // Story rings: one batched query for the whole page (no N+1) —
+    // privacy-aware per usersWithVisibleActiveStory (public always visible,
+    // friends only when the viewer follows the owner, close_friends never).
+    // Viewer here is the authenticated user (the same identity the route's
+    // authorization check requires userId to match), not the route param.
+    const activeStoryOwners = await usersWithVisibleActiveStory(
+      cleanedSenders.map(s => s._id),
+      req.user?._id,
+      req.user?.following || []
+    );
+    const sendersWithStoryFlag = cleanedSenders.map(sender => ({
+      ...sender,
+      hasActiveStory: activeStoryOwners.has(sender._id.toString())
+    }));
+
+    console.log(`📬 Returning ${sendersWithStoryFlag.length} chat partners (filtered from ${uniqueSenders.length})`);
 
     res.status(200).json({
       success: true,
-      count: cleanedSenders.length,
+      count: sendersWithStoryFlag.length,
       total,
       pagination: {
         currentPage: page,
@@ -499,7 +515,7 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1
       },
-      data: cleanedSenders,
+      data: sendersWithStoryFlag,
     });
   });
 
@@ -635,7 +651,7 @@ exports.createMessage = asyncHandler(async (req, res, next) => {
     return next(formatLimitError('messages', current, max, nextReset));
   }
   
-  const validMessageTypes = ['text', 'media', 'voice', 'sticker', 'poll', 'location', 'contact', 'system', 'gif'];
+  const validMessageTypes = ['text', 'media', 'voice', 'sticker', 'poll', 'location', 'contact', 'system', 'gif', 'story_share'];
   const requestedType = req.body.type || req.body.messageType || 'text';
 
   const messageData = {
