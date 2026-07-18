@@ -1065,6 +1065,127 @@ const sendRoomJoin = async (ownerId, joinerId, room) => {
 };
 
 /**
+ * Notify a topic room's owner that a (possibly previously-banned) user has
+ * requested to join (Task 16 — moderation). Only meaningful for
+ * `roomType:'topic'` rooms (hubs have no ban/request concept — the caller,
+ * controllers/rooms.js, gates on that). Mirrors sendRoomJoin's shape/mute
+ * check but is a distinct notification type/template — unlike an actual
+ * join, this requires the owner to act (approve/deny), so it must not be
+ * confused with the "someone just joined" push.
+ *
+ * @param {String} ownerId - the room's owner
+ * @param {String} requesterId - the user asking to join
+ * @param {Object} room - plain object with at least `_id`, `title`
+ * @returns {Object} - Result
+ */
+const sendRoomJoinRequest = async (ownerId, requesterId, room) => {
+  try {
+    const [requester, owner] = await Promise.all([
+      User.findById(requesterId),
+      User.findById(ownerId),
+    ]);
+    if (!requester) return { success: false, error: 'Requester not found' };
+
+    const { title, body } = templateService.render(
+      'room_join_request',
+      owner?.preferredLocale || 'en',
+      { actorName: requester.name, roomName: room?.title || 'a room' },
+    );
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'room_join_request',
+        userId: String(requesterId),
+        roomId: String(room._id),
+      }
+    };
+
+    if (requester.images && requester.images.length > 0) {
+      notification.imageUrl = requester.images[0];
+    }
+
+    return await send(ownerId, 'room_join_request', notification);
+  } catch (error) {
+    console.error('Error sending room join-request notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Notify a user that their join request was approved (Task 16 —
+ * moderation). Sent to the requester, never the owner.
+ *
+ * @param {String} requesterId - the user who requested to join
+ * @param {Object} room - plain object with at least `_id`, `title`
+ * @returns {Object} - Result
+ */
+const sendRoomJoinApproved = async (requesterId, room) => {
+  try {
+    const requester = await User.findById(requesterId);
+    if (!requester) return { success: false, error: 'Requester not found' };
+
+    const { title, body } = templateService.render(
+      'room_join_approved',
+      requester?.preferredLocale || 'en',
+      { roomName: room?.title || 'a room' },
+    );
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'room_join_approved',
+        roomId: String(room._id),
+      }
+    };
+
+    return await send(requesterId, 'room_join_approved', notification);
+  } catch (error) {
+    console.error('Error sending room join-approved notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Notify a user that their join request was denied (Task 16 — moderation).
+ * Denial does NOT ban — this is purely informational so the requester
+ * isn't left wondering. Optional per spec; kept for UX symmetry with
+ * sendRoomJoinApproved, at negligible extra cost.
+ *
+ * @param {String} requesterId - the user who requested to join
+ * @param {Object} room - plain object with at least `_id`, `title`
+ * @returns {Object} - Result
+ */
+const sendRoomJoinDenied = async (requesterId, room) => {
+  try {
+    const requester = await User.findById(requesterId);
+    if (!requester) return { success: false, error: 'Requester not found' };
+
+    const { title, body } = templateService.render(
+      'room_join_denied',
+      requester?.preferredLocale || 'en',
+      { roomName: room?.title || 'a room' },
+    );
+
+    const notification = {
+      title,
+      body,
+      data: {
+        type: 'room_join_denied',
+        roomId: String(room._id),
+      }
+    };
+
+    return await send(requesterId, 'room_join_denied', notification);
+  } catch (error) {
+    console.error('Error sending room join-denied notification:', error);
+    return { success: false, error: error.message };
+  }
+};
+
+/**
  * Notify host + RSVPs when a scheduled room flips to active.
  * @param {string} userId - recipient user ID
  * @param {string|ObjectId} roomId
@@ -1177,6 +1298,9 @@ module.exports = {
   sendRoomMention,
   sendRoomMessage,
   sendRoomJoin,
+  sendRoomJoinRequest,
+  sendRoomJoinApproved,
+  sendRoomJoinDenied,
   sendScheduledRoomStarted,
   sendScheduledRoomReminder,
   sendVipRenewalWarning,

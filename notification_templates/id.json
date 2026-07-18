@@ -39,6 +39,18 @@
     "title": "👋 New member",
     "body": "{actorName} joined {roomName}"
   },
+  "room_join_request": {
+    "title": "🔔 Permintaan bergabung",
+    "body": "{actorName} ingin bergabung dengan {roomName}"
+  },
+  "room_join_approved": {
+    "title": "✅ Permintaan disetujui",
+    "body": "Anda disetujui untuk bergabung dengan {roomName}"
+  },
+  "room_join_denied": {
+    "title": "Permintaan ditolak",
+    "body": "Permintaan Anda untuk bergabung dengan {roomName} ditolak"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "started following you"

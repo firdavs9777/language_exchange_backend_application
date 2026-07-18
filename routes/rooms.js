@@ -21,7 +21,11 @@ const {
   removeMember,
   muteMember,
   updateRoom,
-  createRoom
+  createRoom,
+  requestJoin,
+  getJoinRequests,
+  approveJoinRequest,
+  denyJoinRequest
 } = require('../controllers/rooms');
 
 // Kill switch — short-circuits to 404 when ROOMS_ENABLED is false, so the
@@ -40,5 +44,14 @@ router.route('/:id/join').post(joinRoom);
 router.route('/:id/leave').post(leaveRoom);
 router.route('/:id/members/:userId').delete(removeMember);
 router.route('/:id/members/:userId/mute').post(muteMember);
+
+// Task 16 — moderation: join-request/approval flow for user-created topic
+// rooms. request-join is open to any authenticated non-member (including a
+// banned user asking to be let back in); the requests/approve/deny routes
+// are owner/admin-gated inside the controller (requireRoomAdmin).
+router.route('/:id/request-join').post(requestJoin);
+router.route('/:id/requests').get(getJoinRequests);
+router.route('/:id/requests/:userId/approve').post(approveJoinRequest);
+router.route('/:id/requests/:userId/deny').post(denyJoinRequest);
 
 module.exports = router;

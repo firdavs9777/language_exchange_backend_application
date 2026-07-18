@@ -20,6 +20,7 @@
  * hub-only — topic rooms are opt-in only, never auto-joined.
  */
 
+const mongoose = require('mongoose');
 const asyncHandler = require('../middleware/async');
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
@@ -31,6 +32,10 @@ const {
   decideJoin,
   decideLeave,
   isRoomAdmin,
+  isBanned,
+  hasPendingJoinRequest,
+  decideRequestJoin,
+  canKickMember,
   sortRoomsForCaller
 } = require('../lib/roomMembership');
 const { isMemberMuted } = require('../lib/roomMessageNotify');
@@ -48,9 +53,13 @@ const ROOM_TYPES = ['hub', 'topic'];
 // Fields returned in the room directory / detail payloads — kept as a single
 // list so getRooms/getRoom/createRoom always ship the same shape (the client
 // depends on this: roomType + targetLanguage + owner/admins are what let it
-// group topic rooms under their language and show ownership).
+// group topic rooms under their language and show ownership). bannedUsers/
+// joinRequests are selected ONLY so the per-viewer isBanned/hasPendingRequest/
+// pendingRequestCount fields can be computed below — the raw arrays
+// themselves are always stripped before the response goes out (Task 16 —
+// moderation info is owner/admin-only, never the raw member list).
 const ROOM_SELECT_FIELDS =
-  'roomType title description emojiFlag targetLanguage owner admins memberCount maxMembers lastActivityAt isSeeded participants';
+  'roomType title description emojiFlag targetLanguage owner admins memberCount maxMembers lastActivityAt isSeeded participants bannedUsers joinRequests';
 
 // Simple per-user cap so one user can't fragment a language into dozens of
 // empty topic rooms. Not configurable yet — follow-up if product wants a
@@ -58,6 +67,38 @@ const ROOM_SELECT_FIELDS =
 const MAX_TOPIC_ROOMS_PER_OWNER = 10;
 const MAX_TITLE_LENGTH = 60;
 const MAX_DESCRIPTION_LENGTH = 300;
+
+// Simple per-room cap on pending join requests (Task 16 — moderation), same
+// spirit as MAX_TOPIC_ROOMS_PER_OWNER: cheap abuse guard, not a real queueing
+// system. A room stuck at the cap just means its owner/admin needs to work
+// through the backlog (approve/deny) before new requests can queue up.
+const MAX_PENDING_REQUESTS_PER_ROOM = 50;
+
+/**
+ * Strip the moderation-only raw arrays and attach the derived per-viewer
+ * fields (Task 16). Never send bannedUsers/joinRequests as-is to any client
+ * — only owners/admins get pendingRequestCount, and even they don't get the
+ * raw arrays here (GET /rooms/:id/requests is the dedicated endpoint for
+ * the actual list, with populated requester info).
+ *
+ * @param {Object} room - plain object with `bannedUsers`, `joinRequests`
+ * @param {String|Object} viewerId
+ * @param {boolean} isOwnerOrAdmin
+ * @returns {Object} a NEW object — does not mutate `room`
+ */
+function withModerationFields(room, viewerId, isOwnerOrAdmin) {
+  const result = {
+    ...room,
+    isBanned: isBanned(viewerId, room),
+    hasPendingRequest: hasPendingJoinRequest(viewerId, room)
+  };
+  if (isOwnerOrAdmin) {
+    result.pendingRequestCount = Array.isArray(room.joinRequests) ? room.joinRequests.length : 0;
+  }
+  delete result.bannedUsers;
+  delete result.joinRequests;
+  return result;
+}
 
 /**
  * Idempotently auto-join `user` into the hub matching their normalized
@@ -143,7 +184,9 @@ exports.createRoom = asyncHandler(async (req, res, next) => {
     success: true,
     message: 'Room created',
     data: {
-      ...roomObj,
+      // The creator owns a brand-new room: never banned, never has a
+      // pending request, and (as owner) sees pendingRequestCount: 0.
+      ...withModerationFields(roomObj, req.user._id, true),
       onlineCount: getOnlineCount(io, String(room._id)),
       isMember: true,
       isOwnerOrAdmin: true
@@ -174,13 +217,16 @@ exports.getRooms = asyncHandler(async (req, res, next) => {
   const callerLanguage = normalizeLanguage(user.language_to_learn);
   const sorted = sortRoomsForCaller(rooms, callerLanguage);
 
-  const data = sorted.map((room) => ({
-    ...room,
-    onlineCount: getOnlineCount(io, String(room._id)),
-    isMember: (room.participants || []).some((p) => p.toString() === user._id.toString()),
-    isOwnerOrAdmin: isRoomAdmin(user._id, room),
-    participants: undefined // don't ship the full member-id list in the directory
-  }));
+  const data = sorted.map((room) => {
+    const isOwnerOrAdmin = isRoomAdmin(user._id, room);
+    return {
+      ...withModerationFields(room, user._id, isOwnerOrAdmin),
+      onlineCount: getOnlineCount(io, String(room._id)),
+      isMember: (room.participants || []).some((p) => p.toString() === user._id.toString()),
+      isOwnerOrAdmin,
+      participants: undefined // don't ship the full member-id list in the directory
+    };
+  });
 
   res.status(200).json({ success: true, count: data.length, data });
 });
@@ -197,14 +243,15 @@ exports.getRoom = asyncHandler(async (req, res, next) => {
   if (!hub) return next(new ErrorResponse('Room not found', 404));
 
   const isMember = (hub.participants || []).some((p) => p.toString() === req.user._id.toString());
+  const isOwnerOrAdmin = isRoomAdmin(req.user._id, hub);
 
   res.status(200).json({
     success: true,
     data: {
-      ...hub,
+      ...withModerationFields(hub, req.user._id, isOwnerOrAdmin),
       onlineCount: getOnlineCount(io, String(hub._id)),
       isMember,
-      isOwnerOrAdmin: isRoomAdmin(req.user._id, hub),
+      isOwnerOrAdmin,
       participants: undefined
     }
   });
@@ -269,9 +316,17 @@ exports.joinRoom = asyncHandler(async (req, res, next) => {
   const userId = req.user._id;
 
   const hub = await Conversation.findOne({ _id: id, roomType: { $in: ROOM_TYPES } })
-    .select('participants roomType owner title mutedBy')
+    .select('participants roomType owner title mutedBy bannedUsers')
     .lean();
   if (!hub) return next(new ErrorResponse('Room not found', 404));
+
+  // Ban enforcement is topic-room-only (Task 16 — moderation); hubs have no
+  // ban concept and stay open/unmoderated as before. A banned user must go
+  // through POST /rooms/:id/request-join and get owner/admin approval —
+  // they must NOT be silently let back in here.
+  if (hub.roomType === 'topic' && isBanned(userId, hub)) {
+    return next(new ErrorResponse('You have been banned from this room', 403, 'BANNED_FROM_ROOM'));
+  }
 
   const { isNewMember } = decideJoin(userId, hub);
 
@@ -370,7 +425,11 @@ async function requireRoomAdmin(req, res, next) {
 }
 
 /**
- * @desc    Remove a member from a hub (owner/admin only).
+ * @desc    Remove a member from a hub/topic room (owner/admin only). For
+ *          topic rooms, kick == ban (Task 16 — moderation): the removed
+ *          user is also added to bannedUsers so they can't silently rejoin
+ *          via POST /join — they must request-join and get re-approved.
+ *          Hubs keep the pre-Task-16 behavior (no ban, sticky-leave only).
  * @route   DELETE /api/v1/rooms/:id/members/:userId
  * @access  Private (owner/admin)
  */
@@ -379,10 +438,27 @@ exports.removeMember = asyncHandler(async (req, res, next) => {
   if (!hub) return;
 
   const { userId } = req.params;
-  const wasMember = hub.participants.some((p) => p.toString() === userId.toString());
 
-  const conversationUpdate = { $pull: { participants: userId } };
-  if (wasMember) conversationUpdate.$inc = { memberCount: -1 };
+  if (!mongoose.isValidObjectId(userId)) {
+    return next(new ErrorResponse('Invalid user id', 400));
+  }
+
+  // The owner can never be kicked/banned — not even by another admin. Check
+  // this before the membership check so it 400s even if, somehow, the owner
+  // isn't currently a participant.
+  if (!canKickMember(userId, hub)) {
+    return next(new ErrorResponse('The room owner cannot be kicked', 400, 'CANNOT_KICK_OWNER'));
+  }
+
+  const wasMember = hub.participants.some((p) => p.toString() === userId.toString());
+  if (!wasMember) {
+    return next(new ErrorResponse('User is not a member of this room', 404));
+  }
+
+  const conversationUpdate = { $pull: { participants: userId }, $inc: { memberCount: -1 } };
+  if (hub.roomType === 'topic') {
+    conversationUpdate.$addToSet = { bannedUsers: userId };
+  }
 
   await Promise.all([
     Conversation.updateOne({ _id: hub._id }, conversationUpdate),
@@ -390,7 +466,10 @@ exports.removeMember = asyncHandler(async (req, res, next) => {
     User.updateOne({ _id: userId }, { $addToSet: { leftHubs: hub._id } })
   ]);
 
-  res.status(200).json({ success: true, message: 'Member removed' });
+  res.status(200).json({
+    success: true,
+    message: hub.roomType === 'topic' ? 'Member removed and banned' : 'Member removed'
+  });
 });
 
 /**
@@ -428,6 +507,175 @@ exports.updateRoom = asyncHandler(async (req, res, next) => {
   await hub.save();
 
   res.status(200).json({ success: true, message: 'Room updated', data: hub });
+});
+
+/**
+ * Shared "this is a moderated topic room" gate for the join-request
+ * endpoints below. Hubs have no ban/request concept (they stay
+ * open/unmoderated), so every one of these endpoints 400s on a hub rather
+ * than silently no-op'ing.
+ */
+function requireTopicRoom(hub, next) {
+  if (hub.roomType !== 'topic') {
+    next(new ErrorResponse('Join requests are only supported for topic rooms', 400, 'NOT_A_TOPIC_ROOM'));
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @desc    Request to join a topic room. Any authenticated non-member may
+ *          call this, INCLUDING a user currently in bannedUsers — this is
+ *          precisely how a banned user asks to be let back in (Task 16 —
+ *          moderation). Notifies the room owner. Idempotent against races:
+ *          the actual write is a single conditional update guarded by the
+ *          same "not already a member / no existing pending request"
+ *          condition checked below, so two concurrent requests can't both
+ *          succeed and create a duplicate pending entry.
+ * @route   POST /api/v1/rooms/:id/request-join
+ * @access  Private
+ */
+exports.requestJoin = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const userId = req.user._id;
+
+  const hub = await Conversation.findOne({ _id: id, roomType: { $in: ROOM_TYPES } })
+    .select('participants owner title roomType mutedBy joinRequests')
+    .lean();
+  if (!hub) return next(new ErrorResponse('Room not found', 404));
+  if (!requireTopicRoom(hub, next)) return;
+
+  const decision = decideRequestJoin(userId, hub);
+  if (!decision.ok) {
+    if (decision.reason === 'already-member') {
+      return next(new ErrorResponse('You are already a member of this room', 400, 'ALREADY_MEMBER'));
+    }
+    return next(new ErrorResponse('You already have a pending request for this room', 400, 'REQUEST_ALREADY_PENDING'));
+  }
+
+  if ((hub.joinRequests || []).length >= MAX_PENDING_REQUESTS_PER_ROOM) {
+    return next(new ErrorResponse('This room has too many pending join requests right now', 400, 'TOO_MANY_PENDING_REQUESTS'));
+  }
+
+  // Atomic, race-safe write: only pushes if the caller is STILL neither a
+  // member nor already pending at write time (re-checks both conditions in
+  // the query filter, not just in the pre-check above).
+  const writeResult = await Conversation.updateOne(
+    { _id: id, participants: { $ne: userId }, 'joinRequests.user': { $ne: userId } },
+    { $push: { joinRequests: { user: userId, requestedAt: new Date(), status: 'pending' } } }
+  );
+
+  if (writeResult.matchedCount === 0) {
+    // Lost a race against a concurrent request-join/join — same user-facing
+    // outcome either way (already a member or already pending), 400 either
+    // way rather than guessing which.
+    return next(new ErrorResponse('You already have a pending request for this room', 400, 'REQUEST_ALREADY_PENDING'));
+  }
+
+  // Notify the owner — never if they muted this room. Never fails the
+  // request itself (fire-and-forget), mirroring joinRoom's sendRoomJoin.
+  if (hub.owner && hub.owner.toString() !== userId.toString() && !isMemberMuted(hub.mutedBy, hub.owner)) {
+    notificationService
+      .sendRoomJoinRequest(hub.owner, userId, hub)
+      .catch((err) => console.error('❌ Room join-request notification failed:', err.message));
+  }
+
+  res.status(200).json({ success: true, message: 'Join request sent' });
+});
+
+/**
+ * @desc    List pending join requests for a topic room, with requester
+ *          info populated (owner/admin only).
+ * @route   GET /api/v1/rooms/:id/requests
+ * @access  Private (owner/admin)
+ */
+exports.getJoinRequests = asyncHandler(async (req, res, next) => {
+  const hub = await requireRoomAdmin(req, res, next);
+  if (!hub) return;
+  if (!requireTopicRoom(hub, next)) return;
+
+  await hub.populate('joinRequests.user', 'name username images');
+
+  const data = (hub.joinRequests || []).map((r) => ({
+    user: r.user,
+    requestedAt: r.requestedAt,
+    status: r.status
+  }));
+
+  res.status(200).json({ success: true, count: data.length, data });
+});
+
+/**
+ * @desc    Approve a pending join request (owner/admin only): un-bans the
+ *          user if they were banned, adds them as a member, and clears
+ *          their pending request. Approving a user who's already a member
+ *          (e.g. a stale/duplicate request) is a no-op on membership but
+ *          still clears the request/ban — idempotent, not an error.
+ * @route   POST /api/v1/rooms/:id/requests/:userId/approve
+ * @access  Private (owner/admin)
+ */
+exports.approveJoinRequest = asyncHandler(async (req, res, next) => {
+  const hub = await requireRoomAdmin(req, res, next);
+  if (!hub) return;
+  if (!requireTopicRoom(hub, next)) return;
+
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    return next(new ErrorResponse('Invalid user id', 400));
+  }
+
+  const targetUser = await User.findById(userId).select('_id').lean();
+  if (!targetUser) return next(new ErrorResponse('User not found', 404));
+
+  const isAlreadyMember = hub.participants.some((p) => p.toString() === userId.toString());
+
+  const update = { $pull: { joinRequests: { user: userId }, bannedUsers: userId } };
+  if (!isAlreadyMember) {
+    update.$addToSet = { participants: userId };
+    update.$inc = { memberCount: 1 };
+  }
+
+  await Promise.all([
+    Conversation.updateOne({ _id: hub._id }, update),
+    User.updateOne({ _id: userId }, { $pull: { leftHubs: hub._id } })
+  ]);
+
+  notificationService
+    .sendRoomJoinApproved(userId, hub)
+    .catch((err) => console.error('❌ Room join-approve notification failed:', err.message));
+
+  res.status(200).json({ success: true, message: 'Join request approved' });
+});
+
+/**
+ * @desc    Deny a pending join request (owner/admin only). Removes the
+ *          request WITHOUT banning — denial is not a ban, the user can
+ *          request again later. No-op (still 200) if there was no pending
+ *          request for this user.
+ * @route   POST /api/v1/rooms/:id/requests/:userId/deny
+ * @access  Private (owner/admin)
+ */
+exports.denyJoinRequest = asyncHandler(async (req, res, next) => {
+  const hub = await requireRoomAdmin(req, res, next);
+  if (!hub) return;
+  if (!requireTopicRoom(hub, next)) return;
+
+  const { userId } = req.params;
+  if (!mongoose.isValidObjectId(userId)) {
+    return next(new ErrorResponse('Invalid user id', 400));
+  }
+
+  const hadPendingRequest = hub.joinRequests.some((r) => r.user && r.user.toString() === userId.toString());
+
+  await Conversation.updateOne({ _id: hub._id }, { $pull: { joinRequests: { user: userId } } });
+
+  if (hadPendingRequest) {
+    notificationService
+      .sendRoomJoinDenied(userId, hub)
+      .catch((err) => console.error('❌ Room join-deny notification failed:', err.message));
+  }
+
+  res.status(200).json({ success: true, message: 'Join request denied' });
 });
 
 // Exported for tests / reuse.

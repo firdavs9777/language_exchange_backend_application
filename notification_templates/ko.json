@@ -39,6 +39,18 @@
     "title": "👋 새 멤버",
     "body": "{actorName}님이 {roomName}에 참여했습니다"
   },
+  "room_join_request": {
+    "title": "🔔 참여 요청",
+    "body": "{actorName}님이 {roomName} 참여를 요청했습니다"
+  },
+  "room_join_approved": {
+    "title": "✅ 요청 승인됨",
+    "body": "{roomName} 참여가 승인되었습니다"
+  },
+  "room_join_denied": {
+    "title": "요청 거절됨",
+    "body": "{roomName} 참여 요청이 거절되었습니다"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "님이 회원님을 팔로우합니다"

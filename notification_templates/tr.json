@@ -39,6 +39,18 @@
     "title": "👋 New member",
     "body": "{actorName} joined {roomName}"
   },
+  "room_join_request": {
+    "title": "🔔 Katılma isteği",
+    "body": "{actorName}, {roomName} odasına katılmak istiyor"
+  },
+  "room_join_approved": {
+    "title": "✅ İstek onaylandı",
+    "body": "{roomName} odasına katılmanız onaylandı"
+  },
+  "room_join_denied": {
+    "title": "İstek reddedildi",
+    "body": "{roomName} odasına katılma isteğiniz reddedildi"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "started following you"

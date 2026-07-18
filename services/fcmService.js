@@ -29,6 +29,9 @@ const NOTIFICATION_TYPE_ENUM = new Set([
   'new_follower',
   'room_message',
   'room_join',
+  'room_join_request',
+  'room_join_approved',
+  'room_join_denied',
 ]);
 
 // Maps each notification type to the iOS UNNotificationCategory the client

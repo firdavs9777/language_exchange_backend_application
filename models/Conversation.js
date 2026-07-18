@@ -125,6 +125,38 @@ const ConversationSchema = new mongoose.Schema({
     default: false
   },
 
+  // ========== TOPIC ROOM MODERATION (Task 16) ==========
+  // Kick-as-ban + join-request/approval. Topic rooms only — hubs stay
+  // open/unmoderated (controllers/rooms.js gates every read of these two
+  // fields on roomType === 'topic'). Never serialized to non-admin clients;
+  // getRoom/getRooms strip these raw arrays and expose only the derived
+  // isBanned/hasPendingRequest/pendingRequestCount fields instead.
+  bannedUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  // Only PENDING requests live in this array — approve/deny both remove the
+  // entry rather than flipping status, so GET /rooms/:id/requests can return
+  // it as-is with no extra filtering. `status` is kept (rather than dropped)
+  // so the sub-doc shape is self-describing/forward-compatible even though
+  // 'pending' is the only value that's ever actually stored.
+  joinRequests: [{
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      required: true
+    },
+    requestedAt: {
+      type: Date,
+      default: Date.now
+    },
+    status: {
+      type: String,
+      enum: ['pending'],
+      default: 'pending'
+    }
+  }],
+
   // ========== ADVANCED FEATURES (KakaoTalk/HelloTalk Style) ==========
   
   // Chat Theme/Background (KakaoTalk style)

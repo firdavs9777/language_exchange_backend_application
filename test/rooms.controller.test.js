@@ -5,6 +5,10 @@ const {
   decideJoin,
   decideLeave,
   isRoomAdmin,
+  isBanned,
+  hasPendingJoinRequest,
+  decideRequestJoin,
+  canKickMember,
   sortRoomsForCaller
 } = require('../lib/roomMembership');
 
@@ -160,6 +164,75 @@ test('sortRoomsForCaller: does not mutate the input array', () => {
   const original = [...rooms];
   sortRoomsForCaller(rooms, 'en');
   assert.deepEqual(rooms, original);
+});
+
+// ---------------------------------------------------------------------------
+// isBanned / hasPendingJoinRequest / decideRequestJoin / canKickMember
+// (Task 16 — topic room moderation: kick-as-ban + join-request/approval)
+// ---------------------------------------------------------------------------
+
+test('isBanned: true when userId is in bannedUsers', () => {
+  const hub = { bannedUsers: ['u1', 'u2'] };
+  assert.equal(isBanned('u1', hub), true);
+  assert.equal(isBanned('u3', hub), false);
+});
+
+test('isBanned: false when bannedUsers is missing/empty', () => {
+  assert.equal(isBanned('u1', {}), false);
+  assert.equal(isBanned('u1', { bannedUsers: [] }), false);
+});
+
+test('isBanned: works with ObjectId-like ids', () => {
+  const hub = { bannedUsers: [{ toString: () => 'u1' }] };
+  assert.equal(isBanned('u1', hub), true);
+  assert.equal(isBanned('u2', hub), false);
+});
+
+test('hasPendingJoinRequest: true only for a user with a pending entry', () => {
+  const hub = { joinRequests: [{ user: 'u1', status: 'pending' }] };
+  assert.equal(hasPendingJoinRequest('u1', hub), true);
+  assert.equal(hasPendingJoinRequest('u2', hub), false);
+});
+
+test('hasPendingJoinRequest: false when joinRequests is missing/empty', () => {
+  assert.equal(hasPendingJoinRequest('u1', {}), false);
+  assert.equal(hasPendingJoinRequest('u1', { joinRequests: [] }), false);
+});
+
+test('decideRequestJoin: already-member takes priority over already-pending', () => {
+  const hub = { participants: ['u1'], joinRequests: [{ user: 'u1' }] };
+  const result = decideRequestJoin('u1', hub);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'already-member');
+});
+
+test('decideRequestJoin: already-pending when not a member but has a pending request', () => {
+  const hub = { participants: [], joinRequests: [{ user: 'u1' }] };
+  const result = decideRequestJoin('u1', hub);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'already-pending');
+});
+
+test('decideRequestJoin: ok when neither a member nor already pending (covers a banned user re-requesting)', () => {
+  const hub = { participants: [], joinRequests: [], bannedUsers: ['u1'] };
+  const result = decideRequestJoin('u1', hub);
+  assert.equal(result.ok, true);
+  assert.equal(result.reason, 'ok');
+});
+
+test('canKickMember: false for the room owner (owner can never be kicked/banned)', () => {
+  const hub = { owner: 'owner1' };
+  assert.equal(canKickMember('owner1', hub), false);
+});
+
+test('canKickMember: true for a non-owner (regular member or admin)', () => {
+  const hub = { owner: 'owner1' };
+  assert.equal(canKickMember('u2', hub), true);
+});
+
+test('canKickMember: false when hub is missing (defensive)', () => {
+  assert.equal(canKickMember('u1', null), false);
+  assert.equal(canKickMember('u1', undefined), false);
 });
 
 // ---------------------------------------------------------------------------

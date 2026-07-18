@@ -39,6 +39,18 @@
     "title": "👋 New member",
     "body": "{actorName} joined {roomName}"
   },
+  "room_join_request": {
+    "title": "🔔 Yêu cầu tham gia",
+    "body": "{actorName} muốn tham gia {roomName}"
+  },
+  "room_join_approved": {
+    "title": "✅ Yêu cầu được chấp nhận",
+    "body": "Bạn đã được chấp nhận tham gia {roomName}"
+  },
+  "room_join_denied": {
+    "title": "Yêu cầu bị từ chối",
+    "body": "Yêu cầu tham gia {roomName} của bạn đã bị từ chối"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "started following you"

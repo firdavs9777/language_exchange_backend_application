@@ -39,6 +39,18 @@
     "title": "👋 Узви нав",
     "body": "{actorName} ба {roomName} ҳамроҳ шуд"
   },
+  "room_join_request": {
+    "title": "🔔 Дархости ҳамроҳшавӣ",
+    "body": "{actorName} мехоҳад ба {roomName} ҳамроҳ шавад"
+  },
+  "room_join_approved": {
+    "title": "✅ Дархост тасдиқ шуд",
+    "body": "Шумо барои ҳамроҳшавӣ ба {roomName} тасдиқ шудед"
+  },
+  "room_join_denied": {
+    "title": "Дархост рад шуд",
+    "body": "Дархости шумо барои ҳамроҳшавӣ ба {roomName} рад шуд"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "ба шумо обуна шуд"

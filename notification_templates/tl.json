@@ -39,6 +39,18 @@
     "title": "👋 New member",
     "body": "{actorName} joined {roomName}"
   },
+  "room_join_request": {
+    "title": "🔔 Join request",
+    "body": "{actorName} wants to join {roomName}"
+  },
+  "room_join_approved": {
+    "title": "✅ Request approved",
+    "body": "You've been approved to join {roomName}"
+  },
+  "room_join_denied": {
+    "title": "Request declined",
+    "body": "Your request to join {roomName} was declined"
+  },
   "friend_request_single": {
     "title": "👋 {actorName}",
     "body": "started following you"

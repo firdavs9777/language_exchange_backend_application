@@ -24,6 +24,9 @@ const NotificationSchema = new mongoose.Schema({
       // "add here or _saveToHistory silently drops the history row" reason
       // as the batches above.
       'room_message', 'room_join',
+      // Task 16 (rooms moderation) — join-request/approval flow for
+      // user-created topic rooms. Same enum-miss trap as above.
+      'room_join_request', 'room_join_approved', 'room_join_denied',
     ],
     required: true
   },
