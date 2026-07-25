@@ -24,6 +24,11 @@ router.get('/health', asyncHandler(async (_req, res) => {
 // Routes mounted in later tasks:
 router.use('/auth', require('./routes/auth'));
 router.use('/users', require('./routes/users'));
+router.use('/stories', require('./routes/stories'));
+router.use('/discover', require('./routes/discovery'));
+router.use('/matches', require('./routes/matches'));
+router.use('/conversations', require('./routes/conversations'));
+router.use('/billing', require('./routes/billing'));
 
 // Error middleware MUST be last so it catches everything in this sub-app
 router.use(errorMiddleware);
