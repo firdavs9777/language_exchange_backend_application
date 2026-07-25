@@ -26,6 +26,7 @@ router.use('/auth', require('./routes/auth'));
 router.use('/users', require('./routes/users'));
 router.use('/stories', require('./routes/stories'));
 router.use('/discover', require('./routes/discovery'));
+router.use('/swipes', require('./routes/swipes'));
 router.use('/matches', require('./routes/matches'));
 router.use('/conversations', require('./routes/conversations'));
 router.use('/billing', require('./routes/billing'));
