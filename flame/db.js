@@ -14,9 +14,15 @@ function ensureConn() {
 
   flameConn = mongoose.createConnection(uri, {
     maxPoolSize: 10,
-    serverSelectionTimeoutMS: 5000,
+    // Give the INITIAL connection a generous window. The driver force-closes the
+    // topology (killing all background monitors) once server-selection is
+    // exhausted on a failed first connect — after which only a process restart
+    // can recover. A larger window lets a transient right after a deploy (the new
+    // process booting before Atlas is reachable) clear during the initial connect
+    // instead of hard-failing and needing a manual `pm2 restart`.
+    serverSelectionTimeoutMS: 30000,
     socketTimeoutMS: 45000,
-    connectTimeoutMS: 10000,
+    connectTimeoutMS: 30000,
   });
 
   flameConn.on('connected',    () => logger.info('MongoDB connected'));
@@ -26,31 +32,20 @@ function ensureConn() {
   return flameConn;
 }
 
-// Resilient connect. The old version awaited a single asPromise() and gave up
-// on the first serverSelectionTimeout — so a transient failure right after a
-// deploy (the app boots before Atlas is reachable for the new process) left the
-// connection stuck buffering forever, needing a manual `pm2 restart`. The driver
-// keeps monitoring the topology in the background, so instead of giving up we
-// poll readyState until it connects (self-heal) or a generous timeout elapses.
-async function connect({ timeoutMs = 90000, retryDelayMs = 2000 } = {}) {
+// Await the initial connection. The resilience against deploy-time transients
+// comes from the generous serverSelectionTimeoutMS above (the driver retries
+// server selection internally within that window); once it's exhausted the
+// topology is force-closed and only a process restart recovers, so there is no
+// point polling a dead connection here. On failure we surface a clear error.
+async function connect() {
   ensureConn();
-  const start = Date.now();
-
-  // Kick the initial connection; tolerate a first-attempt failure.
-  try {
-    if (flameConn.readyState !== 1) await flameConn.asPromise();
-  } catch (err) {
-    logger.warn(`initial MongoDB connect failed, will keep polling: ${err.message}`);
-  }
-
-  // Poll live readyState — the background monitor reconnects on its own.
-  while (flameConn.readyState !== 1) {
-    if (Date.now() - start > timeoutMs) {
-      throw new Error(
-        `FLAME MongoDB not connected after ${timeoutMs}ms (readyState=${flameConn.readyState})`,
-      );
+  if (flameConn.readyState !== 1) {
+    try {
+      await flameConn.asPromise();
+    } catch (err) {
+      logger.error(`FLAME MongoDB initial connect failed: ${err.message}`);
+      throw err;
     }
-    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
   }
   return flameConn;
 }
