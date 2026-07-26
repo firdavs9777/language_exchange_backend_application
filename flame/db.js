@@ -20,6 +20,8 @@ function ensureConn() {
     // can recover. A larger window lets a transient right after a deploy (the new
     // process booting before Atlas is reachable) clear during the initial connect
     // instead of hard-failing and needing a manual `pm2 restart`.
+    // Tradeoff: this option is driver-global, so during a live outage after a
+    // successful connect, operations also wait up to 30s (was 5s) before failing.
     serverSelectionTimeoutMS: 30000,
     socketTimeoutMS: 45000,
     connectTimeoutMS: 30000,
