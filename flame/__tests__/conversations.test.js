@@ -71,6 +71,7 @@ test('open → send → list → thread → mark read (happy path)', async (t) =
   const convId = open.body.data.id;
   assert.equal(open.body.data.other_user_id, b.id);
   assert.equal(open.body.data.unread_count, 0);
+  assert.equal(open.body.data.other_user.name, 'bx');
 
   // Opening again returns the SAME conversation (no duplicate)
   const open2 = await request(app)
@@ -100,6 +101,7 @@ test('open → send → list → thread → mark read (happy path)', async (t) =
   assert.equal(listB.body.data.conversations[0].unread_count, 1);
   assert.equal(listB.body.data.conversations[0].last_message.text, 'hello b');
   assert.equal(listB.body.data.pagination.total, 1);
+  assert.equal(listB.body.data.conversations[0].other_user.name, 'ax');
 
   // B reads the thread (newest first) and marks read
   const thread = await request(app)

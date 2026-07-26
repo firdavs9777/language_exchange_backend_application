@@ -2,6 +2,7 @@ const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { NotFoundError, ValidationError, FlameError } = require('../utils/errors');
+const { toDiscoverUser } = require('./discoveryService');
 
 function toMessage(m) {
   return {
@@ -19,12 +20,13 @@ function toMessage(m) {
   };
 }
 
-function toConversation(c, forUserId, lastMessageDoc) {
+function toConversation(c, forUserId, lastMessageDoc, otherUserDoc) {
   const other = c.participants.find((p) => p !== forUserId) || null;
   const mine = (c.unreadCount || []).find((u) => u.user === forUserId);
   return {
     id: c._id.toString(),
     other_user_id: other,
+    other_user: otherUserDoc ? toDiscoverUser(otherUserDoc) : null,
     last_message: lastMessageDoc ? toMessage(lastMessageDoc) : null,
     last_message_at: c.lastMessageAt ? c.lastMessageAt.toISOString() : null,
     unread_count: mine ? mine.count : 0,
@@ -58,7 +60,7 @@ async function openConversation(userId, otherUserId) {
       unreadCount: [{ user: userId, count: 0 }, { user: otherUserId, count: 0 }],
     });
   }
-  return toConversation(conv, userId, null);
+  return toConversation(conv, userId, null, other);
 }
 
 async function listConversations(userId, { limit, offset }) {
@@ -70,8 +72,10 @@ async function listConversations(userId, { limit, offset }) {
     .limit(limit);
   const conversations = [];
   for (const c of convs) {
+    const otherId = c.participants.find((p) => p !== userId);
+    const otherUser = otherId ? await User.findById(otherId).lean() : null;
     const lm = c.lastMessage ? await Message.findById(c.lastMessage) : null;
-    conversations.push(toConversation(c, userId, lm));
+    conversations.push(toConversation(c, userId, lm, otherUser));
   }
   return { conversations, total };
 }
