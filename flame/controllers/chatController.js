@@ -32,7 +32,10 @@ async function getMessages(req, res) {
 }
 
 async function sendMessage(req, res) {
-  const data = await chatService.sendMessage(req.user.id, req.params.id, { text: req.body.text });
+  const data = await chatService.sendMessage(req.user.id, req.params.id, {
+    text: req.body.text,
+    replyTo: req.body.reply_to,
+  });
   res.status(201).json({ success: true, data });
 }
 

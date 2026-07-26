@@ -85,12 +85,20 @@ async function getMessages(userId, conversationId, { limit, offset }) {
   return { messages: msgs.map(toMessage), total };
 }
 
-async function sendMessage(userId, conversationId, { text }) {
+async function sendMessage(userId, conversationId, { text, replyTo }) {
   const conv = await _findConversation(conversationId);
   _assertParticipant(conv, userId);
+  if (replyTo) {
+    let parent = null;
+    try { parent = await Message.findById(replyTo); } catch (_) { parent = null; }
+    if (!parent || parent.conversationId !== conversationId) {
+      throw new ValidationError('reply_to must be a message in this conversation');
+    }
+  }
   const receiver = conv.participants.find((p) => p !== userId);
   const msg = await Message.create({
     conversationId, sender: userId, receiver, text, messageType: 'text',
+    replyTo: replyTo || null,
   });
   conv.lastMessage = msg._id.toString();
   conv.lastMessageAt = msg.createdAt;

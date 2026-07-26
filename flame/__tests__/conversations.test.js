@@ -164,3 +164,37 @@ test('opening a conversation with a non-existent user is 404', async (t) => {
     .send({ user_id: '0123456789abcdef01234567' })
     .expect(404);
 });
+
+test('reply_to references an earlier message in the same conversation', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const open = await request(app).post('/flamebackend/v1/conversations')
+    .set(authH(a.token)).send({ user_id: b.id }).expect(201);
+  const conv = open.body.data.id;
+  const first = await request(app).post(`/flamebackend/v1/conversations/${conv}/messages`)
+    .set(authH(a.token)).send({ text: 'original' }).expect(201);
+
+  const reply = await request(app).post(`/flamebackend/v1/conversations/${conv}/messages`)
+    .set(authH(b.token)).send({ text: 'quoted!', reply_to: first.body.data.id }).expect(201);
+  assert.equal(reply.body.data.reply_to, first.body.data.id);
+});
+
+test('reply_to pointing at another conversation is rejected (422)', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const c = await registerUser(app, 'c@x.com');
+  const convAB = (await request(app).post('/flamebackend/v1/conversations')
+    .set(authH(a.token)).send({ user_id: b.id }).expect(201)).body.data.id;
+  const convAC = (await request(app).post('/flamebackend/v1/conversations')
+    .set(authH(a.token)).send({ user_id: c.id }).expect(201)).body.data.id;
+  const msgInAC = await request(app).post(`/flamebackend/v1/conversations/${convAC}/messages`)
+    .set(authH(a.token)).send({ text: 'in AC' }).expect(201);
+
+  await request(app).post(`/flamebackend/v1/conversations/${convAB}/messages`)
+    .set(authH(a.token)).send({ text: 'bad reply', reply_to: msgInAC.body.data.id })
+    .expect(422);
+});
