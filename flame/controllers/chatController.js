@@ -44,4 +44,17 @@ async function markRead(req, res) {
   res.json({ success: true, data });
 }
 
-module.exports = { listConversations, openConversation, getMessages, sendMessage, markRead };
+async function addReaction(req, res) {
+  const data = await chatService.addReaction(req.user.id, req.params.id, req.body.emoji);
+  res.status(201).json({ success: true, data });
+}
+
+async function removeReaction(req, res) {
+  const data = await chatService.removeReaction(req.user.id, req.params.id);
+  res.json({ success: true, data });
+}
+
+module.exports = {
+  listConversations, openConversation, getMessages, sendMessage, markRead,
+  addReaction, removeReaction,
+};

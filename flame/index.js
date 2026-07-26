@@ -29,6 +29,7 @@ router.use('/discover', require('./routes/discovery'));
 router.use('/swipes', require('./routes/swipes'));
 router.use('/matches', require('./routes/matches'));
 router.use('/conversations', require('./routes/conversations'));
+router.use('/messages', require('./routes/messages'));
 router.use('/billing', require('./routes/billing'));
 
 // Error middleware MUST be last so it catches everything in this sub-app

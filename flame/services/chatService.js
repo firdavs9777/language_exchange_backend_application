@@ -121,7 +121,38 @@ async function markRead(userId, conversationId) {
   return { marked: result.modifiedCount || 0 };
 }
 
+async function _findMessage(messageId) {
+  let m = null;
+  try { m = await Message.findById(messageId); } catch (_) { m = null; }
+  if (!m) throw new NotFoundError('message not found');
+  return m;
+}
+
+function _assertMessageParticipant(m, userId) {
+  if (m.sender !== userId && m.receiver !== userId) {
+    throw new FlameError('FORBIDDEN', 'not your conversation', 403);
+  }
+}
+
+async function addReaction(userId, messageId, emoji) {
+  const m = await _findMessage(messageId);
+  _assertMessageParticipant(m, userId);
+  m.reactions = m.reactions.filter((r) => r.user !== userId);
+  m.reactions.push({ user: userId, emoji });
+  await m.save();
+  return toMessage(m);
+}
+
+async function removeReaction(userId, messageId) {
+  const m = await _findMessage(messageId);
+  _assertMessageParticipant(m, userId);
+  m.reactions = m.reactions.filter((r) => r.user !== userId);
+  await m.save();
+  return toMessage(m);
+}
+
 module.exports = {
   openConversation, listConversations, getMessages, sendMessage, markRead,
+  addReaction, removeReaction,
   toConversation, toMessage,
 };
