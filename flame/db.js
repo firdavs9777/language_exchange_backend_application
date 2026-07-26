@@ -26,9 +26,32 @@ function ensureConn() {
   return flameConn;
 }
 
-async function connect() {
+// Resilient connect. The old version awaited a single asPromise() and gave up
+// on the first serverSelectionTimeout — so a transient failure right after a
+// deploy (the app boots before Atlas is reachable for the new process) left the
+// connection stuck buffering forever, needing a manual `pm2 restart`. The driver
+// keeps monitoring the topology in the background, so instead of giving up we
+// poll readyState until it connects (self-heal) or a generous timeout elapses.
+async function connect({ timeoutMs = 90000, retryDelayMs = 2000 } = {}) {
   ensureConn();
-  if (flameConn.readyState !== 1) await flameConn.asPromise();
+  const start = Date.now();
+
+  // Kick the initial connection; tolerate a first-attempt failure.
+  try {
+    if (flameConn.readyState !== 1) await flameConn.asPromise();
+  } catch (err) {
+    logger.warn(`initial MongoDB connect failed, will keep polling: ${err.message}`);
+  }
+
+  // Poll live readyState — the background monitor reconnects on its own.
+  while (flameConn.readyState !== 1) {
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(
+        `FLAME MongoDB not connected after ${timeoutMs}ms (readyState=${flameConn.readyState})`,
+      );
+    }
+    await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+  }
   return flameConn;
 }
 
