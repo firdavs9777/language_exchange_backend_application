@@ -36,6 +36,12 @@ async function sendMessage(req, res) {
     text: req.body.text,
     replyTo: req.body.reply_to,
   });
+  // Best-effort realtime push to the receiver. Never let a socket issue fail
+  // the REST send (which is the source of truth).
+  try {
+    const io = req.app.get('io');
+    if (io) require('../socket/flameSocket').emitNewMessage(io, data.receiver_id, data);
+  } catch (_) { /* realtime is best-effort */ }
   res.status(201).json({ success: true, data });
 }
 

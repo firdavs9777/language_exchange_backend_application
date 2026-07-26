@@ -18,6 +18,7 @@ const bodyParser = require('body-parser');
 const { Server } = require('socket.io');
 const { initializeSocket } = require('./socket/socketHandler');
 const { initializeFitBowlSocket } = require('./socket/fitbowlHandler');
+const { initFlameSocket } = require('./flame/socket/flameSocket');
 
 // Load environment variables
 dotenv.config({ path: './config/config.env' });
@@ -131,6 +132,14 @@ initializeSocket(io);
 
 // Initialize FitBowl socket namespace
 initializeFitBowlSocket(io);
+
+// Initialize Flame socket namespace (isolated /flame; failure is non-fatal so it
+// can never affect the BananaTalk or FitBowl sockets / server startup).
+try {
+  initFlameSocket(io);
+} catch (e) {
+  console.error('[flame] socket init failed (non-fatal):', e.message);
+}
 
 // Make io accessible to routes
 app.set('io', io);
