@@ -1,21 +1,21 @@
 const express = require('express');
+const { z } = require('zod');
 const asyncHandler = require('../middleware/asyncHandler');
 const auth = require('../middleware/auth');
+const validate = require('../middleware/validate');
+const ctrl = require('../controllers/chatController');
 
 const router = express.Router();
 
-// Conversations/chat aren't implemented server-side yet. Return a valid empty
-// page so the client renders its empty state instead of 404-ing.
-router.get('/', auth, asyncHandler(async (req, res) => {
-  const limit = parseInt(req.query.limit, 10) || 20;
-  const offset = parseInt(req.query.offset, 10) || 0;
-  res.json({
-    success: true,
-    data: {
-      conversations: [],
-      pagination: { total: 0, limit, offset, has_more: false },
-    },
-  });
-}));
+const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, 'must be a valid ObjectId');
+const idParam = z.object({ id: objectId });
+const openSchema = z.object({ user_id: objectId });
+const sendSchema = z.object({ text: z.string().min(1).max(2000) });
+
+router.get('/', auth, asyncHandler(ctrl.listConversations));
+router.post('/', auth, validate.body(openSchema), asyncHandler(ctrl.openConversation));
+router.get('/:id/messages', auth, validate.params(idParam), asyncHandler(ctrl.getMessages));
+router.post('/:id/messages', auth, validate.params(idParam), validate.body(sendSchema), asyncHandler(ctrl.sendMessage));
+router.put('/:id/read', auth, validate.params(idParam), asyncHandler(ctrl.markRead));
 
 module.exports = router;
