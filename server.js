@@ -18,7 +18,6 @@ const bodyParser = require('body-parser');
 const { Server } = require('socket.io');
 const { initializeSocket } = require('./socket/socketHandler');
 const { initializeFitBowlSocket } = require('./socket/fitbowlHandler');
-const { initFlameSocket } = require('./flame/socket/flameSocket');
 
 // Load environment variables
 dotenv.config({ path: './config/config.env' });
@@ -133,9 +132,12 @@ initializeSocket(io);
 // Initialize FitBowl socket namespace
 initializeFitBowlSocket(io);
 
-// Initialize Flame socket namespace (isolated /flame; failure is non-fatal so it
-// can never affect the BananaTalk or FitBowl sockets / server startup).
+// Initialize Flame socket namespace (isolated /flame). Both the require AND the
+// init are inside the try/catch so that even a load-time or runtime failure in
+// the flame socket code can NEVER crash the shared server or affect the
+// BananaTalk / FitBowl sockets.
 try {
+  const { initFlameSocket } = require('./flame/socket/flameSocket');
   initFlameSocket(io);
 } catch (e) {
   console.error('[flame] socket init failed (non-fatal):', e.message);
