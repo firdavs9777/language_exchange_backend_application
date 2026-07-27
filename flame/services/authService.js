@@ -67,6 +67,17 @@ async function register(input) {
     throw e;
   }
   const tokens = await mintTokenPair(user);
+
+  // Best-effort, fire-and-forget welcome email. Guarded so it can NEVER
+  // throw, block, or delay registration, and never changes the response —
+  // emailService.sendWelcome() is itself a no-throw no-op when Mailgun
+  // isn't configured, but we belt-and-suspenders it here anyway.
+  try {
+    require('../services/emailService').sendWelcome(user).catch(() => {});
+  } catch (_e) {
+    // swallow — registration must succeed regardless of email plumbing
+  }
+
   return { user: toPublic(user), tokens };
 }
 
