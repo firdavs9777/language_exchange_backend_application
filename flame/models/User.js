@@ -40,6 +40,19 @@ const notificationSettingsSchema = new mongoose.Schema({
   newMessages: { type: Boolean, default: true },
   superLikes:  { type: Boolean, default: true },
   promotions:  { type: Boolean, default: false },
+
+  // Push-notification toggles (device-token registration, see deviceService.js).
+  enabled:      { type: Boolean, default: true },
+  chatMessages: { type: Boolean, default: true },
+  matches:      { type: Boolean, default: true },
+}, { _id: false });
+
+const fcmTokenSchema = new mongoose.Schema({
+  token:       { type: String, required: true },
+  platform:    { type: String, enum: ['ios', 'android'], required: true },
+  deviceId:    { type: String, required: true },
+  lastUpdated: { type: Date, default: Date.now },
+  active:      { type: Boolean, default: true },
 }, { _id: false });
 
 const userSettingsSchema = new mongoose.Schema({
@@ -68,6 +81,7 @@ const userSchema = new mongoose.Schema({
   preferences:          { type: preferencesSchema, default: () => ({}) },
   notificationSettings: { type: notificationSettingsSchema, default: () => ({}) },
   settings:             { type: userSettingsSchema, default: () => ({}) },
+  fcmTokens:            { type: [fcmTokenSchema], default: [] },
 
   // Auth-related
   verificationCode:         { type: String, default: null },
