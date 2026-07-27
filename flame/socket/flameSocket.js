@@ -15,7 +15,8 @@ const room = (userId) => `flame_user_${userId}`;
 // showOnlineStatus lives under User.preferences (flame/models/User.js), defaulting to
 // true. Fall back to true (presence on) if the doc/field is missing for any reason.
 function getShowOnlineStatus(userDoc) {
-  return !!(userDoc && (!userDoc.preferences || userDoc.preferences.showOnlineStatus !== false));
+  if (!userDoc || !userDoc.preferences) return true;
+  return userDoc.preferences.showOnlineStatus !== false;
 }
 
 function initFlameSocket(io) {
@@ -38,6 +39,19 @@ function initFlameSocket(io) {
     const userId = socket.userId;
     socket.join(room(userId));
 
+    // Mark online SYNCHRONOUSLY, before any await, mirroring the disconnect
+    // handler's synchronous markOffline. If this were deferred past an
+    // `await`, a disconnect racing during that await would run markOffline
+    // first (no-op on a still-zero count), and the resumed connect flow
+    // would then call markOnline — leaving the count stuck at 1 forever
+    // (user permanently reported online).
+    let nowOnline = false;
+    try {
+      nowOnline = presenceService.markOnline(userId);
+    } catch (_) {
+      nowOnline = false;
+    }
+
     // Online presence: partners-only, respects each user's showOnlineStatus.
     // Best-effort — never let a presence lookup crash the socket connection.
     (async () => {
@@ -48,12 +62,13 @@ function initFlameSocket(io) {
       }
 
       try {
-        const nowOnline = presenceService.markOnline(userId);
         const me = await User.findById(userId).lean();
         const showOnlineStatus = getShowOnlineStatus(me);
         socket.showOnlineStatus = showOnlineStatus;
 
-        if (showOnlineStatus && nowOnline) {
+        // Guard against a socket that already disconnected while we were
+        // awaiting the lookups above — don't broadcast a stale "online".
+        if (socket.connected && showOnlineStatus && nowOnline) {
           for (const partnerId of socket.partnerIds) {
             ns.to(room(partnerId)).emit('presence', { user_id: userId, online: true });
           }
