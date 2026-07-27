@@ -73,4 +73,16 @@ function emitRead(io, userId, conversationId) {
   io.of(NS).to(room(userId)).emit('read', { conversation_id: conversationId });
 }
 
-module.exports = { initFlameSocket, emitNewMessage, emitRead };
+// Push an edited message to its receiver's room. Best-effort; callers guard.
+function emitMessageEdited(io, receiverId, message) {
+  if (!io || !receiverId) return;
+  io.of(NS).to(room(receiverId)).emit('message:edited', message);
+}
+
+// Push a deleted message to its receiver's room. Best-effort; callers guard.
+function emitMessageDeleted(io, receiverId, message) {
+  if (!io || !receiverId) return;
+  io.of(NS).to(room(receiverId)).emit('message:deleted', message);
+}
+
+module.exports = { initFlameSocket, emitNewMessage, emitRead, emitMessageEdited, emitMessageDeleted };

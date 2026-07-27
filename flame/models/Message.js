@@ -17,6 +17,8 @@ const messageSchema = new mongoose.Schema(
     replyTo: { type: String, default: null },
     read: { type: Boolean, default: false },
     readAt: { type: Date, default: null },
+    isEdited: { type: Boolean, default: false },
+    editedAt: { type: Date, default: null },
     isDeleted: { type: Boolean, default: false },
     deletedFor: { type: [String], default: [] },
   },

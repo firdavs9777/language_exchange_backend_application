@@ -16,6 +16,9 @@ function toMessage(m) {
     reply_to: m.replyTo || null,
     read: m.read,
     read_at: m.readAt ? m.readAt.toISOString() : null,
+    is_edited: m.isEdited || false,
+    edited_at: m.editedAt ? m.editedAt.toISOString() : null,
+    is_deleted: m.isDeleted || false,
     created_at: m.createdAt ? m.createdAt.toISOString() : null,
   };
 }
@@ -83,7 +86,7 @@ async function listConversations(userId, { limit, offset }) {
 async function getMessages(userId, conversationId, { limit, offset }) {
   const conv = await _findConversation(conversationId);
   _assertParticipant(conv, userId);
-  const filter = { conversationId, isDeleted: false };
+  const filter = { conversationId, isDeleted: false, deletedFor: { $ne: userId } };
   const total = await Message.countDocuments(filter);
   const msgs = await Message.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit);
   return { messages: msgs.map(toMessage), total };
@@ -155,8 +158,49 @@ async function removeReaction(userId, messageId) {
   return toMessage(m);
 }
 
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+const DELETE_WINDOW_MS = 60 * 60 * 1000;
+
+async function editMessage(userId, messageId, text) {
+  const m = await _findMessage(messageId);
+  if (m.sender !== userId) throw new FlameError('FORBIDDEN', 'not your message', 403);
+  if (m.isDeleted) throw new ValidationError('cannot edit a deleted message');
+  if (Date.now() - m.createdAt.getTime() > EDIT_WINDOW_MS) {
+    throw new FlameError('EDIT_WINDOW_EXPIRED', 'edit window passed', 422);
+  }
+  m.text = text;
+  m.isEdited = true;
+  m.editedAt = new Date();
+  await m.save();
+  return toMessage(m);
+}
+
+async function deleteMessage(userId, messageId, scope) {
+  const m = await _findMessage(messageId);
+  _assertMessageParticipant(m, userId);
+  if (scope === 'everyone') {
+    if (m.sender !== userId) throw new FlameError('FORBIDDEN', 'not your message', 403);
+    if (Date.now() - m.createdAt.getTime() > DELETE_WINDOW_MS) {
+      throw new FlameError('DELETE_WINDOW_EXPIRED', 'delete window passed', 422);
+    }
+    m.isDeleted = true;
+    m.text = '';
+    await m.save();
+    return {
+      message: toMessage(m),
+      scope: 'everyone',
+      receiver_id: m.receiver === userId ? m.sender : m.receiver,
+    };
+  }
+  if (!m.deletedFor.includes(userId)) {
+    m.deletedFor.push(userId);
+    await m.save();
+  }
+  return { message: toMessage(m), scope: 'me' };
+}
+
 module.exports = {
   openConversation, listConversations, getMessages, sendMessage, markRead,
-  addReaction, removeReaction,
+  addReaction, removeReaction, editMessage, deleteMessage,
   toConversation, toMessage,
 };

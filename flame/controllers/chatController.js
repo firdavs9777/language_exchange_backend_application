@@ -60,7 +60,30 @@ async function removeReaction(req, res) {
   res.json({ success: true, data });
 }
 
+async function editMessage(req, res) {
+  const data = await chatService.editMessage(req.user.id, req.params.id, req.body.text);
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      const otherId = data.sender_id === req.user.id ? data.receiver_id : data.sender_id;
+      require('../socket/flameSocket').emitMessageEdited(io, otherId, data);
+    }
+  } catch (_) { /* realtime is best-effort */ }
+  res.json({ success: true, data });
+}
+
+async function deleteMessage(req, res) {
+  const result = await chatService.deleteMessage(req.user.id, req.params.id, req.query.scope || 'me');
+  try {
+    const io = req.app.get('io');
+    if (io && result.scope === 'everyone') {
+      require('../socket/flameSocket').emitMessageDeleted(io, result.receiver_id, result.message);
+    }
+  } catch (_) { /* realtime is best-effort */ }
+  res.json({ success: true, data: result.message });
+}
+
 module.exports = {
   listConversations, openConversation, getMessages, sendMessage, markRead,
-  addReaction, removeReaction,
+  addReaction, removeReaction, editMessage, deleteMessage,
 };
