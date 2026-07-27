@@ -26,11 +26,16 @@ function toMessage(m) {
 function toConversation(c, forUserId, lastMessageDoc, otherUserDoc) {
   const other = c.participants.find((p) => p !== forUserId) || null;
   const mine = (c.unreadCount || []).find((u) => u.user === forUserId);
+  const lastMessageHiddenForViewer = !!(
+    lastMessageDoc
+    && Array.isArray(lastMessageDoc.deletedFor)
+    && lastMessageDoc.deletedFor.includes(forUserId)
+  );
   return {
     id: c._id.toString(),
     other_user_id: other,
     other_user: otherUserDoc ? toDiscoverUser(otherUserDoc) : null,
-    last_message: lastMessageDoc ? toMessage(lastMessageDoc) : null,
+    last_message: (lastMessageDoc && !lastMessageHiddenForViewer) ? toMessage(lastMessageDoc) : null,
     last_message_at: c.lastMessageAt ? c.lastMessageAt.toISOString() : null,
     unread_count: mine ? mine.count : 0,
     created_at: c.createdAt ? c.createdAt.toISOString() : null,

@@ -204,6 +204,33 @@ test('delete-for-me hides the message from the deleter but not the other partici
   assert.equal(threadB.body.data.messages[0].text, 'original text');
 });
 
+test('delete-for-me hides the message from the conversation-list preview (per-user)', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const { msgId } = await openAndSend(app, a, b, 'last message preview text');
+
+  // B sees the preview before deleting.
+  const listBBefore = await request(app).get('/flamebackend/v1/conversations')
+    .set(authH(b.token)).expect(200);
+  assert.equal(listBBefore.body.data.conversations[0].last_message.text, 'last message preview text');
+
+  // B deletes it for themself only.
+  await request(app).delete(`/flamebackend/v1/messages/${msgId}`)
+    .set(authH(b.token)).expect(200);
+
+  // B no longer sees a preview for that conversation.
+  const listBAfter = await request(app).get('/flamebackend/v1/conversations')
+    .set(authH(b.token)).expect(200);
+  assert.equal(listBAfter.body.data.conversations[0].last_message, null);
+
+  // A (who didn't delete it) still sees the preview text.
+  const listA = await request(app).get('/flamebackend/v1/conversations')
+    .set(authH(a.token)).expect(200);
+  assert.equal(listA.body.data.conversations[0].last_message.text, 'last message preview text');
+});
+
 test('deleting requires auth (401)', async (t) => {
   const app = await setup();
   t.after(teardown);
