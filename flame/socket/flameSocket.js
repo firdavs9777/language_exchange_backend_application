@@ -5,9 +5,18 @@
 // namespace (initializeSocket) or the Fitbowl namespace (io.of('/fitbowl')).
 // A BananaTalk/Fitbowl token cannot authenticate here, and vice versa.
 const { verifyAccess } = require('../utils/jwt');
+const chatService = require('../services/chatService');
+const presenceService = require('../services/presenceService');
+const User = require('../models/User');
 
 const NS = '/flame';
 const room = (userId) => `flame_user_${userId}`;
+
+// showOnlineStatus lives under User.preferences (flame/models/User.js), defaulting to
+// true. Fall back to true (presence on) if the doc/field is missing for any reason.
+function getShowOnlineStatus(userDoc) {
+  return !!(userDoc && (!userDoc.preferences || userDoc.preferences.showOnlineStatus !== false));
+}
 
 function initFlameSocket(io) {
   const ns = io.of(NS);
@@ -28,6 +37,41 @@ function initFlameSocket(io) {
   ns.on('connection', (socket) => {
     const userId = socket.userId;
     socket.join(room(userId));
+
+    // Online presence: partners-only, respects each user's showOnlineStatus.
+    // Best-effort — never let a presence lookup crash the socket connection.
+    (async () => {
+      try {
+        socket.partnerIds = await chatService.partnerIdsOf(userId);
+      } catch (_) {
+        socket.partnerIds = [];
+      }
+
+      try {
+        const nowOnline = presenceService.markOnline(userId);
+        const me = await User.findById(userId).lean();
+        const showOnlineStatus = getShowOnlineStatus(me);
+        socket.showOnlineStatus = showOnlineStatus;
+
+        if (showOnlineStatus && nowOnline) {
+          for (const partnerId of socket.partnerIds) {
+            ns.to(room(partnerId)).emit('presence', { user_id: userId, online: true });
+          }
+        }
+
+        const onlinePartnerIds = presenceService.onlineAmong(socket.partnerIds);
+        let bulkOnline = [];
+        if (onlinePartnerIds.length) {
+          const partnerDocs = await User.find({ _id: { $in: onlinePartnerIds } }).lean();
+          bulkOnline = partnerDocs
+            .filter((doc) => getShowOnlineStatus(doc))
+            .map((doc) => doc._id.toString());
+        }
+        socket.emit('presence:bulk', { online: bulkOnline });
+      } catch (_) {
+        // Presence is best-effort; ignore failures (e.g. DB unavailable).
+      }
+    })();
 
     // Relay typing to the other participant's room (best-effort).
     socket.on('typing', (data) => {
@@ -56,7 +100,18 @@ function initFlameSocket(io) {
       }
     });
 
-    socket.on('disconnect', () => {});
+    socket.on('disconnect', () => {
+      try {
+        const nowOffline = presenceService.markOffline(userId);
+        if (nowOffline && socket.showOnlineStatus) {
+          for (const partnerId of socket.partnerIds || []) {
+            ns.to(room(partnerId)).emit('presence', { user_id: userId, online: false });
+          }
+        }
+      } catch (_) {
+        // Presence is best-effort; ignore failures.
+      }
+    });
   });
 
   return ns;

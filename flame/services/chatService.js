@@ -133,6 +133,17 @@ async function markRead(userId, conversationId) {
   return { marked: result.modifiedCount || 0 };
 }
 
+// Distinct ids of every user who shares a Conversation with userId ("chat partners").
+async function partnerIdsOf(userId) {
+  const convs = await Conversation.find({ participants: userId }).lean();
+  const ids = new Set();
+  for (const c of convs) {
+    const other = (c.participants || []).find((p) => p !== userId);
+    if (other) ids.add(other);
+  }
+  return [...ids];
+}
+
 async function _findMessage(messageId) {
   let m = null;
   try { m = await Message.findById(messageId); } catch (_) { m = null; }
@@ -206,6 +217,6 @@ async function deleteMessage(userId, messageId, scope) {
 
 module.exports = {
   openConversation, listConversations, getMessages, sendMessage, markRead,
-  addReaction, removeReaction, editMessage, deleteMessage,
+  addReaction, removeReaction, editMessage, deleteMessage, partnerIdsOf,
   toConversation, toMessage,
 };
