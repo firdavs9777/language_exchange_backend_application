@@ -63,7 +63,11 @@ const userSettingsSchema = new mongoose.Schema({
 
 const userSchema = new mongoose.Schema({
   email:        { type: String, required: true, unique: true, lowercase: true, trim: true },
-  passwordHash: { type: String, required: true },
+  passwordHash: {
+    type: String,
+    required: function () { return !this.googleId && !this.appleId && !this.facebookId; },
+    default: null,
+  },
   name:         { type: String, required: true, minlength: 2, maxlength: 50 },
   age:          { type: Number, required: true, min: 18, max: 100 },
   gender:       { type: String, enum: GENDERS, required: true },
@@ -106,6 +110,7 @@ const userSchema = new mongoose.Schema({
   googleId:   { type: String, default: null, sparse: true },
   appleId:    { type: String, default: null, sparse: true },
   facebookId: { type: String, default: null, sparse: true },
+  profileComplete: { type: Boolean, default: true },
 }, {
   timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' },
   collection: 'users',

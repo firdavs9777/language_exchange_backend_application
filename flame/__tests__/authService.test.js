@@ -40,6 +40,46 @@ test('authService.register creates user + tokens + persists refresh jti', async 
   });
 });
 
+test('authService.register persists location + photos when provided', async (t) => {
+  await setupEnv();
+  const authService = require('../services/authService');
+  const User = require('../models/User');
+
+  const { user } = await authService.register({
+    email: 'geo@x.com', password: 'Hunter2!!', name: 'Geo',
+    age: 28, gender: 'female', lookingFor: 'male', interests: ['x'],
+    latitude: 37.77, longitude: -122.42,
+    photos: ['https://cdn.x/a.jpg', 'https://cdn.x/b.jpg'],
+  });
+
+  const doc = await User.findById(user.id);
+  assert.deepEqual(doc.locationGeo.coordinates, [-122.42, 37.77]); // [lng, lat]
+  assert.equal(doc.location.coordinates.latitude, 37.77);
+  assert.equal(doc.location.coordinates.longitude, -122.42);
+  assert.equal(doc.photos.length, 2);
+  assert.equal(doc.photos[0].isPrimary, true);
+  assert.equal(doc.photos[1].isPrimary, false);
+
+  t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
+});
+
+test('authService.register without location/photos succeeds and leaves location null', async (t) => {
+  await setupEnv();
+  const authService = require('../services/authService');
+  const User = require('../models/User');
+
+  const { user } = await authService.register({
+    email: 'noloc@x.com', password: 'Hunter2!!', name: 'No',
+    age: 28, gender: 'male', lookingFor: 'female', interests: ['x'],
+  });
+
+  const doc = await User.findById(user.id);
+  assert.equal(doc.location, null);
+  assert.equal(doc.photos.length, 0);
+
+  t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
+});
+
 test('authService.register rejects duplicate email with ConflictError', async (t) => {
   await setupEnv();
   const authService = require('../services/authService');

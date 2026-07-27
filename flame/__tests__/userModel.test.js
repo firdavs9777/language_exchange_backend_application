@@ -39,3 +39,35 @@ test('User model: create + unique email + geosphere index present', async (t) =>
 
   t.after(async () => { await close(); await dbHelper.stop(); });
 });
+
+test('User model: social user with googleId and no passwordHash validates + saves', async (t) => {
+  await dbHelper.start();
+  process.env.FLAME_JWT_SECRET = 'a'.repeat(32);
+  process.env.FLAME_JWT_REFRESH_SECRET = 'b'.repeat(32);
+  process.env.FLAME_SPACES_BUCKET = 't';
+  process.env.SPACES_ENDPOINT = 'e';
+  process.env.DO_SPACES_KEY = 'k';
+  process.env.DO_SPACES_SECRET = 's';
+
+  delete require.cache[require.resolve('../db')];
+  delete require.cache[require.resolve('../models/User')];
+  const { connect, close } = require('../db');
+  await connect();
+  const User = require('../models/User');
+
+  const u = await User.create({
+    email: 'social@b.com', googleId: 'g-123',
+    name: 'Soc', age: 25, gender: 'other', lookingFor: 'other', interests: [],
+  });
+  assert.ok(u._id);
+  assert.equal(u.passwordHash, null);
+  assert.equal(u.googleId, 'g-123');
+
+  // A user with neither social id nor passwordHash fails validation.
+  await assert.rejects(
+    User.create({ email: 'nopass@b.com', name: 'Np', age: 25, gender: 'male', lookingFor: 'female', interests: [] }),
+    /passwordHash/i,
+  );
+
+  t.after(async () => { await close(); await dbHelper.stop(); });
+});

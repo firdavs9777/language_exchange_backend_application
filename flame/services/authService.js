@@ -52,7 +52,7 @@ async function register(input) {
   const passwordHash = await password.hash(input.password);
   let user;
   try {
-    user = await User.create({
+    const doc = {
       email: input.email.toLowerCase().trim(),
       passwordHash,
       name: input.name,
@@ -61,7 +61,17 @@ async function register(input) {
       lookingFor: input.lookingFor,
       interests: input.interests,
       bio: input.bio,
-    });
+    };
+    if (typeof input.latitude === 'number' && typeof input.longitude === 'number') {
+      doc.location = { coordinates: { latitude: input.latitude, longitude: input.longitude } };
+      doc.locationGeo = { type: 'Point', coordinates: [input.longitude, input.latitude] };
+    }
+    if (Array.isArray(input.photos) && input.photos.length) {
+      doc.photos = input.photos.map((url, i) => ({
+        id: `${Date.now()}_${i}`, url, isPrimary: i === 0, order: i,
+      }));
+    }
+    user = await User.create(doc);
   } catch (e) {
     if (e.code === 11000) throw new ConflictError('EMAIL_TAKEN', 'Email is already registered');
     throw e;

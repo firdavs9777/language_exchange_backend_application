@@ -16,6 +16,9 @@ const registerSchema = z.object({
   lookingFor: z.enum(GENDERS),
   bio:        z.string().max(500).optional(),
   interests:  z.array(z.string().min(1)).min(1).max(10),
+  latitude:   z.number().min(-90).max(90).optional(),
+  longitude:  z.number().min(-180).max(180).optional(),
+  photos:     z.array(z.string().url()).max(9).optional(),
 });
 
 const loginSchema = z.object({
