@@ -42,6 +42,18 @@ async function sendMessage(req, res) {
     const io = req.app.get('io');
     if (io) require('../socket/flameSocket').emitNewMessage(io, data.receiver_id, data);
   } catch (_) { /* realtime is best-effort */ }
+  // Best-effort push notification to the receiver. Guarded no-op until
+  // Firebase is configured for flame (see services/pushService.js) — never
+  // let a push failure affect the REST send.
+  try {
+    require('../services/pushService')
+      .sendChatMessage(data.receiver_id, {
+        senderName: req.user.id,
+        text: data.text,
+        conversationId: data.conversation_id,
+      })
+      .catch(() => {});
+  } catch (_) { /* push is best-effort */ }
   res.status(201).json({ success: true, data });
 }
 
