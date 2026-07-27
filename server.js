@@ -143,6 +143,17 @@ try {
   console.error('[flame] socket init failed (non-fatal):', e.message);
 }
 
+// Auto-activate the flame email scheduler when FLAME_MAILGUN_* env vars are
+// present; startEmailScheduler() is inert (no-op, no timers) until then, so
+// this is safe to always call. Guarded exactly like the flame socket init
+// above so a load-time or runtime failure here can never crash the shared
+// server or affect BananaTalk / FitBowl.
+try {
+  require('./flame/services/emailScheduler').startEmailScheduler();
+} catch (e) {
+  console.error('[flame] email scheduler init failed (non-fatal):', e.message);
+}
+
 // Make io accessible to routes
 app.set('io', io);
 

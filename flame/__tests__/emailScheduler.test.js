@@ -49,8 +49,8 @@ test('msUntil: is always positive and within 24h across several cases', () => {
 });
 
 test('startEmailScheduler(): inert (no throw, no pending timers) when email unconfigured', () => {
-  delete process.env.MAILGUN_API_KEY;
-  delete process.env.MAILGUN_DOMAIN;
+  delete process.env.FLAME_MAILGUN_API_KEY;
+  delete process.env.FLAME_MAILGUN_DOMAIN;
   // Force a fresh require so isConfigured() re-reads current env.
   delete require.cache[require.resolve('../services/emailScheduler')];
   delete require.cache[require.resolve('../utils/sendEmail')];

@@ -5,16 +5,16 @@ const assert = require('node:assert/strict');
 // and emailService must be no-ops (never throw) in that state, and the
 // template builders are pure/deterministic and can be asserted directly.
 
-test('isConfigured() is false when MAILGUN_API_KEY/MAILGUN_DOMAIN are unset', () => {
-  delete process.env.MAILGUN_API_KEY;
-  delete process.env.MAILGUN_DOMAIN;
+test('isConfigured() is false when FLAME_MAILGUN_API_KEY/FLAME_MAILGUN_DOMAIN are unset', () => {
+  delete process.env.FLAME_MAILGUN_API_KEY;
+  delete process.env.FLAME_MAILGUN_DOMAIN;
   const { isConfigured } = require('../utils/sendEmail');
   assert.equal(isConfigured(), false);
 });
 
 test('sendEmail() returns {skipped:true} and never throws when unconfigured', async () => {
-  delete process.env.MAILGUN_API_KEY;
-  delete process.env.MAILGUN_DOMAIN;
+  delete process.env.FLAME_MAILGUN_API_KEY;
+  delete process.env.FLAME_MAILGUN_DOMAIN;
   const { sendEmail } = require('../utils/sendEmail');
 
   const result = await sendEmail({
@@ -43,8 +43,8 @@ test('emailTemplates.passwordChanged({name}) includes the name in subject/html/t
 });
 
 test('emailService.sendWelcome() is skipped (unconfigured) for a user with an email, no throw', async () => {
-  delete process.env.MAILGUN_API_KEY;
-  delete process.env.MAILGUN_DOMAIN;
+  delete process.env.FLAME_MAILGUN_API_KEY;
+  delete process.env.FLAME_MAILGUN_DOMAIN;
   const emailService = require('../services/emailService');
 
   const result = await emailService.sendWelcome({ email: 'a@x.com', name: 'Ann' });
@@ -61,8 +61,8 @@ test('emailService.sendWelcome() is skipped for a user with no email, no throw',
 });
 
 test('emailService.sendPasswordChanged() is skipped (unconfigured) for a user with an email, no throw', async () => {
-  delete process.env.MAILGUN_API_KEY;
-  delete process.env.MAILGUN_DOMAIN;
+  delete process.env.FLAME_MAILGUN_API_KEY;
+  delete process.env.FLAME_MAILGUN_DOMAIN;
   const emailService = require('../services/emailService');
 
   const result = await emailService.sendPasswordChanged({ email: 'a@x.com', name: 'Ann' });
