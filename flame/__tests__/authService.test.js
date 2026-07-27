@@ -126,6 +126,26 @@ test('login: throws AuthError on wrong password', async (t) => {
   t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
 });
 
+test('login: social-only account (null passwordHash) rejects with AuthError, not a 500', async (t) => {
+  await setupEnv();
+  const authService = require('../services/authService');
+  const User = require('../models/User');
+  const { AuthError } = require('../utils/errors');
+
+  // A social-only user has googleId set and passwordHash null.
+  await User.create({
+    email: 'socialonly@x.com', googleId: 'g-social-1',
+    name: 'Soc', age: 25, gender: 'other', lookingFor: 'other', interests: [],
+  });
+
+  await assert.rejects(
+    authService.login({ email: 'socialonly@x.com', password: 'whatever!!' }),
+    (e) => e instanceof AuthError && e.code === 'INVALID_CREDENTIALS',
+  );
+
+  t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
+});
+
 test('refresh: rotates refresh token (old jti revoked)', async (t) => {
   await setupEnv();
   const authService = require('../services/authService');

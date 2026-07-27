@@ -96,6 +96,12 @@ async function login({ email, password: plain }) {
   if (!user || user.isDeleted) {
     throw new AuthError('INVALID_CREDENTIALS', 'Invalid email or password');
   }
+  // Social-only accounts have no passwordHash. Reject with the SAME 401 as any
+  // bad credential (never a raw bcrypt crash → 500, which would leak that the
+  // email exists as a social-only account — a user-enumeration oracle).
+  if (!user.passwordHash) {
+    throw new AuthError('INVALID_CREDENTIALS', 'Invalid email or password');
+  }
   const ok = await password.compare(plain, user.passwordHash);
   if (!ok) {
     throw new AuthError('INVALID_CREDENTIALS', 'Invalid email or password');

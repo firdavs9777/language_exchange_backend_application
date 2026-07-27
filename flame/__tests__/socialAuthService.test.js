@@ -107,6 +107,50 @@ test('findOrCreate: does NOT link when email is unverified (creates new user)', 
   t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
 });
 
+test('findOrCreate: concurrent first-logins for same provider id resolve to one user (11000 fallback)', async (t) => {
+  await setupEnv();
+  const socialAuthService = require('../services/socialAuthService');
+  const User = require('../models/User');
+
+  const payload = { providerId: 'g-race', email: 'race@x.com', name: 'Race', emailVerified: true };
+  // Both reach step 3 and try to insert the same unique email; one wins, the
+  // loser hits E11000 and the fallback re-finds by provider id.
+  const [a, b] = await Promise.all([
+    socialAuthService.findOrCreate('google', payload),
+    socialAuthService.findOrCreate('google', payload),
+  ]);
+
+  assert.equal(a.user.id, b.user.id); // same resolved user, no 500
+  const docs = await User.find({ googleId: 'g-race' });
+  assert.equal(docs.length, 1); // exactly one row created
+
+  t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
+});
+
+test('findOrCreate: unverified provider email is NEVER stored (uses synthetic even when no collision)', async (t) => {
+  await setupEnv();
+  const socialAuthService = require('../services/socialAuthService');
+  const User = require('../models/User');
+
+  // Brand-new provider id, unverified email, and NO existing user owns it.
+  const res = await socialAuthService.findOrCreate('google', {
+    providerId: 'g-unv', email: 'unverified@x.com', name: 'Unv', emailVerified: false,
+  });
+
+  assert.equal(res.isNew, true);
+  assert.equal(res.user.email, 'google_g-unv@social.flame'); // synthetic, NOT the provider email
+
+  // The raw provider email is not queryable as this user's email.
+  const byRaw = await User.findOne({ email: 'unverified@x.com' });
+  assert.equal(byRaw, null);
+
+  const doc = await User.findById(res.user.id);
+  assert.equal(doc.email, 'google_g-unv@social.flame');
+  assert.equal(doc.googleId, 'g-unv');
+
+  t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
+});
+
 test('findOrCreate: sets correct id field for facebook and apple', async (t) => {
   await setupEnv();
   const socialAuthService = require('../services/socialAuthService');

@@ -63,6 +63,13 @@ test('POST /auth/check-email: available true for fresh email, false after regist
   const bad = await request(app).post(`${BASE}/auth/check-email`).send({ email: 'not-an-email' }).expect(422);
   assert.equal(bad.body.error.code, 'VALIDATION');
 
+  // Soft-deleted user's email must STILL report unavailable: the unique email
+  // index holds the row, so register would 409. check-email must reflect that.
+  const User = require('../models/User');
+  await User.updateOne({ email: 'taken@x.com' }, { $set: { isDeleted: true, deletedAt: new Date() } });
+  const softDeleted = await request(app).post(`${BASE}/auth/check-email`).send({ email: 'taken@x.com' }).expect(200);
+  assert.equal(softDeleted.body.data.available, false);
+
   t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
 });
 

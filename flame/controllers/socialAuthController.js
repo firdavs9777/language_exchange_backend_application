@@ -1,4 +1,4 @@
-const { FlameError, ValidationError } = require('../utils/errors');
+const { FlameError } = require('../utils/errors');
 const socialVerify = require('../utils/socialVerify');
 const socialAuthService = require('../services/socialAuthService');
 const User = require('../models/User');
@@ -37,7 +37,9 @@ async function facebook(req, res) {
 
 async function checkEmail(req, res) {
   const email = String(req.body.email || '').toLowerCase().trim();
-  const exists = await User.exists({ email, isDeleted: { $ne: true } });
+  // No isDeleted filter: the unique email index holds soft-deleted rows too, so
+  // register would 409 on them. check-email must reflect real registrability.
+  const exists = await User.exists({ email });
   res.json({ success: true, data: { available: !exists } });
 }
 
