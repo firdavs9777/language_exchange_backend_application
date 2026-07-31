@@ -4,7 +4,7 @@ const asyncHandler = require('../middleware/async');
 const Moment = require('../models/Moment');
 const Prompt = require('../models/Prompt');
 const ErrorResponse = require('../utils/errorResponse');
-const { processUserImages, processMomentImages } = require('../utils/imageUtils');
+const { processUserImages, processMomentImages, toCdnUrl } = require('../utils/imageUtils');
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
 const { getVideoConstraints } = require('../utils/videoUtils');
@@ -718,7 +718,7 @@ exports.momentPhotoUpload = asyncHandler(async (req, res, next) => {
     data: {
       _id: moment._id,
       images: moment.images,
-      imageUrls: moment.images // Same as images now (already full URLs)
+      imageUrls: (moment.images || []).map(toCdnUrl)
     }
   });
 });

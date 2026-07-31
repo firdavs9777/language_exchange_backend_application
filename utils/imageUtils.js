@@ -3,25 +3,27 @@
  * Centralized functions for generating image URLs
  */
 
+// Public base URL for serving Spaces objects. In prod this is the custom CDN
+// subdomain (e.g. https://cdn.banatalk.com); falls back to the DO CDN endpoint.
+const CDN_BASE = (
+  process.env.SPACES_CDN_URL || 'https://my-projects-media.sfo3.cdn.digitaloceanspaces.com'
+).replace(/\/+$/, '');
+
 /**
- * Convert DigitalOcean Spaces URL to CDN URL
- * Converts: https://bucket.region.digitaloceanspaces.com/...
- * To:       https://bucket.region.cdn.digitaloceanspaces.com/...
+ * Rewrite a stored DigitalOcean Spaces URL to the configured CDN base.
+ * Handles both the origin host (bucket.region.digitaloceanspaces.com) and the
+ * DO CDN host (bucket.region.cdn.digitaloceanspaces.com), preserving the object
+ * path. Non-Spaces URLs (e.g. Google/Apple/Facebook avatars) are returned as-is.
  */
 exports.toCdnUrl = (url) => {
   if (!url || typeof url !== 'string') return url;
 
-  // Already a CDN URL
-  if (url.includes('.cdn.digitaloceanspaces.com')) {
-    return url;
-  }
+  // Only rewrite DigitalOcean Spaces URLs; leave any other host untouched.
+  const match = url.match(/^https?:\/\/[^/]+\.digitaloceanspaces\.com(\/.*)?$/i);
+  if (!match) return url;
 
-  // Convert non-CDN Spaces URL to CDN URL
-  if (url.includes('.digitaloceanspaces.com')) {
-    return url.replace('.digitaloceanspaces.com', '.cdn.digitaloceanspaces.com');
-  }
-
-  return url;
+  const path = match[1] || '';
+  return `${CDN_BASE}${path}`;
 };
 
 /**

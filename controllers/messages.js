@@ -7,6 +7,7 @@ const deleteFromSpaces = require('../utils/deleteFromSpaces');
 const mongoose = require('mongoose');
 const { getBlockedUserIds } = require('../utils/blockingUtils');
 const { usersWithVisibleActiveStory } = require('../lib/activeStoryFlags');
+const { toCdnUrl } = require('../utils/imageUtils');
 
 /**
  * @desc    Create a new conversation room between users
@@ -227,12 +228,12 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       // Ensure sender and receiver are not null
       const sender = message.sender ? {
         ...message.sender,
-        imageUrls: message.sender.images || []
+        imageUrls: (message.sender.images || []).map(toCdnUrl)
       } : { imageUrls: [] };
-    
+
       const receiver = message.receiver ? {
         ...message.receiver,
-        imageUrls: message.receiver.images || []
+        imageUrls: (message.receiver.images || []).map(toCdnUrl)
       } : { imageUrls: [] };
     
       return {
@@ -481,10 +482,14 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       return true;
     });
 
-    // Remove deletedBy from response (not needed by frontend)
+    // Remove deletedBy from response (not needed by frontend) and rewrite
+    // image URLs to the configured CDN base (aggregation can't call toCdnUrl).
     const cleanedSenders = filteredSenders.map(sender => {
       const { deletedBy, ...rest } = sender;
-      return rest;
+      return {
+        ...rest,
+        imageUrls: Array.isArray(rest.imageUrls) ? rest.imageUrls.map(toCdnUrl) : rest.imageUrls
+      };
     });
 
     // Story rings: one batched query for the whole page (no N+1) —
@@ -553,11 +558,11 @@ exports.createConversationRoom = asyncHandler(async (req, res, next) => {
       ...message,
       sender: {
         ...message.sender,
-        imageUrls: message.sender?.images || []
+        imageUrls: (message.sender?.images || []).map(toCdnUrl)
       },
       receiver: {
         ...message.receiver,
-        imageUrls: message.receiver?.images || []
+        imageUrls: (message.receiver?.images || []).map(toCdnUrl)
       }
     }));
 
@@ -917,11 +922,11 @@ exports.getConversationRooms = asyncHandler(async (req, res, next) => {
       ...message,
       sender: {
         ...message.sender,
-        imageUrls: message.sender?.images || []
+        imageUrls: (message.sender?.images || []).map(toCdnUrl)
       },
       receiver: {
         ...message.receiver,
-        imageUrls: message.receiver?.images || []
+        imageUrls: (message.receiver?.images || []).map(toCdnUrl)
       }
     }));
 

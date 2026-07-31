@@ -10,6 +10,7 @@ const FacebookStrategy = require('passport-facebook').Strategy;
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const jwt = require('jsonwebtoken');
 const { logSecurityEvent } = require('../utils/securityLogger');
+const { toCdnUrl } = require('../utils/imageUtils');
 const { t: emailT, resolveEmailLocale, isRtl: emailIsRtl } = require('../services/emailTemplateService');
 const { normalizeLocale } = require('../lib/normalizeLocale');
 const { getDeviceInfo, detectPlatform, pickClientInfo } = require('../validators/authValidator');
@@ -1533,7 +1534,7 @@ function processUserImages(user, req) {
     userObject.imageUrls = user.images.map(image => {
       // Check if image is already a full URL (OAuth providers like Google/Facebook)
       if (image.startsWith('http://') || image.startsWith('https://')) {
-        return image;
+        return toCdnUrl(image);
       }
       // For local file uploads, construct the full URL
       return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`;

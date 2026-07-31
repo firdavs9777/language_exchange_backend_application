@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Moment = require('../models/Moment')
 const ErrorResponse = require('../utils/errorResponse');
 const { getBlockedUserIds, checkBlockStatus, addBlockingFilter } = require('../utils/blockingUtils');
+const { toCdnUrl } = require('../utils/imageUtils');
 
 //@desc Get all comments
 //@route Get /api/v1/:momentId/comments
@@ -54,7 +55,7 @@ exports.getComments = asyncHandler(async (req, res, next) => {
             ...comment,
             user: {
                 ...comment.user,
-                imageUrls: userImages
+                imageUrls: userImages.map(toCdnUrl)
             }
         };
     });
@@ -86,9 +87,7 @@ exports.getComment = asyncHandler(async (req, res, next) => {
 
     // Extract user images and map them to URLs
     const userImages = comment.user.images || [];
-    const imageUrls = userImages.map(image =>
-        image
-    );
+    const imageUrls = userImages.map(toCdnUrl);
 
     // Construct the response object
     const commentWithImages = {
@@ -300,7 +299,7 @@ exports.updateComment = asyncHandler(async (req, res, next) => {
         ...comment._doc,
         user: {
             ...comment.user._doc,
-            imageUrls: userImages
+            imageUrls: userImages.map(toCdnUrl)
         }
     };
 
@@ -497,7 +496,7 @@ exports.getReplies = asyncHandler(async (req, res, next) => {
         const userImages = reply.user?.images || [];
         return {
             ...reply,
-            user: { ...reply.user, imageUrls: userImages }
+            user: { ...reply.user, imageUrls: userImages.map(toCdnUrl) }
         };
     });
 

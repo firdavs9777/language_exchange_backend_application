@@ -2,7 +2,7 @@ const asyncHandler = require('../middleware/async');
 const User = require('../models/User');
 const UserInteraction = require('../models/UserInteraction');
 const ErrorResponse = require('../utils/errorResponse');
-const { processUserImages } = require('../utils/imageUtils');
+const { processUserImages, toCdnUrl } = require('../utils/imageUtils');
 const path = require('path');
 const fs = require('fs').promises;
 const deleteFromSpaces = require('../utils/deleteFromSpaces');
@@ -311,7 +311,7 @@ exports.getUsers = asyncHandler(async (req, res, next) => {
     if (user.images && Array.isArray(user.images) && user.images.length > 0) {
       imageUrls = user.images.map(image => {
         if (image.startsWith('http://') || image.startsWith('https://')) {
-          return image;
+          return toCdnUrl(image);
         }
         return `${req.protocol}://${req.get('host')}/uploads/${encodeURIComponent(image)}`;
       });
@@ -975,9 +975,7 @@ exports.getFollowers = asyncHandler(async (req, res, next) => {
 
   const followersWithImages = followers.map(follower => ({
     ...follower.toObject(),
-    imageUrls: follower.images.map(image => 
-      image
-    )
+    imageUrls: follower.images.map(image => toCdnUrl(image))
   }));
 
   res.status(200).json({
@@ -1014,9 +1012,7 @@ exports.getFollowing = asyncHandler(async (req, res, next) => {
 
   const followingWithImages = following.map(followedUser => ({
     ...followedUser.toObject(),
-    imageUrls: followedUser.images.map(image => 
-      image
-    )
+    imageUrls: followedUser.images.map(image => toCdnUrl(image))
   }));
 
   res.status(200).json({

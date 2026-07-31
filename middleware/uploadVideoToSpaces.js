@@ -90,7 +90,7 @@ const uploadSingleVideo = (fieldName, folder = 'bananatalk/moments/videos') => {
       // Video uploaded to S3, now validate duration
       try {
         // Ensure URL has correct format with CDN (Cloudflare or DO CDN fallback)
-        const cdnUrl = process.env.CDN_URL || 'https://my-projects-media.sfo3.cdn.digitaloceanspaces.com';
+        const cdnUrl = process.env.SPACES_CDN_URL || 'https://my-projects-media.sfo3.cdn.digitaloceanspaces.com';
         let videoUrl = req.file.location;
         if (!videoUrl.startsWith('https://')) {
           // Fix malformed URL from multer-s3
@@ -189,7 +189,7 @@ const generateThumbnail = async (req, res, next) => {
     }).promise();
 
     // Construct thumbnail URL with CDN (Cloudflare or DO CDN fallback)
-    const cdnUrl = process.env.CDN_URL || 'https://my-projects-media.sfo3.cdn.digitaloceanspaces.com';
+    const cdnUrl = process.env.SPACES_CDN_URL || 'https://my-projects-media.sfo3.cdn.digitaloceanspaces.com';
     req.videoMetadata.thumbnail = `${cdnUrl}/${thumbnailKey}`;
 
     // Clean up temp file

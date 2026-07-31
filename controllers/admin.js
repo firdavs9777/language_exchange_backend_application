@@ -6,6 +6,7 @@ const Message = require('../models/Message');
 const Moment = require('../models/Moment');
 const ErrorResponse = require('../utils/errorResponse');
 const banService = require('../services/banService');
+const { toCdnUrl } = require('../utils/imageUtils');
 
 // Fields the admin surface exposes per user. Richer than the public
 // /users/:id view (which omits ban + role metadata).
@@ -548,7 +549,7 @@ exports.getActivity = asyncHandler(async (req, res) => {
         const imgs = [
           ...((u.imageUrls || []).filter(Boolean)),
           ...((u.images || []).filter(Boolean)),
-        ];
+        ].map(toCdnUrl);
         return {
           id: u._id,
           name: u.name,

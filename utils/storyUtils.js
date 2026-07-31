@@ -2,6 +2,7 @@
  * Story Utilities
  * Helper functions for processing story data
  */
+const { toCdnUrl } = require('./imageUtils');
 
 /**
  * Process user object to include imageUrls array
@@ -15,7 +16,7 @@ const processStoryUser = (user) => {
 
   return {
     ...userObj,
-    imageUrls: userObj.images?.map(img => img) || []
+    imageUrls: userObj.images?.map(img => toCdnUrl(img)) || []
   };
 };
 
