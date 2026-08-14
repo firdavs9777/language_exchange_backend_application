@@ -56,14 +56,20 @@ if (!emailToCheck) {
     // ============================================
     console.log('\n📋 AUDIT LOG ENTRIES:\n');
 
-    const auditLogs = await auditCol.find({
-      $or: [
-        { userEmail: emailToCheck },
-        { email: emailToCheck },
-        { targetEmail: emailToCheck },
-        { 'details.email': emailToCheck }
-      ]
-    }).sort({ createdAt: -1, timestamp: -1 }).toArray();
+    // `targetEmail` is the canonical field; the others are legacy shapes kept
+    // so historical rows still turn up. If the user record still exists we
+    // also match on its _id, since older entries carry no email at all.
+    const auditOr = [
+      { targetEmail: emailToCheck },
+      { userEmail: emailToCheck },
+      { email: emailToCheck },
+      { 'details.email': emailToCheck }
+    ];
+    if (userExists) {
+      auditOr.push({ target: userExists._id }, { targetUser: userExists._id }, { moderator: userExists._id });
+    }
+    const auditLogs = await auditCol.find({ $or: auditOr })
+      .sort({ timestamp: -1 }).toArray();
 
     if (auditLogs.length === 0) {
       console.log('  No audit log entries found');
@@ -98,13 +104,17 @@ if (!emailToCheck) {
     // ============================================
     console.log('🔐 SECURITY LOG (Login Attempts on Missing Account):\n');
 
+    // NB: this collection stamps `timestamp`, not `createdAt` — sorting by
+    // createdAt silently ordered by a field that is null on every document.
+    // The old query also had a bare { 'details.reason': 'User not found' }
+    // clause with no email filter, so it pulled in other users' failures and
+    // reported them as this account's history.
     const securityLogs = await securityCol.find({
       $or: [
         { email: emailToCheck },
-        { 'details.email': emailToCheck },
-        { 'details.reason': 'User not found' }
+        { 'details.email': emailToCheck }
       ]
-    }).sort({ createdAt: -1 }).limit(20).toArray();
+    }).sort({ timestamp: -1 }).limit(200).toArray();
 
     const notFoundLogs = securityLogs.filter(log =>
       log.details &&
@@ -117,8 +127,8 @@ if (!emailToCheck) {
     } else {
       console.log(`  Found ${notFoundLogs.length} "User not found" events:\n`);
       notFoundLogs.slice(0, 5).forEach((log, index) => {
-        console.log(`${index + 1}. ${log.createdAt || log.timestamp}`);
-        console.log(`   IP: ${log.ipAddress || log.ip || 'unknown'}`);
+        console.log(`${index + 1}. ${log.timestamp || log.createdAt}`);
+        console.log(`   IP: ${(log.details && log.details.ipAddress) || log.ipAddress || log.ip || 'unknown'}`);
         console.log();
       });
 
@@ -141,21 +151,45 @@ if (!emailToCheck) {
       )
     );
 
+    // Distinct user ids this email has logged in under. More than one means
+    // the account was destroyed and re-created at least that many times.
+    const incarnations = [...new Set(
+      securityLogs.map(l => l.details && l.details.userId).filter(Boolean).map(String)
+    )];
+
     if (deletionLogs.length > 0) {
       console.log(`✅ DELETION FOUND:`);
       const latestDeletion = deletionLogs[0];
-      console.log(`   When: ${latestDeletion.createdAt || latestDeletion.timestamp}`);
+      console.log(`   When: ${latestDeletion.timestamp || latestDeletion.createdAt}`);
       console.log(`   Action: ${latestDeletion.action}`);
-      console.log(`   By: ${latestDeletion.moderator === emailToCheck ? 'USER (self-deleted)' : 'ADMIN'}`);
-      if (latestDeletion.details) {
-        console.log(`   Reason: ${latestDeletion.details.reason || latestDeletion.details || 'not specified'}`);
+      console.log(`   By moderator id: ${latestDeletion.moderator || 'n/a'}`);
+      console.log(`   Target: ${latestDeletion.target || latestDeletion.targetUser || 'n/a'}`);
+      console.log(`   Self-deleted: ${String(latestDeletion.moderator) === String(latestDeletion.target)}`);
+      if (latestDeletion.reason) console.log(`   Reason: ${latestDeletion.reason}`);
+    }
+
+    // The account's CURRENT state is what decides this — the old code jumped
+    // straight to "deleted" off unrelated login failures and reported an
+    // account that plainly exists as gone.
+    if (userExists) {
+      console.log(`\n✅ ACCOUNT CURRENTLY EXISTS (id ${userExists._id}, created ${userExists.createdAt})`);
+      if (incarnations.length > 1) {
+        console.log(`⚠️  BUT it has been re-created ${incarnations.length - 1} time(s) —`);
+        console.log(`   this email has logged in under ${incarnations.length} different user ids:`);
+        incarnations.forEach(id => console.log(`     ${id}${String(id) === String(userExists._id) ? '  <- current' : ''}`));
+        if (deletionLogs.length === 0) {
+          console.log(`   No deletion was ever logged, so the earlier records were`);
+          console.log(`   removed outside the application (check TTL indexes and direct DB access).`);
+        }
       }
-    } else if (notFoundLogs.length > 0) {
-      console.log(`⚠️  ACCOUNT DELETED BUT NOT LOGGED`);
-      console.log(`   First "User not found" error: ${notFoundLogs[notFoundLogs.length - 1].createdAt}`);
-      console.log(`   Unknown deletion mechanism`);
     } else {
-      console.log(`✅ ACCOUNT NOT DELETED (still active)`);
+      console.log(`\n❌ ACCOUNT IS DELETED (no user document for this email)`);
+      if (deletionLogs.length === 0) {
+        console.log(`   No audit entry explains it — deletion did not go through app code.`);
+      }
+      if (incarnations.length) {
+        console.log(`   Previous user id(s) for recovery: ${incarnations.join(', ')}`);
+      }
     }
 
     console.log('\n' + '='.repeat(60) + '\n');

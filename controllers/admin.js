@@ -113,24 +113,47 @@ exports.hardDeleteUser = asyncHandler(async (req, res, next) => {
     return next(new ErrorResponse(`User not found with id of ${req.params.id}`, 404));
   }
 
-  // Cascade delete all user-related data
-  const userCascadeDeleteService = require('../services/userCascadeDeleteService');
-  const deleteResult = await userCascadeDeleteService.deleteUserAndAllData(req.params.id);
-
-  // Also blacklist the user if banService is available
+  // Blacklist FIRST. banService.hardDeleteUser re-reads the user by id, so
+  // running it after the cascade meant it always found nothing — and because
+  // it *returns* {ok:false} instead of throwing, the catch below never fired.
+  // The route silently skipped both the blacklist and the audit entry, which
+  // is why hard-deleted accounts left no trace at all.
+  let blacklisted = false;
   try {
-    await banService.hardDeleteUser({
+    const banResult = await banService.hardDeleteUser({
       userId: req.params.id,
       moderatorId: req.user.id,
     });
+    blacklisted = !!(banResult && banResult.ok);
+    if (!blacklisted) {
+      console.warn(
+        `[admin] blacklist skipped for ${req.params.id}: ${banResult && banResult.error}`
+      );
+    }
   } catch (error) {
     console.warn('Ban service error (non-critical):', error.message);
-    // Continue even if ban service fails - main deletion already succeeded
+    // Continue — the cascade below still purges the account's data.
   }
+
+  // Cascade delete all user-related data. Safe to run whether or not
+  // banService already removed the user document.
+  const userCascadeDeleteService = require('../services/userCascadeDeleteService');
+  const deleteResult = await userCascadeDeleteService.deleteUserAndAllData(req.params.id, {
+    action: 'ADMIN_HARD_DELETE',
+    moderator: req.user.id,
+    targetEmail: user.email, // captured before banService removed the record
+    reason: user.banReason || (req.body && req.body.reason) || null,
+    source: 'manual',
+    ipAddress: req.ip,
+    initiatedBy: 'admin',
+  });
 
   res.status(200).json({
     success: true,
-    message: 'Account permanently deleted and blacklisted',
+    message: blacklisted
+      ? 'Account permanently deleted and blacklisted'
+      : 'Account permanently deleted (not blacklisted — user was not banned)',
+    blacklisted,
     deletionStats: deleteResult.stats
   });
 });

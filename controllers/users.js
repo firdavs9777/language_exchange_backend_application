@@ -693,8 +693,15 @@ exports.deleteUser = asyncHandler(async (req, res, next) => {
   }
 
   // Cascade delete all user-related data
+  const isSelf = req.user._id.toString() === req.params.id;
   const userCascadeDeleteService = require('../services/userCascadeDeleteService');
-  const deleteResult = await userCascadeDeleteService.deleteUserAndAllData(req.params.id);
+  const deleteResult = await userCascadeDeleteService.deleteUserAndAllData(req.params.id, {
+    action: isSelf ? 'USER_SELF_DELETE' : 'ADMIN_DELETE_USER',
+    moderator: req.user._id,
+    targetEmail: user.email,
+    ipAddress: req.ip,
+    initiatedBy: isSelf ? 'self' : 'admin',
+  });
 
   res.status(200).json({
     success: true,

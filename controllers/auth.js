@@ -1987,18 +1987,17 @@ exports.deleteAccount = asyncHandler(async (req, res, next) => {
     // ⭐ LOG USER DELETION TO AUDIT LOG
     try {
       const AdminAuditLog = mongoose.model('AdminAuditLog');
-      await AdminAuditLog.create({
+      await AdminAuditLog.logAction({
         action: 'USER_SELF_DELETE',
         moderator: userId,  // User deleting their own account
-        targetUser: userId,
-        userEmail: user.email,
+        target: userId,
+        targetEmail: user.email,
         details: {
           reason: 'User-initiated account deletion',
           cascadeDeleted: deletedCounts,
           relatedRecordsRemoved: cleanupResults.length
         },
-        ipAddress: req.ip,
-        timestamp: new Date()
+        ipAddress: req.ip
       });
       console.log(`📝 Audit logged: User ${user.email} deleted their own account`);
     } catch (auditErr) {

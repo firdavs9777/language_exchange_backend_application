@@ -32,7 +32,17 @@ class UserCascadeDeleteService {
    * @param {String} userId - User ID to delete
    * @returns {Object} Deletion statistics
    */
-  async deleteUserAndAllData(userId) {
+  async deleteUserAndAllData(userId, context = {}) {
+    // Capture the email before the record is destroyed — afterwards there is
+    // no way to tie this deletion back to the account it removed.
+    let targetEmail = context.targetEmail || null;
+    if (!targetEmail) {
+      try {
+        const doomed = await User.findById(userId).select('email').lean();
+        targetEmail = doomed ? doomed.email : null;
+      } catch (_) { /* non-fatal — proceed without the email */ }
+    }
+
     const stats = {
       user: 0,
       moments: 0,
@@ -174,6 +184,25 @@ class UserCascadeDeleteService {
       const userResult = await User.findByIdAndDelete(userId);
       if (userResult) {
         stats.user = 1;
+      }
+
+      // 21. Record it. Every caller of this service destroys an account, so
+      // the audit write belongs here rather than in each controller — that
+      // split is exactly how these deletions went unlogged before.
+      try {
+        const AdminAuditLog = require('../models/AdminAuditLog');
+        await AdminAuditLog.logAction({
+          action: context.action || 'USER_CASCADE_DELETE',
+          moderator: context.moderator || userId,
+          target: userId,
+          targetEmail,
+          reason: context.reason || null,
+          source: context.source || null,
+          ipAddress: context.ipAddress || null,
+          details: { stats, initiatedBy: context.initiatedBy || 'unknown' },
+        });
+      } catch (auditErr) {
+        console.error('[userCascadeDelete] audit log failed:', auditErr.message);
       }
 
       return {

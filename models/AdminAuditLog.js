@@ -46,6 +46,18 @@ const AdminAuditLogSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  // Denormalised copy of the target's email. The user document is usually
+  // gone by the time anyone reads this log, so without it a deletion cannot
+  // be found by the only identifier a support request ever carries.
+  targetEmail: {
+    type: String,
+    default: null,
+    index: true,
+  },
+  ipAddress: {
+    type: String,
+    default: null,
+  },
   details: {
     type: mongoose.Schema.Types.Mixed,
     default: {},
@@ -65,13 +77,18 @@ AdminAuditLogSchema.index({ action: 1, timestamp: -1 });
 // write should not undo the underlying moderator action.
 AdminAuditLogSchema.statics.logAction = async function (entry) {
   try {
+    // Accept the aliases callers actually pass. These used to be handed to
+    // create() directly and were silently discarded by strict mode, which
+    // is how account deletions ended up with no target and no email.
     return await this.create({
       moderator: entry.moderator,
       action: entry.action,
-      target: entry.target || null,
+      target: entry.target || entry.targetUser || null,
       targetType: entry.targetType || 'user',
       reason: entry.reason || null,
       source: entry.source || null,
+      targetEmail: entry.targetEmail || entry.userEmail || null,
+      ipAddress: entry.ipAddress || null,
       details: entry.details || {},
     });
   } catch (err) {
