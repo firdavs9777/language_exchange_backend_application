@@ -895,8 +895,13 @@ bannedAt: {
     userAgent: String,
     createdAt: {
       type: Date,
-      default: Date.now,
-      expires: 30 * 24 * 60 * 60 // 30 days
+      default: Date.now
+      // NO `expires` HERE. On a subdocument array, Mongoose turns `expires`
+      // into a TTL index on the *users collection* — and MongoDB TTL deletes
+      // the whole parent document, not the array element. That index
+      // (refreshTokens.createdAt_1, expireAfterSeconds: 2592000) silently
+      // destroyed user accounts 30 days after their oldest surviving token.
+      // Tokens are pruned by age in generateRefreshToken() instead.
     }
   }],
   loginHistory: [{
@@ -1178,6 +1183,16 @@ UserSchema.methods.generateRefreshToken = function(deviceInfo = {}) {
     { expiresIn: '30d' }
   );
   
+  // Drop tokens past the 30-day JWT lifetime. This replaces the TTL index
+  // that used to live on refreshTokens.createdAt — see the note on that
+  // field. Pruning here keeps the array bounded without ever putting the
+  // user document itself at risk.
+  const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - REFRESH_TOKEN_TTL_MS;
+  this.refreshTokens = this.refreshTokens.filter(
+    rt => !rt.createdAt || rt.createdAt.getTime() > cutoff
+  );
+
   // Store refresh token
   this.refreshTokens.push({
     token: crypto.createHash('sha256').update(refreshToken).digest('hex'),
@@ -1185,12 +1200,12 @@ UserSchema.methods.generateRefreshToken = function(deviceInfo = {}) {
     ipAddress: deviceInfo.ipAddress,
     userAgent: deviceInfo.userAgent
   });
-  
+
   // Keep only last 5 devices
   if (this.refreshTokens.length > 5) {
     this.refreshTokens = this.refreshTokens.slice(-5);
   }
-  
+
   return refreshToken;
 };
 
