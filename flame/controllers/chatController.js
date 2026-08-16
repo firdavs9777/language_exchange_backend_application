@@ -1,4 +1,5 @@
 const chatService = require('../services/chatService');
+const conversationControlsService = require('../services/conversationControlsService');
 
 async function listConversations(req, res) {
   const limit = parseInt(req.query.limit, 10) || 20;
@@ -57,6 +58,44 @@ async function sendMessage(req, res) {
   res.status(201).json({ success: true, data });
 }
 
+async function sendMedia(req, res) {
+  const kind = req.mediaKind; // set by the route
+  const file = req.files ? (req.files[kind] || [])[0] : req.file;
+  const thumbnail = req.files ? (req.files.thumbnail || [])[0] : null;
+
+  const message = await chatService.sendMediaMessage(
+    req.user.id, req.params.id, kind, file,
+    {
+      replyTo: req.body.reply_to_id,
+      thumbnail,
+      duration: req.body.duration,
+      width: req.body.width,
+      height: req.body.height,
+    },
+  );
+  // Identical best-effort realtime + push blocks to sendMessage's. Without
+  // them a received photo or voice note did not appear in the recipient's
+  // list, did not move the unread badge, did not appear in an open chat (the
+  // REST poll is disabled whenever realtime is on) and fired no notification —
+  // a media message was silently a second-class citizen.
+  try {
+    const io = req.app.get('io');
+    if (io) require('../socket/flameSocket').emitNewMessage(io, message.receiver_id, message);
+  } catch (_) { /* realtime is best-effort */ }
+  try {
+    require('../services/pushService')
+      .sendChatMessage(message.receiver_id, {
+        senderName: req.user.id,
+        // A media message has no text, so the push body is the bracketed kind
+        // preview rather than an empty string.
+        text: `[${kind}]`,
+        conversationId: message.conversation_id,
+      })
+      .catch(() => {});
+  } catch (_) { /* push is best-effort */ }
+  res.status(201).json({ success: true, data: message });
+}
+
 async function markRead(req, res) {
   const data = await chatService.markRead(req.user.id, req.params.id);
   res.json({ success: true, data });
@@ -95,7 +134,48 @@ async function deleteMessage(req, res) {
   res.json({ success: true, data: result.message });
 }
 
+const MS_PER_HOUR = 60 * 60 * 1000;
+
+// Two body shapes, one meaning. `duration_hours` is what the shipped app
+// sends; `duration` is milliseconds, the unit conversationControlsService
+// itself takes. Neither present means an indefinite mute.
+//
+// duration_hours: 0 is treated as an UNMUTE, not a zero-length mute. Clients
+// already in users' hands post exactly `{ duration_hours: 0 }` to this route
+// as their unmute (DELETE /mute is the canonical path, and newer app builds
+// use it) — reading that as "mute until now", which the service would store as
+// an already-expired mutedUntil, is harmless, but reading it as "mute
+// forever" would silence a conversation the user just asked to hear again.
+async function muteConversation(req, res) {
+  const hours = req.body.duration_hours;
+  if (hours === 0) {
+    await conversationControlsService.unmute(req.user.id, req.params.id);
+    return res.status(201).json({ success: true, data: { muted_until: null } });
+  }
+  const durationMs = typeof hours === 'number'
+    ? Math.round(hours * MS_PER_HOUR)
+    : req.body.duration;
+  const data = await conversationControlsService.mute(req.user.id, req.params.id, durationMs);
+  return res.status(201).json({ success: true, data });
+}
+
+async function unmuteConversation(req, res) {
+  await conversationControlsService.unmute(req.user.id, req.params.id);
+  res.json({ success: true, data: null });
+}
+
+async function pinMessage(req, res) {
+  const data = await conversationControlsService.pinMessage(req.user.id, req.params.id, req.body.message_id);
+  res.status(201).json({ success: true, data });
+}
+
+async function unpinMessage(req, res) {
+  const data = await conversationControlsService.unpinMessage(req.user.id, req.params.id, req.params.messageId);
+  res.json({ success: true, data });
+}
+
 module.exports = {
-  listConversations, openConversation, getMessages, sendMessage, markRead,
+  listConversations, openConversation, getMessages, sendMessage, sendMedia, markRead,
   addReaction, removeReaction, editMessage, deleteMessage,
+  muteConversation, unmuteConversation, pinMessage, unpinMessage,
 };

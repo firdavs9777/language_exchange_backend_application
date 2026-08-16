@@ -15,6 +15,19 @@ function toMessage(m) {
     receiver_id: m.receiver,
     text: m.text,
     message_type: m.messageType,
+    image_url: m.messageType === 'image' ? m.mediaUrl : null,
+    video_url: m.messageType === 'video' ? m.mediaUrl : null,
+    audio_url: (m.messageType === 'audio' || m.messageType === 'voice')
+      ? m.mediaUrl
+      : null,
+    media_info: m.mediaUrl
+      ? {
+          thumbnail_url: m.thumbnailUrl,
+          duration: m.durationSeconds,
+          width: m.mediaWidth,
+          height: m.mediaHeight,
+        }
+      : null,
     reactions: (m.reactions || []).map((r) => ({ user_id: r.user, emoji: r.emoji })),
     reply_to: m.replyTo || null,
     read: m.read,
@@ -52,6 +65,13 @@ function _matchService() {
   return require('./matchService');
 }
 
+// mediaService requires utils/s3 at the top of its own file, so a top-level
+// require here would force S3 to load the moment chatService loads — the same
+// load-order hazard _matchService() exists to avoid, just one hop further in.
+function _mediaService() {
+  return require('./mediaService');
+}
+
 async function _findConversation(conversationId) {
   let conv = null;
   try { conv = await Conversation.findById(conversationId); } catch (_) { conv = null; }
@@ -63,6 +83,52 @@ function _assertParticipant(conv, userId) {
   if (!conv.participants.includes(userId)) {
     throw new FlameError('FORBIDDEN', 'not your conversation', 403);
   }
+}
+
+// The full permission preamble for writing into a conversation, shared by both
+// send paths so they cannot drift apart on the guard order. Returns the
+// receiver, since both callers need it immediately after.
+async function _assertCanSendInto(conv, userId, replyTo) {
+  _assertParticipant(conv, userId);
+  const receiver = conv.participants.find((p) => p !== userId);
+  // An existing conversation predates the block, so membership alone is not
+  // permission to keep writing into it. Checked before the reply_to validation
+  // so a blocked sender learns nothing about the conversation's contents.
+  await visibility.assertCanInteract(userId, receiver);
+  // Same reasoning for an unmatch: it ends the match but leaves the
+  // conversation row in place, so without this either side could keep
+  // messaging a person who unmatched them.
+  if (await _matchService().isEndedBetween(userId, receiver)) {
+    throw new ForbiddenError('interaction not allowed');
+  }
+  if (replyTo) {
+    let parent = null;
+    try { parent = await Message.findById(replyTo); } catch (_) { parent = null; }
+    if (!parent || parent.conversationId !== conv._id.toString()) {
+      throw new ValidationError('reply_to must be a message in this conversation');
+    }
+  }
+  return receiver;
+}
+
+// Shared by sendMessage and sendMediaMessage: records the new message as the
+// conversation's preview and bumps the receiver's unread count. Pulled out so
+// the two send paths cannot drift apart on the unread-increment logic.
+async function _bumpConversation(conv, msg, receiver) {
+  conv.lastMessage = msg._id.toString();
+  conv.lastMessageAt = msg.createdAt;
+  const entry = conv.unreadCount.find((u) => u.user === receiver);
+  if (entry) entry.count += 1;
+  else conv.unreadCount.push({ user: receiver, count: 1 });
+  await conv.save();
+}
+
+// Multipart text fields are always strings, and a client can send anything.
+// Anything not a finite non-negative number becomes null rather than NaN,
+// which Mongoose would reject with an unhelpful CastError.
+function _int(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
 }
 
 async function openConversation(userId, otherUserId) {
@@ -100,6 +166,9 @@ async function listConversations(userId, { limit, offset }) {
   ]);
   const hidden = [...new Set([...blocked, ...unmatched])];
   if (hidden.length) filter.participants = { $all: [userId], $nin: hidden };
+  // Archive is per-user, so it filters on this conversation's own array rather
+  // than on the participant ids the block/ended-match exclusions use above.
+  filter['archivedBy.user'] = { $ne: userId };
   const total = await Conversation.countDocuments(filter);
   const convs = await Conversation.find(filter)
     .sort({ lastMessageAt: -1, updatedAt: -1 })
@@ -126,35 +195,49 @@ async function getMessages(userId, conversationId, { limit, offset }) {
 
 async function sendMessage(userId, conversationId, { text, replyTo }) {
   const conv = await _findConversation(conversationId);
-  _assertParticipant(conv, userId);
-  const receiver = conv.participants.find((p) => p !== userId);
-  // An existing conversation predates the block, so membership alone is not
-  // permission to keep writing into it. Checked before the reply_to validation
-  // so a blocked sender learns nothing about the conversation's contents.
-  await visibility.assertCanInteract(userId, receiver);
-  // Same reasoning for an unmatch: it ends the match but leaves the
-  // conversation row in place, so without this either side could keep
-  // messaging a person who unmatched them.
-  if (await _matchService().isEndedBetween(userId, receiver)) {
-    throw new ForbiddenError('interaction not allowed');
-  }
-  if (replyTo) {
-    let parent = null;
-    try { parent = await Message.findById(replyTo); } catch (_) { parent = null; }
-    if (!parent || parent.conversationId !== conversationId) {
-      throw new ValidationError('reply_to must be a message in this conversation');
-    }
-  }
+  const receiver = await _assertCanSendInto(conv, userId, replyTo);
   const msg = await Message.create({
     conversationId, sender: userId, receiver, text, messageType: 'text',
     replyTo: replyTo || null,
   });
-  conv.lastMessage = msg._id.toString();
-  conv.lastMessageAt = msg.createdAt;
-  const entry = conv.unreadCount.find((u) => u.user === receiver);
-  if (entry) entry.count += 1;
-  else conv.unreadCount.push({ user: receiver, count: 1 });
-  await conv.save();
+  await _bumpConversation(conv, msg, receiver);
+  return toMessage(msg);
+}
+
+// Sends a media message. Deliberately mirrors sendMessage's guard order —
+// participation, then block, then ended-match, then reply_to — because a
+// media route that skips them would reopen exactly the holes Phase A closed.
+async function sendMediaMessage(userId, conversationId, kind, file, {
+  replyTo, thumbnail, duration, width, height,
+} = {}) {
+  const conv = await _findConversation(conversationId);
+  const receiver = await _assertCanSendInto(conv, userId, replyTo);
+
+  const media = _mediaService();
+  const stored = await media.storeMessageMedia(conversationId, kind, file);
+  const thumb = thumbnail
+    ? await media.storeMessageMedia(conversationId, 'image', thumbnail)
+    : null;
+
+  const msg = await Message.create({
+    conversationId,
+    sender: userId,
+    receiver,
+    messageType: kind,
+    mediaUrl: stored.url,
+    mediaKey: stored.key,
+    thumbnailUrl: thumb ? thumb.url : null,
+    // Client-supplied and untrusted: the server does not probe the file. A
+    // voice note with no duration renders as a bare play button — a degraded
+    // UI, not a broken one, and worth far less than running ffmpeg on the API
+    // box. Multipart text fields arrive as strings, so coerce here.
+    durationSeconds: _int(duration),
+    mediaWidth: _int(width),
+    mediaHeight: _int(height),
+    replyTo: replyTo || null,
+  });
+
+  await _bumpConversation(conv, msg, receiver);
   return toMessage(msg);
 }
 
@@ -238,7 +321,25 @@ async function deleteMessage(userId, messageId, scope) {
     }
     m.isDeleted = true;
     m.text = '';
+    // "Delete for everyone" has to revoke the attachment too. Blanking only
+    // `text` left toMessage handing out a live, public Spaces URL for a photo
+    // or voice note the sender had just retracted — invisible in the Flutter
+    // bubble (which hides deleted messages) and completely visible to anyone
+    // who had already seen the URL. The bucket object goes as well; nothing
+    // else ever deleted it, so it would have lived forever.
+    const mediaKey = m.mediaKey;
+    m.mediaUrl = null;
+    m.mediaKey = null;
+    m.thumbnailUrl = null;
     await m.save();
+    // Best-effort, same idiom as the controller's realtime/push side effects:
+    // a Spaces hiccup must not fail the delete the user asked for. The row is
+    // already scrubbed above, so the worst case is an orphaned object.
+    if (mediaKey) {
+      try {
+        await require('../utils/s3').deleteObject(mediaKey);
+      } catch (_) { /* object cleanup is best-effort */ }
+    }
     return {
       message: toMessage(m),
       scope: 'everyone',
@@ -253,7 +354,11 @@ async function deleteMessage(userId, messageId, scope) {
 }
 
 module.exports = {
-  openConversation, listConversations, getMessages, sendMessage, markRead,
+  openConversation, listConversations, getMessages, sendMessage, sendMediaMessage, markRead,
   addReaction, removeReaction, editMessage, deleteMessage, partnerIdsOf,
   toConversation, toMessage,
+  // Exported so other chat-adjacent services (conversationControlsService) reuse
+  // the exact same "conversation exists / caller is a participant" checks
+  // instead of hand-rolling their own and drifting from them.
+  _findConversation, _assertParticipant,
 };

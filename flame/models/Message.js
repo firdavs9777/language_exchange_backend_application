@@ -12,7 +12,24 @@ const messageSchema = new mongoose.Schema(
     sender: { type: String, required: true, index: true },
     receiver: { type: String, required: true },
     text: { type: String, default: '', maxlength: 2000 },
-    messageType: { type: String, enum: ['text'], default: 'text' },
+    messageType: {
+      type: String,
+      enum: ['text', 'image', 'video', 'audio', 'voice'],
+      default: 'text',
+    },
+    // Media payload. Null on text messages, which is every message that
+    // existed before this shipped — no migration needed.
+    mediaUrl: { type: String, default: null },
+    // S3 key kept alongside the URL so the object can be deleted later without
+    // parsing it back out of the URL, which userService.deletePhoto has to do.
+    mediaKey: { type: String, default: null },
+    thumbnailUrl: { type: String, default: null },
+    // Seconds, because that is the unit the shipped app sends and renders
+    // (`_formatDuration(int seconds)` in message_bubble.dart). Do not switch it
+    // to milliseconds without changing the app in the same release.
+    durationSeconds: { type: Number, default: null },
+    mediaWidth: { type: Number, default: null },
+    mediaHeight: { type: Number, default: null },
     reactions: { type: [reactionSchema], default: [] },
     replyTo: { type: String, default: null },
     read: { type: Boolean, default: false },

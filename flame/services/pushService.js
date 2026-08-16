@@ -2,6 +2,14 @@ const admin = require('firebase-admin');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 
+// Lazy require: conversationControlsService requires chatService, which is a
+// heavier dependency chain than pushService otherwise needs. Nothing in that
+// chain requires pushService back, so this isn't a cycle — just deferred to
+// keep pushService's own module load light.
+function _conversationControls() {
+  return require('./conversationControlsService');
+}
+
 // Guarded push service: NEVER throws, at require-time or call-time. Every
 // public function is a no-op (returns { skipped: true }) whenever Firebase
 // isn't configured for flame — which is the case in dev/CI until
@@ -164,6 +172,14 @@ async function sendChatMessage(receiverId, { senderName, text, conversationId } 
   if (settings.chatMessages === false) {
     logger.info(`pushService: chatMessages disabled for user ${receiverId}, skipping`);
     return { skipped: true };
+  }
+
+  // A muted conversation still appears in the list and still accrues unread
+  // count — mute only silences the push. Argument order is
+  // (conversationId, userId), matching conversationControlsService's contract.
+  if (conversationId && await _conversationControls().isMutedFor(conversationId, receiverId)) {
+    logger.info(`pushService: conversation ${conversationId} muted for ${receiverId}, skipping push`);
+    return { skipped: true, muted: true };
   }
 
   const preview = text && text.length > 100 ? `${text.slice(0, 100)}...` : (text || '');

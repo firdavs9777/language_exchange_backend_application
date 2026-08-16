@@ -6,13 +6,27 @@ async function setup() {
   await dbHelper.start();
   delete process.env.FLAME_FIREBASE_PROJECT_ID;
   delete process.env.FLAME_FIREBASE_SERVICE_ACCOUNT;
-  ['../db', '../models/User', '../services/pushService'].forEach((p) => {
+  // utils/s3 throws at module load without these, and chatService (pulled in
+  // through conversationControlsService) requires it via matchService/userService.
+  process.env.FLAME_SPACES_BUCKET = 't';
+  process.env.SPACES_ENDPOINT = 'sfo3.digitaloceanspaces.com';
+  process.env.DO_SPACES_KEY = 'k';
+  process.env.DO_SPACES_SECRET = 's';
+  [
+    '../db', '../models/User', '../models/Swipe', '../models/Match',
+    '../models/Conversation', '../models/Message',
+    '../services/chatService', '../services/matchService', '../services/discoveryService',
+    '../services/visibilityService', '../services/conversationControlsService',
+    '../services/pushService',
+  ].forEach((p) => {
     try { delete require.cache[require.resolve(p)]; } catch {}
   });
   const { connect } = require('../db');
   await connect();
   return {
     User: require('../models/User'),
+    Conversation: require('../models/Conversation'),
+    conversationControls: require('../services/conversationControlsService'),
     pushService: require('../services/pushService'),
   };
 }
@@ -130,6 +144,56 @@ test('sendChatMessage respects notificationSettings.enabled=false (skipped via s
   });
 
   assert.equal(result.skipped, true);
+});
+
+test('sendChatMessage is skipped with muted:true when the conversation is muted for the receiver', async (t) => {
+  const {
+    User, Conversation, conversationControls, pushService,
+  } = await setup();
+  t.after(teardown);
+  const receiver = await makeUser(User);
+  const sender = await makeUser(User);
+  const conv = await Conversation.create({
+    participants: [receiver._id.toString(), sender._id.toString()],
+    unreadCount: [],
+  });
+  const convId = conv._id.toString();
+  const receiverId = receiver._id.toString();
+
+  await conversationControls.mute(receiverId, convId);
+
+  const result = await pushService.sendChatMessage(receiverId, {
+    senderName: 'Alice',
+    text: 'hello there',
+    conversationId: convId,
+  });
+
+  assert.equal(result.skipped, true);
+  assert.equal(result.muted, true, 'the skip must be distinguishable as a mute, not just "unconfigured"');
+});
+
+test('sendChatMessage for an unmuted conversation is skipped (unconfigured) without the muted flag (control)', async (t) => {
+  const {
+    User, Conversation, pushService,
+  } = await setup();
+  t.after(teardown);
+  const receiver = await makeUser(User);
+  const sender = await makeUser(User);
+  const conv = await Conversation.create({
+    participants: [receiver._id.toString(), sender._id.toString()],
+    unreadCount: [],
+  });
+  const convId = conv._id.toString();
+  const receiverId = receiver._id.toString();
+
+  const result = await pushService.sendChatMessage(receiverId, {
+    senderName: 'Alice',
+    text: 'hello there',
+    conversationId: convId,
+  });
+
+  assert.equal(result.skipped, true);
+  assert.ok(!result.muted, 'an unmuted conversation must not be reported as muted');
 });
 
 test('sendChatMessage never throws for a missing receiver', async (t) => {
