@@ -166,6 +166,9 @@ async function listConversations(userId, { limit, offset }) {
   ]);
   const hidden = [...new Set([...blocked, ...unmatched])];
   if (hidden.length) filter.participants = { $all: [userId], $nin: hidden };
+  // Archive is per-user, so it filters on this conversation's own array rather
+  // than on the participant ids the block/ended-match exclusions use above.
+  filter['archivedBy.user'] = { $ne: userId };
   const total = await Conversation.countDocuments(filter);
   const convs = await Conversation.find(filter)
     .sort({ lastMessageAt: -1, updatedAt: -1 })
