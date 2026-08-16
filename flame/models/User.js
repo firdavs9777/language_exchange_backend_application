@@ -78,6 +78,20 @@ const userSchema = new mongoose.Schema({
   location:     { type: locationSchema, default: null },
   locationGeo:  { type: geoPointSchema, default: null },
 
+  // Blocks are embedded rather than a separate collection: they are consulted on
+  // EVERY read path that returns another user (discover, matches, conversations,
+  // stories, socket delivery), and they are low-cardinality. Storing both
+  // directions is deliberate redundancy — it makes "hide people I blocked AND
+  // people who blocked me" a single check on a document already in hand.
+  blockedUsers: {
+    type: [{ user: { type: String, required: true }, blockedAt: { type: Date, default: Date.now } }],
+    default: [],
+  },
+  blockedBy: {
+    type: [{ user: { type: String, required: true }, blockedAt: { type: Date, default: Date.now } }],
+    default: [],
+  },
+
   isOnline:    { type: Boolean, default: false },
   isVerified:  { type: Boolean, default: false },
   lastActive:  { type: Date, default: Date.now },

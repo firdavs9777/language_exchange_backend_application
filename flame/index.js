@@ -33,6 +33,7 @@ router.use('/messages', require('./routes/messages'));
 router.use('/billing', require('./routes/billing'));
 router.use('/notifications', require('./routes/notifications'));
 router.use('/reports', require('./routes/reports'));
+router.use('/blocks', require('./routes/blocks'));
 
 // Error middleware MUST be last so it catches everything in this sub-app
 router.use(errorMiddleware);
