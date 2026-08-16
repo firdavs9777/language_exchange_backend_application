@@ -114,3 +114,34 @@ test('a blocked user cannot be swiped', async (t) => {
   await blockService.block(b, a); // b blocked a
   await assert.rejects(() => swipeService.record(a, b, 'like'), (e) => e.status === 403);
 });
+
+test('a fresh match reports is_new, a replay does not', async (t) => {
+  const { a, b, swipeService } = await setup();
+  teardown(t);
+
+  await swipeService.record(a, b, 'like');
+  const first = await swipeService.record(b, a, 'like');
+  assert.equal(first.match.is_new, true, 'the match that was just created is new');
+
+  const replay = await swipeService.record(b, a, 'like');
+  assert.equal(replay.match.is_new, false, 'replaying an existing match is not new');
+});
+
+test('the match race leaves exactly one conversation, not an orphan', async (t) => {
+  const { a, b, swipeService } = await setup();
+  teardown(t);
+
+  await Promise.all([
+    swipeService.record(a, b, 'like'),
+    swipeService.record(b, a, 'like'),
+  ]);
+
+  const Match = require('../models/Match');
+  const Conversation = require('../models/Conversation');
+  assert.equal(await Match.countDocuments({}), 1);
+  assert.equal(
+    await Conversation.countDocuments({}),
+    1,
+    'the race loser must clean up the conversation it created',
+  );
+});
