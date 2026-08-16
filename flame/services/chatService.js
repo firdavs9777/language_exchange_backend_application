@@ -85,6 +85,32 @@ function _assertParticipant(conv, userId) {
   }
 }
 
+// The full permission preamble for writing into a conversation, shared by both
+// send paths so they cannot drift apart on the guard order. Returns the
+// receiver, since both callers need it immediately after.
+async function _assertCanSendInto(conv, userId, replyTo) {
+  _assertParticipant(conv, userId);
+  const receiver = conv.participants.find((p) => p !== userId);
+  // An existing conversation predates the block, so membership alone is not
+  // permission to keep writing into it. Checked before the reply_to validation
+  // so a blocked sender learns nothing about the conversation's contents.
+  await visibility.assertCanInteract(userId, receiver);
+  // Same reasoning for an unmatch: it ends the match but leaves the
+  // conversation row in place, so without this either side could keep
+  // messaging a person who unmatched them.
+  if (await _matchService().isEndedBetween(userId, receiver)) {
+    throw new ForbiddenError('interaction not allowed');
+  }
+  if (replyTo) {
+    let parent = null;
+    try { parent = await Message.findById(replyTo); } catch (_) { parent = null; }
+    if (!parent || parent.conversationId !== conv._id.toString()) {
+      throw new ValidationError('reply_to must be a message in this conversation');
+    }
+  }
+  return receiver;
+}
+
 // Shared by sendMessage and sendMediaMessage: records the new message as the
 // conversation's preview and bumps the receiver's unread count. Pulled out so
 // the two send paths cannot drift apart on the unread-increment logic.
@@ -166,25 +192,7 @@ async function getMessages(userId, conversationId, { limit, offset }) {
 
 async function sendMessage(userId, conversationId, { text, replyTo }) {
   const conv = await _findConversation(conversationId);
-  _assertParticipant(conv, userId);
-  const receiver = conv.participants.find((p) => p !== userId);
-  // An existing conversation predates the block, so membership alone is not
-  // permission to keep writing into it. Checked before the reply_to validation
-  // so a blocked sender learns nothing about the conversation's contents.
-  await visibility.assertCanInteract(userId, receiver);
-  // Same reasoning for an unmatch: it ends the match but leaves the
-  // conversation row in place, so without this either side could keep
-  // messaging a person who unmatched them.
-  if (await _matchService().isEndedBetween(userId, receiver)) {
-    throw new ForbiddenError('interaction not allowed');
-  }
-  if (replyTo) {
-    let parent = null;
-    try { parent = await Message.findById(replyTo); } catch (_) { parent = null; }
-    if (!parent || parent.conversationId !== conversationId) {
-      throw new ValidationError('reply_to must be a message in this conversation');
-    }
-  }
+  const receiver = await _assertCanSendInto(conv, userId, replyTo);
   const msg = await Message.create({
     conversationId, sender: userId, receiver, text, messageType: 'text',
     replyTo: replyTo || null,
@@ -194,19 +202,13 @@ async function sendMessage(userId, conversationId, { text, replyTo }) {
 }
 
 // Sends a media message. Deliberately mirrors sendMessage's guard order —
-// participation, then block, then ended-match — because a media route that
-// skips them would reopen exactly the holes Phase A closed.
+// participation, then block, then ended-match, then reply_to — because a
+// media route that skips them would reopen exactly the holes Phase A closed.
 async function sendMediaMessage(userId, conversationId, kind, file, {
   replyTo, thumbnail, duration, width, height,
 } = {}) {
   const conv = await _findConversation(conversationId);
-  if (!conv.participants.includes(userId)) throw new NotFoundError('conversation not found');
-
-  const receiver = conv.participants.find((p) => p !== userId);
-  await visibility.assertCanInteract(userId, receiver);
-  if (await _matchService().isEndedBetween(userId, receiver)) {
-    throw new ForbiddenError('this match has ended');
-  }
+  const receiver = await _assertCanSendInto(conv, userId, replyTo);
 
   const media = _mediaService();
   const stored = await media.storeMessageMedia(conversationId, kind, file);

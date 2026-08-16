@@ -163,7 +163,13 @@ test('3: an ended match is rejected on the media path with 403', async (t) => {
   assert.equal(count, 0, 'a rejected send must not persist a message');
 });
 
-test('4: a non-participant gets 404 on the media path', async (t) => {
+// NOTE: this expectation changed from 404 to 403 after the coordinator's
+// review of this task. sendMediaMessage originally hand-rolled its own
+// non-participant check that threw NotFoundError, diverging from sendMessage's
+// shared _assertParticipant (FlameError 403 'not your conversation'). Both
+// send paths now call the same _assertCanSendInto helper, so a non-participant
+// gets the same 403 on the media path as on the text path.
+test('4: a non-participant gets 403 on the media path', async (t) => {
   const app = await setup();
   t.after(teardown);
   const a = await registerUser(app, 'a@x.com');
@@ -175,7 +181,34 @@ test('4: a non-participant gets 404 on the media path', async (t) => {
     .post(`/flamebackend/v1/conversations/${convId}/messages/image`)
     .set(authH(c.token))
     .attach('image', jpeg(), { filename: 'photo.jpg', contentType: 'image/jpeg' })
-    .expect(404);
+    .expect(403);
+});
+
+test('reply_to on the media path is rejected if it points at another conversation (422)', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const c = await registerUser(app, 'c@x.com');
+  const convAB = await openConv(app, a, b.id);
+  const convAC = await openConv(app, a, c.id);
+
+  const msgInAC = await request(app)
+    .post(`/flamebackend/v1/conversations/${convAC}/messages`)
+    .set(authH(a.token))
+    .send({ text: 'in AC' })
+    .expect(201);
+
+  await request(app)
+    .post(`/flamebackend/v1/conversations/${convAB}/messages/image`)
+    .set(authH(a.token))
+    .field('reply_to_id', msgInAC.body.data.id)
+    .attach('image', jpeg(), { filename: 'photo.jpg', contentType: 'image/jpeg' })
+    .expect(422);
+
+  const Message = require('../models/Message');
+  const count = await Message.countDocuments({ conversationId: convAB });
+  assert.equal(count, 0, 'a rejected reply_to must not persist a media message');
 });
 
 test('5: a wrong-MIME upload is rejected with 422 and stores nothing', async (t) => {
