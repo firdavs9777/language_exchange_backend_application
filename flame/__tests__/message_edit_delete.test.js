@@ -1,8 +1,11 @@
-// Stub Flame's S3 util so tests don't hit DigitalOcean.
+// Stub Flame's S3 util so tests don't hit DigitalOcean. deleteObject records
+// its keys so "delete for everyone" can be checked against the bucket, not
+// just against the row.
+const deletedKeys = [];
 require.cache[require.resolve('../utils/s3')] = {
   exports: {
     uploadBuffer: async (_buf, key) => `https://stub.example.com/${key}`,
-    deleteObject: async () => {},
+    deleteObject: async (key) => { deletedKeys.push(key); },
     bucket: 'stub-bucket',
   },
 };
@@ -159,6 +162,76 @@ test('delete-for-everyone by sender → is_deleted true, text empty, hidden from
   const threadB = await request(app).get(`/flamebackend/v1/conversations/${convId}/messages`)
     .set(authH(b.token)).expect(200);
   assert.equal(threadB.body.data.messages.length, 0);
+});
+
+// "Delete for everyone" on a photo used to blank only `text`: mediaUrl stayed
+// on the row, so toMessage kept handing out a live, world-readable Spaces URL
+// for a message the sender had retracted, and the object itself was never
+// deleted by any path. Invisible in the app (the bubble hides deleted
+// messages) and a broken promise on a dating product.
+test('delete-for-everyone on a media message revokes the url and the object', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const open = await request(app).post('/flamebackend/v1/conversations')
+    .set(authH(a.token)).send({ user_id: b.id }).expect(201);
+  const convId = open.body.data.id;
+
+  const sent = await request(app)
+    .post(`/flamebackend/v1/conversations/${convId}/messages/image`)
+    .set(authH(a.token))
+    .attach('image', Buffer.from([0xff, 0xd8, 0xff, 0xdb]), { filename: 'p.jpg', contentType: 'image/jpeg' })
+    .expect(201);
+  assert.ok(sent.body.data.image_url, 'precondition: the send stored a media url');
+
+  const Message = require('../models/Message');
+  const stored = await Message.findById(sent.body.data.id).lean();
+  const key = stored.mediaKey;
+  assert.ok(key, 'precondition: the send stored a media key');
+
+  deletedKeys.length = 0;
+  const del = await request(app).delete(`/flamebackend/v1/messages/${sent.body.data.id}?scope=everyone`)
+    .set(authH(a.token)).expect(200);
+
+  assert.equal(del.body.data.is_deleted, true);
+  assert.equal(del.body.data.image_url, null, 'the response must not keep serving the media url');
+  assert.equal(del.body.data.media_info, null);
+
+  const after = await Message.findById(sent.body.data.id).lean();
+  assert.equal(after.mediaUrl, null, 'the row must not keep pointing at a live public object');
+  assert.equal(after.mediaKey, null);
+  assert.equal(after.thumbnailUrl, null);
+
+  assert.deepEqual(deletedKeys, [key], 'the bucket object must be deleted, not orphaned forever');
+});
+
+// Best-effort means best-effort: the user asked for the message to be gone, so
+// a Spaces outage must not turn that into a 500 with the row untouched.
+test('a failing bucket delete does not fail delete-for-everyone', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const open = await request(app).post('/flamebackend/v1/conversations')
+    .set(authH(a.token)).send({ user_id: b.id }).expect(201);
+  const convId = open.body.data.id;
+
+  const sent = await request(app)
+    .post(`/flamebackend/v1/conversations/${convId}/messages/image`)
+    .set(authH(a.token))
+    .attach('image', Buffer.from([0xff, 0xd8, 0xff, 0xdb]), { filename: 'p.jpg', contentType: 'image/jpeg' })
+    .expect(201);
+
+  const s3 = require('../utils/s3');
+  const original = s3.deleteObject;
+  s3.deleteObject = async () => { throw new Error('spaces is down'); };
+  t.after(() => { s3.deleteObject = original; });
+
+  const del = await request(app).delete(`/flamebackend/v1/messages/${sent.body.data.id}?scope=everyone`)
+    .set(authH(a.token)).expect(200);
+  assert.equal(del.body.data.is_deleted, true);
+  assert.equal(del.body.data.image_url, null, 'the row is scrubbed before the bucket is touched');
 });
 
 test('delete-for-everyone by non-sender is forbidden (403)', async (t) => {

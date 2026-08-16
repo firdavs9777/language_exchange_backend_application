@@ -321,7 +321,25 @@ async function deleteMessage(userId, messageId, scope) {
     }
     m.isDeleted = true;
     m.text = '';
+    // "Delete for everyone" has to revoke the attachment too. Blanking only
+    // `text` left toMessage handing out a live, public Spaces URL for a photo
+    // or voice note the sender had just retracted — invisible in the Flutter
+    // bubble (which hides deleted messages) and completely visible to anyone
+    // who had already seen the URL. The bucket object goes as well; nothing
+    // else ever deleted it, so it would have lived forever.
+    const mediaKey = m.mediaKey;
+    m.mediaUrl = null;
+    m.mediaKey = null;
+    m.thumbnailUrl = null;
     await m.save();
+    // Best-effort, same idiom as the controller's realtime/push side effects:
+    // a Spaces hiccup must not fail the delete the user asked for. The row is
+    // already scrubbed above, so the worst case is an orphaned object.
+    if (mediaKey) {
+      try {
+        await require('../utils/s3').deleteObject(mediaKey);
+      } catch (_) { /* object cleanup is best-effort */ }
+    }
     return {
       message: toMessage(m),
       scope: 'everyone',
