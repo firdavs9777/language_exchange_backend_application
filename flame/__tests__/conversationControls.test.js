@@ -108,6 +108,82 @@ test('mute with a duration sets a future mutedUntil; DELETE /mute unmutes', asyn
   assert.equal(entry, undefined, 'unmute must remove the entry entirely');
 });
 
+// The shipped app posts { duration_hours: n } — nothing else. validate.js
+// REPLACES req.body with the parsed result, so while muteSchema knew only
+// about `duration` the field was stripped and every timed mute silently became
+// an indefinite one.
+test('mute honours the shipped app\'s duration_hours (hours, not milliseconds)', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const open = await request(app).post(BASE).set(authH(a.token)).send({ user_id: b.id }).expect(201);
+  const convId = open.body.data.id;
+
+  const before = Date.now();
+  await request(app).post(`${BASE}/${convId}/mute`).set(authH(a.token))
+    .send({ duration_hours: 2 }).expect(201);
+
+  const Conversation = require('../models/Conversation');
+  const conv = await Conversation.findById(convId).lean();
+  const entry = conv.mutedBy.find((m) => m.user === a.id);
+  assert.ok(entry, 'expected a mutedBy entry for a');
+  assert.ok(entry.mutedUntil, 'duration_hours must produce a deadline, not an indefinite mute');
+
+  // Pinned to the HOURS reading: 2 as milliseconds would land ~2ms out, and 2
+  // hours is well clear of the slack allowed for test execution time.
+  const untilMs = new Date(entry.mutedUntil).getTime();
+  const twoHours = 2 * 60 * 60 * 1000;
+  assert.ok(untilMs >= before + twoHours - 5000 && untilMs <= Date.now() + twoHours,
+    `expected mutedUntil ~2h out, got ${entry.mutedUntil}`);
+});
+
+// Shipped clients send this as their UNMUTE (chat_service.dart POSTed
+// { duration_hours: 0 } instead of calling DELETE /mute). Reading it as a
+// duration-less mute would silence the conversation permanently while
+// reporting success — the worst possible answer.
+test('duration_hours: 0 unmutes rather than muting forever', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const open = await request(app).post(BASE).set(authH(a.token)).send({ user_id: b.id }).expect(201);
+  const convId = open.body.data.id;
+
+  await request(app).post(`${BASE}/${convId}/mute`).set(authH(a.token))
+    .send({ duration_hours: 5 }).expect(201);
+  await request(app).post(`${BASE}/${convId}/mute`).set(authH(a.token))
+    .send({ duration_hours: 0 }).expect(201);
+
+  const Conversation = require('../models/Conversation');
+  const conv = await Conversation.findById(convId).lean();
+  assert.equal(conv.mutedBy.find((m) => m.user === a.id), undefined,
+    'duration_hours: 0 must remove the mute entry, exactly as DELETE /mute does');
+
+  const controls = require('../services/conversationControlsService');
+  assert.equal(await controls.isMutedFor(convId, a.id), false);
+});
+
+// The same shipped client sends an explicit null for "mute indefinitely";
+// .optional() alone would reject it with a 422 and leave the user unmuted.
+test('duration_hours: null is accepted and means an indefinite mute', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const open = await request(app).post(BASE).set(authH(a.token)).send({ user_id: b.id }).expect(201);
+  const convId = open.body.data.id;
+
+  await request(app).post(`${BASE}/${convId}/mute`).set(authH(a.token))
+    .send({ duration_hours: null }).expect(201);
+
+  const Conversation = require('../models/Conversation');
+  const conv = await Conversation.findById(convId).lean();
+  const entry = conv.mutedBy.find((m) => m.user === a.id);
+  assert.ok(entry, 'expected a mutedBy entry for a');
+  assert.equal(entry.mutedUntil, null, 'a null duration means indefinite');
+});
+
 test('muting twice does not create duplicate entries (the $addToSet trap)', async (t) => {
   const app = await setup();
   t.after(teardown);

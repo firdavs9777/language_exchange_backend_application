@@ -43,7 +43,21 @@ const sendSchema = z.object({
   text: z.string().min(1).max(2000),
   reply_to: objectId.optional(),
 });
-const muteSchema = z.object({ duration: z.number().int().positive().optional() });
+// The shipped app posts { duration_hours: n } (chat_service.dart) and
+// validate.js replaces req.body with the parsed result, so a schema that only
+// knew about `duration` STRIPPED the field and turned every timed mute into an
+// indefinite one. `duration_hours` is therefore the field that has to work;
+// `duration` (milliseconds, the service's own unit) stays accepted because it
+// costs nothing and is what a non-app caller would reach for.
+//
+// nullable(): the shipped app sends `{ duration_hours: null }` for an
+// indefinite mute — an explicit null, which `.optional()` alone rejects.
+// duration_hours: 0 is the shipped app's UNMUTE (see chatController), so 0 has
+// to be inside the accepted range rather than rejected by `.positive()`.
+const muteSchema = z.object({
+  duration_hours: z.number().min(0).nullable().optional(),
+  duration: z.number().int().positive().optional(),
+});
 const pinSchema = z.object({ message_id: objectId });
 const pinParams = z.object({ id: objectId, messageId: objectId });
 
@@ -74,8 +88,8 @@ router.post('/:id/messages/video', auth, validate.params(idParam),
 router.put('/:id/read', auth, validate.params(idParam), asyncHandler(ctrl.markRead));
 
 // Paths, the pin body's { message_id } and the mute body's optional
-// { duration } are fixed by the shipped app — not negotiable independently
-// of a coordinated app release.
+// { duration_hours } are fixed by the shipped app — not negotiable
+// independently of a coordinated app release.
 router.post('/:id/mute', auth, validate.params(idParam),
   validate.body(muteSchema), asyncHandler(ctrl.muteConversation));
 router.delete('/:id/mute', auth, validate.params(idParam),
