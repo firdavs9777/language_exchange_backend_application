@@ -15,6 +15,19 @@ function toMessage(m) {
     receiver_id: m.receiver,
     text: m.text,
     message_type: m.messageType,
+    image_url: m.messageType === 'image' ? m.mediaUrl : null,
+    video_url: m.messageType === 'video' ? m.mediaUrl : null,
+    audio_url: (m.messageType === 'audio' || m.messageType === 'voice')
+      ? m.mediaUrl
+      : null,
+    media_info: m.mediaUrl
+      ? {
+          thumbnail_url: m.thumbnailUrl,
+          duration: m.durationSeconds,
+          width: m.mediaWidth,
+          height: m.mediaHeight,
+        }
+      : null,
     reactions: (m.reactions || []).map((r) => ({ user_id: r.user, emoji: r.emoji })),
     reply_to: m.replyTo || null,
     read: m.read,
