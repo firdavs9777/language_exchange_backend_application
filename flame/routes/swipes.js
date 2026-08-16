@@ -1,31 +1,18 @@
 const express = require('express');
+const { z } = require('zod');
 const asyncHandler = require('../middleware/asyncHandler');
 const auth = require('../middleware/auth');
+const validate = require('../middleware/validate');
+const ctrl = require('../controllers/swipeController');
 
 const router = express.Router();
 
-// Swipes aren't fully implemented server-side yet (no Swipe model / mutual-match
-// detection). These acknowledge the action so the swipe deck advances instead of
-// 404-ing. is_match is always false until real matching lands. Wire persistence
-// + match detection when the matching feature is built.
+const objectId = z.string().regex(/^[0-9a-fA-F]{24}$/, 'must be a valid ObjectId');
+const targetSchema = z.object({ user_id: objectId });
 
-router.post('/like', auth, asyncHandler(async (_req, res) => {
-  res.json({ success: true, data: { liked: true, is_match: false, match: null } });
-}));
-
-router.post('/pass', auth, asyncHandler(async (_req, res) => {
-  res.json({ success: true, data: { passed: true } });
-}));
-
-router.post('/super-like', auth, asyncHandler(async (_req, res) => {
-  res.json({
-    success: true,
-    data: { super_liked: true, is_match: false, match: null, remaining_super_likes: 3 },
-  });
-}));
-
-router.post('/undo', auth, asyncHandler(async (_req, res) => {
-  res.json({ success: true, data: { undone: false } });
-}));
+router.post('/like', auth, validate.body(targetSchema), asyncHandler(ctrl.like));
+router.post('/pass', auth, validate.body(targetSchema), asyncHandler(ctrl.pass));
+router.post('/super-like', auth, validate.body(targetSchema), asyncHandler(ctrl.superLike));
+router.post('/undo', auth, asyncHandler(ctrl.undo));
 
 module.exports = router;
