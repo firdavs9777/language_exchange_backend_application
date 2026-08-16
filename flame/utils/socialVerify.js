@@ -8,12 +8,35 @@ function isConfigured(provider) {
   return false;
 }
 
+/**
+ * Every Google OAuth client ID this app owns, as a list.
+ *
+ * FLAME_GOOGLE_CLIENT_ID accepts a comma-separated list because Google
+ * audiences an ID token to whichever client performed the sign-in — the iOS
+ * client on iOS, the Android client on Android, the web client on web. The
+ * Flutter `serverClientId` option does not retarget that on iOS (confirmed on
+ * device: aud was the iOS client and serverAuthCode was null), so verifying
+ * against a single ID guarantees at least one platform gets rejected with
+ * INVALID_SOCIAL_TOKEN.
+ *
+ * Listing several audiences is not a weakening: google-auth-library still
+ * requires aud to match one of them exactly, and every entry is a client we
+ * control.
+ */
+function googleAudiences() {
+  return String(process.env.FLAME_GOOGLE_CLIENT_ID || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 async function verifyGoogle(idToken) {
   try {
     const { OAuth2Client } = require('google-auth-library');
-    const client = new OAuth2Client(process.env.FLAME_GOOGLE_CLIENT_ID);
+    const audiences = googleAudiences();
+    const client = new OAuth2Client(audiences[0]);
     const ticket = await client.verifyIdToken({
-      idToken, audience: process.env.FLAME_GOOGLE_CLIENT_ID,
+      idToken, audience: audiences,
     });
     const p = ticket.getPayload();
     if (!p || !p.sub) throw new Error('no payload');
@@ -68,4 +91,4 @@ async function verifyFacebook(accessToken) {
   }
 }
 
-module.exports = { isConfigured, verifyGoogle, verifyApple, verifyFacebook };
+module.exports = { isConfigured, googleAudiences, verifyGoogle, verifyApple, verifyFacebook };
