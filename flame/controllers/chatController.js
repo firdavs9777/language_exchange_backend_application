@@ -73,6 +73,26 @@ async function sendMedia(req, res) {
       height: req.body.height,
     },
   );
+  // Identical best-effort realtime + push blocks to sendMessage's. Without
+  // them a received photo or voice note did not appear in the recipient's
+  // list, did not move the unread badge, did not appear in an open chat (the
+  // REST poll is disabled whenever realtime is on) and fired no notification —
+  // a media message was silently a second-class citizen.
+  try {
+    const io = req.app.get('io');
+    if (io) require('../socket/flameSocket').emitNewMessage(io, message.receiver_id, message);
+  } catch (_) { /* realtime is best-effort */ }
+  try {
+    require('../services/pushService')
+      .sendChatMessage(message.receiver_id, {
+        senderName: req.user.id,
+        // A media message has no text, so the push body is the bracketed kind
+        // preview rather than an empty string.
+        text: `[${kind}]`,
+        conversationId: message.conversation_id,
+      })
+      .catch(() => {});
+  } catch (_) { /* push is best-effort */ }
   res.status(201).json({ success: true, data: message });
 }
 
