@@ -53,3 +53,41 @@ test('endedBy defaults to null so a live match is the default state', async (t) 
   const m = await Match.create({ users: Match.pair('x', 'y'), conversationId: 'c3' });
   assert.equal(m.endedBy, null);
 });
+
+test('a user can be in MANY matches', async (t) => {
+  const Match = await setup();
+  t.after(async () => {
+    const { close } = require('../db');
+    await close();
+    await dbHelper.stop();
+  });
+  await Match.init();
+
+  await Match.create({ users: Match.pair('a', 'b'), conversationId: 'c1' });
+  await Match.create({ users: Match.pair('a', 'c'), conversationId: 'c2' });
+  await Match.create({ users: Match.pair('a', 'd'), conversationId: 'c3' });
+
+  assert.equal(await Match.countDocuments({ users: 'a' }), 3);
+});
+
+test('an unsorted pair is rejected outright', async (t) => {
+  const Match = await setup();
+  t.after(async () => {
+    const { close } = require('../db');
+    await close();
+    await dbHelper.stop();
+  });
+
+  await assert.rejects(() => Match.create({ users: ['b', 'a'], conversationId: 'c1' }));
+});
+
+test('a pair of identical ids is rejected', async (t) => {
+  const Match = await setup();
+  t.after(async () => {
+    const { close } = require('../db');
+    await close();
+    await dbHelper.stop();
+  });
+
+  await assert.rejects(() => Match.create({ users: ['a', 'a'], conversationId: 'c1' }));
+});
