@@ -96,4 +96,4 @@ async function deletePhoto(userId, photoId) {
   await user.save();
 }
 
-module.exports = { getMe, getById, updateMe, uploadPhoto, deletePhoto };
+module.exports = { getMe, getById, updateMe, uploadPhoto, deletePhoto, toPublicMinimal };
