@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const mongoose = require('mongoose');
 const dbHelper = require('./helpers/db');
 
 // Flame's connection is deliberately fire-and-forget from server.js:32 —
@@ -116,7 +117,7 @@ test('close() stops a retry loop that is mid-flight', async () => {
   assert.equal(waits, 1, 'one wait, then close() ends the loop rather than it running forever');
 });
 
-test('a failed attempt does not poison the next one', async (t) => {
+test('models bound before connect() still work after a failed first attempt', async (t) => {
   process.env.FLAME_MONGO_SERVER_SELECTION_TIMEOUT_MS = '50';
   const { connect, getConn, close } = freshDb();
 
@@ -127,19 +128,30 @@ test('a failed attempt does not poison the next one', async (t) => {
     await dbHelper.stop();
   });
 
-  // Bind a connection to the dead address the way a model file would at
-  // module-load time, before connect() has ever run.
-  const dead = getConn();
+  // This is the whole reason the connection object must be stable.
+  // server.js requires ./flame (the router) BEFORE calling connect(), and
+  // flame/models/User.js ends with `getConn().model('User', schema)` — so
+  // every model binds to whatever object getConn() returns at module-load
+  // time, while the connection is still opening.
+  const bound = getConn();
+  const Thing = bound.model('Thing', new mongoose.Schema({ name: String }));
 
+  // The first attempt fails against the dead address; the URI is repaired
+  // between attempts, standing in for Atlas becoming reachable again.
   process.env.FLAME_MONGO_URI = uri;
   const live = await connect({ retries: 3, sleep: async () => {} });
 
-  assert.notEqual(live.readyState, 0);
   assert.ok(
-    !Object.is(dead, live),
-    'the connection object that never completed its handshake must be discarded, '
-      + 'not reused — mongoose does not reliably transition one out of that state, '
-      + 'and every model bound to it would keep buffering',
+    Object.is(bound, live),
+    'connect() must reopen the SAME connection object, never swap it. Replacing '
+      + 'it orphans every model already bound to the old one, and their queries '
+      + 'then buffer until mongoose gives up — which is exactly the '
+      + '`Operation `users.findOne()` buffering timed out` seen in production.',
   );
-  assert.equal(getConn(), live, 'and getConn must hand out the live one afterwards');
+  assert.equal(live.readyState, 1);
+
+  // The real proof: the model bound before any successful connection can query.
+  await Thing.create({ name: 'ok' });
+  const found = await Thing.findOne({ name: 'ok' });
+  assert.equal(found.name, 'ok');
 });

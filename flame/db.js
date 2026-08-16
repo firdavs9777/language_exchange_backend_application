@@ -3,7 +3,7 @@ const logger = require('./utils/logger');
 
 let flameConn = null;
 
-// Set by close() so a retry that is mid-flight does not recreate the connection
+// Set by close() so a retry that is mid-flight does not reopen the connection
 // the process is shutting down.
 let closing = false;
 
@@ -21,48 +21,42 @@ function backoffMs(attempt) {
 
 const sleepFor = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
-// Lazily create the connection object so model files can call getConn() at
-// module-load time without first awaiting connect(). mongoose.createConnection()
-// returns synchronously; models can bind to a connection that is still opening.
-function ensureConn() {
-  if (flameConn) return flameConn;
-
-  const uri = process.env.FLAME_MONGO_URI;
-  if (!uri) throw new Error('FLAME_MONGO_URI not set — check config/config.env');
-
-  flameConn = mongoose.createConnection(uri, {
+function options() {
+  return {
     maxPoolSize: 10,
     // Overridable so tests can fail fast instead of waiting out a real timeout.
     serverSelectionTimeoutMS:
       Number(process.env.FLAME_MONGO_SERVER_SELECTION_TIMEOUT_MS) || 5000,
     socketTimeoutMS: 45000,
     connectTimeoutMS: 10000,
-  });
+  };
+}
+
+/// Returns the one connection object Flame will ever use.
+//
+// Created WITHOUT a URI on purpose. `mongoose.createConnection(uri)` starts
+// connecting immediately and gives no way to retry that first handshake on the
+// same object; `createConnection()` returns an unopened connection that models
+// can bind to and that connect() then opens, and reopens, as many times as it
+// takes.
+//
+// That distinction is load-bearing. server.js requires ./flame (and through it
+// every model) BEFORE calling connect(), and each model file ends with
+// `getConn().model('Name', schema)` — so the models bind to whatever this
+// returns, once, at module-load time. If connect() ever swapped this object for
+// a fresh one, every model would still point at the old one and their queries
+// would buffer until mongoose gave up, which is exactly the
+// `Operation \`users.findOne()\` buffering timed out` that took Flame down.
+function ensureConn() {
+  if (flameConn) return flameConn;
+
+  flameConn = mongoose.createConnection();
 
   flameConn.on('connected',    () => logger.info('MongoDB connected'));
   flameConn.on('error',        (err) => logger.error(`Mongo error: ${err.message}`));
   flameConn.on('disconnected', () => logger.warn('MongoDB disconnected'));
 
   return flameConn;
-}
-
-// Throws away a connection whose initial handshake never completed.
-//
-// This matters more than it looks. Mongoose does not reliably transition such a
-// connection to 'connected' later, so reusing it means every model bound to it
-// keeps buffering until mongoose's 10s bufferTimeoutMS and then throws
-// `Operation \`users.findOne()\` buffering timed out` — forever, on a database
-// that may have been reachable again for hours.
-async function discard() {
-  const dead = flameConn;
-  flameConn = null;
-  if (!dead) return;
-  try {
-    await dead.close();
-  } catch {
-    // A connection that never opened may refuse to close. Dropping the
-    // reference is what actually matters.
-  }
 }
 
 /**
@@ -74,7 +68,7 @@ async function discard() {
  * one unreachable-Atlas moment (an IP-allowlist lapse) left Flame dead for the
  * life of the process, 500ing every request with a buffering timeout while the
  * same credentials worked fine from a shell on the same box. Only a manual
- * restart brought it back. Retrying here is what makes that self-healing.
+ * restart brought it back.
  *
  * `retries` defaults to Infinity: for the server's startup call, giving up is
  * never the right answer — the database coming back an hour later should heal
@@ -93,18 +87,24 @@ async function connect({ retries = Infinity, sleep = sleepFor } = {}) {
   }
 
   closing = false;
+  const conn = ensureConn();
 
   for (let attempt = 1; ; attempt += 1) {
     try {
-      ensureConn();
-      if (flameConn.readyState !== 1) await flameConn.asPromise();
-      return flameConn;
+      if (conn.readyState === 1) return conn;
+      // readyState 2 means a previous openUri is still in flight; calling
+      // openUri again on an active connection throws, so wait that one out.
+      if (conn.readyState === 2) {
+        await conn.asPromise();
+      } else {
+        // Re-read the URI each attempt: an operator can fix config and restart
+        // nothing, and a test can repair it between retries.
+        await conn.openUri(process.env.FLAME_MONGO_URI, options());
+      }
+      return conn;
     } catch (err) {
-      await discard();
-
       // close() was called while this attempt was in flight — during a graceful
-      // shutdown, say. Recreating the connection now would resurrect what the
-      // process is trying to tear down.
+      // shutdown, say. Reopening now would fight the teardown.
       if (closing) throw err;
 
       if (attempt > retries) {
