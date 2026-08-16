@@ -130,8 +130,8 @@ async function pinMessage(req, res) {
 }
 
 async function unpinMessage(req, res) {
-  await conversationControlsService.unpinMessage(req.user.id, req.params.id, req.params.messageId);
-  res.json({ success: true, data: null });
+  const data = await conversationControlsService.unpinMessage(req.user.id, req.params.id, req.params.messageId);
+  res.json({ success: true, data });
 }
 
 module.exports = {

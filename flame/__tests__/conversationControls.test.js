@@ -145,7 +145,7 @@ test('muting does not hide the conversation or stop unread counting', async (t) 
   assert.equal(listA.body.data.conversations[0].unread_count, 1, 'muting must not stop unread counting');
 });
 
-test('pin with { message_id } pins for the caller only', async (t) => {
+test('pin with { message_id } pins for the caller only, and the response echoes the caller\'s pinned_messages list', async (t) => {
   const app = await setup();
   t.after(teardown);
   const a = await registerUser(app, 'a@x.com');
@@ -155,7 +155,16 @@ test('pin with { message_id } pins for the caller only', async (t) => {
   const msg = await request(app).post(`${BASE}/${convId}/messages`).set(authH(a.token)).send({ text: 'pin me' }).expect(201);
   const msgId = msg.body.data.id;
 
-  await request(app).post(`${BASE}/${convId}/pin`).set(authH(a.token)).send({ message_id: msgId }).expect(201);
+  // The app (chat_service.dart) reads response.data['pinned_messages'], each
+  // with message_id/content/pinned_by/pinned_at — not the top-level
+  // { message_id, pinned_at } the stored subdocument itself carries.
+  const pinRes = await request(app).post(`${BASE}/${convId}/pin`).set(authH(a.token)).send({ message_id: msgId }).expect(201);
+  assert.equal(pinRes.body.data.pinned_messages.length, 1);
+  const entry = pinRes.body.data.pinned_messages[0];
+  assert.equal(entry.message_id, msgId);
+  assert.equal(entry.content, 'pin me');
+  assert.equal(entry.pinned_by, a.id);
+  assert.ok(entry.pinned_at);
 
   const Conversation = require('../models/Conversation');
   const conv = await Conversation.findById(convId).lean();
@@ -165,7 +174,28 @@ test('pin with { message_id } pins for the caller only', async (t) => {
   assert.ok(!conv.pinnedBy.some((p) => p.user === b.id), "pinning must not create an entry for the other participant");
 });
 
-test('DELETE /pin/:messageId unpins', async (t) => {
+test('the pinned_messages response is scoped to the caller\'s own pins, even though both live in the same array', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const open = await request(app).post(BASE).set(authH(a.token)).send({ user_id: b.id }).expect(201);
+  const convId = open.body.data.id;
+  const msgA = await request(app).post(`${BASE}/${convId}/messages`).set(authH(a.token)).send({ text: 'from a' }).expect(201);
+  const msgB = await request(app).post(`${BASE}/${convId}/messages`).set(authH(b.token)).send({ text: 'from b' }).expect(201);
+
+  // Both participants pin something — into the SAME conversation document's
+  // pinnedBy array.
+  await request(app).post(`${BASE}/${convId}/pin`).set(authH(a.token)).send({ message_id: msgA.body.data.id }).expect(201);
+  const pinResB = await request(app).post(`${BASE}/${convId}/pin`).set(authH(b.token)).send({ message_id: msgB.body.data.id }).expect(201);
+
+  // B's response must contain only B's pin, not A's.
+  assert.equal(pinResB.body.data.pinned_messages.length, 1);
+  assert.equal(pinResB.body.data.pinned_messages[0].pinned_by, b.id);
+  assert.equal(pinResB.body.data.pinned_messages[0].message_id, msgB.body.data.id);
+});
+
+test('DELETE /pin/:messageId unpins and returns the caller\'s updated pinned_messages list', async (t) => {
   const app = await setup();
   t.after(teardown);
   const a = await registerUser(app, 'a@x.com');
@@ -176,7 +206,8 @@ test('DELETE /pin/:messageId unpins', async (t) => {
   const msgId = msg.body.data.id;
 
   await request(app).post(`${BASE}/${convId}/pin`).set(authH(a.token)).send({ message_id: msgId }).expect(201);
-  await request(app).delete(`${BASE}/${convId}/pin/${msgId}`).set(authH(a.token)).expect(200);
+  const unpinRes = await request(app).delete(`${BASE}/${convId}/pin/${msgId}`).set(authH(a.token)).expect(200);
+  assert.deepEqual(unpinRes.body.data.pinned_messages, []);
 
   const Conversation = require('../models/Conversation');
   const conv = await Conversation.findById(convId).lean();
@@ -194,7 +225,8 @@ test('pinning the same message twice does not create duplicate entries', async (
   const msgId = msg.body.data.id;
 
   await request(app).post(`${BASE}/${convId}/pin`).set(authH(a.token)).send({ message_id: msgId }).expect(201);
-  await request(app).post(`${BASE}/${convId}/pin`).set(authH(a.token)).send({ message_id: msgId }).expect(201);
+  const secondPin = await request(app).post(`${BASE}/${convId}/pin`).set(authH(a.token)).send({ message_id: msgId }).expect(201);
+  assert.equal(secondPin.body.data.pinned_messages.length, 1, 'the response must not echo a duplicate either');
 
   const Conversation = require('../models/Conversation');
   const conv = await Conversation.findById(convId).lean();

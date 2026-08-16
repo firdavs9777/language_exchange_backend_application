@@ -58,6 +58,34 @@ async function isMutedFor(conversationId, userId) {
   return new Date(entry.mutedUntil).getTime() > Date.now();
 }
 
+// The shipped app (chat_service.dart's pinMessage/unpinMessage) replaces its
+// entire pinned-messages list from this response — it does not merge a
+// single new entry in. So both mutators return the caller's FULL current
+// pin list, not just the one just added or removed. pinnedBy is per-user, so
+// this is scoped to `userId`'s own entries only: the other participant's
+// pins live in the same array on the same document but must never appear
+// here (that would leak one user's pin choices into the other's list).
+//
+// `content` is the pinned message's text, straight from toMessage's `text`
+// field. A media-only message has no text — Message.text defaults to '' for
+// those, same as toMessage already reports — so content is '' for a pinned
+// image/video/audio/voice message rather than some synthesized placeholder.
+async function _pinnedMessagesFor(conversationId, userId) {
+  const conv = await Conversation.findById(conversationId).lean();
+  const mine = (conv.pinnedBy || []).filter((p) => p.user === userId);
+  if (mine.length === 0) return [];
+
+  const msgs = await Message.find({ _id: { $in: mine.map((p) => p.messageId) } }).lean();
+  const byId = new Map(msgs.map((m) => [m._id.toString(), m]));
+
+  return mine.map((p) => ({
+    message_id: p.messageId,
+    content: (byId.get(p.messageId) || {}).text || '',
+    pinned_by: p.user,
+    pinned_at: p.pinnedAt ? new Date(p.pinnedAt).toISOString() : null,
+  }));
+}
+
 async function pinMessage(userId, conversationId, messageId) {
   const conv = await _findConversation(conversationId);
   _assertParticipant(conv, userId);
@@ -76,7 +104,7 @@ async function pinMessage(userId, conversationId, messageId) {
     { _id: conversationId, pinnedBy: { $not: { $elemMatch: { user: userId, messageId } } } },
     { $push: { pinnedBy: { user: userId, messageId, pinnedAt: now } } },
   );
-  return { message_id: messageId, pinned_at: now.toISOString() };
+  return { pinned_messages: await _pinnedMessagesFor(conversationId, userId) };
 }
 
 async function unpinMessage(userId, conversationId, messageId) {
@@ -86,6 +114,7 @@ async function unpinMessage(userId, conversationId, messageId) {
     { _id: conversationId },
     { $pull: { pinnedBy: { user: userId, messageId } } },
   );
+  return { pinned_messages: await _pinnedMessagesFor(conversationId, userId) };
 }
 
 module.exports = { mute, unmute, isMutedFor, pinMessage, unpinMessage };
