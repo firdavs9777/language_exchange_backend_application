@@ -1,21 +1,56 @@
 const express = require('express');
 const multer = require('multer');
+const rateLimit = require('express-rate-limit');
 const { z } = require('zod');
 const asyncHandler = require('../middleware/asyncHandler');
 const auth = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const ctrl = require('../controllers/chatController');
+const { LIMITS } = require('../services/mediaService');
 const { ValidationError } = require('../utils/errors');
 
 const router = express.Router();
 
-const upload = multer({
+// One multer instance PER KIND, ceilinged just above that kind's own cap in
+// mediaService, rather than one shared 50MB instance.
+//
+// multer buffers the entire body into process memory before the controller —
+// and therefore before the participant / block / ended-match checks — runs. A
+// shared 50MB ceiling meant any authenticated user could pin N x 50MB of RAM
+// with a handful of concurrent posts, whichever kind they claimed to be
+// sending. A voice note now costs at most ~11MB of that.
+//
+// The headroom matters: with a ceiling EQUAL to the kind's cap (which is what
+// video had) mediaService's own 422 can never fire, so the client only ever
+// sees multer's generic "file is too large" instead of the message naming the
+// real limit. Above the cap, mediaService answers first and multer is only the
+// backstop for something far larger.
+const CEILING_HEADROOM_BYTES = 1024 * 1024;
+const uploadFor = (kind) => multer({
   storage: multer.memoryStorage(),
-  // Hard backstop at the multer layer, above every per-kind cap in
-  // mediaService (the largest of which is video at 50MB). Wrapped below in
-  // handleUpload so hitting it still surfaces as a 422, not the generic
-  // handler's 500.
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: LIMITS[kind].maxBytes + CEILING_HEADROOM_BYTES },
+});
+
+// The flame sub-app is mounted at /flamebackend/v1, which the root server's
+// generalLimiter (scoped to /api/v1/) never sees — so the upload routes had no
+// rate limit whatsoever. Mounted here, in flame's own router, because the repo
+// root serves live BananaTalk users and is not ours to touch.
+//
+// Keyed on the authenticated user (every media route runs `auth` first),
+// mirroring middleware/rateLimiter.js's interactionLimiter, and scaled well
+// down from it: 20 uploads/minute is far more than any human composer produces
+// and still bounds the memory a single account can hold at once.
+const mediaUploadLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: {
+    success: false,
+    error: 'Too many uploads. Please slow down.',
+    message: 'Too many uploads. Please slow down.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => (req.user ? `flamemedia:${req.user.id}` : `flamemedia:${req.ip}`),
 });
 
 // multer signals its own limits with a MulterError, which is not a FlameError,
@@ -69,20 +104,20 @@ router.post('/:id/messages', auth, validate.params(idParam), validate.body(sendS
 // Paths and multipart field names are fixed by the shipped app
 // (lib/services/chat_service.dart) — not negotiable independently of a
 // coordinated app release.
-router.post('/:id/messages/image', auth, validate.params(idParam),
-  withKind('image'), handleUpload(upload.single('image')), asyncHandler(ctrl.sendMedia));
+router.post('/:id/messages/image', auth, mediaUploadLimiter, validate.params(idParam),
+  withKind('image'), handleUpload(uploadFor('image').single('image')), asyncHandler(ctrl.sendMedia));
 
-router.post('/:id/messages/voice', auth, validate.params(idParam),
-  withKind('voice'), handleUpload(upload.single('voice')), asyncHandler(ctrl.sendMedia));
+router.post('/:id/messages/voice', auth, mediaUploadLimiter, validate.params(idParam),
+  withKind('voice'), handleUpload(uploadFor('voice').single('voice')), asyncHandler(ctrl.sendMedia));
 
-router.post('/:id/messages/audio', auth, validate.params(idParam),
-  withKind('audio'), handleUpload(upload.single('audio')), asyncHandler(ctrl.sendMedia));
+router.post('/:id/messages/audio', auth, mediaUploadLimiter, validate.params(idParam),
+  withKind('audio'), handleUpload(uploadFor('audio').single('audio')), asyncHandler(ctrl.sendMedia));
 
 // .fields (not .single) because a later app release may attach a thumbnail
 // alongside the video; today's shipped app sends none.
-router.post('/:id/messages/video', auth, validate.params(idParam),
+router.post('/:id/messages/video', auth, mediaUploadLimiter, validate.params(idParam),
   withKind('video'),
-  handleUpload(upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }])),
+  handleUpload(uploadFor('video').fields([{ name: 'video', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }])),
   asyncHandler(ctrl.sendMedia));
 
 router.put('/:id/read', auth, validate.params(idParam), asyncHandler(ctrl.markRead));

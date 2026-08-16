@@ -257,20 +257,20 @@ test('5b: a file over the per-kind mediaService limit (but under the multer ceil
 // This is the case the router's own comment claimed was already handled and
 // wasn't: a MulterError is not a FlameError, so without handleUpload wrapping
 // the upload middleware, this fell through to the generic error handler as a
-// 500 instead of the 422 promised by the comment. A real 51MB buffer is used
-// (rather than shrinking the production fileSize limit for the test) so the
-// assertion exercises the actual multer LIMIT_FILE_SIZE path, not a stand-in
-// for it — allocating and uploading it costs a bit of test time/memory but is
-// the only way to be sure the real multer ceiling, not a substitute, is what
-// gets mapped to 422.
-test('5c: a file over the multer 50MB ceiling is rejected with 422, not a 500', async (t) => {
+// 500 instead of the 422 promised by the comment. A real buffer over the
+// production ceiling is used (rather than shrinking the fileSize limit for the
+// test) so the assertion exercises the actual multer LIMIT_FILE_SIZE path, not
+// a stand-in for it. The ceiling used to be a shared 50MB and needed a 51MB
+// buffer; it is now per-kind (image: its own 10MB cap plus 1MB of headroom),
+// so 12MB clears it and the test costs a quarter of the memory it did.
+test('5c: a file over the route\'s multer ceiling is rejected with 422, not a 500', async (t) => {
   const app = await setup();
   t.after(teardown);
   const a = await registerUser(app, 'a@x.com');
   const b = await registerUser(app, 'b@x.com');
   const convId = await openConv(app, a, b.id);
 
-  const overMulterCeiling = Buffer.alloc(51 * 1024 * 1024);
+  const overMulterCeiling = Buffer.alloc(12 * 1024 * 1024);
 
   const res = await request(app)
     .post(`/flamebackend/v1/conversations/${convId}/messages/image`)
@@ -282,6 +282,100 @@ test('5c: a file over the multer 50MB ceiling is rejected with 422, not a 500', 
   const Message = require('../models/Message');
   const count = await Message.countDocuments({ conversationId: convId });
   assert.equal(count, 0, 'a rejected upload must not persist a message');
+});
+
+// Every route used to share ONE multer instance ceilinged at 50MB, and multer
+// buffers the whole body into process memory before the controller — and
+// therefore before any participant/block check — runs. So a voice note could
+// hold 50MB of RAM per concurrent request no matter that its own cap is 10MB.
+// Each route now has a ceiling just above its own kind's cap, which is exactly
+// what this asserts: at 12MB the voice route stops reading, and the answer is
+// multer's blunter message rather than mediaService's kind-specific one. That
+// trade is deliberate — refusing after ~11MB beats a nicer sentence produced
+// after buffering 50MB.
+test('5d: the voice route stops reading a 12MB upload at its own ceiling, not at 50MB', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const convId = await openConv(app, a, b.id);
+
+  const mediaService = require('../services/mediaService');
+  assert.equal(mediaService.LIMITS.voice.maxBytes, 10 * 1024 * 1024);
+  const twelveMB = Buffer.alloc(12 * 1024 * 1024);
+
+  const res = await request(app)
+    .post(`/flamebackend/v1/conversations/${convId}/messages/voice`)
+    .set(authH(a.token))
+    .attach('voice', twelveMB, { filename: 'note.m4a', contentType: 'audio/mp4' })
+    .expect(422);
+  assert.match(
+    res.body.error.message,
+    /file is too large/,
+    'this must be multer refusing at the voice route\'s own ceiling; the '
+    + 'kind-specific message would mean the whole 12MB was buffered first',
+  );
+
+  const Message = require('../models/Message');
+  assert.equal(await Message.countDocuments({ conversationId: convId }), 0);
+});
+
+// The mirror image of 5d: video's cap and the old shared multer ceiling were
+// both exactly 50MB, so the per-kind cap could never fire and an oversized
+// video only ever got the generic message. With the ceiling above the cap,
+// mediaService answers first and names the real limit.
+test('5e: an oversized video gets mediaService\'s message, not multer\'s', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const convId = await openConv(app, a, b.id);
+
+  const mediaService = require('../services/mediaService');
+  const overVideoCap = Buffer.alloc(mediaService.LIMITS.video.maxBytes + 1024);
+
+  const res = await request(app)
+    .post(`/flamebackend/v1/conversations/${convId}/messages/video`)
+    .set(authH(a.token))
+    .attach('video', overVideoCap, { filename: 'clip.mp4', contentType: 'video/mp4' })
+    .expect(422);
+  assert.match(res.body.error.message, /video must be under 50MB/);
+
+  const Message = require('../models/Message');
+  assert.equal(await Message.countDocuments({ conversationId: convId }), 0);
+});
+
+// /flamebackend/v1 is invisible to the root server's generalLimiter (scoped to
+// /api/v1/), so before this the upload routes had no rate limit at all: a
+// handful of concurrent POSTs from one account could hold arbitrary memory.
+test('5f: media uploads are rate limited per user', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const convId = await openConv(app, a, b.id);
+
+  const post = () => request(app)
+    .post(`/flamebackend/v1/conversations/${convId}/messages/image`)
+    .set(authH(a.token))
+    .attach('image', jpeg(), { filename: 'photo.jpg', contentType: 'image/jpeg' });
+
+  const statuses = [];
+  for (let i = 0; i < 21; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    statuses.push((await post()).status);
+  }
+
+  assert.equal(statuses.filter((s) => s === 201).length, 20, 'the limit is 20 uploads per minute');
+  assert.equal(statuses[20], 429, 'the 21st upload in the window must be refused');
+
+  // The other participant is unaffected — the limiter keys on the user, not the IP.
+  const convForB = await openConv(app, b, a.id);
+  await request(app)
+    .post(`/flamebackend/v1/conversations/${convForB}/messages/image`)
+    .set(authH(b.token))
+    .attach('image', jpeg(), { filename: 'photo.jpg', contentType: 'image/jpeg' })
+    .expect(201);
 });
 
 test('6: POST .../messages/voice with duration=12 sets messageType voice and media_info.duration', async (t) => {
