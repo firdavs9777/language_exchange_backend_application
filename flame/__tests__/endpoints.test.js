@@ -15,8 +15,13 @@ async function setup() {
   process.env.DO_SPACES_SECRET = 's';
   [
     '../db', '../models/User', '../models/RefreshToken',
+    '../models/Match', '../models/Swipe', '../models/Conversation', '../models/Message',
     '../services/authService', '../services/userService', '../services/discoveryService',
+    // The /matches and /conversations routes reach these; a module left in the
+    // require cache keeps the previous test's closed connection and 500s.
+    '../services/visibilityService', '../services/matchService', '../services/chatService',
     '../controllers/authController', '../controllers/userController',
+    '../controllers/matchController', '../controllers/chatController',
     '../routes/auth', '../routes/users', '../routes/discovery',
     '../routes/matches', '../routes/conversations', '../routes/billing',
     '../index',

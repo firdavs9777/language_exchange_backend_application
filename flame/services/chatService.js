@@ -3,6 +3,7 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const { NotFoundError, ValidationError, FlameError } = require('../utils/errors');
 const { toDiscoverUser } = require('./discoveryService');
+const visibility = require('./visibilityService');
 
 function toMessage(m) {
   return {
@@ -57,6 +58,7 @@ function _assertParticipant(conv, userId) {
 
 async function openConversation(userId, otherUserId) {
   if (otherUserId === userId) throw new ValidationError('cannot open a conversation with yourself');
+  await visibility.assertCanInteract(userId, otherUserId);
   let other = null;
   try { other = await User.findById(otherUserId).lean(); } catch (_) { other = null; }
   if (!other) throw new NotFoundError('user not found');
@@ -73,6 +75,12 @@ async function openConversation(userId, otherUserId) {
 
 async function listConversations(userId, { limit, offset }) {
   const filter = { participants: userId };
+  // A blocked person must leave the list entirely, not just be un-messageable.
+  // `$all` keeps "userId is a participant"; `$nin` drops any conversation whose
+  // participants include someone on either side of a block. Written as one
+  // assignment because it REPLACES the plain `participants: userId` above.
+  const hidden = await visibility.blockedIdsFor(userId);
+  if (hidden.length) filter.participants = { $all: [userId], $nin: hidden };
   const total = await Conversation.countDocuments(filter);
   const convs = await Conversation.find(filter)
     .sort({ lastMessageAt: -1, updatedAt: -1 })
@@ -100,6 +108,11 @@ async function getMessages(userId, conversationId, { limit, offset }) {
 async function sendMessage(userId, conversationId, { text, replyTo }) {
   const conv = await _findConversation(conversationId);
   _assertParticipant(conv, userId);
+  const receiver = conv.participants.find((p) => p !== userId);
+  // An existing conversation predates the block, so membership alone is not
+  // permission to keep writing into it. Checked before the reply_to validation
+  // so a blocked sender learns nothing about the conversation's contents.
+  await visibility.assertCanInteract(userId, receiver);
   if (replyTo) {
     let parent = null;
     try { parent = await Message.findById(replyTo); } catch (_) { parent = null; }
@@ -107,7 +120,6 @@ async function sendMessage(userId, conversationId, { text, replyTo }) {
       throw new ValidationError('reply_to must be a message in this conversation');
     }
   }
-  const receiver = conv.participants.find((p) => p !== userId);
   const msg = await Message.create({
     conversationId, sender: userId, receiver, text, messageType: 'text',
     replyTo: replyTo || null,

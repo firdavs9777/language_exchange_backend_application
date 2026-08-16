@@ -4,8 +4,10 @@ const dbHelper = require('./helpers/db');
 
 async function setup() {
   await dbHelper.start();
-  ['../db', '../models/User', '../models/Swipe', '../services/blockService',
-   '../services/visibilityService']
+  // '../models/Match' is listed because blockService now ends any live match:
+  // an uncleared model keeps a handle on the previous test's closed connection.
+  ['../db', '../models/User', '../models/Swipe', '../models/Match',
+   '../services/blockService', '../services/visibilityService']
     .forEach(p => { try { delete require.cache[require.resolve(p)]; } catch {} });
 
   const { connect } = require('../db');

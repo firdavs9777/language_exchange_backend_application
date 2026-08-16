@@ -36,7 +36,9 @@ test('getMe returns the full profile', async (t) => {
 test('getById returns public profile (no email, no passwordHash)', async (t) => {
   const id = await setupAndRegister();
   const userService = require('../services/userService');
-  const other = await userService.getById(id);
+  // (viewerId, targetId) — getById takes the viewer first so it can apply the
+  // same block filter as every other surface that returns another user.
+  const other = await userService.getById(id, id);
   assert.equal(other.name, 'Ada');
   assert.equal(other.email, undefined);
   assert.equal(other.passwordHash, undefined);

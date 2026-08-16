@@ -24,9 +24,12 @@ async function setup() {
   process.env.DO_SPACES_SECRET = 's';
   [
     '../db', '../models/User', '../models/RefreshToken', '../models/Story',
-    '../models/Conversation', '../models/Message',
+    '../models/Conversation', '../models/Message', '../models/Swipe',
     '../services/authService', '../services/userService', '../services/storyService',
-    '../services/chatService',
+    // chatService/userService/storyService now enforce blocks through
+    // visibilityService, which binds User and Swipe at load — clear all three
+    // or they keep the previous test's closed connection.
+    '../services/visibilityService', '../services/chatService',
     '../controllers/authController', '../controllers/userController', '../controllers/storyController',
     '../controllers/chatController',
     '../routes/auth', '../routes/users', '../routes/stories', '../routes/conversations', '../index',

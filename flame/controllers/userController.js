@@ -6,7 +6,7 @@ async function getMe(req, res) {
 }
 
 async function getById(req, res) {
-  const u = await userService.getById(req.params.id);
+  const u = await userService.getById(req.user.id, req.params.id);
   res.json({ success: true, data: u });
 }
 

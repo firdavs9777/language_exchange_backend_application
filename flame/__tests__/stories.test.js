@@ -23,8 +23,12 @@ async function setup() {
   process.env.DO_SPACES_KEY = 'k';
   process.env.DO_SPACES_SECRET = 's';
   [
-    '../db', '../models/User', '../models/RefreshToken', '../models/Story',
+    '../db', '../models/User', '../models/RefreshToken', '../models/Story', '../models/Swipe',
     '../services/authService', '../services/userService', '../services/storyService',
+    // storyService/userService now enforce blocks through visibilityService,
+    // which binds User and Swipe at load — clear all three or they keep the
+    // previous test's closed connection.
+    '../services/visibilityService',
     '../controllers/authController', '../controllers/userController', '../controllers/storyController',
     '../routes/auth', '../routes/users', '../routes/stories', '../index',
   ].forEach((p) => { try { delete require.cache[require.resolve(p)]; } catch {} });

@@ -132,10 +132,34 @@ function initFlameSocket(io) {
   return ns;
 }
 
-// Push a newly-sent message to its receiver's room. Best-effort; callers guard.
-function emitNewMessage(io, receiverId, message) {
+// Push a message payload into its receiver's room.
+//
+// Async because a block has to be re-checked HERE, at delivery time: a socket
+// connection outlives a block, and this path bypasses every REST-level check,
+// so without this a blocked sender still reaches a live client.
+//
+// Never rejects — realtime is best-effort and the callers invoke this without
+// awaiting, so a rejection would surface as an unhandled rejection rather than
+// as a failed send. It fails CLOSED: if the block lookup itself throws we drop
+// the push rather than risk delivering into a blocked pair. The message is
+// already persisted, so a REST fetch still shows it.
+async function emitToReceiver(io, receiverId, event, message) {
   if (!io || !receiverId) return;
-  io.of(NS).to(room(receiverId)).emit('message:new', message);
+  try {
+    const senderId = message && message.sender_id;
+    if (senderId) {
+      const visibility = require('../services/visibilityService');
+      if (await visibility.areBlocked(receiverId, senderId)) return;
+    }
+    io.of(NS).to(room(receiverId)).emit(event, message);
+  } catch (_) {
+    // Best-effort, fail-closed — see above.
+  }
+}
+
+// Push a newly-sent message to its receiver's room.
+function emitNewMessage(io, receiverId, message) {
+  return emitToReceiver(io, receiverId, 'message:new', message);
 }
 
 function emitRead(io, userId, conversationId) {
@@ -143,16 +167,14 @@ function emitRead(io, userId, conversationId) {
   io.of(NS).to(room(userId)).emit('read', { conversation_id: conversationId });
 }
 
-// Push an edited message to its receiver's room. Best-effort; callers guard.
+// Push an edited message to its receiver's room.
 function emitMessageEdited(io, receiverId, message) {
-  if (!io || !receiverId) return;
-  io.of(NS).to(room(receiverId)).emit('message:edited', message);
+  return emitToReceiver(io, receiverId, 'message:edited', message);
 }
 
-// Push a deleted message to its receiver's room. Best-effort; callers guard.
+// Push a deleted message to its receiver's room.
 function emitMessageDeleted(io, receiverId, message) {
-  if (!io || !receiverId) return;
-  io.of(NS).to(room(receiverId)).emit('message:deleted', message);
+  return emitToReceiver(io, receiverId, 'message:deleted', message);
 }
 
 module.exports = { initFlameSocket, emitNewMessage, emitRead, emitMessageEdited, emitMessageDeleted };

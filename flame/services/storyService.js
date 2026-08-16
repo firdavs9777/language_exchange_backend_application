@@ -41,13 +41,23 @@ function toUserStories(user, stories, viewerId) {
 // SINGLE SWAP POINT for story visibility. Today every Flame user can see every
 // other user's active stories (matches don't exist server-side yet). When the
 // matches feature lands, change this to return { userId: { $in: matchIds } }.
+//
+// Blocks are an ADDITIONAL constraint layered on top of whatever author set
+// this builds, not a replacement for it — a story is one of the surfaces that
+// returns another user, so a blocked author has to drop out of the feed.
 async function visibleAuthorFilter(viewerId) {
-  return { userId: { $ne: viewerId } };
+  const visibility = require('./visibilityService');
+  const hidden = await visibility.blockedIdsFor(viewerId);
+  return { userId: { $ne: viewerId, $nin: hidden } };
 }
 
 async function canView(viewerId, authorId) {
-  // Mirror of visibleAuthorFilter for the single-story (view) path.
-  return authorId !== viewerId; // author handled separately; all others allowed for now
+  // Mirror of visibleAuthorFilter for the single-story (view) path. Without the
+  // block check here a blocked viewer could still register a view (and land in
+  // the author's viewer count) by hitting the story id directly.
+  if (authorId === viewerId) return false; // author handled separately
+  const visibility = require('./visibilityService');
+  return !(await visibility.areBlocked(viewerId, authorId));
 }
 
 // ---- Internals ----

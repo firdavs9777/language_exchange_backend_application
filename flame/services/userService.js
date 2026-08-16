@@ -36,7 +36,18 @@ async function getMe(userId) {
   return toPublic(user);
 }
 
-async function getById(userId) {
+// Takes the VIEWER first: a profile read is a surface that returns another
+// user, so it has to be filtered by the same block rules as discover and chat.
+async function getById(viewerId, userId) {
+  // Required lazily: visibilityService is only needed on this path, and a
+  // top-level require here would drag the block machinery into every module
+  // that only wants toPublicMinimal (matchService, swipeService).
+  const visibility = require('./visibilityService');
+  // 404 rather than 403: a blocked user should be indistinguishable from one
+  // who does not exist, so nobody can probe who blocked them.
+  if (viewerId && (await visibility.areBlocked(viewerId, userId))) {
+    throw new NotFoundError('User not found');
+  }
   const user = await User.findById(userId);
   if (!user || user.isDeleted) throw new NotFoundError('User not found');
   return toPublicMinimal(user);

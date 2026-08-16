@@ -19,6 +19,16 @@ async function block(userId, targetId) {
     { _id: targetId, 'blockedBy.user': { $ne: userId } },
     { $push: { blockedBy: { user: userId, blockedAt: now } } },
   );
+
+  // A block is a complete severance, not a partial one: end any live match so
+  // the pair leaves both users' match lists instead of lingering as a match
+  // neither side can act on. Required lazily so blockService does not pull the
+  // Match model into every module that only needs listBlocked.
+  const Match = require('../models/Match');
+  await Match.updateOne(
+    { users: Match.pair(userId, targetId), endedBy: null },
+    { $set: { endedBy: userId } },
+  );
 }
 
 async function unblock(userId, targetId) {

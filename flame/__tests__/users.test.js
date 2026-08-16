@@ -23,8 +23,11 @@ async function setup() {
   process.env.SPACES_ENDPOINT = 'e';
   process.env.DO_SPACES_KEY = 'k';
   process.env.DO_SPACES_SECRET = 's';
-  ['../db', '../models/User', '../models/RefreshToken',
-   '../services/authService', '../services/userService',
+  // userService now filters blocked profiles through visibilityService, which
+  // binds User and Swipe at load — clear all three or they keep the previous
+  // test's closed connection.
+  ['../db', '../models/User', '../models/RefreshToken', '../models/Swipe',
+   '../services/authService', '../services/userService', '../services/visibilityService',
    '../controllers/authController', '../controllers/userController',
    '../routes/auth', '../routes/users', '../index']
     .forEach(p => { try { delete require.cache[require.resolve(p)]; } catch {} });

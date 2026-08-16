@@ -16,7 +16,9 @@ async function setup() {
   process.env.DO_SPACES_KEY = 'k';
   process.env.DO_SPACES_SECRET = 's';
 
-  ['../db', '../models/User', '../models/RefreshToken', '../utils/jwt',
+  // '../models/Match' is listed because blockService now ends any live match:
+  // an uncleared model keeps a handle on the previous test's closed connection.
+  ['../db', '../models/User', '../models/RefreshToken', '../models/Match', '../utils/jwt',
    '../services/blockService', '../controllers/blockController',
    '../routes/blocks', '../index']
     .forEach(p => { try { delete require.cache[require.resolve(p)]; } catch {} });
