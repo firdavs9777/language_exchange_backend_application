@@ -45,6 +45,18 @@ async function findOrCreate(provider, payload) {
     isNew = true;
   }
 
+  // Mongoose validates the WHOLE document on save(), not just changed paths, so
+  // linking a provider to an account that predates the required dating fields
+  // (or any partially migrated record) fails with "Path `lookingFor` is
+  // required" and surfaces as a 500. Backfill anything missing to the same
+  // neutral defaults a fresh social signup gets; the profile-completion flow
+  // collects the real values. Only ever fills gaps — never overwrites a value
+  // the user actually chose.
+  if (!user.name) user.name = name || 'New User';
+  if (!user.age) user.age = 18;
+  if (!user.gender) user.gender = 'other';
+  if (!user.lookingFor) user.lookingFor = 'other';
+
   user.lastActive = new Date();
   user.isOnline = true;
   try {
