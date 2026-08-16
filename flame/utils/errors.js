@@ -15,6 +15,10 @@ class NotFoundError extends FlameError {
   constructor(message = 'Not found') { super('NOT_FOUND', message, 404); this.name = 'NotFoundError'; }
 }
 
+class ForbiddenError extends FlameError {
+  constructor(message = 'Forbidden') { super('FORBIDDEN', message, 403); this.name = 'ForbiddenError'; }
+}
+
 class ValidationError extends FlameError {
   constructor(message) { super('VALIDATION', message, 422); this.name = 'ValidationError'; }
 }
@@ -23,4 +27,4 @@ class ConflictError extends FlameError {
   constructor(code, message) { super(code, message, 409); this.name = 'ConflictError'; }
 }
 
-module.exports = { FlameError, AuthError, NotFoundError, ValidationError, ConflictError };
+module.exports = { FlameError, AuthError, NotFoundError, ValidationError, ConflictError, ForbiddenError };
