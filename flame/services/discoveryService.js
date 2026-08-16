@@ -46,12 +46,25 @@ async function discover(viewerId, { limit, offset }) {
     filter.gender = me.lookingFor;
   }
 
-  // Age range from the viewer's preferences, when present.
+  // An untouched preference window means "no preference", not "18-50".
+  //
+  // minAge/maxAge default to 18/50 in the schema, and those defaults were
+  // written into every user document at insert — so treating them as a real
+  // filter silently hides everyone over 50 from everyone, on existing data.
+  // Only filter when the user has actually moved one of the bounds.
+  const DEFAULT_MIN_AGE = 18;
+  const DEFAULT_MAX_AGE = 50;
   const prefs = (me && me.preferences) || {};
-  if (prefs.minAge || prefs.maxAge) {
+  const minAge = prefs.minAge;
+  const maxAge = prefs.maxAge;
+  const usingDefaultWindow =
+    (minAge == null || minAge === DEFAULT_MIN_AGE) &&
+    (maxAge == null || maxAge === DEFAULT_MAX_AGE);
+
+  if (!usingDefaultWindow) {
     filter.age = {};
-    if (prefs.minAge) filter.age.$gte = prefs.minAge;
-    if (prefs.maxAge) filter.age.$lte = prefs.maxAge;
+    if (minAge != null) filter.age.$gte = minAge;
+    if (maxAge != null) filter.age.$lte = maxAge;
   }
 
   const total = await User.countDocuments(filter);

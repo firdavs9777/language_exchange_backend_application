@@ -71,12 +71,15 @@ async function setupPreferences({ lookingFor, minAge, maxAge }) {
     preferences: { minAge, maxAge },
   });
 
-  // One of each gender at an in-window age, plus two out-of-window ages.
+  // One of each gender at an in-window age, plus two out-of-window ages and one
+  // user past the default maxAge (50) entirely, to exercise the "untouched
+  // default window means no filter" escape hatch.
   const male = await mk('male@x.com', 'Ma', 'male', 30);
   const female = await mk('female@x.com', 'Fe', 'female', 30);
   const nonBinary = await mk('nb@x.com', 'Nb', 'non_binary', 30);
   const young = await mk('young@x.com', 'Yo', 'male', 19);
   const old = await mk('old@x.com', 'Ol', 'male', 45);
+  const veryOld = await mk('veryold@x.com', 'Vo', 'male', 60);
 
   const id = (u) => u._id.toString();
   return {
@@ -86,6 +89,7 @@ async function setupPreferences({ lookingFor, minAge, maxAge }) {
     nonBinaryId: id(nonBinary),
     youngId: id(young),
     oldId: id(old),
+    veryOldId: id(veryOld),
     discoveryService: require('../services/discoveryService'),
   };
 }
@@ -213,4 +217,51 @@ test('the age bounds are inclusive at both ends', async (t) => {
 
   assert.ok(ids.includes(youngId), 'a user exactly at minAge is included');
   assert.ok(ids.includes(oldId), 'a user exactly at maxAge is included');
+});
+
+// --- untouched default window (18/50) means "no age preference" -------------
+//
+// preferences.minAge/maxAge default to 18/50 in the schema and were written
+// into every existing user document at insert time, so treating them as a
+// real filter silently hid everyone over 50 from everyone. The fix: an
+// EXACTLY untouched 18/50 window skips the age filter entirely.
+
+test('an untouched default window (18/50) applies no age filter, so a 60-year-old is visible',
+  async (t) => {
+    const { meId, veryOldId, discoveryService } =
+      await setupPreferences({ lookingFor: 'male', minAge: 18, maxAge: 50 });
+    teardown(t);
+
+    const { users } = await discoveryService.discover(meId, { limit: 20, offset: 0 });
+    const ids = users.map((u) => u.id);
+
+    assert.ok(ids.includes(veryOldId), 'age 60 must not be hidden by the untouched default window');
+  });
+
+test('moving only maxAge away from its default still filters', async (t) => {
+  const { meId, maleId, youngId, oldId, veryOldId, discoveryService } =
+    await setupPreferences({ lookingFor: 'male', minAge: 18, maxAge: 40 });
+  teardown(t);
+
+  const { users } = await discoveryService.discover(meId, { limit: 20, offset: 0 });
+  const ids = users.map((u) => u.id);
+
+  assert.ok(ids.includes(maleId), 'age 30 is inside 18-40');
+  assert.ok(ids.includes(youngId), 'age 19 is inside 18-40');
+  assert.ok(!ids.includes(oldId), 'age 45 is above the moved maxAge of 40');
+  assert.ok(!ids.includes(veryOldId), 'age 60 is above the moved maxAge of 40');
+});
+
+test('moving only minAge away from its default still filters', async (t) => {
+  const { meId, maleId, youngId, oldId, veryOldId, discoveryService } =
+    await setupPreferences({ lookingFor: 'male', minAge: 30, maxAge: 50 });
+  teardown(t);
+
+  const { users } = await discoveryService.discover(meId, { limit: 20, offset: 0 });
+  const ids = users.map((u) => u.id);
+
+  assert.ok(ids.includes(maleId), 'age 30 is exactly the moved minAge, inclusive');
+  assert.ok(!ids.includes(youngId), 'age 19 is below the moved minAge of 30');
+  assert.ok(ids.includes(oldId), 'age 45 is inside 30-50');
+  assert.ok(!ids.includes(veryOldId), 'age 60 is above the untouched maxAge of 50');
 });
