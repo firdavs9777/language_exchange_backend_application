@@ -10,12 +10,32 @@ const { ForbiddenError } = require('../utils/errors');
 // profile reads. Missing one leaks a blocked person straight back into view,
 // and socket delivery is the easiest to forget because it bypasses REST.
 
+// Hardened the same way areBlocked is, and for the same reason: blockService
+// writes `blockedUsers` and `blockedBy` in two separate, non-atomic updates, so
+// the viewer's own document can be missing half the relationship. Reading only
+// the viewer's arrays would then leave the blocker visible on every LISTING
+// surface (discover, matches, conversation list, story feed) even though
+// areBlocked already refuses the interaction.
+//
+// The second query is the mirror of the first — "whose document names me" —
+// and it is ONE query for the whole listing, not one per candidate.
 async function blockedIdsFor(userId) {
-  const me = await User.findById(userId).select('blockedUsers blockedBy').lean();
-  if (!me) return [];
   const out = new Set();
-  for (const b of me.blockedUsers || []) out.add(b.user);
-  for (const b of me.blockedBy || []) out.add(b.user);
+
+  const me = await User.findById(userId).select('blockedUsers blockedBy').lean();
+  if (me) {
+    for (const b of me.blockedUsers || []) out.add(b.user);
+    for (const b of me.blockedBy || []) out.add(b.user);
+  }
+
+  const others = await User.find({
+    $or: [{ 'blockedUsers.user': userId }, { 'blockedBy.user': userId }],
+  })
+    .select('_id')
+    .lean();
+  for (const u of others) out.add(u._id.toString());
+
+  out.delete(userId);
   return [...out];
 }
 

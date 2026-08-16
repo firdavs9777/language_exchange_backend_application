@@ -112,6 +112,48 @@ test('blocking hides the match from the list', async (t) => {
   assert.equal(res.body.data.matches.length, 0);
 });
 
+// --- pagination bounds ------------------------------------------------------
+//
+// Unclamped, `?limit=100000` loads that many matches plus a $in of that many
+// user ids, and `?offset=-1` reaches the driver and comes back as a 500. The
+// clamp mirrors GET /discover's.
+
+test('GET /matches clamps an oversized limit to 50', async (t) => {
+  const { app, aToken } = await setup();
+  teardown(t);
+
+  const res = await request(app).get(`${BASE}/matches?limit=100000`)
+    .set('Authorization', `Bearer ${aToken}`).expect(200);
+
+  assert.equal(res.body.data.pagination.limit, 50);
+});
+
+test('GET /matches rejects a negative offset by clamping it to 0, not 500ing', async (t) => {
+  const { app, aToken, bId } = await setup();
+  teardown(t);
+
+  const res = await request(app).get(`${BASE}/matches?offset=-1`)
+    .set('Authorization', `Bearer ${aToken}`).expect(200);
+
+  assert.equal(res.body.data.pagination.offset, 0);
+  assert.equal(res.body.data.matches.length, 1);
+  assert.equal(res.body.data.matches[0].user.id, bId);
+});
+
+test('GET /matches falls back to the defaults for junk and out-of-range values', async (t) => {
+  const { app, aToken } = await setup();
+  teardown(t);
+
+  const junk = await request(app).get(`${BASE}/matches?limit=abc&offset=abc`)
+    .set('Authorization', `Bearer ${aToken}`).expect(200);
+  assert.equal(junk.body.data.pagination.limit, 20);
+  assert.equal(junk.body.data.pagination.offset, 0);
+
+  const negative = await request(app).get(`${BASE}/matches?limit=-5`)
+    .set('Authorization', `Bearer ${aToken}`).expect(200);
+  assert.equal(negative.body.data.pagination.limit, 1, 'a negative limit is floored, not passed on');
+});
+
 test('listed matches are never reported as new', async (t) => {
   const { app, aToken } = await setup();
   teardown(t);

@@ -12,6 +12,42 @@ const User = require('../models/User');
 const NS = '/flame';
 const room = (userId) => `flame_user_${userId}`;
 
+// Required lazily (like emitToReceiver does) so a test that swaps the DB
+// connection and clears the service from the require cache is answered by the
+// live module rather than by a handle captured at load time.
+function visibilityService() {
+  return require('../services/visibilityService');
+}
+
+// The chat partners this socket may know anything about.
+//
+// partnerIdsOf answers "who shares a conversation with me", which includes
+// people on either side of a block — a conversation outlives the block that
+// followed it. Presence is broadcast to this list on connect and disconnect and
+// echoed back over `presence:bulk`, so an unfiltered list leaks a blocked
+// user's online/offline transitions in both directions.
+async function visiblePartnerIds(userId) {
+  const [partners, blocked] = await Promise.all([
+    chatService.partnerIdsOf(userId),
+    visibilityService().blockedIdsFor(userId),
+  ]);
+  const hidden = new Set(blocked);
+  return partners.filter((id) => !hidden.has(id));
+}
+
+// Should a relay from `fromId` to `toId` be dropped?
+//
+// Fails CLOSED: `typing`, `stopTyping` and `markRead` are forwarded on a
+// client-supplied `data.to`, so if the block lookup itself throws we drop the
+// relay rather than risk reaching a blocked user.
+async function relayBlocked(fromId, toId) {
+  try {
+    return await visibilityService().areBlocked(fromId, toId);
+  } catch (_) {
+    return true;
+  }
+}
+
 // showOnlineStatus lives under User.preferences (flame/models/User.js), defaulting to
 // true. Fall back to true (presence on) if the doc/field is missing for any reason.
 function getShowOnlineStatus(userDoc) {
@@ -56,7 +92,7 @@ function initFlameSocket(io) {
     // Best-effort — never let a presence lookup crash the socket connection.
     (async () => {
       try {
-        socket.partnerIds = await chatService.partnerIdsOf(userId);
+        socket.partnerIds = await visiblePartnerIds(userId);
       } catch (_) {
         socket.partnerIds = [];
       }
@@ -88,32 +124,36 @@ function initFlameSocket(io) {
       }
     })();
 
-    // Relay typing to the other participant's room (best-effort).
-    socket.on('typing', (data) => {
-      if (data && data.to) {
-        ns.to(room(data.to)).emit('typing', {
-          from: userId,
-          conversation_id: data.conversation_id,
-        });
+    // Relay typing / read receipts to the other participant's room
+    // (best-effort). `data.to` is client-supplied, so every one of these is
+    // block-checked before it goes out: a socket connection outlives a block,
+    // and these three are the last delivery paths that bypass REST.
+    //
+    // Async so a test can await the handler; Socket.IO ignores the returned
+    // promise, hence the try/catch inside relay() — a rejection here would
+    // surface as an unhandled rejection, not as a failed relay.
+    const relay = async (data, event, payload) => {
+      try {
+        if (!data || !data.to) return;
+        if (await relayBlocked(userId, data.to)) return;
+        ns.to(room(data.to)).emit(event, payload(data));
+      } catch (_) {
+        // Realtime is best-effort.
       }
-    });
-    socket.on('stopTyping', (data) => {
-      if (data && data.to) {
-        ns.to(room(data.to)).emit('stopTyping', {
-          from: userId,
-          conversation_id: data.conversation_id,
-        });
-      }
-    });
-    // Relay a read receipt to the other participant.
-    socket.on('markRead', (data) => {
-      if (data && data.to) {
-        ns.to(room(data.to)).emit('read', {
-          by: userId,
-          conversation_id: data.conversation_id,
-        });
-      }
-    });
+    };
+
+    socket.on('typing', (data) => relay(data, 'typing', (d) => ({
+      from: userId,
+      conversation_id: d.conversation_id,
+    })));
+    socket.on('stopTyping', (data) => relay(data, 'stopTyping', (d) => ({
+      from: userId,
+      conversation_id: d.conversation_id,
+    })));
+    socket.on('markRead', (data) => relay(data, 'read', (d) => ({
+      by: userId,
+      conversation_id: d.conversation_id,
+    })));
 
     socket.on('disconnect', () => {
       try {
@@ -132,7 +172,9 @@ function initFlameSocket(io) {
   return ns;
 }
 
-// Push a message payload into its receiver's room.
+// The one way anything reaches a user's room from outside a connection: push
+// `payload` to `receiverId`, unless `otherUserId` — the person the payload is
+// about — is on either side of a block with them.
 //
 // Async because a block has to be re-checked HERE, at delivery time: a socket
 // connection outlives a block, and this path bypasses every REST-level check,
@@ -143,18 +185,18 @@ function initFlameSocket(io) {
 // as a failed send. It fails CLOSED: if the block lookup itself throws we drop
 // the push rather than risk delivering into a blocked pair. The message is
 // already persisted, so a REST fetch still shows it.
-async function emitToReceiver(io, receiverId, event, message) {
+async function emitChecked(io, receiverId, otherUserId, event, payload) {
   if (!io || !receiverId) return;
   try {
-    const senderId = message && message.sender_id;
-    if (senderId) {
-      const visibility = require('../services/visibilityService');
-      if (await visibility.areBlocked(receiverId, senderId)) return;
-    }
-    io.of(NS).to(room(receiverId)).emit(event, message);
+    if (otherUserId && await visibilityService().areBlocked(receiverId, otherUserId)) return;
+    io.of(NS).to(room(receiverId)).emit(event, payload);
   } catch (_) {
     // Best-effort, fail-closed — see above.
   }
+}
+
+async function emitToReceiver(io, receiverId, event, message) {
+  return emitChecked(io, receiverId, message && message.sender_id, event, message);
 }
 
 // Push a newly-sent message to its receiver's room.
@@ -162,9 +204,25 @@ function emitNewMessage(io, receiverId, message) {
   return emitToReceiver(io, receiverId, 'message:new', message);
 }
 
-function emitRead(io, userId, conversationId) {
+// Push a read receipt into the room of `userId` — the person whose messages
+// were read.
+//
+// The other party is resolved from the conversation rather than taken as an
+// argument so no caller can forget to pass it and silently reopen the hole
+// emitToReceiver closes. Fails CLOSED: if the conversation cannot be read, or
+// the pair is blocked, nothing goes out. The payload shape is unchanged.
+async function emitRead(io, userId, conversationId) {
   if (!io || !userId) return;
-  io.of(NS).to(room(userId)).emit('read', { conversation_id: conversationId });
+  let otherId = null;
+  try {
+    const Conversation = require('../models/Conversation');
+    const conv = await Conversation.findById(conversationId).select('participants').lean();
+    otherId = conv ? (conv.participants || []).find((p) => p !== userId) : null;
+    if (!otherId) return;
+  } catch (_) {
+    return;
+  }
+  return emitChecked(io, userId, otherId, 'read', { conversation_id: conversationId });
 }
 
 // Push an edited message to its receiver's room.

@@ -55,4 +55,34 @@ async function unmatch(userId, matchId) {
   await match.save();
 }
 
-module.exports = { list, unmatch };
+// Has this pair's match been ended (by either side, or by a block)?
+//
+// Ending a match has to reach further than the match list: the conversation the
+// match created outlives it, so the chat layer asks this before listing or
+// delivering anything. Without it an unmatch leaves a fully working chat.
+async function isEndedBetween(a, b) {
+  if (!a || !b || a === b) return false;
+  const row = await Match.findOne({ users: Match.pair(a, b), endedBy: { $ne: null } })
+    .select('_id')
+    .lean();
+  return !!row;
+}
+
+// Every user this one had a match with that is now ended.
+//
+// One query for the whole listing rather than one per conversation — the
+// conversation list folds these ids into the same $nin it already uses for
+// blocked ids.
+async function endedPartnerIdsFor(userId) {
+  const rows = await Match.find({ users: userId, endedBy: { $ne: null } })
+    .select('users')
+    .lean();
+  const out = new Set();
+  for (const r of rows) {
+    const other = (r.users || []).find((u) => u !== userId);
+    if (other) out.add(other);
+  }
+  return [...out];
+}
+
+module.exports = { list, unmatch, isEndedBetween, endedPartnerIdsFor };

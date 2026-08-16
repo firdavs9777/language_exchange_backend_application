@@ -1,7 +1,9 @@
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
-const { NotFoundError, ValidationError, FlameError } = require('../utils/errors');
+const {
+  NotFoundError, ValidationError, FlameError, ForbiddenError,
+} = require('../utils/errors');
 const { toDiscoverUser } = require('./discoveryService');
 const visibility = require('./visibilityService');
 
@@ -43,6 +45,13 @@ function toConversation(c, forUserId, lastMessageDoc, otherUserDoc) {
   };
 }
 
+// Required lazily: matchService pulls in userService (and through it utils/s3),
+// and a top-level require here would make the chat <-> match pair a load-order
+// hazard for every module that only wants toMessage/toConversation.
+function _matchService() {
+  return require('./matchService');
+}
+
 async function _findConversation(conversationId) {
   let conv = null;
   try { conv = await Conversation.findById(conversationId); } catch (_) { conv = null; }
@@ -76,10 +85,20 @@ async function openConversation(userId, otherUserId) {
 async function listConversations(userId, { limit, offset }) {
   const filter = { participants: userId };
   // A blocked person must leave the list entirely, not just be un-messageable.
+  // So must an unmatched one: the conversation outlives the match, so without
+  // the ended-match ids here an unmatch would leave the chat sitting in both
+  // users' Messages lists forever.
+  //
   // `$all` keeps "userId is a participant"; `$nin` drops any conversation whose
-  // participants include someone on either side of a block. Written as one
-  // assignment because it REPLACES the plain `participants: userId` above.
-  const hidden = await visibility.blockedIdsFor(userId);
+  // participants include someone on either side of a block or an ended match.
+  // Written as one assignment because it REPLACES the plain
+  // `participants: userId` above. Both id sets come from ONE query each, not
+  // one per conversation.
+  const [blocked, unmatched] = await Promise.all([
+    visibility.blockedIdsFor(userId),
+    _matchService().endedPartnerIdsFor(userId),
+  ]);
+  const hidden = [...new Set([...blocked, ...unmatched])];
   if (hidden.length) filter.participants = { $all: [userId], $nin: hidden };
   const total = await Conversation.countDocuments(filter);
   const convs = await Conversation.find(filter)
@@ -113,6 +132,12 @@ async function sendMessage(userId, conversationId, { text, replyTo }) {
   // permission to keep writing into it. Checked before the reply_to validation
   // so a blocked sender learns nothing about the conversation's contents.
   await visibility.assertCanInteract(userId, receiver);
+  // Same reasoning for an unmatch: it ends the match but leaves the
+  // conversation row in place, so without this either side could keep
+  // messaging a person who unmatched them.
+  if (await _matchService().isEndedBetween(userId, receiver)) {
+    throw new ForbiddenError('interaction not allowed');
+  }
   if (replyTo) {
     let parent = null;
     try { parent = await Message.findById(replyTo); } catch (_) { parent = null; }

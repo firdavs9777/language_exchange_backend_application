@@ -38,10 +38,15 @@ async function teardown() {
   await dbHelper.stop();
 }
 
-async function registerUser(app, email) {
+// `overrides` exists because discover filters on gender: the default fixture is
+// a female looking for males, so a second user built from the same defaults is
+// correctly invisible to the first. A discover test has to opt its counterpart
+// into the viewer's preference.
+async function registerUser(app, email, overrides = {}) {
   const body = {
     email, password: 'Hunter2!!', name: email.split('@')[0],
     age: 25, gender: 'female', lookingFor: 'male', interests: ['x'],
+    ...overrides,
   };
   const r = await request(app).post('/flamebackend/v1/auth/register').send(body).expect(201);
   return { token: r.body.data.tokens.accessToken, id: r.body.data.user.id };
@@ -84,7 +89,8 @@ test('GET /conversations → valid empty page', async (t) => {
 test('GET /discover → other users, excludes self', async (t) => {
   const app = await setup();
   const me = await registerUser(app, 'me@x.com');
-  const other = await registerUser(app, 'other@x.com');
+  // male, because `me` is lookingFor: 'male'.
+  const other = await registerUser(app, 'other@x.com', { gender: 'male' });
 
   const res = await request(app)
     .get('/flamebackend/v1/discover?limit=10&offset=0')

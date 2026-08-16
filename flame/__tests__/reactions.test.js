@@ -25,11 +25,15 @@ async function setup() {
   [
     '../db', '../models/User', '../models/RefreshToken', '../models/Story',
     '../models/Conversation', '../models/Message', '../models/Swipe',
+    '../models/Match',
     '../services/authService', '../services/userService', '../services/storyService',
     // chatService/userService/storyService now enforce blocks through
     // visibilityService, which binds User and Swipe at load — clear all three
-    // or they keep the previous test's closed connection.
-    '../services/visibilityService', '../services/chatService', '../socket/flameSocket',
+    // or they keep the previous test's closed connection. chatService also
+    // consults matchService (ended matches close the conversation), which binds
+    // Match, so those two go in the list for the same reason.
+    '../services/visibilityService', '../services/chatService',
+    '../services/matchService', '../socket/flameSocket',
     '../controllers/authController', '../controllers/userController', '../controllers/storyController',
     '../controllers/chatController',
     '../routes/auth', '../routes/users', '../routes/stories', '../routes/conversations', '../routes/messages', '../index',

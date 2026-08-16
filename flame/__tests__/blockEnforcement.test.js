@@ -70,6 +70,46 @@ function fakeIo() {
   };
 }
 
+// Stand-in for the namespace returned by io.of('/flame'): captures the
+// connection handler so a test can drive it directly, and records every emit.
+function fakeNamespace() {
+  const emitted = [];
+  const nsHandlers = {};
+  const ns = {
+    use: () => {},
+    on: (event, fn) => { nsHandlers[event] = fn; },
+    to: (roomName) => ({
+      emit: (event, payload) => emitted.push({ room: roomName, event, payload }),
+    }),
+  };
+  return { io: { of: () => ns }, emitted, nsHandlers };
+}
+
+function fakeSocket(userId) {
+  const selfEmitted = [];
+  const on = {};
+  return {
+    userId,
+    connected: true,
+    selfEmitted,
+    handlers: on,
+    join: () => {},
+    on: (event, fn) => { on[event] = fn; },
+    emit: (event, payload) => selfEmitted.push({ event, payload }),
+  };
+}
+
+// The connect flow runs in a detached async IIFE; it always finishes by
+// emitting `presence:bulk` back to the socket, so that is the settle signal.
+async function driveConnection(nsHandlers, socket) {
+  nsHandlers.connection(socket);
+  for (let i = 0; i < 300; i += 1) {
+    if (socket.selfEmitted.some((e) => e.event === 'presence:bulk')) return;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  throw new Error('connection flow never settled');
+}
+
 test('a blocked user cannot open a conversation', async (t) => {
   const { a, b, chatService, blockService } = await setup();
   teardown(t);
@@ -159,4 +199,102 @@ test('socket delivery drops a message to a blocked pair', async (t) => {
 
   await flameSocket.emitNewMessage(io, b, { sender_id: a, text: 'hi again' });
   assert.equal(io.emitted.length, 1, 'a live socket must not bypass the block');
+});
+
+// --- the remaining socket surfaces: presence, typing and read receipts -------
+//
+// Message delivery was closed first (emitToReceiver). These four cover the
+// paths that still went out unchecked: the partner list presence is broadcast
+// to, the three client-driven relays that trust a client-supplied `data.to`,
+// and emitRead.
+
+test('presence partners exclude blocked users, so no presence is broadcast to them',
+  async (t) => {
+    const { a, b, chatService, blockService, flameSocket } = await setup();
+    teardown(t);
+
+    await chatService.openConversation(a, b);
+    await blockService.block(b, a);
+
+    const { io, emitted, nsHandlers } = fakeNamespace();
+    flameSocket.initFlameSocket(io);
+
+    const socket = fakeSocket(a);
+    await driveConnection(nsHandlers, socket);
+
+    assert.deepEqual(
+      socket.partnerIds, [],
+      'a blocked chat partner must not stay on the presence fan-out list',
+    );
+    assert.equal(
+      emitted.filter((e) => e.event === 'presence').length, 0,
+      'nothing announces this user coming online to someone who blocked them',
+    );
+
+    // ...and the disconnect broadcast uses the same filtered list.
+    socket.handlers.disconnect();
+    assert.equal(emitted.filter((e) => e.event === 'presence').length, 0);
+  });
+
+test('presence partners keep unblocked chat partners', async (t) => {
+  const { a, b, chatService, flameSocket } = await setup();
+  teardown(t);
+
+  await chatService.openConversation(a, b);
+
+  const { io, emitted, nsHandlers } = fakeNamespace();
+  flameSocket.initFlameSocket(io);
+
+  const socket = fakeSocket(a);
+  await driveConnection(nsHandlers, socket);
+
+  assert.deepEqual(socket.partnerIds, [b], 'control: an unblocked partner stays');
+  assert.equal(emitted.filter((e) => e.event === 'presence').length, 1);
+});
+
+test('typing / stopTyping / markRead relays are dropped for a blocked pair', async (t) => {
+  const { a, b, chatService, blockService, flameSocket } = await setup();
+  teardown(t);
+
+  const conv = await chatService.openConversation(a, b);
+
+  const { io, emitted, nsHandlers } = fakeNamespace();
+  flameSocket.initFlameSocket(io);
+
+  const socket = fakeSocket(a);
+  await driveConnection(nsHandlers, socket);
+
+  const relay = { to: b, conversation_id: conv.id };
+  await socket.handlers.typing(relay);
+  await socket.handlers.stopTyping(relay);
+  await socket.handlers.markRead(relay);
+  const before = emitted.filter((e) => ['typing', 'stopTyping', 'read'].includes(e.event));
+  assert.equal(before.length, 3, 'control: all three relays go out unblocked');
+
+  await blockService.block(b, a);
+
+  await socket.handlers.typing(relay);
+  await socket.handlers.stopTyping(relay);
+  await socket.handlers.markRead(relay);
+  const after = emitted.filter((e) => ['typing', 'stopTyping', 'read'].includes(e.event));
+  assert.equal(
+    after.length, 3,
+    'a client-supplied `to` must not reach someone who blocked the sender',
+  );
+});
+
+test('emitRead is dropped for a blocked pair', async (t) => {
+  const { a, b, chatService, blockService, flameSocket } = await setup();
+  teardown(t);
+
+  const conv = await chatService.openConversation(a, b);
+  const io = fakeIo();
+
+  await flameSocket.emitRead(io, a, conv.id);
+  assert.equal(io.emitted.length, 1, 'control: an unblocked read receipt is delivered');
+
+  await blockService.block(b, a);
+
+  await flameSocket.emitRead(io, a, conv.id);
+  assert.equal(io.emitted.length, 1, 'a read receipt must not bypass the block either');
 });

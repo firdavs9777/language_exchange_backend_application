@@ -12,6 +12,10 @@ async function setup() {
   ['../db', '../models/User', '../models/Swipe', '../models/Match',
    '../models/Conversation', '../services/chatService', '../services/userService',
    '../services/visibilityService', '../services/blockService',
+   // matchService is listed because chatService consults it (an ended match
+   // closes the conversation) — an uncleared copy keeps a Match model bound to
+   // the previous test's closed connection.
+   '../services/matchService',
    '../services/swipeService']
     .forEach(p => { try { delete require.cache[require.resolve(p)]; } catch {} });
 
