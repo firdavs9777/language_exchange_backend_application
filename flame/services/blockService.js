@@ -34,6 +34,15 @@ async function block(userId, targetId) {
 async function unblock(userId, targetId) {
   await User.updateOne({ _id: userId }, { $pull: { blockedUsers: { user: targetId } } });
   await User.updateOne({ _id: targetId }, { $pull: { blockedBy: { user: userId } } });
+
+  // Blocking ended the match; unblocking restores it — but only if THIS user
+  // is the one who ended it. If the other party unmatched independently, that
+  // decision is theirs and must survive an unblock.
+  const Match = require('../models/Match');
+  await Match.updateOne(
+    { users: Match.pair(userId, targetId), endedBy: userId },
+    { $set: { endedBy: null } },
+  );
 }
 
 async function listBlocked(userId) {

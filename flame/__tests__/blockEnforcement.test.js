@@ -165,6 +165,62 @@ test('blocking ends an existing match', async (t) => {
   assert.equal(matches.length, 0);
 });
 
+test('unblocking restores a match the block had ended, and messaging works again',
+  async (t) => {
+    const { a, b, swipeService, matchService, chatService, blockService, Match } = await setup();
+    teardown(t);
+
+    await swipeService.record(a, b, 'like');
+    await swipeService.record(b, a, 'like');
+    const conv = await chatService.openConversation(a, b);
+
+    await blockService.block(a, b);
+    assert.equal(await Match.countDocuments({ endedBy: null }), 0, 'control: the block ended it');
+
+    await blockService.unblock(a, b);
+
+    assert.equal(
+      await Match.countDocuments({ endedBy: null }), 1,
+      'unblocking the party who ended it must restore the match',
+    );
+    const { matches } = await matchService.list(a, {});
+    assert.equal(matches.length, 1, 'the match reappears in the list');
+
+    await chatService.sendMessage(a, conv.id, { text: 'sorry about that' }); // must not throw
+  });
+
+test('unblocking does not resurrect a match the OTHER user independently unmatched',
+  async (t) => {
+    const { a, b, swipeService, matchService, blockService, Match } = await setup();
+    teardown(t);
+
+    await swipeService.record(a, b, 'like');
+    const res = await swipeService.record(b, a, 'like');
+
+    // b unmatches first, on their own — nothing to do with a's later block.
+    await matchService.unmatch(b, res.match.id);
+    assert.equal(await Match.countDocuments({ endedBy: null }), 0, 'control: b ended it');
+
+    await blockService.block(a, b);
+    await blockService.unblock(a, b);
+
+    const match = await Match.findOne({ users: Match.pair(a, b) }).lean();
+    assert.equal(
+      match.endedBy, b,
+      "a's unblock must not clear an ending b set independently",
+    );
+  });
+
+test('unblocking when there was never a match is a harmless no-op', async (t) => {
+  const { a, b, blockService, Match } = await setup();
+  teardown(t);
+
+  await blockService.block(a, b);
+  await blockService.unblock(a, b);
+
+  assert.equal(await Match.countDocuments({ users: Match.pair(a, b) }), 0);
+});
+
 test('a blocked user disappears from the story feed', async (t) => {
   const { a, b, storyService, blockService, Story } = await setup();
   teardown(t);
