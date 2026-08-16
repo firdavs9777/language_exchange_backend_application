@@ -1,4 +1,5 @@
 const chatService = require('../services/chatService');
+const conversationControlsService = require('../services/conversationControlsService');
 
 async function listConversations(req, res) {
   const limit = parseInt(req.query.limit, 10) || 20;
@@ -113,7 +114,28 @@ async function deleteMessage(req, res) {
   res.json({ success: true, data: result.message });
 }
 
+async function muteConversation(req, res) {
+  const data = await conversationControlsService.mute(req.user.id, req.params.id, req.body.duration);
+  res.status(201).json({ success: true, data });
+}
+
+async function unmuteConversation(req, res) {
+  await conversationControlsService.unmute(req.user.id, req.params.id);
+  res.json({ success: true, data: null });
+}
+
+async function pinMessage(req, res) {
+  const data = await conversationControlsService.pinMessage(req.user.id, req.params.id, req.body.message_id);
+  res.status(201).json({ success: true, data });
+}
+
+async function unpinMessage(req, res) {
+  await conversationControlsService.unpinMessage(req.user.id, req.params.id, req.params.messageId);
+  res.json({ success: true, data: null });
+}
+
 module.exports = {
   listConversations, openConversation, getMessages, sendMessage, sendMedia, markRead,
   addReaction, removeReaction, editMessage, deleteMessage,
+  muteConversation, unmuteConversation, pinMessage, unpinMessage,
 };

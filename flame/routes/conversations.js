@@ -43,6 +43,9 @@ const sendSchema = z.object({
   text: z.string().min(1).max(2000),
   reply_to: objectId.optional(),
 });
+const muteSchema = z.object({ duration: z.number().int().positive().optional() });
+const pinSchema = z.object({ message_id: objectId });
+const pinParams = z.object({ id: objectId, messageId: objectId });
 
 router.get('/', auth, asyncHandler(ctrl.listConversations));
 router.post('/', auth, validate.body(openSchema), asyncHandler(ctrl.openConversation));
@@ -69,5 +72,17 @@ router.post('/:id/messages/video', auth, validate.params(idParam),
   asyncHandler(ctrl.sendMedia));
 
 router.put('/:id/read', auth, validate.params(idParam), asyncHandler(ctrl.markRead));
+
+// Paths, the pin body's { message_id } and the mute body's optional
+// { duration } are fixed by the shipped app — not negotiable independently
+// of a coordinated app release.
+router.post('/:id/mute', auth, validate.params(idParam),
+  validate.body(muteSchema), asyncHandler(ctrl.muteConversation));
+router.delete('/:id/mute', auth, validate.params(idParam),
+  asyncHandler(ctrl.unmuteConversation));
+router.post('/:id/pin', auth, validate.params(idParam),
+  validate.body(pinSchema), asyncHandler(ctrl.pinMessage));
+router.delete('/:id/pin/:messageId', auth, validate.params(pinParams),
+  asyncHandler(ctrl.unpinMessage));
 
 module.exports = router;

@@ -20,6 +20,33 @@ const conversationSchema = new mongoose.Schema(
     lastMessage: { type: String, default: null },
     lastMessageAt: { type: Date, default: null },
     unreadCount: { type: [unreadSchema], default: [] },
+
+    // Per-user, not per-conversation: muting, pinning and archiving are one
+    // participant's choice and must not change what the other sees. Shape
+    // copied from BananaTalk's Conversation, which is proven in production.
+    mutedBy: {
+      type: [{
+        user: { type: String, required: true },
+        mutedUntil: { type: Date, default: null }, // null = indefinite
+        mutedAt: { type: Date, default: Date.now },
+      }],
+      default: [],
+    },
+    pinnedBy: {
+      type: [{
+        user: { type: String, required: true },
+        messageId: { type: String, required: true },
+        pinnedAt: { type: Date, default: Date.now },
+      }],
+      default: [],
+    },
+    archivedBy: {
+      type: [{
+        user: { type: String, required: true },
+        archivedAt: { type: Date, default: Date.now },
+      }],
+      default: [],
+    },
   },
   { timestamps: true, collection: 'conversations' },
 );

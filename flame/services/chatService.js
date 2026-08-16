@@ -336,4 +336,8 @@ module.exports = {
   openConversation, listConversations, getMessages, sendMessage, sendMediaMessage, markRead,
   addReaction, removeReaction, editMessage, deleteMessage, partnerIdsOf,
   toConversation, toMessage,
+  // Exported so other chat-adjacent services (conversationControlsService) reuse
+  // the exact same "conversation exists / caller is a participant" checks
+  // instead of hand-rolling their own and drifting from them.
+  _findConversation, _assertParticipant,
 };
