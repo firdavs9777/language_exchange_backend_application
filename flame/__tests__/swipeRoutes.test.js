@@ -19,8 +19,8 @@ async function setup() {
   ['../db', '../models/User', '../models/Swipe', '../models/Match',
    '../models/Conversation', '../models/RefreshToken', '../utils/jwt',
    '../services/chatService', '../services/swipeService',
-   '../services/visibilityService', '../controllers/swipeController',
-   '../routes/swipes', '../index']
+   '../services/visibilityService', '../services/blockService',
+   '../controllers/swipeController', '../routes/swipes', '../index']
     .forEach(p => { try { delete require.cache[require.resolve(p)]; } catch {} });
 
   const { connect } = require('../db');
@@ -124,4 +124,33 @@ test('POST /swipes/undo still answers without 404-ing', async (t) => {
   const res = await request(app).post(`${BASE}/swipes/undo`)
     .set('Authorization', `Bearer ${aToken}`).expect(200);
   assert.equal(res.body.data.undone, false);
+});
+
+test('a super-like refused by a block does not cost a quota unit', async (t) => {
+  const { app, aToken, aId, bId, User } = await setup();
+  teardown(t);
+
+  const blockService = require('../services/blockService');
+  await blockService.block(bId, aId); // b blocked a
+
+  await request(app).post(`${BASE}/swipes/super-like`)
+    .set('Authorization', `Bearer ${aToken}`).send({ user_id: bId }).expect(403);
+
+  const me = await User.findById(aId);
+  assert.equal(me.superLikesRemaining, 3, 'a rejected super-like must be refunded');
+});
+
+test('super-liking the same person twice only costs one', async (t) => {
+  const { app, aToken, aId, bId, User } = await setup();
+  teardown(t);
+
+  const send = () => request(app).post(`${BASE}/swipes/super-like`)
+    .set('Authorization', `Bearer ${aToken}`).send({ user_id: bId });
+
+  await send().expect(200);
+  const second = await send().expect(200);
+
+  assert.equal(second.body.data.remaining_super_likes, 2);
+  const me = await User.findById(aId);
+  assert.equal(me.superLikesRemaining, 2, 'a repeat super-like on the same target is free');
 });

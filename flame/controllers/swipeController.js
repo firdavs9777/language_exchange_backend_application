@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Swipe = require('../models/Swipe');
 const swipeService = require('../services/swipeService');
 const { ValidationError } = require('../utils/errors');
 
@@ -42,9 +43,45 @@ async function pass(req, res) {
   res.json({ success: true, data: { passed: true } });
 }
 
+// Returns today's remaining super-likes without spending one, resetting the
+// allowance first if the stored day is stale.
+async function remainingSuperLikes(userId) {
+  const day = today();
+  await User.updateOne(
+    { _id: userId, superLikesDay: { $ne: day } },
+    { $set: { superLikesDay: day, superLikesRemaining: DAILY_SUPER_LIKES } },
+  );
+  const u = await User.findById(userId).select('superLikesRemaining').lean();
+  return u ? u.superLikesRemaining : 0;
+}
+
 async function superLike(req, res) {
-  const remaining = await claimSuperLike(req.user.id);
-  const result = await swipeService.record(req.user.id, req.body.user_id, 'super');
+  const fromId = req.user.id;
+  const toId = req.body.user_id;
+
+  // A super-like already recorded for this pair costs nothing to repeat. The
+  // Swipe upsert is idempotent, so charging again would spend a second
+  // super-like for one logical action (a retry, or a UI double-tap).
+  const alreadySwiped = await Swipe.exists({ from: fromId, to: toId });
+
+  // Claim BEFORE recording, so an exhausted quota 422s without writing an
+  // unpaid super-like. The claim is refunded below if the swipe then fails.
+  const remaining = alreadySwiped
+    ? await remainingSuperLikes(fromId)
+    : await claimSuperLike(fromId);
+
+  let result;
+  try {
+    result = await swipeService.record(fromId, toId, 'super');
+  } catch (e) {
+    // The swipe never happened — a blocked target throws 403 here — so give
+    // the quota unit back rather than charging for nothing.
+    if (!alreadySwiped) {
+      await User.updateOne({ _id: fromId }, { $inc: { superLikesRemaining: 1 } });
+    }
+    throw e;
+  }
+
   res.json({
     success: true,
     data: {
