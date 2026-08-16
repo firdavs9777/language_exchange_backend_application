@@ -65,6 +65,13 @@ function _matchService() {
   return require('./matchService');
 }
 
+// mediaService requires utils/s3 at the top of its own file, so a top-level
+// require here would force S3 to load the moment chatService loads — the same
+// load-order hazard _matchService() exists to avoid, just one hop further in.
+function _mediaService() {
+  return require('./mediaService');
+}
+
 async function _findConversation(conversationId) {
   let conv = null;
   try { conv = await Conversation.findById(conversationId); } catch (_) { conv = null; }
@@ -76,6 +83,26 @@ function _assertParticipant(conv, userId) {
   if (!conv.participants.includes(userId)) {
     throw new FlameError('FORBIDDEN', 'not your conversation', 403);
   }
+}
+
+// Shared by sendMessage and sendMediaMessage: records the new message as the
+// conversation's preview and bumps the receiver's unread count. Pulled out so
+// the two send paths cannot drift apart on the unread-increment logic.
+async function _bumpConversation(conv, msg, receiver) {
+  conv.lastMessage = msg._id.toString();
+  conv.lastMessageAt = msg.createdAt;
+  const entry = conv.unreadCount.find((u) => u.user === receiver);
+  if (entry) entry.count += 1;
+  else conv.unreadCount.push({ user: receiver, count: 1 });
+  await conv.save();
+}
+
+// Multipart text fields are always strings, and a client can send anything.
+// Anything not a finite non-negative number becomes null rather than NaN,
+// which Mongoose would reject with an unhelpful CastError.
+function _int(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n) : null;
 }
 
 async function openConversation(userId, otherUserId) {
@@ -162,12 +189,50 @@ async function sendMessage(userId, conversationId, { text, replyTo }) {
     conversationId, sender: userId, receiver, text, messageType: 'text',
     replyTo: replyTo || null,
   });
-  conv.lastMessage = msg._id.toString();
-  conv.lastMessageAt = msg.createdAt;
-  const entry = conv.unreadCount.find((u) => u.user === receiver);
-  if (entry) entry.count += 1;
-  else conv.unreadCount.push({ user: receiver, count: 1 });
-  await conv.save();
+  await _bumpConversation(conv, msg, receiver);
+  return toMessage(msg);
+}
+
+// Sends a media message. Deliberately mirrors sendMessage's guard order —
+// participation, then block, then ended-match — because a media route that
+// skips them would reopen exactly the holes Phase A closed.
+async function sendMediaMessage(userId, conversationId, kind, file, {
+  replyTo, thumbnail, duration, width, height,
+} = {}) {
+  const conv = await _findConversation(conversationId);
+  if (!conv.participants.includes(userId)) throw new NotFoundError('conversation not found');
+
+  const receiver = conv.participants.find((p) => p !== userId);
+  await visibility.assertCanInteract(userId, receiver);
+  if (await _matchService().isEndedBetween(userId, receiver)) {
+    throw new ForbiddenError('this match has ended');
+  }
+
+  const media = _mediaService();
+  const stored = await media.storeMessageMedia(conversationId, kind, file);
+  const thumb = thumbnail
+    ? await media.storeMessageMedia(conversationId, 'image', thumbnail)
+    : null;
+
+  const msg = await Message.create({
+    conversationId,
+    sender: userId,
+    receiver,
+    messageType: kind,
+    mediaUrl: stored.url,
+    mediaKey: stored.key,
+    thumbnailUrl: thumb ? thumb.url : null,
+    // Client-supplied and untrusted: the server does not probe the file. A
+    // voice note with no duration renders as a bare play button — a degraded
+    // UI, not a broken one, and worth far less than running ffmpeg on the API
+    // box. Multipart text fields arrive as strings, so coerce here.
+    durationSeconds: _int(duration),
+    mediaWidth: _int(width),
+    mediaHeight: _int(height),
+    replyTo: replyTo || null,
+  });
+
+  await _bumpConversation(conv, msg, receiver);
   return toMessage(msg);
 }
 
@@ -266,7 +331,7 @@ async function deleteMessage(userId, messageId, scope) {
 }
 
 module.exports = {
-  openConversation, listConversations, getMessages, sendMessage, markRead,
+  openConversation, listConversations, getMessages, sendMessage, sendMediaMessage, markRead,
   addReaction, removeReaction, editMessage, deleteMessage, partnerIdsOf,
   toConversation, toMessage,
 };

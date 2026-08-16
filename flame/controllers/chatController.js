@@ -57,6 +57,24 @@ async function sendMessage(req, res) {
   res.status(201).json({ success: true, data });
 }
 
+async function sendMedia(req, res) {
+  const kind = req.mediaKind; // set by the route
+  const file = req.files ? (req.files[kind] || [])[0] : req.file;
+  const thumbnail = req.files ? (req.files.thumbnail || [])[0] : null;
+
+  const message = await chatService.sendMediaMessage(
+    req.user.id, req.params.id, kind, file,
+    {
+      replyTo: req.body.reply_to_id,
+      thumbnail,
+      duration: req.body.duration,
+      width: req.body.width,
+      height: req.body.height,
+    },
+  );
+  res.status(201).json({ success: true, data: message });
+}
+
 async function markRead(req, res) {
   const data = await chatService.markRead(req.user.id, req.params.id);
   res.json({ success: true, data });
@@ -96,6 +114,6 @@ async function deleteMessage(req, res) {
 }
 
 module.exports = {
-  listConversations, openConversation, getMessages, sendMessage, markRead,
+  listConversations, openConversation, getMessages, sendMessage, sendMedia, markRead,
   addReaction, removeReaction, editMessage, deleteMessage,
 };
