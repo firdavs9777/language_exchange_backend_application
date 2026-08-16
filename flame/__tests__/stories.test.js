@@ -72,7 +72,8 @@ test('POST /stories → 201 creates a 24h photo story', async (t) => {
   assert.equal(s.caption, 'sunset');
   assert.equal(s.view_count, 0);
   assert.equal(s.has_viewed, false);
-  assert.match(s.media_url, /^https:\/\/stub\.example\.com\/stories\//);
+  assert.match(s.media_url, /^https:\/\/stub\.example\.com\/flame\/stories\//,
+    'Flame shares BananaTalk\'s Spaces bucket, so everything it writes must live\n     under the flame/ prefix — see flame/services/storyService.js');
   const ttl = new Date(s.expires_at) - new Date(s.created_at);
   assert.ok(Math.abs(ttl - 24 * 3600 * 1000) < 2000, 'expires ~24h after creation');
   t.after(teardown);

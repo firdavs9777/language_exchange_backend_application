@@ -78,7 +78,8 @@ async function uploadPhoto(userId, file) {
   }
   const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[file.mimetype];
   const id = crypto.randomUUID();
-  const key = `users/${userId}/photos/${id}.${ext}`;
+  // Shared bucket — see the note in mediaService.storeMessageMedia.
+  const key = `flame/users/${userId}/photos/${id}.${ext}`;
   const url = await s3.uploadBuffer(file.buffer, key, file.mimetype);
 
   const photo = {

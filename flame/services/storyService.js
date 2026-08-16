@@ -83,7 +83,8 @@ async function createStory(userId, file, caption) {
   }
 
   const id = crypto.randomUUID();
-  const key = `stories/${userId}/${id}.${EXT[file.mimetype]}`;
+  // Shared bucket — see the note in mediaService.storeMessageMedia.
+  const key = `flame/stories/${userId}/${id}.${EXT[file.mimetype]}`;
   const url = await s3.uploadBuffer(file.buffer, key, file.mimetype);
 
   const now = new Date();

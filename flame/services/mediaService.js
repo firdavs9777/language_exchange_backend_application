@@ -40,7 +40,10 @@ async function storeMessageMedia(conversationId, kind, file) {
 
   const id = crypto.randomUUID();
   const ext = EXT[file.mimetype] || 'bin';
-  const key = `conversations/${conversationId}/${kind}/${id}.${ext}`;
+  // Flame shares BananaTalk's Spaces bucket, so every object it writes lives
+  // under one prefix. Without it Flame's keys would sit beside BananaTalk's at
+  // the bucket root with nothing marking which app owns them.
+  const key = `flame/conversations/${conversationId}/${kind}/${id}.${ext}`;
   const url = await s3.uploadBuffer(file.buffer, key, file.mimetype);
 
   return { url, key };

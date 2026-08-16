@@ -109,7 +109,8 @@ test('POST /users/me/photos → 201 adds photo to user', async (t) => {
     .attach('photo', Buffer.from('fake-bytes'), { filename: 'p.jpg', contentType: 'image/jpeg' })
     .expect(201);
   assert.ok(res.body.data.id);
-  assert.match(res.body.data.url, /^https:\/\/stub\.example\.com\//);
+  assert.match(res.body.data.url, /^https:\/\/stub\.example\.com\/flame\/users\//,
+    'Flame shares BananaTalk\'s Spaces bucket, so everything it writes must live\n     under the flame/ prefix — see flame/services/userService.js');
   assert.equal(res.body.data.isPrimary, true); // first photo is primary
 
   t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });

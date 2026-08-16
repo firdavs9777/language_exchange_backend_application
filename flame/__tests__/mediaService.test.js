@@ -45,6 +45,14 @@ test('stores an image and returns both the url and the key', async () => {
     const out = await svc.storeMessageMedia('c1', 'image', file('image/jpeg'));
     assert.ok(out.url.startsWith('https://'));
     assert.ok(out.key.includes('c1'), 'the key should be scoped to the conversation');
+    // Flame shares BananaTalk's Spaces bucket (my-projects-media), so
+    // everything it writes lives under one prefix. Without it, Flame's objects
+    // would sit beside BananaTalk's at the bucket root with nothing marking
+    // which app owns them.
+    assert.ok(
+      out.key.startsWith('flame/conversations/'),
+      `expected a flame/ prefixed key, got: ${out.key}`,
+    );
     assert.equal(seen.contentType, 'image/jpeg');
   } finally { restore(); }
 });
