@@ -229,6 +229,61 @@ test('5: a wrong-MIME upload is rejected with 422 and stores nothing', async (t)
   assert.equal(count, 0, 'a rejected upload must not persist a message');
 });
 
+test('5b: a file over the per-kind mediaService limit (but under the multer ceiling) is rejected with 422', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const convId = await openConv(app, a, b.id);
+
+  // Pins the two limits apart: this must be caught by mediaService's per-kind
+  // cap (image: 10MB), not by multer's 50MB backstop, so it stays true even if
+  // the two ceilings are ever changed independently.
+  const mediaService = require('../services/mediaService');
+  const oversizeForImage = Buffer.alloc(mediaService.LIMITS.image.maxBytes + 1024);
+  assert.ok(oversizeForImage.length < 50 * 1024 * 1024, 'must stay under the multer ceiling to isolate mediaService\'s own limit');
+
+  await request(app)
+    .post(`/flamebackend/v1/conversations/${convId}/messages/image`)
+    .set(authH(a.token))
+    .attach('image', oversizeForImage, { filename: 'big.jpg', contentType: 'image/jpeg' })
+    .expect(422);
+
+  const Message = require('../models/Message');
+  const count = await Message.countDocuments({ conversationId: convId });
+  assert.equal(count, 0, 'a rejected upload must not persist a message');
+});
+
+// This is the case the router's own comment claimed was already handled and
+// wasn't: a MulterError is not a FlameError, so without handleUpload wrapping
+// the upload middleware, this fell through to the generic error handler as a
+// 500 instead of the 422 promised by the comment. A real 51MB buffer is used
+// (rather than shrinking the production fileSize limit for the test) so the
+// assertion exercises the actual multer LIMIT_FILE_SIZE path, not a stand-in
+// for it — allocating and uploading it costs a bit of test time/memory but is
+// the only way to be sure the real multer ceiling, not a substitute, is what
+// gets mapped to 422.
+test('5c: a file over the multer 50MB ceiling is rejected with 422, not a 500', async (t) => {
+  const app = await setup();
+  t.after(teardown);
+  const a = await registerUser(app, 'a@x.com');
+  const b = await registerUser(app, 'b@x.com');
+  const convId = await openConv(app, a, b.id);
+
+  const overMulterCeiling = Buffer.alloc(51 * 1024 * 1024);
+
+  const res = await request(app)
+    .post(`/flamebackend/v1/conversations/${convId}/messages/image`)
+    .set(authH(a.token))
+    .attach('image', overMulterCeiling, { filename: 'huge.jpg', contentType: 'image/jpeg' })
+    .expect(422);
+  assert.equal(res.body.success, false);
+
+  const Message = require('../models/Message');
+  const count = await Message.countDocuments({ conversationId: convId });
+  assert.equal(count, 0, 'a rejected upload must not persist a message');
+});
+
 test('6: POST .../messages/voice with duration=12 sets messageType voice and media_info.duration', async (t) => {
   const app = await setup();
   t.after(teardown);

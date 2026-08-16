@@ -5,15 +5,34 @@ const asyncHandler = require('../middleware/asyncHandler');
 const auth = require('../middleware/auth');
 const validate = require('../middleware/validate');
 const ctrl = require('../controllers/chatController');
+const { ValidationError } = require('../utils/errors');
 
 const router = express.Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  // Hard ceiling at the multer layer; per-kind limits are enforced in
-  // mediaService so the error is a 422 with a useful message.
+  // Hard backstop at the multer layer, above every per-kind cap in
+  // mediaService (the largest of which is video at 50MB). Wrapped below in
+  // handleUpload so hitting it still surfaces as a 422, not the generic
+  // handler's 500.
   limits: { fileSize: 50 * 1024 * 1024 },
 });
+
+// multer signals its own limits with a MulterError, which is not a FlameError,
+// so the generic error handler (flame/middleware/error.js) would turn a
+// too-large upload into an unhelpful 500. Map it to the same 422 the per-kind
+// caps in mediaService return, so a client sees one consistent answer to
+// "your file is too big" regardless of which limit caught it.
+const handleUpload = (mw) => (req, res, next) => {
+  mw(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      return next(new ValidationError(
+        err.code === 'LIMIT_FILE_SIZE' ? 'file is too large' : `upload rejected: ${err.code}`,
+      ));
+    }
+    next(err);
+  });
+};
 
 const withKind = (kind) => (req, _res, next) => { req.mediaKind = kind; next(); };
 
@@ -34,19 +53,19 @@ router.post('/:id/messages', auth, validate.params(idParam), validate.body(sendS
 // (lib/services/chat_service.dart) — not negotiable independently of a
 // coordinated app release.
 router.post('/:id/messages/image', auth, validate.params(idParam),
-  withKind('image'), upload.single('image'), asyncHandler(ctrl.sendMedia));
+  withKind('image'), handleUpload(upload.single('image')), asyncHandler(ctrl.sendMedia));
 
 router.post('/:id/messages/voice', auth, validate.params(idParam),
-  withKind('voice'), upload.single('voice'), asyncHandler(ctrl.sendMedia));
+  withKind('voice'), handleUpload(upload.single('voice')), asyncHandler(ctrl.sendMedia));
 
 router.post('/:id/messages/audio', auth, validate.params(idParam),
-  withKind('audio'), upload.single('audio'), asyncHandler(ctrl.sendMedia));
+  withKind('audio'), handleUpload(upload.single('audio')), asyncHandler(ctrl.sendMedia));
 
 // .fields (not .single) because a later app release may attach a thumbnail
 // alongside the video; today's shipped app sends none.
 router.post('/:id/messages/video', auth, validate.params(idParam),
   withKind('video'),
-  upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]),
+  handleUpload(upload.fields([{ name: 'video', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }])),
   asyncHandler(ctrl.sendMedia));
 
 router.put('/:id/read', auth, validate.params(idParam), asyncHandler(ctrl.markRead));
