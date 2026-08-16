@@ -35,7 +35,10 @@ async function list(userId, { limit = 20, offset = 0 } = {}) {
       id: m._id.toString(),
       user: u ? toPublicMinimal(u) : { id: otherId },
       matched_at: m.createdAt,
-      is_new: true,
+      // Always false in a listing: `is_new` drives the app's match-celebration
+      // UI, and everything returned here existed before this request. Only the
+      // swipe response reports a genuinely new match.
+      is_new: false,
       last_message: null,
     };
   });

@@ -111,3 +111,18 @@ test('blocking hides the match from the list', async (t) => {
     .set('Authorization', `Bearer ${aToken}`).expect(200);
   assert.equal(res.body.data.matches.length, 0);
 });
+
+test('listed matches are never reported as new', async (t) => {
+  const { app, aToken } = await setup();
+  teardown(t);
+
+  const res = await request(app).get(`${BASE}/matches`)
+    .set('Authorization', `Bearer ${aToken}`).expect(200);
+
+  assert.equal(res.body.data.matches.length, 1);
+  assert.equal(
+    res.body.data.matches[0].is_new,
+    false,
+    'a listing must not re-fire the app match-celebration UI',
+  );
+});
