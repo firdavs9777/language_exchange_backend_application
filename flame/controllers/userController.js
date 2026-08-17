@@ -15,6 +15,19 @@ async function updateMe(req, res) {
   res.json({ success: true, data: me });
 }
 
+async function updatePreferences(req, res) {
+  const b = req.body;
+  const preferences = await userService.updatePreferences(req.user.id, {
+    // snake_case in, camelCase out — the wire shape is fixed by the shipped app.
+    minAge: b.min_age,
+    maxAge: b.max_age,
+    maxDistance: b.max_distance,
+    showDistance: b.show_distance,
+    showOnlineStatus: b.show_online_status,
+  });
+  res.json({ success: true, data: { preferences } });
+}
+
 async function uploadPhoto(req, res) {
   const photo = await userService.uploadPhoto(req.user.id, req.file);
   res.status(201).json({ success: true, data: photo });
@@ -25,4 +38,4 @@ async function deletePhoto(req, res) {
   res.json({ success: true });
 }
 
-module.exports = { getMe, getById, updateMe, uploadPhoto, deletePhoto };
+module.exports = { getMe, getById, updateMe, updatePreferences, uploadPhoto, deletePhoto };

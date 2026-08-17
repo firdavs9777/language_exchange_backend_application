@@ -32,6 +32,21 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },  // 10MB hard cap at multer layer
 });
 
+const preferencesSchema = z
+  .object({
+    min_age: z.number().int().min(18).max(100).optional(),
+    max_age: z.number().int().min(18).max(100).optional(),
+    max_distance: z.number().min(0).max(500).optional(),
+    show_distance: z.boolean().optional(),
+    show_online_status: z.boolean().optional(),
+  })
+  .refine((b) => Object.keys(b).length > 0, {
+    message: 'at least one preference field is required',
+  })
+  .refine((b) => !(b.min_age && b.max_age) || b.min_age <= b.max_age, {
+    message: 'min_age must not exceed max_age',
+  });
+
 const router = express.Router();
 
 router.get('/me',   auth, asyncHandler(ctrl.getMe));
@@ -49,6 +64,11 @@ router.delete('/me/photos/:photoId',
   auth,
   asyncHandler(ctrl.deletePhoto),
 );
+
+// /me/preferences and /me/location (Plan 2) are also mounted here, above /:id,
+// for the same reason as /me/photos above.
+router.patch('/me/preferences', auth, validate.body(preferencesSchema),
+  asyncHandler(ctrl.updatePreferences));
 
 router.get('/:id',  auth, validate.params(objectIdSchema), asyncHandler(ctrl.getById));
 

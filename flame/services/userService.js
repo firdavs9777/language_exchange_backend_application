@@ -63,6 +63,37 @@ async function updateMe(userId, patch) {
   return toPublic(user);
 }
 
+const PREFERENCE_FIELDS = new Set([
+  'minAge', 'maxAge', 'maxDistance', 'showDistance', 'showOnlineStatus',
+]);
+
+/**
+ * Updates the caller's discovery preferences.
+ *
+ * `preferences` is a Mongoose sub-document, so this writes DOTTED paths
+ * (`preferences.minAge`). Assigning the object wholesale would replace the
+ * sub-document and reset every field the caller did not send — silently turning
+ * the privacy flags back on, which is the worst possible direction for that
+ * mistake.
+ */
+async function updatePreferences(userId, patch) {
+  const update = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (PREFERENCE_FIELDS.has(k) && v !== undefined) update[`preferences.${k}`] = v;
+  }
+  if (Object.keys(update).length === 0) {
+    throw new ValidationError('no preference fields to update');
+  }
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: update },
+    { new: true, runValidators: true },
+  );
+  if (!user || user.isDeleted) throw new NotFoundError('User not found');
+  return user.preferences;
+}
+
 async function uploadPhoto(userId, file) {
   if (!file) throw new ValidationError('photo file is required');
   if (!ALLOWED_PHOTO_TYPES.has(file.mimetype)) {
@@ -108,4 +139,6 @@ async function deletePhoto(userId, photoId) {
   await user.save();
 }
 
-module.exports = { getMe, getById, updateMe, uploadPhoto, deletePhoto, toPublicMinimal };
+module.exports = {
+  getMe, getById, updateMe, updatePreferences, uploadPhoto, deletePhoto, toPublicMinimal,
+};
