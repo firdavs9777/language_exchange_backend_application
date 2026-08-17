@@ -169,7 +169,15 @@ async function updateLocation(userId, { latitude, longitude }) {
     // continent.
     coordinates: [longitude, latitude],
   };
-  await user.save();
+  // document.save() validates the WHOLE document, not just modified paths —
+  // socialAuthService.js hit this exact thing (see its comment above the
+  // `if (!user.name) ...` backfill block): a partially-migrated document
+  // missing a required dating field (e.g. lookingFor) 500s here even though
+  // this request only touches location/locationGeo. validateModifiedOnly
+  // brings this route's validation semantics in line with the
+  // findByIdAndUpdate-based routes (preferences, updateMe), which already
+  // validate only the paths they write.
+  await user.save({ validateModifiedOnly: true });
   return user.location;
 }
 

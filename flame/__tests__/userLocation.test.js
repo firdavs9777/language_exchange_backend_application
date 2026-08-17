@@ -174,3 +174,32 @@ test('an unauthenticated request is rejected', async (t) => {
   const app = await setup(t);
   await request(app).patch(URL).send({ latitude: 0, longitude: 0 }).expect(401);
 });
+
+// --- partially-migrated documents: save() validates the WHOLE document -----
+//
+// Mongoose's document.save() validates every path on the document, not just
+// the ones this request touched. socialAuthService.js was already bitten by
+// this exact thing (see its comment above the `if (!user.name) ...` backfill
+// block) when linking a provider to a pre-dating-fields account. updateLocation
+// calls user.save() with no validateModifiedOnly option, so a document
+// missing a required dating field (lookingFor) 500s on a location-only PATCH,
+// even though findByIdAndUpdate-based routes (preferences) validate only the
+// paths they touch and are unaffected.
+
+test('a document missing a required dating field can still update its location', async (t) => {
+  const app = await setup(t);
+  const a = await registerUser(app, 'gg@x.com');
+  const User = require('../models/User');
+
+  // Simulate a partially-migrated record: strip a required field directly at
+  // the driver level (bypassing Mongoose validation) rather than through the
+  // model, the same way a pre-existing production document could predate this
+  // required field.
+  await User.collection.updateOne(
+    { _id: new (require('mongoose').Types.ObjectId)(a.id) },
+    { $unset: { lookingFor: '' } },
+  );
+
+  await request(app).patch(URL).set(authH(a.token))
+    .send({ latitude: 37.5665, longitude: 126.9780 }).expect(200);
+});
