@@ -87,6 +87,56 @@ test('POST /auth/refresh → 200 rotates token', async (t) => {
   t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
 });
 
+// The shipped app's ApiClient._doRefresh sends snake_case and reads snake_case.
+// The route's zod schema required refreshToken, so every real refresh was 422'd
+// before reaching the service — and the app treats a non-200 refresh as
+// auth-lost, clears its tokens, and drops the user on the welcome screen.
+//
+// The pre-existing refresh test above passes because it sends the SERVER's
+// convention. It was never the client's.
+test('POST /auth/refresh accepts the snake_case body the shipped app sends', async (t) => {
+  const app = await setup();
+  const reg = await request(app).post('/flamebackend/v1/auth/register').send(VALID_REG).expect(201);
+  const refreshToken = reg.body.data.tokens.refreshToken;
+
+  const res = await request(app)
+    .post('/flamebackend/v1/auth/refresh')
+    .send({ refresh_token: refreshToken })
+    .expect(200);
+
+  assert.ok(res.body.data.accessToken);
+  t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
+});
+
+test('POST /auth/refresh answers in both casings', async (t) => {
+  const app = await setup();
+  const reg = await request(app).post('/flamebackend/v1/auth/register').send(VALID_REG).expect(201);
+  const refreshToken = reg.body.data.tokens.refreshToken;
+
+  const res = await request(app)
+    .post('/flamebackend/v1/auth/refresh')
+    .send({ refreshToken })
+    .expect(200);
+
+  // Installed clients read access_token/refresh_token and cast as String, so a
+  // missing key throws inside their try/catch and degrades to a logout. Serving
+  // both casings repairs every already-installed app with a deploy.
+  assert.equal(res.body.data.access_token, res.body.data.accessToken);
+  assert.equal(res.body.data.refresh_token, res.body.data.refreshToken);
+  t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
+});
+
+test('POST /auth/refresh with neither key is still rejected', async (t) => {
+  const app = await setup();
+  await request(app).post('/flamebackend/v1/auth/register').send(VALID_REG).expect(201);
+
+  await request(app)
+    .post('/flamebackend/v1/auth/refresh')
+    .send({ nonsense: 'x' })
+    .expect(422);
+  t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
+});
+
 test('POST /auth/logout → 200 (requires bearer token)', async (t) => {
   const app = await setup();
   const reg = await request(app).post('/flamebackend/v1/auth/register').send(VALID_REG).expect(201);
