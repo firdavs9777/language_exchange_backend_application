@@ -27,9 +27,21 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-const refreshSchema = z.object({
-  refreshToken: z.string().min(1),
-});
+// Accepts either casing. The shipped app's ApiClient._doRefresh sends
+// refresh_token; this schema required refreshToken, so every real refresh was
+// 422'd before reaching the service — and the app reads a non-200 refresh as
+// auth-lost, clears its tokens and drops the user on the welcome screen.
+//
+// Taking both here repairs every already-installed client with a deploy,
+// without waiting on an app release.
+const refreshSchema = z
+  .object({
+    refreshToken: z.string().min(1).optional(),
+    refresh_token: z.string().min(1).optional(),
+  })
+  .refine((b) => b.refreshToken || b.refresh_token, {
+    message: 'refreshToken is required',
+  });
 
 const googleSchema   = z.object({ id_token: z.string().min(1), device_token: z.string().optional() });
 const appleSchema    = z.object({ id_token: z.string().min(1), authorization_code: z.string().optional(), device_token: z.string().optional() });
