@@ -5,9 +5,19 @@ const { toPublic } = require('./authService');
 const s3 = require('../utils/s3');
 
 // Fields the owner is allowed to update via PATCH /users/me
+//
+// preferences/location/locationGeo are deliberately NOT here: they have
+// dedicated routes (PATCH /me/preferences writes dotted sub-document paths;
+// PATCH /me/location writes the pair together) that exist specifically to
+// avoid a wholesale $set clobbering fields the caller didn't send. updateMe's
+// $set-the-whole-value path would defeat both — most importantly, it would
+// silently reset preferences.showOnlineStatus/showDistance back to their
+// schema defaults (true), the one direction that matters for a privacy flag.
+// updateSchema doesn't expose these keys today, so this allowlist is the only
+// thing standing in the way the day someone does. Do not add them back.
 const MUTABLE_FIELDS = new Set([
   'name', 'age', 'bio', 'interests', 'gender', 'lookingFor',
-  'preferences', 'notificationSettings', 'settings', 'location', 'locationGeo',
+  'notificationSettings', 'settings',
 ]);
 
 const ALLOWED_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
