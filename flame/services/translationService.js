@@ -53,6 +53,15 @@ async function detect(text) {
   throw new Error('LibreTranslate returned no detection');
 }
 
+// LibreTranslate answers a missing or bad key with a 400 and a body naming it,
+// rather than a 401 — so the status alone cannot tell configuration from
+// outage, and the body has to be read.
+function _looksLikeAuthProblem(status, body) {
+  if (status !== 400 && status !== 401 && status !== 403) return false;
+  const text = typeof body === 'string' ? body : JSON.stringify(body || {});
+  return /api[_ ]?key|unauthor|forbidden/i.test(text);
+}
+
 /**
  * Translates `text` into `targetLang`.
  *
@@ -109,10 +118,25 @@ async function translate({ text, targetLang, sourceLang }) {
     return { translatedText, detectedSourceLang: source, cached: false };
   } catch (err) {
     if (err instanceof ValidationError) throw err;
-    // Everything else is the provider being unreachable, slow, or unhappy.
-    // A ValidationError reaches the client as a 422 it can show; rethrowing
-    // would hit the generic handler and surface as an unexplained 500.
-    logger.error(`translation failed: ${err.message}`);
+
+    // axios only puts 'Request failed with status code 400' in err.message —
+    // the reason lives in the response body, and logging just the message is
+    // how a diagnosable failure became undiagnosable in production.
+    const status = err.response ? err.response.status : null;
+    const body = err.response ? err.response.data : null;
+    const detail = body ? ` body=${JSON.stringify(body)}` : '';
+    logger.error(
+      `translation failed: ${err.message}`
+      + `${status ? ` status=${status}` : ''}${detail}`,
+    );
+
+    // A missing or rejected API key is a configuration problem, not an outage.
+    // Telling the user it is "unavailable right now" sends them to retry
+    // forever against something that will never start working on its own.
+    if (_looksLikeAuthProblem(status, body)) {
+      throw new ValidationError('Translation is not configured on this server');
+    }
+
     throw new ValidationError('Translation is unavailable right now');
   }
 }

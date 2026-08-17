@@ -179,3 +179,67 @@ test('a missing target language is rejected', async (t) => {
     (e) => e.status === 422,
   );
 });
+
+test('a provider error logs its response body, not just the status line', async (t) => {
+  const logged = [];
+  const LOGGER = require.resolve('../utils/logger');
+  const realLogger = require.cache[LOGGER];
+  require.cache[LOGGER] = {
+    id: LOGGER, filename: LOGGER, loaded: true,
+    exports: {
+      info: () => {},
+      warn: (...a) => logged.push(a.join(' ')),
+      error: (...a) => logged.push(a.join(' ')),
+    },
+  };
+  t.after(() => {
+    if (realLogger) require.cache[LOGGER] = realLogger;
+    else delete require.cache[LOGGER];
+  });
+
+  // What axios actually throws on a 400: the useful part is response.data,
+  // and err.message is only 'Request failed with status code 400'. Logging
+  // just the message is how a diagnosable failure became undiagnosable.
+  const restore = withStubbedAxios(async () => {
+    const err = new Error('Request failed with status code 400');
+    err.response = {
+      status: 400,
+      data: { error: 'Please contact the server operator to get an API key' },
+    };
+    throw err;
+  });
+  t.after(restore);
+
+  const svc = await setup(t);
+
+  await assert.rejects(
+    () => svc.translate({ text: 'hello', targetLang: 'es', sourceLang: 'en' }),
+    (e) => e.status === 422,
+  );
+
+  const all = logged.join('\n');
+  assert.match(all, /400/, 'the status must be logged');
+  assert.match(all, /API key/,
+    "the provider's own explanation is the only thing that says WHY");
+});
+
+test('an API-key rejection tells the client something actionable', async (t) => {
+  const restore = withStubbedAxios(async () => {
+    const err = new Error('Request failed with status code 400');
+    err.response = {
+      status: 400,
+      data: { error: 'Please contact the server operator to get an API key' },
+    };
+    throw err;
+  });
+  t.after(restore);
+
+  const svc = await setup(t);
+
+  await assert.rejects(
+    () => svc.translate({ text: 'hello', targetLang: 'es', sourceLang: 'en' }),
+    (e) => /not configured/i.test(e.message),
+    'a misconfigured key is not the same failure as the provider being down, '
+      + 'and "unavailable right now" sends the user to retry forever',
+  );
+});
