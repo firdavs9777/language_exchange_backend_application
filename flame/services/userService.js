@@ -106,6 +106,22 @@ async function updatePreferences(userId, patch) {
     throw new ValidationError('no preference fields to update');
   }
 
+  // The route's zod refine only sees one request body at a time, so two
+  // independent, individually-valid PATCHes — {max_age: 30} then
+  // {min_age: 40} — can land an inverted range in storage: minAge: 40,
+  // maxAge: 30, a Discover filter matching nobody. This service is the only
+  // layer that can see the STORED state, so re-check the merged range here:
+  // whichever bound the caller didn't send in this request keeps its current
+  // stored value.
+  const current = await User.findById(userId);
+  if (!current || current.isDeleted) throw new NotFoundError('User not found');
+  const currentPrefs = current.preferences || {};
+  const mergedMinAge = patch.minAge !== undefined ? patch.minAge : currentPrefs.minAge;
+  const mergedMaxAge = patch.maxAge !== undefined ? patch.maxAge : currentPrefs.maxAge;
+  if (mergedMinAge != null && mergedMaxAge != null && mergedMinAge > mergedMaxAge) {
+    throw new ValidationError('min_age must not exceed max_age');
+  }
+
   // Records that this user has deliberately written preferences at least once
   // — see the preferencesSet comment in models/User.js. Set on every
   // successful write, not just ones that touch minAge/maxAge, so a document

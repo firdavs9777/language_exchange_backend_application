@@ -146,3 +146,28 @@ test('an unauthenticated request is rejected', async (t) => {
   const app = await setup(t);
   await request(app).patch(URL).send({ min_age: 21 }).expect(401);
 });
+
+// --- cross-field check on the MERGED, stored range --------------------------
+//
+// The route's own zod refine only sees one request body at a time, so two
+// independent PATCHes — each individually valid — can still land an inverted
+// range: {max_age: 30} then {min_age: 40} both pass the single-body check
+// while leaving minAge: 40, maxAge: 30 stored, a Discover filter matching
+// nobody. userService.updatePreferences is the only layer that can see stored
+// state, so it re-validates the merged result and throws ValidationError.
+
+test('two independent partial PATCHes that invert the stored range are rejected', async (t) => {
+  const app = await setup(t);
+  const a = await registerUser(app, 'gg@x.com');
+
+  await request(app).patch(URL).set(authH(a.token))
+    .send({ max_age: 30 }).expect(200);
+
+  await request(app).patch(URL).set(authH(a.token))
+    .send({ min_age: 40 }).expect(422);
+
+  const me = await request(app).get('/flamebackend/v1/users/me')
+    .set(authH(a.token)).expect(200);
+  assert.equal(me.body.data.preferences.minAge, 18, 'the rejected write must not have changed minAge');
+  assert.equal(me.body.data.preferences.maxAge, 30, 'maxAge from the first, valid PATCH must be unchanged');
+});
