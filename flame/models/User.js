@@ -33,6 +33,15 @@ const preferencesSchema = new mongoose.Schema({
   maxDistance:      { type: Number, default: 50 },
   showDistance:     { type: Boolean, default: true },
   showOnlineStatus: { type: Boolean, default: true },
+  // Records INTENT rather than inferring it from values: minAge/maxAge default
+  // to 18/50, so an untouched document and one explicitly PATCHed to exactly
+  // 18-50 are bit-for-bit identical on those two fields alone. Defaults to
+  // false so every pre-existing document (written before this field existed)
+  // behaves exactly as it did before — no migration needed.
+  // userService.updatePreferences sets this true on every successful write;
+  // discoveryService applies the age filter whenever it is true, and only
+  // falls back to the old value-based heuristic when it is false.
+  preferencesSet:   { type: Boolean, default: false },
 }, { _id: false });
 
 const notificationSettingsSchema = new mongoose.Schema({

@@ -61,22 +61,34 @@ async function discover(viewerId, { limit, offset }) {
     filter.gender = me.lookingFor;
   }
 
-  // An untouched preference window means "no preference", not "18-50".
+  // An untouched preference window means "no preference", not "18-50" — UNLESS
+  // the user has actually written to /me/preferences, recorded by
+  // preferencesSet. (See models/User.js's preferencesSchema comment.)
   //
   // minAge/maxAge default to 18/50 in the schema, and those defaults were
   // written into every user document at insert — so treating them as a real
   // filter silently hides everyone over 50 from everyone, on existing data.
-  // Only filter when the user has actually moved one of the bounds.
+  // That reasoning breaks the moment a real PATCH can land exactly 18-50 on
+  // purpose, which preferencesSet disambiguates: true means the value was
+  // deliberately written (filter, even at the sentinel), false means it is
+  // either untouched or predates this field (keep the old heuristic).
   const DEFAULT_MIN_AGE = 18;
   const DEFAULT_MAX_AGE = 50;
   const prefs = (me && me.preferences) || {};
   const minAge = prefs.minAge;
   const maxAge = prefs.maxAge;
-  const usingDefaultWindow =
-    (minAge == null || minAge === DEFAULT_MIN_AGE) &&
-    (maxAge == null || maxAge === DEFAULT_MAX_AGE);
 
-  if (!usingDefaultWindow) {
+  let applyAgeFilter;
+  if (prefs.preferencesSet === true) {
+    applyAgeFilter = true;
+  } else {
+    const usingDefaultWindow =
+      (minAge == null || minAge === DEFAULT_MIN_AGE) &&
+      (maxAge == null || maxAge === DEFAULT_MAX_AGE);
+    applyAgeFilter = !usingDefaultWindow;
+  }
+
+  if (applyAgeFilter) {
     filter.age = {};
     if (minAge != null) filter.age.$gte = minAge;
     if (maxAge != null) filter.age.$lte = maxAge;

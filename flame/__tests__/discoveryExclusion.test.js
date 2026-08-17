@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const request = require('supertest');
 const dbHelper = require('./helpers/db');
 
 async function setup() {
@@ -264,4 +265,100 @@ test('moving only minAge away from its default still filters', async (t) => {
   assert.ok(!ids.includes(youngId), 'age 19 is below the moved minAge of 30');
   assert.ok(ids.includes(oldId), 'age 45 is inside 30-50');
   assert.ok(!ids.includes(veryOldId), 'age 60 is above the untouched maxAge of 50');
+});
+
+// --- preferencesSet: an explicit 18-50 PATCH must still filter --------------
+//
+// minAge/maxAge default to 18/50 in the schema, so a document explicitly
+// PATCHed to exactly 18-50 is bit-for-bit identical, on those two fields, to a
+// document nobody has ever touched. The value-based heuristic above can't
+// tell them apart. userService.updatePreferences stamps
+// preferences.preferencesSet = true on every successful write; discoveryService
+// applies the age filter whenever that flag is true, and only falls back to
+// the value-based heuristic when it is false (the untouched-document case).
+
+async function setupHttp(t) {
+  await dbHelper.start();
+  t.after(async () => {
+    try { await require('../db').close(); } catch { /* never opened */ }
+    await dbHelper.stop();
+  });
+
+  process.env.FLAME_JWT_SECRET = 'a'.repeat(32);
+  process.env.FLAME_JWT_REFRESH_SECRET = 'b'.repeat(32);
+  process.env.FLAME_JWT_ACCESS_TTL = '5m';
+  process.env.FLAME_JWT_REFRESH_TTL = '7d';
+  process.env.FLAME_SPACES_BUCKET = 't';
+  process.env.SPACES_ENDPOINT = 'e';
+  process.env.DO_SPACES_KEY = 'k';
+  process.env.DO_SPACES_SECRET = 's';
+
+  [
+    '../db', '../models/User', '../models/RefreshToken', '../models/Swipe',
+    '../services/authService', '../services/userService',
+    '../services/visibilityService', '../services/discoveryService', '../services/blockService',
+    '../controllers/authController', '../controllers/userController',
+    '../routes/auth', '../routes/users', '../routes/discovery', '../index',
+  ].forEach((p) => { try { delete require.cache[require.resolve(p)]; } catch {} });
+
+  const { connect } = require('../db');
+  await connect();
+  const { buildApp } = require('./helpers/app');
+
+  return { app: buildApp(), User: require('../models/User') };
+}
+
+async function registerHttpUser(app, email, extra = {}) {
+  const body = {
+    email, password: 'Hunter2!!', name: email.split('@')[0].padEnd(2, 'x'),
+    age: 30, gender: 'other', lookingFor: 'other', interests: ['x'], ...extra,
+  };
+  const r = await request(app).post('/flamebackend/v1/auth/register').send(body).expect(201);
+  return { token: r.body.data.tokens.accessToken, id: r.body.data.user.id };
+}
+
+const authH = (token) => ({ Authorization: `Bearer ${token}` });
+
+test('an explicit PATCH of 18-50 filters out a 62-year-old, unlike an untouched document', async (t) => {
+  const { app, User } = await setupHttp(t);
+  const me = await registerHttpUser(app, 'prefset-viewer@x.com');
+  const old = await registerHttpUser(app, 'prefset-old@x.com', { age: 62 });
+
+  await request(app).patch('/flamebackend/v1/users/me/preferences')
+    .set(authH(me.token)).send({ min_age: 18, max_age: 50 }).expect(200);
+
+  const res = await request(app).get('/flamebackend/v1/discover')
+    .set(authH(me.token)).expect(200);
+  const ids = res.body.data.users.map((u) => u.id);
+
+  assert.ok(!ids.includes(old.id), 'an explicit 18-50 PATCH must filter out a 62-year-old');
+});
+
+test('a user who has never PATCHed preferences still sees the unfiltered feed', async (t) => {
+  const { app } = await setupHttp(t);
+  const me = await registerHttpUser(app, 'prefset-untouched-viewer@x.com');
+  const old = await registerHttpUser(app, 'prefset-untouched-old@x.com', { age: 62 });
+
+  const res = await request(app).get('/flamebackend/v1/discover')
+    .set(authH(me.token)).expect(200);
+  const ids = res.body.data.users.map((u) => u.id);
+
+  assert.ok(ids.includes(old.id), 'no existing behaviour changes for a document nobody has touched');
+});
+
+test('a user who PATCHes some other range still filters as before', async (t) => {
+  const { app } = await setupHttp(t);
+  const me = await registerHttpUser(app, 'prefset-other-viewer@x.com');
+  const mid = await registerHttpUser(app, 'prefset-other-mid@x.com', { age: 30 });
+  const old = await registerHttpUser(app, 'prefset-other-old@x.com', { age: 62 });
+
+  await request(app).patch('/flamebackend/v1/users/me/preferences')
+    .set(authH(me.token)).send({ min_age: 25, max_age: 35 }).expect(200);
+
+  const res = await request(app).get('/flamebackend/v1/discover')
+    .set(authH(me.token)).expect(200);
+  const ids = res.body.data.users.map((u) => u.id);
+
+  assert.ok(ids.includes(mid.id), 'age inside the new explicit range is shown');
+  assert.ok(!ids.includes(old.id), 'age outside the new explicit range is filtered, as before');
 });

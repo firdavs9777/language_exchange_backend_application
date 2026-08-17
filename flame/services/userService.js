@@ -106,6 +106,13 @@ async function updatePreferences(userId, patch) {
     throw new ValidationError('no preference fields to update');
   }
 
+  // Records that this user has deliberately written preferences at least once
+  // — see the preferencesSet comment in models/User.js. Set on every
+  // successful write, not just ones that touch minAge/maxAge, so a document
+  // that e.g. only ever toggled showOnlineStatus still counts as "touched" the
+  // next time an age bound lands on it.
+  update['preferences.preferencesSet'] = true;
+
   const user = await User.findByIdAndUpdate(
     userId,
     { $set: update },
