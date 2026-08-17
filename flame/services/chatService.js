@@ -251,11 +251,19 @@ async function getMessages(userId, conversationId, { limit, offset }) {
   return { messages: msgs.map(toMessage), total };
 }
 
-async function sendMessage(userId, conversationId, { text, replyTo }) {
+async function sendMessage(userId, conversationId, { text, replyTo, messageType }) {
   const conv = await _findConversation(conversationId);
   const receiver = await _assertCanSendInto(conv, userId, replyTo);
   const msg = await Message.create({
-    conversationId, sender: userId, receiver, text, messageType: 'text',
+    conversationId,
+    sender: userId,
+    receiver,
+    text,
+    // Defaults to text because every already-installed client omits the field;
+    // defaulting to anything else would relabel every message they send. The
+    // route restricts this to text|sticker, so the media kinds cannot arrive
+    // here without their upload route's size and MIME checks.
+    messageType: messageType === 'sticker' ? 'sticker' : 'text',
     replyTo: replyTo || null,
   });
   await _bumpConversation(conv, msg, receiver);

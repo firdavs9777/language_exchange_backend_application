@@ -77,6 +77,13 @@ const openSchema = z.object({ user_id: objectId });
 const sendSchema = z.object({
   text: z.string().min(1).max(2000),
   reply_to: objectId.optional(),
+  // Only text and sticker. A sticker is an emoji carried in `text`, the same
+  // model BananaTalk uses — no pack catalog, no hosted artwork.
+  //
+  // The media kinds are deliberately NOT accepted here: they have their own
+  // upload routes with size and MIME checks, and letting this field name one
+  // would be a way to fabricate a media message with no file behind it.
+  message_type: z.enum(['text', 'sticker']).optional(),
 });
 // The shipped app posts { duration_hours: n } (chat_service.dart) and
 // validate.js replaces req.body with the parsed result, so a schema that only

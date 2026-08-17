@@ -79,6 +79,7 @@ async function sendMessage(req, res) {
   const data = await chatService.sendMessage(req.user.id, req.params.id, {
     text: req.body.text,
     replyTo: req.body.reply_to,
+    messageType: req.body.message_type,
   });
   // Best-effort realtime push to the receiver. Never let a socket issue fail
   // the REST send (which is the source of truth).

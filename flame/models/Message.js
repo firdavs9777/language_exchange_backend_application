@@ -14,7 +14,9 @@ const messageSchema = new mongoose.Schema(
     text: { type: String, default: '', maxlength: 2000 },
     messageType: {
       type: String,
-      enum: ['text', 'image', 'video', 'audio', 'voice'],
+      // 'sticker' is an emoji carried in `text`, not hosted artwork — the
+      // model BananaTalk uses. It has no mediaUrl, so it needs no upload route.
+      enum: ['text', 'image', 'video', 'audio', 'voice', 'sticker'],
       default: 'text',
     },
     // Media payload. Null on text messages, which is every message that
