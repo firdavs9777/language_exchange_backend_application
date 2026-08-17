@@ -1,144 +1,159 @@
 const crypto = require('crypto');
-const axios = require('axios');
 const logger = require('../utils/logger');
 const { ValidationError } = require('../utils/errors');
 
-// Required lazily so the module can be loaded (and its config warning emitted)
-// before Flame's mongoose connection is open. Models bind to the connection at
-// require time; pulling Translation in at the top would force that ordering on
-// every consumer.
+// Required lazily so this module loads (and emits its config warning) before
+// Flame's mongoose connection is open. Models bind to the connection at require
+// time; a top-level require here would force that ordering on every consumer.
 const _Translation = () => require('../models/Translation');
 
-const LIBRETRANSLATE_URL =
-  process.env.LIBRETRANSLATE_URL || 'https://libretranslate.com';
-const LIBRETRANSLATE_API_KEY = process.env.LIBRETRANSLATE_API_KEY || null;
+// Same env var and default model BananaTalk's config/aiConfig.js uses, so both
+// apps translate through the one funded provider.
+//
+// Deliberately NOT a require of BananaTalk's aiProviderService: that lives
+// outside flame/, and the isolation rule has earned its keep repeatedly — root
+// code can change under Flame without warning. Mirroring twenty lines is
+// cheaper than that coupling.
+//
+// This replaces LibreTranslate, which could never have worked here:
+// LIBRETRANSLATE_URL points at the public instance with an empty API key, and
+// that instance now answers 400 to both /detect and /translate. BananaTalk's
+// own comment and moment translation is broken for the same reason.
+const MODEL = process.env.OPENAI_CHAT_MODEL || 'gpt-4o-mini';
 
-if (!process.env.LIBRETRANSLATE_URL) {
-  // Say it at boot rather than when a user taps Translate. A misconfigured
-  // Spaces bucket stayed invisible for weeks because nothing announced itself
-  // until someone hit it; the public instance is rate limited and will reject
-  // production traffic the same way.
-  logger.warn(
-    `LIBRETRANSLATE_URL not set — falling back to ${LIBRETRANSLATE_URL}, `
-    + 'which is rate limited and may reject production traffic.',
-  );
+if (!process.env.OPENAI_API_KEY) {
+  // Say it at boot rather than when a user taps Translate. The previous
+  // provider was misconfigured and nothing announced it until someone read a
+  // production log by hand.
+  logger.warn('OPENAI_API_KEY not set — translation will fail on every request.');
 }
 
-function cacheKey(text, sourceLang, targetLang) {
+// Lazy, like BananaTalk's client: constructing it at module load would throw on
+// a server without the key, taking the whole Flame router down with it.
+let _client = null;
+function client() {
+  if (!_client) {
+    const OpenAI = require('openai');
+    _client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return _client;
+}
+
+// The cache key: text and target only, NOT the source language.
+//
+// The source is a property of the text, so an auto-detect request and an
+// explicit-source request for the same text are the same question and must
+// resolve to one entry rather than two.
+function cacheKey(text, targetLang) {
   return crypto
     .createHash('sha256')
-    .update(`${sourceLang}:${targetLang}:${text}`)
+    .update(`${targetLang}:${text}`)
     .digest('hex');
 }
 
-// LibreTranslate takes the API key in the body, and only when it is set —
-// some instances reject an empty one outright.
-function body(fields) {
-  const out = { ...fields };
-  if (LIBRETRANSLATE_API_KEY && LIBRETRANSLATE_API_KEY.trim() !== '') {
-    out.api_key = LIBRETRANSLATE_API_KEY;
-  }
-  return out;
-}
-
-async function detect(text) {
-  const res = await axios.post(
-    `${LIBRETRANSLATE_URL}/detect`,
-    body({ q: text }),
-    { timeout: 5000, headers: { 'Content-Type': 'application/json' } },
-  );
-  if (Array.isArray(res.data) && res.data.length > 0 && res.data[0].language) {
-    return res.data[0].language;
-  }
-  throw new Error('LibreTranslate returned no detection');
-}
-
-// LibreTranslate answers a missing or bad key with a 400 and a body naming it,
-// rather than a 401 — so the status alone cannot tell configuration from
-// outage, and the body has to be read.
-function _looksLikeAuthProblem(status, body) {
-  if (status !== 400 && status !== 401 && status !== 403) return false;
-  const text = typeof body === 'string' ? body : JSON.stringify(body || {});
-  return /api[_ ]?key|unauthor|forbidden/i.test(text);
+// A missing or rejected key never starts working on its own, so telling the
+// user to try again is a lie. Distinguished from an outage.
+function _isAuthProblem(err) {
+  if (err && (err.status === 401 || err.status === 403)) return true;
+  const message = err && err.message ? err.message : '';
+  return /api[_ ]?key|unauthor|incorrect api/i.test(message);
 }
 
 /**
  * Translates `text` into `targetLang`.
  *
- * `sourceLang` is optional; when absent the language is detected first, and the
- * DETECTED value is what the cache is keyed on. That way an auto-detect request
- * and an explicit-source request for the same text resolve to one entry instead
- * of writing two. Detection is the cheap half of the call, so running it before
- * the cache lookup costs little.
+ * `sourceLang` is optional and only ever a hint — a model does not need to be
+ * told what it is reading. That is the whole reason this uses a completion
+ * rather than either of BananaTalk's translation paths: LibreTranslate needs a
+ * `/detect` round trip and 400s on the public instance, and the
+ * enhanced-translation endpoint requires `sourceLanguage` and 400s without it,
+ * which Flame's shipped client cannot supply since it sends the field as
+ * optional.
  *
- * @returns {Promise<{translatedText: string, detectedSourceLang: string, cached: boolean}>}
+ * @returns {Promise<{translatedText: string, detectedSourceLang: ?string, cached: boolean}>}
  */
 async function translate({ text, targetLang, sourceLang }) {
   const trimmed = (text || '').trim();
   if (!trimmed) throw new ValidationError('text is required');
   if (!targetLang) throw new ValidationError('target_lang is required');
 
+  const Translation = _Translation();
+  const key = cacheKey(trimmed, targetLang);
+
+  const hit = await Translation.findOne({ key });
+  if (hit) {
+    return {
+      translatedText: hit.translatedText,
+      detectedSourceLang: sourceLang || null,
+      cached: true,
+    };
+  }
+
   try {
-    const source = sourceLang || (await detect(trimmed));
+    const from = sourceLang ? ` The text is in ${sourceLang}.` : '';
+    const res = await client().chat.completions.create({
+      model: MODEL,
+      // Deterministic: the same message must not translate two ways, or the
+      // cache would be hiding variation rather than saving work.
+      temperature: 0,
+      max_tokens: 1024,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You translate chat messages. Reply with the translation only — no '
+            + 'quotes, no explanation, no transliteration, no notes. Preserve '
+            + 'emoji and punctuation. If the text is already in the target '
+            + 'language, reply with it unchanged.',
+        },
+        {
+          role: 'user',
+          content: `Translate into ${targetLang}.${from}\n\n${trimmed}`,
+        },
+      ],
+    });
 
-    // Nothing to do, and no reason to spend a metered call finding that out.
-    if (source === targetLang) {
-      return { translatedText: trimmed, detectedSourceLang: source, cached: true };
-    }
+    const choice = res && res.choices && res.choices[0];
+    const translatedText = ((choice && choice.message && choice.message.content) || '').trim();
 
-    const Translation = _Translation();
-    const key = cacheKey(trimmed, source, targetLang);
+    // A blank completion is a failure. An empty translation on screen looks
+    // like the message said nothing, which is worse than an error.
+    if (!translatedText) throw new Error('empty completion');
 
-    const hit = await Translation.findOne({ key });
-    if (hit) {
-      return {
-        translatedText: hit.translatedText,
-        detectedSourceLang: source,
-        cached: true,
-      };
-    }
-
-    const res = await axios.post(
-      `${LIBRETRANSLATE_URL}/translate`,
-      body({ q: trimmed, source, target: targetLang, format: 'text' }),
-      { timeout: 10000, headers: { 'Content-Type': 'application/json' } },
-    );
-
-    const translatedText = res.data && res.data.translatedText;
-    if (!translatedText) throw new Error('LibreTranslate returned no translation');
-
-    // Best effort: a cache write failure must not fail the translation the
-    // user is already waiting on.
+    // Best effort: a cache write failure must not fail the translation the user
+    // is already waiting on.
     try {
-      await Translation.create({ key, sourceLang: source, targetLang, translatedText });
+      await Translation.create({
+        key,
+        sourceLang: sourceLang || 'auto',
+        targetLang,
+        translatedText,
+      });
     } catch (e) {
       logger.warn(`translation cache write failed: ${e.message}`);
     }
 
-    return { translatedText, detectedSourceLang: source, cached: false };
+    return {
+      translatedText,
+      detectedSourceLang: sourceLang || null,
+      cached: false,
+    };
   } catch (err) {
     if (err instanceof ValidationError) throw err;
 
-    // axios only puts 'Request failed with status code 400' in err.message —
-    // the reason lives in the response body, and logging just the message is
-    // how a diagnosable failure became undiagnosable in production.
-    const status = err.response ? err.response.status : null;
-    const body = err.response ? err.response.data : null;
-    const detail = body ? ` body=${JSON.stringify(body)}` : '';
+    // Status AND message: the previous provider logged only 'Request failed
+    // with status code 400', which made a real production failure impossible to
+    // diagnose from the logs.
     logger.error(
       `translation failed: ${err.message}`
-      + `${status ? ` status=${status}` : ''}${detail}`,
+      + `${err.status ? ` status=${err.status}` : ''}`,
     );
 
-    // A missing or rejected API key is a configuration problem, not an outage.
-    // Telling the user it is "unavailable right now" sends them to retry
-    // forever against something that will never start working on its own.
-    if (_looksLikeAuthProblem(status, body)) {
+    if (_isAuthProblem(err)) {
       throw new ValidationError('Translation is not configured on this server');
     }
-
     throw new ValidationError('Translation is unavailable right now');
   }
 }
 
-module.exports = { translate, LIBRETRANSLATE_URL };
+module.exports = { translate, MODEL };
