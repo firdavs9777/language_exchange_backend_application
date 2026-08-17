@@ -125,6 +125,9 @@ router.put('/:id/read', auth, validate.params(idParam), asyncHandler(ctrl.markRe
 // Paths, the pin body's { message_id } and the mute body's optional
 // { duration_hours } are fixed by the shipped app — not negotiable
 // independently of a coordinated app release.
+router.get('/:id/pins', auth, validate.params(idParam),
+  asyncHandler(ctrl.listPinned));
+
 router.post('/:id/archive', auth, validate.params(idParam),
   asyncHandler(ctrl.archiveConversation));
 router.delete('/:id/archive', auth, validate.params(idParam),
