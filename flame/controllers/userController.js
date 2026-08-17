@@ -28,6 +28,28 @@ async function updatePreferences(req, res) {
   res.json({ success: true, data: { preferences } });
 }
 
+async function updateLocation(req, res) {
+  const location = await userService.updateLocation(req.user.id, {
+    latitude: req.body.latitude,
+    longitude: req.body.longitude,
+  });
+  res.json({
+    success: true,
+    data: {
+      // Flattened for the wire: the model nests coordinates under
+      // `location.coordinates.{latitude,longitude}`, but the shipped app
+      // reads them straight off `data.location`.
+      location: {
+        city: location.city,
+        state: location.state,
+        country: location.country,
+        latitude: location.coordinates && location.coordinates.latitude,
+        longitude: location.coordinates && location.coordinates.longitude,
+      },
+    },
+  });
+}
+
 async function uploadPhoto(req, res) {
   const photo = await userService.uploadPhoto(req.user.id, req.file);
   res.status(201).json({ success: true, data: photo });
@@ -38,4 +60,4 @@ async function deletePhoto(req, res) {
   res.json({ success: true });
 }
 
-module.exports = { getMe, getById, updateMe, updatePreferences, uploadPhoto, deletePhoto };
+module.exports = { getMe, getById, updateMe, updatePreferences, updateLocation, uploadPhoto, deletePhoto };

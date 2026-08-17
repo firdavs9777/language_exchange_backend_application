@@ -94,6 +94,41 @@ async function updatePreferences(userId, patch) {
   return user.preferences;
 }
 
+/**
+ * Updates the caller's location.
+ *
+ * Writes BOTH `location` (human-readable, what the profile shows) and
+ * `locationGeo` (the 2dsphere-indexed GeoJSON point Discover queries). Writing
+ * only the first stores the coordinates and leaves Discover ranking on the old
+ * position, which presents as broken distance filtering rather than a failed
+ * save.
+ *
+ * `location` defaults to `null` (see models/User.js), so a dotted `$set` path
+ * into it (`'location.coordinates.latitude'`) fails at the Mongo level —
+ * "Cannot create field ... in element {location: null}", since Mongo will not
+ * auto-vivify through an explicit null. `location` is overwritten wholesale
+ * instead, the same way authService.register() populates it at signup.
+ */
+async function updateLocation(userId, { latitude, longitude }) {
+  const user = await User.findByIdAndUpdate(
+    userId,
+    {
+      $set: {
+        location: { coordinates: { latitude, longitude } },
+        locationGeo: {
+          type: 'Point',
+          // GeoJSON is [longitude, latitude]. Reversed, this is a different
+          // continent.
+          coordinates: [longitude, latitude],
+        },
+      },
+    },
+    { new: true, runValidators: true },
+  );
+  if (!user || user.isDeleted) throw new NotFoundError('User not found');
+  return user.location;
+}
+
 async function uploadPhoto(userId, file) {
   if (!file) throw new ValidationError('photo file is required');
   if (!ALLOWED_PHOTO_TYPES.has(file.mimetype)) {
@@ -140,5 +175,5 @@ async function deletePhoto(userId, photoId) {
 }
 
 module.exports = {
-  getMe, getById, updateMe, updatePreferences, uploadPhoto, deletePhoto, toPublicMinimal,
+  getMe, getById, updateMe, updatePreferences, updateLocation, uploadPhoto, deletePhoto, toPublicMinimal,
 };

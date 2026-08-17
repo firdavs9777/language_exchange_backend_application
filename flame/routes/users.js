@@ -47,6 +47,11 @@ const preferencesSchema = z
     message: 'min_age must not exceed max_age',
   });
 
+const locationSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
+
 const router = express.Router();
 
 router.get('/me',   auth, asyncHandler(ctrl.getMe));
@@ -65,10 +70,13 @@ router.delete('/me/photos/:photoId',
   asyncHandler(ctrl.deletePhoto),
 );
 
-// /me/preferences and /me/location (Plan 2) are also mounted here, above /:id,
-// for the same reason as /me/photos above.
+// /me/preferences and /me/location are also mounted here, above /:id, for
+// the same reason as /me/photos above.
 router.patch('/me/preferences', auth, validate.body(preferencesSchema),
   asyncHandler(ctrl.updatePreferences));
+
+router.patch('/me/location', auth, validate.body(locationSchema),
+  asyncHandler(ctrl.updateLocation));
 
 router.get('/:id',  auth, validate.params(objectIdSchema), asyncHandler(ctrl.getById));
 
