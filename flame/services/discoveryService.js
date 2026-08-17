@@ -17,7 +17,14 @@ function toDiscoverUser(u) {
     photos: (u.photos || []).map((p) => p.url),
     location,
     distance: 0,
-    is_online: u.isOnline,
+    // A user who has hidden their online status reads as offline everywhere the
+    // server describes them. chatService.toConversation delegates to this
+    // function, so the conversation list is covered by the same line — one
+    // place answers the question, every caller asks it, the way
+    // visibilityService works for blocks.
+    is_online: (u.preferences && u.preferences.showOnlineStatus === false)
+      ? false
+      : u.isOnline,
     is_verified: u.isVerified,
     last_active: u.lastActive,
     created_at: u.createdAt,
