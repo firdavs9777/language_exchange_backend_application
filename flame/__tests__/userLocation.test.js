@@ -121,6 +121,33 @@ test('a 2dsphere query finds the NEW position, not the old one', async (t) => {
   assert.equal(nearSeoul.length, 0, 'the old position must not still match');
 });
 
+test('preserves city, state, and country when only coordinates change', async (t) => {
+  const app = await setup(t);
+  const a = await registerUser(app, 'ff@x.com');
+  const User = require('../models/User');
+
+  // Seed city/state/country directly, as a future geocoding path would —
+  // nothing in flame/ writes these fields today, but updateLocation must not
+  // be the thing that zeroes them out the day something does.
+  await User.findByIdAndUpdate(a.id, {
+    $set: {
+      location: {
+        city: 'Seoul', state: 'Seoul', country: 'KR',
+        coordinates: { latitude: 1, longitude: 1 },
+      },
+    },
+  });
+
+  const res = await request(app).patch(URL).set(authH(a.token))
+    .send({ latitude: 37.5665, longitude: 126.9780 }).expect(200);
+
+  assert.equal(res.body.data.location.latitude, 37.5665);
+  assert.equal(res.body.data.location.longitude, 126.9780);
+  assert.equal(res.body.data.location.city, 'Seoul', 'city must survive a coordinate-only update');
+  assert.equal(res.body.data.location.state, 'Seoul', 'state must survive a coordinate-only update');
+  assert.equal(res.body.data.location.country, 'KR', 'country must survive a coordinate-only update');
+});
+
 test('both coordinates are required', async (t) => {
   const app = await setup(t);
   const a = await registerUser(app, 'dd@x.com');

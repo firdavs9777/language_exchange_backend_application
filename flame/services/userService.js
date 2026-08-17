@@ -98,34 +98,34 @@ async function updatePreferences(userId, patch) {
  * Updates the caller's location.
  *
  * Writes BOTH `location` (human-readable, what the profile shows) and
- * `locationGeo` (the 2dsphere-indexed GeoJSON point Discover queries). Writing
- * only the first stores the coordinates and leaves Discover ranking on the old
- * position, which presents as broken distance filtering rather than a failed
- * save.
+ * `locationGeo` (the 2dsphere-indexed GeoJSON point Discover queries), in the
+ * same save, so the two can never diverge. Writing only the first stores the
+ * coordinates and leaves Discover ranking on the old position, which presents
+ * as broken distance filtering rather than a failed save.
  *
  * `location` defaults to `null` (see models/User.js), so a dotted `$set` path
  * into it (`'location.coordinates.latitude'`) fails at the Mongo level —
  * "Cannot create field ... in element {location: null}", since Mongo will not
- * auto-vivify through an explicit null. `location` is overwritten wholesale
- * instead, the same way authService.register() populates it at signup.
+ * auto-vivify through an explicit null. A whole-object `$set` on `location`
+ * avoids that, but overwriting it wholesale would silently clear
+ * `city`/`state`/`country` on every coordinate update — nothing writes those
+ * fields today, but the first geocoding path that does would have its data
+ * zeroed out with no test to catch it. So: load the document, mutate the
+ * sub-document in place (preserving its other fields), save once.
  */
 async function updateLocation(userId, { latitude, longitude }) {
-  const user = await User.findByIdAndUpdate(
-    userId,
-    {
-      $set: {
-        location: { coordinates: { latitude, longitude } },
-        locationGeo: {
-          type: 'Point',
-          // GeoJSON is [longitude, latitude]. Reversed, this is a different
-          // continent.
-          coordinates: [longitude, latitude],
-        },
-      },
-    },
-    { new: true, runValidators: true },
-  );
+  const user = await User.findById(userId);
   if (!user || user.isDeleted) throw new NotFoundError('User not found');
+
+  const existing = user.location ? user.location.toObject() : {};
+  user.location = { ...existing, coordinates: { latitude, longitude } };
+  user.locationGeo = {
+    type: 'Point',
+    // GeoJSON is [longitude, latitude]. Reversed, this is a different
+    // continent.
+    coordinates: [longitude, latitude],
+  };
+  await user.save();
   return user.location;
 }
 
