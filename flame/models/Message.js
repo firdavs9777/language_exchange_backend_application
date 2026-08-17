@@ -42,4 +42,11 @@ const messageSchema = new mongoose.Schema(
   { timestamps: true, collection: 'messages' },
 );
 
+// `default_language: 'none'` disables stemming, which is the one deliberate
+// divergence from BananaTalk's equivalent index. BananaTalk stems for a single
+// study language; Flame's users chat in whatever they share, and stemming for
+// the wrong language silently degrades matching. 'none' gives exact token
+// matching across every language.
+messageSchema.index({ text: 'text' }, { default_language: 'none' });
+
 module.exports = getConn().model('Message', messageSchema);

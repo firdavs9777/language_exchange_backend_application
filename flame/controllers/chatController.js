@@ -1,10 +1,47 @@
 const chatService = require('../services/chatService');
 const conversationControlsService = require('../services/conversationControlsService');
 
+async function searchMessages(req, res) {
+  const { messages, total } = await require('../services/messageSearchService')
+    .search(req.user.id, {
+      q: req.query.q,
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+
+  res.json({
+    success: true,
+    data: {
+      // conversation_id rides along because a result the caller cannot
+      // navigate to is not a result; toMessage does not carry it.
+      messages: messages.map((m) => ({
+        ...chatService.toMessage(m),
+        conversation_id: m.conversationId,
+      })),
+      total,
+    },
+  });
+}
+
+async function archiveConversation(req, res) {
+  const data = await chatService.archiveConversation(req.user.id, req.params.id);
+  res.json({ success: true, data });
+}
+
+async function unarchiveConversation(req, res) {
+  const data = await chatService.unarchiveConversation(req.user.id, req.params.id);
+  res.json({ success: true, data });
+}
+
 async function listConversations(req, res) {
   const limit = parseInt(req.query.limit, 10) || 20;
   const offset = parseInt(req.query.offset, 10) || 0;
-  const { conversations, total } = await chatService.listConversations(req.user.id, { limit, offset });
+  // Archive is per-user filing: the same list endpoint serves both sides of
+  // the line rather than a separate archived endpoint that could drift from it.
+  const archived = req.query.archived === 'true';
+  const { conversations, total } = await chatService.listConversations(
+    req.user.id, { limit, offset, archived },
+  );
   res.json({
     success: true,
     data: {
@@ -178,4 +215,5 @@ module.exports = {
   listConversations, openConversation, getMessages, sendMessage, sendMedia, markRead,
   addReaction, removeReaction, editMessage, deleteMessage,
   muteConversation, unmuteConversation, pinMessage, unpinMessage,
+  archiveConversation, unarchiveConversation, searchMessages,
 };
