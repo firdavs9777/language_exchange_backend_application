@@ -152,6 +152,91 @@ test('hiding your own status does not hide theirs from you', async (t) => {
   );
 });
 
+// --- last_active / lastActive: the presence signal riding along -----------
+//
+// last_active (Discover, conversation list) and lastActive (toPublicMinimal)
+// are two lines above the isOnline guard in each shape, and were left
+// unguarded. The shipped app derives one "last seen" string from whichever of
+// isOnline/lastActive it has, so leaving lastActive unguarded means hiding
+// online status only changes "Online now" to "5m ago" instead of actually
+// hiding anything.
+
+test('a user who hid their status has a null last_active in Discover', async (t) => {
+  const { app, User } = await setup(t);
+  const me = await registerUser(app, 'discover-viewer-la@x.com');
+  const other = await registerUser(app, 'discover-hidden-la@x.com');
+
+  await setPresence(User, other.id, { showOnlineStatus: false, isOnline: true });
+
+  const res = await request(app).get('/flamebackend/v1/discover')
+    .set(authH(me.token)).expect(200);
+
+  const seen = res.body.data.users.find((u) => u.id === other.id);
+  assert.ok(seen, 'control: the other user appears in the deck');
+  assert.equal(seen.last_active, null, 'a hidden status must not leak last_active either');
+});
+
+test('a user who allows their status still gets a real last_active in Discover', async (t) => {
+  const { app, User } = await setup(t);
+  const me = await registerUser(app, 'discover-viewer-la2@x.com');
+  const other = await registerUser(app, 'discover-visible-la@x.com');
+
+  await setPresence(User, other.id, { showOnlineStatus: true, isOnline: true });
+
+  const res = await request(app).get('/flamebackend/v1/discover')
+    .set(authH(me.token)).expect(200);
+
+  const seen = res.body.data.users.find((u) => u.id === other.id);
+  assert.ok(seen, 'control: the other user appears in the deck');
+  assert.ok(seen.last_active, 'an allowed status must still report a real timestamp');
+});
+
+test('a user who hid their status has a null last_active in the conversation list', async (t) => {
+  const { app, User, chatService } = await setup(t);
+  const me = await registerUser(app, 'convo-viewer-la@x.com');
+  const other = await registerUser(app, 'convo-hidden-la@x.com');
+
+  await chatService.openConversation(me.id, other.id);
+  await setPresence(User, other.id, { showOnlineStatus: false, isOnline: true });
+
+  const res = await request(app).get('/flamebackend/v1/conversations')
+    .set(authH(me.token)).expect(200);
+
+  const conv = res.body.data.conversations.find((c) => c.other_user_id === other.id);
+  assert.ok(conv, 'control: the conversation appears in the list');
+  assert.equal(
+    conv.other_user.last_active, null,
+    'the conversation list is a separate call site — one shared helper passing '
+      + 'does not prove this one uses it too',
+  );
+});
+
+test('a user who hid their status has a null lastActive through GET /users/:id', async (t) => {
+  const { app, User } = await setup(t);
+  const me = await registerUser(app, 'profile-viewer-la@x.com');
+  const other = await registerUser(app, 'profile-hidden-la@x.com');
+
+  await setPresence(User, other.id, { showOnlineStatus: false, isOnline: true });
+
+  const res = await request(app).get(`/flamebackend/v1/users/${other.id}`)
+    .set(authH(me.token)).expect(200);
+
+  assert.equal(res.body.data.lastActive, null, 'a hidden status must not leak lastActive through the profile view');
+});
+
+test('a user who allows their status still gets a real lastActive through GET /users/:id', async (t) => {
+  const { app, User } = await setup(t);
+  const me = await registerUser(app, 'profile-viewer-la2@x.com');
+  const other = await registerUser(app, 'profile-visible-la@x.com');
+
+  await setPresence(User, other.id, { showOnlineStatus: true, isOnline: true });
+
+  const res = await request(app).get(`/flamebackend/v1/users/${other.id}`)
+    .set(authH(me.token)).expect(200);
+
+  assert.ok(res.body.data.lastActive, 'an allowed status must still report a real timestamp');
+});
+
 // --- toPublicMinimal: the surface nobody remembered ------------------------
 //
 // userService.toPublicMinimal has its own, separate `isOnline` field (no

@@ -26,7 +26,15 @@ function toDiscoverUser(u) {
       ? false
       : u.isOnline,
     is_verified: u.isVerified,
-    last_active: u.lastActive,
+    // Same guard as is_online, two lines up: last_active is the other half of
+    // the presence signal (the app derives one "last seen" string from
+    // whichever of isOnline/lastActive it has — lib/models/user.dart's
+    // lastActiveText), so leaving this unguarded turns hiding your status into
+    // "Online now" -> "5m ago" instead of actually hiding anything. Strict
+    // === false, fails open like the boolean above.
+    last_active: (u.preferences && u.preferences.showOnlineStatus === false)
+      ? null
+      : u.lastActive,
     created_at: u.createdAt,
   };
 }

@@ -41,7 +41,13 @@ function toPublicMinimal(user) {
     isOnline: (user.preferences && user.preferences.showOnlineStatus === false)
       ? false
       : user.isOnline,
-    lastActive: user.lastActive,
+    // Same guard as isOnline, two lines up, and the same reasoning as
+    // discoveryService.toDiscoverUser's last_active: it is the other half of
+    // the presence signal the app derives "last seen" text from, so it leaks
+    // exactly what isOnline was just guarded against.
+    lastActive: (user.preferences && user.preferences.showOnlineStatus === false)
+      ? null
+      : user.lastActive,
   };
 }
 
