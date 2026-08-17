@@ -127,5 +127,37 @@ test('POST /users/me/photos → 422 on bad content-type', async (t) => {
   t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
 });
 
+// --- MUTABLE_FIELDS must not reach preferences/location/locationGeo --------
+//
+// updateSchema doesn't expose these keys today (they get dedicated routes:
+// /me/preferences writes dotted paths, /me/location writes the pair
+// together), so this is unreachable through the real PATCH /users/me route
+// right now. But userService.updateMe's own MUTABLE_FIELDS allowlist is the
+// thing that's actually supposed to guard this — the day someone adds one of
+// these keys to updateSchema, a wholesale $set would silently reset
+// showOnlineStatus/showDistance back to their defaults (true), which is the
+// one direction that matters for a privacy flag. Call the service directly,
+// bypassing the route/schema, to prove the allowlist itself refuses these
+// fields rather than relying on the schema in front of it.
+test('userService.updateMe cannot wholesale-reset preferences, even called directly', async (t) => {
+  const app = await setup();
+  const { token, id } = await registerAndGetToken(app);
+  t.after(async () => { const { close } = require('../db'); await close(); await dbHelper.stop(); });
+
+  await request(app).patch('/flamebackend/v1/users/me/preferences')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ show_online_status: false }).expect(200);
+
+  const userService = require('../services/userService');
+  await userService.updateMe(id, { preferences: { showOnlineStatus: true, minAge: 18, maxAge: 50 } });
+
+  const res = await request(app).get('/flamebackend/v1/users/me')
+    .set('Authorization', `Bearer ${token}`).expect(200);
+  assert.equal(
+    res.body.data.preferences.showOnlineStatus, false,
+    'preferences must not be wholesale-writable through updateMe, not even when called directly',
+  );
+});
+
 // Re-export `stubbedUrl` for visibility (silence unused-var warnings; keeps stub pattern as spec'd).
 void stubbedUrl;

@@ -5,9 +5,19 @@ const { toPublic } = require('./authService');
 const s3 = require('../utils/s3');
 
 // Fields the owner is allowed to update via PATCH /users/me
+//
+// preferences/location/locationGeo are deliberately NOT here: they have
+// dedicated routes (PATCH /me/preferences writes dotted sub-document paths;
+// PATCH /me/location writes the pair together) that exist specifically to
+// avoid a wholesale $set clobbering fields the caller didn't send. updateMe's
+// $set-the-whole-value path would defeat both — most importantly, it would
+// silently reset preferences.showOnlineStatus/showDistance back to their
+// schema defaults (true), the one direction that matters for a privacy flag.
+// updateSchema doesn't expose these keys today, so this allowlist is the only
+// thing standing in the way the day someone does. Do not add them back.
 const MUTABLE_FIELDS = new Set([
   'name', 'age', 'bio', 'interests', 'gender', 'lookingFor',
-  'preferences', 'notificationSettings', 'settings', 'location', 'locationGeo',
+  'notificationSettings', 'settings',
 ]);
 
 const ALLOWED_PHOTO_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -25,8 +35,29 @@ function toPublicMinimal(user) {
     bio: user.bio,
     interests: user.interests,
     photos: user.photos,
-    isOnline: user.isOnline,
-    lastActive: user.lastActive,
+    // A user who has hidden their online status reads as offline everywhere
+    // this shape goes out: the profile view (getById), the matches list
+    // (matchService.list) and the "it's a match!" swipe payload
+    // (swipeService.toMatchPayload) all share this one function rather than
+    // each carrying its own check. Strict === false, like
+    // discoveryService.toDiscoverUser's guard, so a missing `preferences`
+    // sub-document fails OPEN to visible — the schema's own default.
+    //
+    // No self-exception: a viewer fetching their own id through this same
+    // path reads as offline to themselves too if they hid it. This function
+    // is documented as the "other users see this" view, and threading a
+    // viewer id through three call sites to fix a cosmetic self-view isn't
+    // worth it.
+    isOnline: (user.preferences && user.preferences.showOnlineStatus === false)
+      ? false
+      : user.isOnline,
+    // Same guard as isOnline, two lines up, and the same reasoning as
+    // discoveryService.toDiscoverUser's last_active: it is the other half of
+    // the presence signal the app derives "last seen" text from, so it leaks
+    // exactly what isOnline was just guarded against.
+    lastActive: (user.preferences && user.preferences.showOnlineStatus === false)
+      ? null
+      : user.lastActive,
   };
 }
 
@@ -61,6 +92,103 @@ async function updateMe(userId, patch) {
   const user = await User.findByIdAndUpdate(userId, { $set: update }, { new: true, runValidators: true });
   if (!user || user.isDeleted) throw new NotFoundError('User not found');
   return toPublic(user);
+}
+
+const PREFERENCE_FIELDS = new Set([
+  'minAge', 'maxAge', 'maxDistance', 'showDistance', 'showOnlineStatus',
+]);
+
+/**
+ * Updates the caller's discovery preferences.
+ *
+ * `preferences` is a Mongoose sub-document, so this writes DOTTED paths
+ * (`preferences.minAge`). Assigning the object wholesale would replace the
+ * sub-document and reset every field the caller did not send — silently turning
+ * the privacy flags back on, which is the worst possible direction for that
+ * mistake.
+ */
+async function updatePreferences(userId, patch) {
+  const update = {};
+  for (const [k, v] of Object.entries(patch)) {
+    if (PREFERENCE_FIELDS.has(k) && v !== undefined) update[`preferences.${k}`] = v;
+  }
+  if (Object.keys(update).length === 0) {
+    throw new ValidationError('no preference fields to update');
+  }
+
+  // The route's zod refine only sees one request body at a time, so two
+  // independent, individually-valid PATCHes — {max_age: 30} then
+  // {min_age: 40} — can land an inverted range in storage: minAge: 40,
+  // maxAge: 30, a Discover filter matching nobody. This service is the only
+  // layer that can see the STORED state, so re-check the merged range here:
+  // whichever bound the caller didn't send in this request keeps its current
+  // stored value.
+  const current = await User.findById(userId);
+  if (!current || current.isDeleted) throw new NotFoundError('User not found');
+  const currentPrefs = current.preferences || {};
+  const mergedMinAge = patch.minAge !== undefined ? patch.minAge : currentPrefs.minAge;
+  const mergedMaxAge = patch.maxAge !== undefined ? patch.maxAge : currentPrefs.maxAge;
+  if (mergedMinAge != null && mergedMaxAge != null && mergedMinAge > mergedMaxAge) {
+    throw new ValidationError('min_age must not exceed max_age');
+  }
+
+  // Records that this user has deliberately written preferences at least once
+  // — see the preferencesSet comment in models/User.js. Set on every
+  // successful write, not just ones that touch minAge/maxAge, so a document
+  // that e.g. only ever toggled showOnlineStatus still counts as "touched" the
+  // next time an age bound lands on it.
+  update['preferences.preferencesSet'] = true;
+
+  const user = await User.findByIdAndUpdate(
+    userId,
+    { $set: update },
+    { new: true, runValidators: true },
+  );
+  if (!user || user.isDeleted) throw new NotFoundError('User not found');
+  return user.preferences;
+}
+
+/**
+ * Updates the caller's location.
+ *
+ * Writes BOTH `location` (human-readable, what the profile shows) and
+ * `locationGeo` (the 2dsphere-indexed GeoJSON point Discover queries), in the
+ * same save, so the two can never diverge. Writing only the first stores the
+ * coordinates and leaves Discover ranking on the old position, which presents
+ * as broken distance filtering rather than a failed save.
+ *
+ * `location` defaults to `null` (see models/User.js), so a dotted `$set` path
+ * into it (`'location.coordinates.latitude'`) fails at the Mongo level —
+ * "Cannot create field ... in element {location: null}", since Mongo will not
+ * auto-vivify through an explicit null. A whole-object `$set` on `location`
+ * avoids that, but overwriting it wholesale would silently clear
+ * `city`/`state`/`country` on every coordinate update — nothing writes those
+ * fields today, but the first geocoding path that does would have its data
+ * zeroed out with no test to catch it. So: load the document, mutate the
+ * sub-document in place (preserving its other fields), save once.
+ */
+async function updateLocation(userId, { latitude, longitude }) {
+  const user = await User.findById(userId);
+  if (!user || user.isDeleted) throw new NotFoundError('User not found');
+
+  const existing = user.location ? user.location.toObject() : {};
+  user.location = { ...existing, coordinates: { latitude, longitude } };
+  user.locationGeo = {
+    type: 'Point',
+    // GeoJSON is [longitude, latitude]. Reversed, this is a different
+    // continent.
+    coordinates: [longitude, latitude],
+  };
+  // document.save() validates the WHOLE document, not just modified paths —
+  // socialAuthService.js hit this exact thing (see its comment above the
+  // `if (!user.name) ...` backfill block): a partially-migrated document
+  // missing a required dating field (e.g. lookingFor) 500s here even though
+  // this request only touches location/locationGeo. validateModifiedOnly
+  // brings this route's validation semantics in line with the
+  // findByIdAndUpdate-based routes (preferences, updateMe), which already
+  // validate only the paths they write.
+  await user.save({ validateModifiedOnly: true });
+  return user.location;
 }
 
 async function uploadPhoto(userId, file) {
@@ -108,4 +236,6 @@ async function deletePhoto(userId, photoId) {
   await user.save();
 }
 
-module.exports = { getMe, getById, updateMe, uploadPhoto, deletePhoto, toPublicMinimal };
+module.exports = {
+  getMe, getById, updateMe, updatePreferences, updateLocation, uploadPhoto, deletePhoto, toPublicMinimal,
+};

@@ -17,9 +17,24 @@ function toDiscoverUser(u) {
     photos: (u.photos || []).map((p) => p.url),
     location,
     distance: 0,
-    is_online: u.isOnline,
+    // A user who has hidden their online status reads as offline everywhere the
+    // server describes them. chatService.toConversation delegates to this
+    // function, so the conversation list is covered by the same line — one
+    // place answers the question, every caller asks it, the way
+    // visibilityService works for blocks.
+    is_online: (u.preferences && u.preferences.showOnlineStatus === false)
+      ? false
+      : u.isOnline,
     is_verified: u.isVerified,
-    last_active: u.lastActive,
+    // Same guard as is_online, two lines up: last_active is the other half of
+    // the presence signal (the app derives one "last seen" string from
+    // whichever of isOnline/lastActive it has — lib/models/user.dart's
+    // lastActiveText), so leaving this unguarded turns hiding your status into
+    // "Online now" -> "5m ago" instead of actually hiding anything. Strict
+    // === false, fails open like the boolean above.
+    last_active: (u.preferences && u.preferences.showOnlineStatus === false)
+      ? null
+      : u.lastActive,
     created_at: u.createdAt,
   };
 }
@@ -46,22 +61,34 @@ async function discover(viewerId, { limit, offset }) {
     filter.gender = me.lookingFor;
   }
 
-  // An untouched preference window means "no preference", not "18-50".
+  // An untouched preference window means "no preference", not "18-50" — UNLESS
+  // the user has actually written to /me/preferences, recorded by
+  // preferencesSet. (See models/User.js's preferencesSchema comment.)
   //
   // minAge/maxAge default to 18/50 in the schema, and those defaults were
   // written into every user document at insert — so treating them as a real
   // filter silently hides everyone over 50 from everyone, on existing data.
-  // Only filter when the user has actually moved one of the bounds.
+  // That reasoning breaks the moment a real PATCH can land exactly 18-50 on
+  // purpose, which preferencesSet disambiguates: true means the value was
+  // deliberately written (filter, even at the sentinel), false means it is
+  // either untouched or predates this field (keep the old heuristic).
   const DEFAULT_MIN_AGE = 18;
   const DEFAULT_MAX_AGE = 50;
   const prefs = (me && me.preferences) || {};
   const minAge = prefs.minAge;
   const maxAge = prefs.maxAge;
-  const usingDefaultWindow =
-    (minAge == null || minAge === DEFAULT_MIN_AGE) &&
-    (maxAge == null || maxAge === DEFAULT_MAX_AGE);
 
-  if (!usingDefaultWindow) {
+  let applyAgeFilter;
+  if (prefs.preferencesSet === true) {
+    applyAgeFilter = true;
+  } else {
+    const usingDefaultWindow =
+      (minAge == null || minAge === DEFAULT_MIN_AGE) &&
+      (maxAge == null || maxAge === DEFAULT_MAX_AGE);
+    applyAgeFilter = !usingDefaultWindow;
+  }
+
+  if (applyAgeFilter) {
     filter.age = {};
     if (minAge != null) filter.age.$gte = minAge;
     if (maxAge != null) filter.age.$lte = maxAge;
