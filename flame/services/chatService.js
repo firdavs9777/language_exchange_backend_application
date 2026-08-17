@@ -54,9 +54,17 @@ function toConversation(c, forUserId, lastMessageDoc, otherUserDoc) {
     last_message: (lastMessageDoc && !lastMessageHiddenForViewer) ? toMessage(lastMessageDoc) : null,
     last_message_at: c.lastMessageAt ? c.lastMessageAt.toISOString() : null,
     unread_count: mine ? mine.count : 0,
+    // From the document already in hand — no extra query per row. The expiry
+    // rule is shared with isMutedFor rather than copied.
+    is_muted: _controls().isMutedIn(c.mutedBy, forUserId),
     created_at: c.createdAt ? c.createdAt.toISOString() : null,
   };
 }
+
+// Required lazily: conversationControlsService reuses this module's
+// _findConversation and _assertParticipant, so a top-level require here would
+// close the import graph into a cycle.
+const _controls = () => require('./conversationControlsService');
 
 // Required lazily: matchService pulls in userService (and through it utils/s3),
 // and a top-level require here would make the chat <-> match pair a load-order

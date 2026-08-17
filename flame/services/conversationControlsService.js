@@ -49,13 +49,38 @@ async function unmute(userId, conversationId) {
 // mutedUntil: null means an indefinite mute. Anything else is a deadline, and
 // once it has passed the user is not muted — a mute that silently never
 // expires is a bug users would report as "notifications stopped working."
+/**
+ * Whether `userId` has an active mute in an already-loaded `mutedBy` array.
+ *
+ * Split out so chatService.toConversation can report mute state from the
+ * document it already holds, instead of either re-querying per conversation or
+ * keeping a second copy of the expiry rule. A second copy is free to disagree
+ * with this one, and only this one gates push notifications.
+ */
+function isMutedIn(mutedBy, userId) {
+  const entry = (mutedBy || []).find((m) => m.user === userId);
+  if (!entry) return false;
+  if (entry.mutedUntil == null) return true;   // null means indefinite
+  return new Date(entry.mutedUntil).getTime() > Date.now();
+}
+
 async function isMutedFor(conversationId, userId) {
   const conv = await Conversation.findById(conversationId).lean().catch(() => null);
   if (!conv) return false;
-  const entry = (conv.mutedBy || []).find((m) => m.user === userId);
-  if (!entry) return false;
-  if (entry.mutedUntil == null) return true;
-  return new Date(entry.mutedUntil).getTime() > Date.now();
+  return isMutedIn(conv.mutedBy, userId);
+}
+
+/**
+ * The caller's pinned messages, with content.
+ *
+ * A read of its own rather than a field on the conversation payload: pinned
+ * messages need their text, so serving them inside the conversation LIST would
+ * be an N+1 across every row to populate a bar only the open chat renders.
+ */
+async function listPinned(userId, conversationId) {
+  const conv = await _findConversation(conversationId);
+  _assertParticipant(conv, userId);
+  return { pinned_messages: await _pinnedMessagesFor(conversationId, userId) };
 }
 
 // The shipped app (chat_service.dart's pinMessage/unpinMessage) replaces its
@@ -117,4 +142,6 @@ async function unpinMessage(userId, conversationId, messageId) {
   return { pinned_messages: await _pinnedMessagesFor(conversationId, userId) };
 }
 
-module.exports = { mute, unmute, isMutedFor, pinMessage, unpinMessage };
+module.exports = {
+  mute, unmute, isMutedFor, isMutedIn, pinMessage, unpinMessage, listPinned,
+};

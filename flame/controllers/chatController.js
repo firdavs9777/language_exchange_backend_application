@@ -23,6 +23,12 @@ async function searchMessages(req, res) {
   });
 }
 
+async function listPinned(req, res) {
+  const data = await require('../services/conversationControlsService')
+    .listPinned(req.user.id, req.params.id);
+  res.json({ success: true, data });
+}
+
 async function archiveConversation(req, res) {
   const data = await chatService.archiveConversation(req.user.id, req.params.id);
   res.json({ success: true, data });
@@ -215,5 +221,5 @@ module.exports = {
   listConversations, openConversation, getMessages, sendMessage, sendMedia, markRead,
   addReaction, removeReaction, editMessage, deleteMessage,
   muteConversation, unmuteConversation, pinMessage, unpinMessage,
-  archiveConversation, unarchiveConversation, searchMessages,
+  archiveConversation, unarchiveConversation, searchMessages, listPinned,
 };
