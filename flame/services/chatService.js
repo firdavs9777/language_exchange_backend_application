@@ -148,8 +148,25 @@ async function openConversation(userId, otherUserId) {
   return toConversation(conv, userId, null, other);
 }
 
-async function listConversations(userId, { limit, offset }) {
+/**
+ * The conversation filter for `userId`.
+ *
+ * Extracted from listConversations so message search shares ONE implementation
+ * of the exclusion rule. Two copies drift, and only one of them gets audited —
+ * which matters more here than anywhere else in this codebase, because this is
+ * what keeps blocked and unmatched people out of every list.
+ *
+ * `archived` selects which side of the archive line to return:
+ *   false  the default list
+ *   true   the archived list — INVERTED, not dropped, or it shows everything
+ *   'any'  both, for search: a conversation I archived is still mine to search
+ *
+ * 'any' exists so search makes one call. Calling this twice would run the
+ * block and ended-match lookups twice for a single query.
+ */
+async function conversationFilterFor(userId, { archived = false } = {}) {
   const filter = { participants: userId };
+
   // A blocked person must leave the list entirely, not just be un-messageable.
   // So must an unmatched one: the conversation outlives the match, so without
   // the ended-match ids here an unmatch would leave the chat sitting in both
@@ -166,9 +183,18 @@ async function listConversations(userId, { limit, offset }) {
   ]);
   const hidden = [...new Set([...blocked, ...unmatched])];
   if (hidden.length) filter.participants = { $all: [userId], $nin: hidden };
+
   // Archive is per-user, so it filters on this conversation's own array rather
   // than on the participant ids the block/ended-match exclusions use above.
-  filter['archivedBy.user'] = { $ne: userId };
+  if (archived !== 'any') {
+    filter['archivedBy.user'] = archived ? userId : { $ne: userId };
+  }
+
+  return filter;
+}
+
+async function listConversations(userId, { limit, offset, archived = false }) {
+  const filter = await conversationFilterFor(userId, { archived });
   const total = await Conversation.countDocuments(filter);
   const convs = await Conversation.find(filter)
     .sort({ lastMessageAt: -1, updatedAt: -1 })
@@ -361,4 +387,5 @@ module.exports = {
   // the exact same "conversation exists / caller is a participant" checks
   // instead of hand-rolling their own and drifting from them.
   _findConversation, _assertParticipant,
+  conversationFilterFor,
 };
