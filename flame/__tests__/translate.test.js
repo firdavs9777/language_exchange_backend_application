@@ -12,19 +12,28 @@ const assert = require('node:assert/strict');
 const request = require('supertest');
 const dbHelper = require('./helpers/db');
 
-const AXIOS = require.resolve('axios');
+const OPENAI = require.resolve('openai');
 
-// Replaces axios for the duration of one test, so nothing reaches the network
-// and every outbound request is observable.
-function stubAxios(handler) {
-  const real = require.cache[AXIOS];
-  require.cache[AXIOS] = {
-    id: AXIOS, filename: AXIOS, loaded: true, exports: { post: handler },
+// Replaces the openai package for one test, so nothing reaches the network.
+function stubOpenAI(handler) {
+  const real = require.cache[OPENAI];
+  class FakeOpenAI {
+    constructor(_opts) {
+      this.chat = { completions: { create: handler } };
+    }
+  }
+  require.cache[OPENAI] = {
+    id: OPENAI, filename: OPENAI, loaded: true, exports: FakeOpenAI,
   };
   return () => {
-    if (real) require.cache[AXIOS] = real; else delete require.cache[AXIOS];
+    if (real) require.cache[OPENAI] = real; else delete require.cache[OPENAI];
   };
 }
+
+const completion = (text) => ({
+  choices: [{ message: { content: text } }],
+  usage: { prompt_tokens: 1, completion_tokens: 1 },
+});
 
 // Takes the test context so teardown registers BEFORE anything that can throw.
 // Registering it at the end means a failing require leaves the mongod running
@@ -44,7 +53,7 @@ async function setup(t) {
   process.env.SPACES_ENDPOINT = 'e';
   process.env.DO_SPACES_KEY = 'k';
   process.env.DO_SPACES_SECRET = 's';
-  process.env.LIBRETRANSLATE_URL = 'https://libre.test';
+  process.env.OPENAI_API_KEY = 'sk-test';
 
   [
     '../db', '../models/User', '../models/RefreshToken', '../models/Story',
@@ -81,7 +90,7 @@ const authH = (token) => ({ Authorization: `Bearer ${token}` });
 const URL = '/flamebackend/v1/translate';
 
 test('translates, returning the keys the shipped app parses', async (t) => {
-  const restore = stubAxios(async () => ({ data: { translatedText: 'hola' } }));
+  const restore = stubOpenAI(async () => completion('hola'));
   t.after(restore);
 
   const app = await setup(t);
@@ -100,9 +109,9 @@ test('translates, returning the keys the shipped app parses', async (t) => {
 
 test('the second identical request is served from the cache', async (t) => {
   let providerCalls = 0;
-  const restore = stubAxios(async () => {
+  const restore = stubOpenAI(async () => {
     providerCalls += 1;
-    return { data: { translatedText: 'hola' } };
+    return completion('hola');
   });
   t.after(restore);
 
@@ -119,11 +128,8 @@ test('the second identical request is served from the cache', async (t) => {
   assert.equal(providerCalls, 1);
 });
 
-test('omitting source_lang detects it and reports what was detected', async (t) => {
-  const restore = stubAxios(async (url) => {
-    if (url.endsWith('/detect')) return { data: [{ language: 'fr' }] };
-    return { data: { translatedText: 'hello' } };
-  });
+test('omitting source_lang still translates', async (t) => {
+  const restore = stubOpenAI(async () => completion('hello'));
   t.after(restore);
 
   const app = await setup(t);
@@ -134,11 +140,13 @@ test('omitting source_lang detects it and reports what was detected', async (t) 
     .expect(200);
 
   assert.equal(res.body.data.translated_text, 'hello');
-  assert.equal(res.body.data.detected_source_lang, 'fr');
+  // No source was supplied and none is guessed back: the model does not need
+  // to be told, and reporting a language nobody asked for would be invention.
+  assert.equal(res.body.data.detected_source_lang, null);
 });
 
 test('missing text is 422', async (t) => {
-  const restore = stubAxios(async () => ({ data: {} }));
+  const restore = stubOpenAI(async () => completion('x'));
   t.after(restore);
 
   const app = await setup(t);
@@ -150,7 +158,7 @@ test('missing text is 422', async (t) => {
 });
 
 test('missing target_lang is 422', async (t) => {
-  const restore = stubAxios(async () => ({ data: {} }));
+  const restore = stubOpenAI(async () => completion('x'));
   t.after(restore);
 
   const app = await setup(t);
@@ -163,7 +171,7 @@ test('missing target_lang is 422', async (t) => {
 
 test('an unauthenticated request is rejected', async (t) => {
   let called = false;
-  const restore = stubAxios(async () => { called = true; return { data: {} }; });
+  const restore = stubOpenAI(async () => { called = true; return completion('x'); });
   t.after(restore);
 
   const app = await setup(t);
@@ -178,7 +186,7 @@ test('an unauthenticated request is rejected', async (t) => {
 });
 
 test('a provider outage is 422 with a readable message, never 500', async (t) => {
-  const restore = stubAxios(async () => { throw new Error('ECONNREFUSED'); });
+  const restore = stubOpenAI(async () => { throw new Error('ECONNRESET'); });
   t.after(restore);
 
   const app = await setup(t);
