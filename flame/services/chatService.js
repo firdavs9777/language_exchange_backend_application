@@ -164,6 +164,30 @@ async function openConversation(userId, otherUserId) {
  * 'any' exists so search makes one call. Calling this twice would run the
  * block and ended-match lookups twice for a single query.
  */
+async function archiveConversation(userId, conversationId) {
+  const conv = await _findConversation(conversationId);
+  _assertParticipant(conv, userId);
+
+  // An explicit $ne guard, not $addToSet. These subdocuments carry an
+  // archivedAt, so no two entries for one user are ever equal and $addToSet
+  // would happily add a second — the same trap the mute and pin arrays hit.
+  await Conversation.updateOne(
+    { _id: conv._id, 'archivedBy.user': { $ne: userId } },
+    { $push: { archivedBy: { user: userId, archivedAt: new Date() } } },
+  );
+  return { archived: true };
+}
+
+async function unarchiveConversation(userId, conversationId) {
+  const conv = await _findConversation(conversationId);
+  _assertParticipant(conv, userId);
+  await Conversation.updateOne(
+    { _id: conv._id },
+    { $pull: { archivedBy: { user: userId } } },
+  );
+  return { archived: false };
+}
+
 async function conversationFilterFor(userId, { archived = false } = {}) {
   const filter = { participants: userId };
 
@@ -388,4 +412,5 @@ module.exports = {
   // instead of hand-rolling their own and drifting from them.
   _findConversation, _assertParticipant,
   conversationFilterFor,
+  archiveConversation, unarchiveConversation,
 };

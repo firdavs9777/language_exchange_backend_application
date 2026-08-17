@@ -1,10 +1,25 @@
 const chatService = require('../services/chatService');
 const conversationControlsService = require('../services/conversationControlsService');
 
+async function archiveConversation(req, res) {
+  const data = await chatService.archiveConversation(req.user.id, req.params.id);
+  res.json({ success: true, data });
+}
+
+async function unarchiveConversation(req, res) {
+  const data = await chatService.unarchiveConversation(req.user.id, req.params.id);
+  res.json({ success: true, data });
+}
+
 async function listConversations(req, res) {
   const limit = parseInt(req.query.limit, 10) || 20;
   const offset = parseInt(req.query.offset, 10) || 0;
-  const { conversations, total } = await chatService.listConversations(req.user.id, { limit, offset });
+  // Archive is per-user filing: the same list endpoint serves both sides of
+  // the line rather than a separate archived endpoint that could drift from it.
+  const archived = req.query.archived === 'true';
+  const { conversations, total } = await chatService.listConversations(
+    req.user.id, { limit, offset, archived },
+  );
   res.json({
     success: true,
     data: {
@@ -178,4 +193,5 @@ module.exports = {
   listConversations, openConversation, getMessages, sendMessage, sendMedia, markRead,
   addReaction, removeReaction, editMessage, deleteMessage,
   muteConversation, unmuteConversation, pinMessage, unpinMessage,
+  archiveConversation, unarchiveConversation,
 };
