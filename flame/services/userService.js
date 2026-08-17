@@ -25,7 +25,22 @@ function toPublicMinimal(user) {
     bio: user.bio,
     interests: user.interests,
     photos: user.photos,
-    isOnline: user.isOnline,
+    // A user who has hidden their online status reads as offline everywhere
+    // this shape goes out: the profile view (getById), the matches list
+    // (matchService.list) and the "it's a match!" swipe payload
+    // (swipeService.toMatchPayload) all share this one function rather than
+    // each carrying its own check. Strict === false, like
+    // discoveryService.toDiscoverUser's guard, so a missing `preferences`
+    // sub-document fails OPEN to visible — the schema's own default.
+    //
+    // No self-exception: a viewer fetching their own id through this same
+    // path reads as offline to themselves too if they hid it. This function
+    // is documented as the "other users see this" view, and threading a
+    // viewer id through three call sites to fix a cosmetic self-view isn't
+    // worth it.
+    isOnline: (user.preferences && user.preferences.showOnlineStatus === false)
+      ? false
+      : user.isOnline,
     lastActive: user.lastActive,
   };
 }

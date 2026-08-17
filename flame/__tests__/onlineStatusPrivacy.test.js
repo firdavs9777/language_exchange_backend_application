@@ -36,9 +36,12 @@ async function setup(t) {
     '../services/authService', '../services/userService',
     '../services/visibilityService', '../services/discoveryService',
     '../services/chatService', '../services/matchService', '../services/blockService',
+    '../services/swipeService',
     '../controllers/authController', '../controllers/userController',
     '../controllers/chatController', '../services/conversationControlsService',
+    '../controllers/matchController', '../controllers/swipeController',
     '../routes/auth', '../routes/users', '../routes/discovery', '../routes/conversations',
+    '../routes/matches', '../routes/swipes',
     '../index',
   ].forEach((p) => { try { delete require.cache[require.resolve(p)]; } catch {} });
 
@@ -50,6 +53,8 @@ async function setup(t) {
     app: buildApp(),
     User: require('../models/User'),
     chatService: require('../services/chatService'),
+    matchService: require('../services/matchService'),
+    swipeService: require('../services/swipeService'),
   };
 }
 
@@ -144,6 +149,86 @@ test('hiding your own status does not hide theirs from you', async (t) => {
   assert.equal(
     seen.is_online, true,
     "the viewer's own preference must not affect what they see of someone else",
+  );
+});
+
+// --- toPublicMinimal: the surface nobody remembered ------------------------
+//
+// userService.toPublicMinimal has its own, separate `isOnline` field (no
+// underscore — that shape is fixed by the shipped app) and is the shape
+// behind THREE more call sites that describe another user: the profile view
+// (userService.getById -> GET /users/:id), the matches list
+// (matchService.list), and the "it's a match!" swipe payload
+// (swipeService.toMatchPayload). None of the discoveryService fix above
+// touches any of these.
+
+test('a user who hid their status reads as offline through GET /users/:id', async (t) => {
+  const { app, User } = await setup(t);
+  const me = await registerUser(app, 'profile-viewer@x.com');
+  const other = await registerUser(app, 'profile-hidden@x.com');
+
+  await setPresence(User, other.id, { showOnlineStatus: false, isOnline: true });
+
+  const res = await request(app).get(`/flamebackend/v1/users/${other.id}`)
+    .set(authH(me.token)).expect(200);
+
+  assert.equal(res.body.data.isOnline, false, 'a hidden status must not leak through the profile view');
+});
+
+test('a user who allows their status reads as online through GET /users/:id — the guard is conditional', async (t) => {
+  const { app, User } = await setup(t);
+  const me = await registerUser(app, 'profile-viewer-2@x.com');
+  const other = await registerUser(app, 'profile-visible@x.com');
+
+  await setPresence(User, other.id, { showOnlineStatus: true, isOnline: true });
+
+  const res = await request(app).get(`/flamebackend/v1/users/${other.id}`)
+    .set(authH(me.token)).expect(200);
+
+  assert.equal(res.body.data.isOnline, true, 'an allowed status must still be reported truthfully');
+});
+
+test('a user who hid their status reads as offline in the matches list', async (t) => {
+  const { app, User, swipeService } = await setup(t);
+  const me = await registerUser(app, 'matchlist-viewer@x.com');
+  const other = await registerUser(app, 'matchlist-hidden@x.com');
+
+  await swipeService.record(me.id, other.id, 'like');
+  await swipeService.record(other.id, me.id, 'like');
+  await setPresence(User, other.id, { showOnlineStatus: false, isOnline: true });
+
+  const res = await request(app).get('/flamebackend/v1/matches')
+    .set(authH(me.token)).expect(200);
+
+  const match = res.body.data.matches.find((m) => m.user.id === other.id);
+  assert.ok(match, 'control: the match appears in the list');
+  assert.equal(
+    match.user.isOnline, false,
+    'the matches list is a separate call site from the profile view — one shared '
+      + 'helper passing does not prove this one uses it too',
+  );
+});
+
+test('a user who hid their status reads as offline in the "it\'s a match!" payload', async (t) => {
+  const { app, User } = await setup(t);
+  const me = await registerUser(app, 'matchpayload-viewer@x.com');
+  const other = await registerUser(app, 'matchpayload-hidden@x.com');
+
+  await setPresence(User, other.id, { showOnlineStatus: false, isOnline: true });
+
+  // `other` likes first...
+  await request(app).post('/flamebackend/v1/swipes/like')
+    .set(authH(other.token)).send({ user_id: me.id }).expect(200);
+
+  // ...then the viewer likes back, completing the match and receiving the
+  // "it's a match!" payload that carries the other user's shape inline.
+  const res = await request(app).post('/flamebackend/v1/swipes/like')
+    .set(authH(me.token)).send({ user_id: other.id }).expect(200);
+
+  assert.equal(res.body.data.is_match, true, 'control: the swipe completed a match');
+  assert.equal(
+    res.body.data.match.user.isOnline, false,
+    'the match payload is a third call site through toPublicMinimal — the guard must cover it too',
   );
 });
 
