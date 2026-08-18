@@ -262,7 +262,6 @@ test('socket delivery drops a message to a blocked pair', async (t) => {
 // Message delivery was closed first (emitToReceiver). These four cover the
 // paths that still went out unchecked: the partner list presence is broadcast
 // to, the three client-driven relays that trust a client-supplied `data.to`,
-// and emitRead.
 
 test('presence partners exclude blocked users, so no presence is broadcast to them',
   async (t) => {
@@ -339,18 +338,3 @@ test('typing / stopTyping / markRead relays are dropped for a blocked pair', asy
   );
 });
 
-test('emitRead is dropped for a blocked pair', async (t) => {
-  const { a, b, chatService, blockService, flameSocket } = await setup();
-  teardown(t);
-
-  const conv = await chatService.openConversation(a, b);
-  const io = fakeIo();
-
-  await flameSocket.emitRead(io, a, conv.id);
-  assert.equal(io.emitted.length, 1, 'control: an unblocked read receipt is delivered');
-
-  await blockService.block(b, a);
-
-  await flameSocket.emitRead(io, a, conv.id);
-  assert.equal(io.emitted.length, 1, 'a read receipt must not bypass the block either');
-});

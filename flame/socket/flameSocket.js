@@ -204,27 +204,6 @@ function emitNewMessage(io, receiverId, message) {
   return emitToReceiver(io, receiverId, 'message:new', message);
 }
 
-// Push a read receipt into the room of `userId` — the person whose messages
-// were read.
-//
-// The other party is resolved from the conversation rather than taken as an
-// argument so no caller can forget to pass it and silently reopen the hole
-// emitToReceiver closes. Fails CLOSED: if the conversation cannot be read, or
-// the pair is blocked, nothing goes out. The payload shape is unchanged.
-async function emitRead(io, userId, conversationId) {
-  if (!io || !userId) return;
-  let otherId = null;
-  try {
-    const Conversation = require('../models/Conversation');
-    const conv = await Conversation.findById(conversationId).select('participants').lean();
-    otherId = conv ? (conv.participants || []).find((p) => p !== userId) : null;
-    if (!otherId) return;
-  } catch (_) {
-    return;
-  }
-  return emitChecked(io, userId, otherId, 'read', { conversation_id: conversationId });
-}
-
 // Push an edited message to its receiver's room.
 function emitMessageEdited(io, receiverId, message) {
   return emitToReceiver(io, receiverId, 'message:edited', message);
@@ -235,4 +214,4 @@ function emitMessageDeleted(io, receiverId, message) {
   return emitToReceiver(io, receiverId, 'message:deleted', message);
 }
 
-module.exports = { initFlameSocket, emitNewMessage, emitRead, emitMessageEdited, emitMessageDeleted };
+module.exports = { initFlameSocket, emitNewMessage, emitMessageEdited, emitMessageDeleted };
