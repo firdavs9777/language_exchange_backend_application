@@ -257,11 +257,11 @@ test('socket delivery drops a message to a blocked pair', async (t) => {
   assert.equal(io.emitted.length, 1, 'a live socket must not bypass the block');
 });
 
-// --- the remaining socket surfaces: presence, typing and read receipts -------
+// --- the remaining socket surfaces: presence and typing ---------------------
 //
-// Message delivery was closed first (emitToReceiver). These four cover the
-// paths that still went out unchecked: the partner list presence is broadcast
-// to, the three client-driven relays that trust a client-supplied `data.to`,
+// Message delivery was closed first (emitToReceiver). These cover the paths that
+// still went out unchecked: the partner list presence is broadcast to, and the
+// client-driven relays that trust a client-supplied `data.to`,
 
 test('presence partners exclude blocked users, so no presence is broadcast to them',
   async (t) => {
