@@ -242,12 +242,42 @@ async function listConversations(userId, { limit, offset, archived = false }) {
   return { conversations, total };
 }
 
-async function getMessages(userId, conversationId, { limit, offset }) {
+// Paging is by cursor, with skip/offset kept only for installed clients.
+//
+// skip(offset) could not promise a stable window: a message arriving between two
+// page fetches shifted it, so the next page re-served rows the client already
+// had and lost the oldest ones it should have returned. Clients hid the overlap
+// by deduping; the gap on the other side was real and silent.
+//
+// `_id` descending stands in for `createdAt` descending throughout: ObjectIds
+// embed a timestamp and increase monotonically, and unlike createdAt they are
+// unique, so the sort is total and a cursor can never straddle a tie.
+async function getMessages(userId, conversationId, { limit, offset, before }) {
   const conv = await _findConversation(conversationId);
   _assertParticipant(conv, userId);
   const filter = { conversationId, isDeleted: false, deletedFor: { $ne: userId } };
+
+  // Anchored to a message id, so an arrival cannot move the window. Wins over
+  // offset when both are sent — a caller passing both has one real intent, and
+  // this is the one that is correct.
+  if (before) {
+    const msgs = await Message.find({ ...filter, _id: { $lt: before } })
+      .sort({ _id: -1 })
+      .limit(limit + 1);
+    return { messages: msgs.slice(0, limit).map(toMessage), hasMore: msgs.length > limit };
+  }
+
+  // Newest page, no cursor. Same limit+1 probe, so this path also stops paying
+  // for a count nobody reads.
+  if (!offset) {
+    const msgs = await Message.find(filter).sort({ _id: -1 }).limit(limit + 1);
+    return { messages: msgs.slice(0, limit).map(toMessage), hasMore: msgs.length > limit };
+  }
+
+  // Legacy path. It alone still computes `total`, because it alone ever
+  // reported it.
   const total = await Message.countDocuments(filter);
-  const msgs = await Message.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit);
+  const msgs = await Message.find(filter).sort({ _id: -1 }).skip(offset).limit(limit);
   return { messages: msgs.map(toMessage), total };
 }
 

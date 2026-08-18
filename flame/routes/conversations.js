@@ -103,9 +103,19 @@ const muteSchema = z.object({
 const pinSchema = z.object({ message_id: objectId });
 const pinParams = z.object({ id: objectId, messageId: objectId });
 
+// A `before` that is not an ObjectId makes Mongoose throw a CastError, which
+// surfaces to the client as a 500. Rejecting it here makes a bad cursor what it
+// actually is: a client error. Unknown keys pass through untouched, so this does
+// not become a place that has to know every query param the route may grow.
+const messagesQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  offset: z.coerce.number().int().min(0).optional(),
+  before: objectId.optional(),
+}).passthrough();
+
 router.get('/', auth, asyncHandler(ctrl.listConversations));
 router.post('/', auth, validate.body(openSchema), asyncHandler(ctrl.openConversation));
-router.get('/:id/messages', auth, validate.params(idParam), asyncHandler(ctrl.getMessages));
+router.get('/:id/messages', auth, validate.params(idParam), validate.query(messagesQuery), asyncHandler(ctrl.getMessages));
 router.post('/:id/messages', auth, validate.params(idParam), validate.body(sendSchema), asyncHandler(ctrl.sendMessage));
 
 // Paths and multipart field names are fixed by the shipped app

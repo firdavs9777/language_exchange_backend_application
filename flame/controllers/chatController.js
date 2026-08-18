@@ -65,14 +65,19 @@ async function openConversation(req, res) {
 async function getMessages(req, res) {
   const limit = parseInt(req.query.limit, 10) || 30;
   const offset = parseInt(req.query.offset, 10) || 0;
-  const { messages, total } = await chatService.getMessages(req.user.id, req.params.id, { limit, offset });
-  res.json({
-    success: true,
-    data: {
-      messages,
-      pagination: { total, limit, offset, has_more: offset + messages.length < total },
-    },
-  });
+  const before = req.query.before || null;
+  const { messages, total, hasMore } = await chatService.getMessages(
+    req.user.id, req.params.id, { limit, offset, before },
+  );
+
+  // `total` and `offset` are echoed only on the legacy path, so a cursor
+  // response never carries a field it did not compute.
+  const pagination = { limit, has_more: hasMore ?? (offset + messages.length < total) };
+  if (total !== undefined) {
+    pagination.total = total;
+    pagination.offset = offset;
+  }
+  res.json({ success: true, data: { messages, pagination } });
 }
 
 async function sendMessage(req, res) {
