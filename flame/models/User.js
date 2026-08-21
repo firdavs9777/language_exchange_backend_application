@@ -33,6 +33,9 @@ const preferencesSchema = new mongoose.Schema({
   maxDistance:      { type: Number, default: 50 },
   showDistance:     { type: Boolean, default: true },
   showOnlineStatus: { type: Boolean, default: true },
+  // Discovery filter, NOT the user's own interests. Empty means "no interest
+  // filter", which is why it defaults to [] rather than to the full catalogue.
+  interestsFilter:  { type: [String], default: [] },
   // Records INTENT rather than inferring it from values: minAge/maxAge default
   // to 18/50, so an untouched document and one explicitly PATCHed to exactly
   // 18-50 are bit-for-bit identical on those two fields alone. Defaults to

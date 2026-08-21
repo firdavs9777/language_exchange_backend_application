@@ -157,6 +157,13 @@ async function discover(viewerId, { limit, offset }) {
     ];
   }
 
+  // Any overlap, not all: requiring every selected interest empties the deck on
+  // a small user base, and this app has a small user base.
+  const interestsFilter = prefs.interestsFilter;
+  if (Array.isArray(interestsFilter) && interestsFilter.length > 0) {
+    filter.interests = { $in: interestsFilter };
+  }
+
   const total = await User.countDocuments(filter);
   const users = await User.find(filter)
     .sort({ lastActive: -1 })

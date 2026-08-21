@@ -96,6 +96,7 @@ async function updateMe(userId, patch) {
 
 const PREFERENCE_FIELDS = new Set([
   'minAge', 'maxAge', 'maxDistance', 'showDistance', 'showOnlineStatus',
+  'interestsFilter',
 ]);
 
 /**

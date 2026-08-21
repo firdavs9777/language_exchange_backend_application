@@ -183,3 +183,57 @@ test('max_distance below 1 is rejected', async () => {
   await request(app).patch(`${P}/users/me/preferences`)
     .set(authH(me.token)).send({ max_distance: 0 }).expect(422);
 });
+
+test('interests filter matches on any overlap', async () => {
+  const app = freshApp();
+  const me = await makeUser(app, 'int-me@x.com', {
+    'preferences.interestsFilter': ['Music', 'Hiking'],
+    'preferences.preferencesSet': true,
+  });
+  await makeUser(app, 'onematch@x.com', { gender: 'male', interests: ['Music', 'Food'] });
+  await makeUser(app, 'nomatch@x.com', { gender: 'male', interests: ['Gaming'] });
+
+  const names = await deck(app, me.token);
+
+  assert.ok(names.includes('onematch'), 'one shared interest is enough');
+  assert.ok(!names.includes('nomatch'));
+});
+
+test('an empty interests filter filters nothing', async () => {
+  const app = freshApp();
+  const me = await makeUser(app, 'noint-me@x.com', {
+    'preferences.interestsFilter': [],
+    'preferences.preferencesSet': true,
+  });
+  await makeUser(app, 'anyone@x.com', { gender: 'male', interests: ['Gaming'] });
+
+  assert.ok((await deck(app, me.token)).includes('anyone'));
+});
+
+test('interests_filter is persisted through the PATCH', async () => {
+  const app = freshApp();
+  const me = await makeUser(app, 'patch-int@x.com', {});
+
+  const res = await request(app).patch(`${P}/users/me/preferences`)
+    .set(authH(me.token)).send({ interests_filter: ['Music', 'Art'] }).expect(200);
+
+  assert.deepEqual(res.body.data.preferences.interestsFilter, ['Music', 'Art']);
+});
+
+test('an off-catalogue interest token is rejected', async () => {
+  const app = freshApp();
+  const me = await makeUser(app, 'badtoken@x.com', {});
+
+  await request(app).patch(`${P}/users/me/preferences`)
+    .set(authH(me.token)).send({ interests_filter: ['NotAnInterest'] }).expect(422);
+});
+
+test('more than ten interest tokens are rejected', async () => {
+  const app = freshApp();
+  const me = await makeUser(app, 'toomany@x.com', {});
+  const { INTEREST_TOKENS } = require('../config/interests');
+
+  await request(app).patch(`${P}/users/me/preferences`)
+    .set(authH(me.token)).send({ interests_filter: INTEREST_TOKENS.slice(0, 11) })
+    .expect(422);
+});

@@ -24,6 +24,7 @@ async function updatePreferences(req, res) {
     maxDistance: b.max_distance,
     showDistance: b.show_distance,
     showOnlineStatus: b.show_online_status,
+    interestsFilter: b.interests_filter,
   });
   res.json({ success: true, data: { preferences } });
 }

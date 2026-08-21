@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { z } = require('zod');
 const validate = require('../middleware/validate');
+const { INTEREST_TOKENS, MAX_INTEREST_FILTER } = require('../config/interests');
 const asyncHandler = require('../middleware/asyncHandler');
 const auth = require('../middleware/auth');
 const ctrl = require('../controllers/userController');
@@ -41,6 +42,11 @@ const preferencesSchema = z
     max_distance: z.number().min(1).max(500).optional(),
     show_distance: z.boolean().optional(),
     show_online_status: z.boolean().optional(),
+    // Validated against the catalogue because we control this input: it comes
+    // from a multi-select, not free text. Stored user.interests are NOT
+    // constrained by it — registration accepts free strings, so older accounts
+    // may hold tokens outside the catalogue.
+    interests_filter: z.array(z.enum(INTEREST_TOKENS)).max(MAX_INTEREST_FILTER).optional(),
   })
   .refine((b) => Object.keys(b).length > 0, {
     message: 'at least one preference field is required',
