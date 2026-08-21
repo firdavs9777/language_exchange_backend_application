@@ -132,9 +132,11 @@ test('the deck empties once everyone has been swiped', async (t) => {
     await Swipe.create({ from: meId, to, action: 'pass' });
   }
 
-  const { users, total } = await discoveryService.discover(meId, { limit: 20, offset: 0 });
+  // offset 0 IS the head, so this takes the head path — which reports hasMore
+  // rather than paying countDocuments for a `total` nothing reads.
+  const { users, hasMore } = await discoveryService.discover(meId, { limit: 20, offset: 0 });
   assert.equal(users.length, 0);
-  assert.equal(total, 0);
+  assert.equal(hasMore, false);
 });
 
 // --- gender preference ------------------------------------------------------
@@ -186,13 +188,13 @@ test('the age window excludes users on either side of it', async (t) => {
     await setupPreferences({ lookingFor: 'male', minAge: 25, maxAge: 35 });
   teardown(t);
 
-  const { users, total } = await discoveryService.discover(meId, { limit: 20, offset: 0 });
+  const { users } = await discoveryService.discover(meId, { limit: 20, offset: 0 });
   const ids = users.map((u) => u.id);
 
   assert.ok(ids.includes(maleId), 'age 30 is inside 25-35');
   assert.ok(!ids.includes(youngId), 'age 19 is below minAge 25');
   assert.ok(!ids.includes(oldId), 'age 45 is above maxAge 35');
-  assert.equal(total, 1, 'total reflects the filter, not the whole table');
+  assert.equal(users.length, 1, 'the result reflects the filter, not the whole table');
 });
 
 test('a widened age window brings the excluded users back', async (t) => {

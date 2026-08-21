@@ -237,3 +237,61 @@ test('more than ten interest tokens are rejected', async () => {
     .set(authH(me.token)).send({ interests_filter: INTEREST_TOKENS.slice(0, 11) })
     .expect(422);
 });
+
+test('the head path omits total and derives has_more from a full page', async () => {
+  const app = freshApp();
+  const me = await makeUser(app, 'head-me@x.com', {});
+  for (let i = 0; i < 3; i++) await makeUser(app, `head${i}@x.com`, { gender: 'male' });
+
+  const res = await request(app).get(`${P}/discover?limit=2`)
+    .set(authH(me.token)).expect(200);
+
+  assert.equal(res.body.data.users.length, 2);
+  assert.equal(res.body.data.pagination.has_more, true);
+  assert.equal(res.body.data.pagination.total, undefined,
+    'a response must not carry a field it did not compute');
+  assert.equal(res.body.data.pagination.offset, undefined);
+});
+
+test('the legacy offset path is unchanged', async () => {
+  const app = freshApp();
+  const me = await makeUser(app, 'legacy-me@x.com', {});
+  for (let i = 0; i < 3; i++) await makeUser(app, `legacy${i}@x.com`, { gender: 'male' });
+
+  const res = await request(app).get(`${P}/discover?limit=2&offset=1`)
+    .set(authH(me.token)).expect(200);
+
+  assert.equal(typeof res.body.data.pagination.total, 'number');
+  assert.equal(res.body.data.pagination.offset, 1);
+});
+
+test('swiping then refetching the head never repeats or skips a profile', async () => {
+  const app = freshApp();
+  const me = await makeUser(app, 'drift-me@x.com', {});
+  const mine = [];
+  for (let i = 0; i < 6; i++) {
+    mine.push((await makeUser(app, `drift${i}@x.com`,
+      { gender: 'male', interests: ['DriftOnly'] })).id);
+  }
+  // Isolate this test from users other tests created in the shared database.
+  const User = require('../models/User');
+  await User.updateOne({ _id: me.id }, {
+    $set: { 'preferences.interestsFilter': ['DriftOnly'], 'preferences.preferencesSet': true },
+  });
+
+  const seen = new Set();
+  for (let round = 0; round < 3; round++) {
+    const page = await request(app).get(`${P}/discover?limit=2`)
+      .set(authH(me.token)).expect(200);
+    for (const u of page.body.data.users) {
+      assert.ok(!seen.has(u.id), 'a profile was served twice');
+      seen.add(u.id);
+      await request(app).post(`${P}/swipes/pass`).set(authH(me.token))
+        .send({ user_id: u.id }).expect(200);
+    }
+  }
+
+  assert.equal(seen.size, 6,
+    'every profile must be served exactly once — under skip(offset) the growing '
+    + 'excluded set made page two step over profiles never seen');
+});

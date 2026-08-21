@@ -164,6 +164,21 @@ async function discover(viewerId, { limit, offset }) {
     filter.interests = { $in: interestsFilter };
   }
 
+  // Head path: no offset means "the next unseen profiles", which — because the
+  // filter already excludes everyone swiped — is simply the first `limit` of the
+  // filtered set. There is nothing to page past, so there is nothing to count.
+  if (!offset) {
+    const head = await User.find(filter).sort({ lastActive: -1 }).limit(limit + 1);
+    return {
+      users: head.slice(0, limit).map((u) => toDiscoverUser(u, me)),
+      hasMore: head.length > limit,
+    };
+  }
+
+  // Legacy offset path, for installed clients. It alone still pays for `total`,
+  // because it alone ever reported it. It also keeps the skipping behaviour those
+  // clients already have: ignoring their offset would give them duplicate cards
+  // instead, which is a visible malfunction rather than an invisible one.
   const total = await User.countDocuments(filter);
   const users = await User.find(filter)
     .sort({ lastActive: -1 })
