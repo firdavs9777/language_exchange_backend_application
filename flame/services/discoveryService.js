@@ -1,8 +1,48 @@
 const User = require('../models/User');
 const visibility = require('./visibilityService');
 
+const EARTH_RADIUS_KM = 6371;
+
+/**
+ * Great-circle distance between two [lng, lat] pairs, in kilometres.
+ *
+ * Plain arithmetic rather than a $geoNear aggregation: the number is this cheap
+ * to derive, and $geoNear would force the result set into distance order,
+ * overriding the deck's lastActive sort.
+ */
+function haversineKm(a, b) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const [lng1, lat1] = a;
+  const [lng2, lat2] = b;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const h = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_RADIUS_KM * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Kilometres between viewer and target, or null when it cannot or must not be
+ * shown.
+ *
+ * Null rather than 0: the app rendered `distance` unconditionally, so a hardcoded
+ * 0 became "0 km away" on every card in the deck. Null is the only value that
+ * lets the client omit the label.
+ *
+ * Only the TARGET's showDistance is consulted. Turning your own off hides your
+ * distance from others; it does not hide theirs from you — the same asymmetry
+ * showOnlineStatus already has.
+ */
+function distanceBetween(target, viewer) {
+  if (target.preferences && target.preferences.showDistance === false) return null;
+  const t = target.locationGeo && target.locationGeo.coordinates;
+  const v = viewer && viewer.locationGeo && viewer.locationGeo.coordinates;
+  if (!t || !v) return null;
+  return haversineKm(v, t);
+}
+
 // Public discovery shape — snake_case to match the Flutter User.fromJson parser.
-function toDiscoverUser(u) {
+function toDiscoverUser(u, viewer) {
   const location = u.location
     ? [u.location.city, u.location.state].filter(Boolean).join(', ') || null
     : null;
@@ -16,7 +56,7 @@ function toDiscoverUser(u) {
     interests: u.interests,
     photos: (u.photos || []).map((p) => p.url),
     location,
-    distance: 0,
+    distance: distanceBetween(u, viewer),
     // A user who has hidden their online status reads as offline everywhere the
     // server describes them. chatService.toConversation delegates to this
     // function, so the conversation list is covered by the same line — one
@@ -102,4 +142,4 @@ async function discover(viewerId, { limit, offset }) {
   return { users: users.map(toDiscoverUser), total };
 }
 
-module.exports = { discover, toDiscoverUser };
+module.exports = { discover, toDiscoverUser, haversineKm };
