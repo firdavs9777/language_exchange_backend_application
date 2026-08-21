@@ -73,6 +73,14 @@ router.post('/me/photos',
   asyncHandler(ctrl.uploadPhoto),
 );
 
+const reorderSchema = z.object({
+  // Nine matches MAX_PHOTOS_PER_USER in services/userService.js.
+  photo_ids: z.array(z.string().min(1)).min(1).max(9),
+});
+
+router.patch('/me/photos/reorder', auth, validate.body(reorderSchema),
+  asyncHandler(ctrl.reorderPhotos));
+
 router.delete('/me/photos/:photoId',
   auth,
   asyncHandler(ctrl.deletePhoto),

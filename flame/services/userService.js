@@ -237,6 +237,66 @@ async function deletePhoto(userId, photoId) {
   await user.save();
 }
 
+/**
+ * Wire shape for a photo.
+ *
+ * Both casings on purpose. The Flutter client's Photo.fromJson reads
+ * `is_primary`, while uploadPhoto has always returned the raw subdocument with
+ * `isPrimary` — so that field currently parses as false on every photo. Emitting
+ * both fixes this route without changing what installed clients already parse.
+ */
+function toPhoto(p) {
+  return {
+    id: p.id,
+    url: p.url,
+    is_primary: !!p.isPrimary,
+    isPrimary: !!p.isPrimary,
+    order: p.order,
+  };
+}
+
+/**
+ * Reorders the caller's photos. `photoIds` must be a PERMUTATION of what they
+ * currently have — same members, same count, no duplicates.
+ *
+ * Not a subset: accepting one would silently delete the omitted photos, which is
+ * a destructive outcome for a request whose name is "reorder". Not a superset
+ * either, since an id the caller does not own is either someone else's photo or
+ * a typo, and neither should write.
+ */
+async function reorderPhotos(userId, photoIds) {
+  const user = await User.findById(userId);
+  if (!user || user.isDeleted) throw new NotFoundError('User not found');
+
+  const current = user.photos || [];
+  if (!Array.isArray(photoIds) || photoIds.length === 0) {
+    throw new ValidationError('photo_ids must be a non-empty list');
+  }
+  if (new Set(photoIds).size !== photoIds.length) {
+    throw new ValidationError('photo_ids must not contain duplicates');
+  }
+  if (photoIds.length !== current.length) {
+    throw new ValidationError('photo_ids must list every photo exactly once');
+  }
+  const owned = new Set(current.map((p) => p.id));
+  for (const id of photoIds) {
+    if (!owned.has(id)) throw new ValidationError(`unknown photo id: ${id}`);
+  }
+
+  const byId = new Map(current.map((p) => [p.id, p]));
+  user.photos = photoIds.map((id, index) => {
+    const photo = byId.get(id);
+    photo.order = index;
+    // The first photo is the primary one, by definition of the ordering.
+    photo.isPrimary = index === 0;
+    return photo;
+  });
+
+  await user.save({ validateModifiedOnly: true });
+  return user.photos.map(toPhoto);
+}
+
 module.exports = {
-  getMe, getById, updateMe, updatePreferences, updateLocation, uploadPhoto, deletePhoto, toPublicMinimal,
+  getMe, getById, updateMe, updatePreferences, updateLocation, uploadPhoto, deletePhoto,
+  reorderPhotos, toPhoto, toPublicMinimal,
 };

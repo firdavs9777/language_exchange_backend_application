@@ -29,6 +29,11 @@ async function updatePreferences(req, res) {
   res.json({ success: true, data: { preferences } });
 }
 
+async function reorderPhotos(req, res) {
+  const photos = await userService.reorderPhotos(req.user.id, req.body.photo_ids);
+  res.json({ success: true, data: { photos } });
+}
+
 async function updateLocation(req, res) {
   const location = await userService.updateLocation(req.user.id, {
     latitude: req.body.latitude,
@@ -61,4 +66,5 @@ async function deletePhoto(req, res) {
   res.json({ success: true });
 }
 
-module.exports = { getMe, getById, updateMe, updatePreferences, updateLocation, uploadPhoto, deletePhoto };
+module.exports = { getMe, getById, updateMe, updatePreferences, updateLocation, uploadPhoto, deletePhoto, reorderPhotos,
+};
