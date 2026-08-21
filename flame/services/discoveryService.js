@@ -134,12 +134,35 @@ async function discover(viewerId, { limit, offset }) {
     if (maxAge != null) filter.age.$lte = maxAge;
   }
 
+  // Distance. Applied only when the user deliberately wrote preferences AND we
+  // know where they are — you cannot measure from nowhere, and a viewer without
+  // a location must get an unfiltered deck rather than an empty one.
+  //
+  // $geoWithin rather than $near for two reasons: $near cannot appear inside an
+  // $or, so it could not express "within the radius OR location unknown"; and
+  // $near forces distance ordering, silently overriding sort({ lastActive: -1 }).
+  const KM_PER_RADIAN = 6378.1;
+  const viewerCoords = me && me.locationGeo && me.locationGeo.coordinates;
+  const maxDistance = prefs.maxDistance;
+
+  if (prefs.preferencesSet === true && viewerCoords && maxDistance > 0) {
+    // NOTE: if this filter ever needs a second $or, both must move under $and —
+    // a bare second assignment would silently overwrite this one.
+    filter.$or = [
+      { locationGeo: { $geoWithin: { $centerSphere: [viewerCoords, maxDistance / KM_PER_RADIAN] } } },
+      // Accounts predating mandatory location capture. Including them costs a
+      // little precision; excluding them would erase them from the app.
+      { locationGeo: null },
+      { locationGeo: { $exists: false } },
+    ];
+  }
+
   const total = await User.countDocuments(filter);
   const users = await User.find(filter)
     .sort({ lastActive: -1 })
     .skip(offset)
     .limit(limit);
-  return { users: users.map(toDiscoverUser), total };
+  return { users: users.map((u) => toDiscoverUser(u, me)), total };
 }
 
 module.exports = { discover, toDiscoverUser, haversineKm };

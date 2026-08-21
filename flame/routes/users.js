@@ -36,7 +36,9 @@ const preferencesSchema = z
   .object({
     min_age: z.number().int().min(18).max(100).optional(),
     max_age: z.number().int().min(18).max(100).optional(),
-    max_distance: z.number().min(0).max(500).optional(),
+    // Floors at 1: a radius of 0 matches only someone standing on the exact
+    // same point, so it is a filter that can only ever return nobody.
+    max_distance: z.number().min(1).max(500).optional(),
     show_distance: z.boolean().optional(),
     show_online_status: z.boolean().optional(),
   })
